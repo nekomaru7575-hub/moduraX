@@ -1,140 +1,223 @@
-// 画面が読み込まれたら実行する
+// js/board-data-driven.js
+
+import { EventBus } from './EventBus.js'; // 変更：EventBus.js から読み込み
+import { buildDefaultParameters } from './parameters/core.js';
+
+const GRID_SIZE = 50;
+const TOKEN_SIZE = 40;
+const OFFSET_PADDING = 5;
+const MIN_VISIBLE_PX = 10;
+
+class ImmutableStore {
+  #state;
+
+  constructor(initialState) {
+    this.#state = this.#createProtectedProxy(initialState);
+  }
+
+  get state() {
+    return this.#state;
+  }
+
+  #createProtectedProxy(data) {
+    const frozenData = Object.freeze({ ...data });
+    return new Proxy(frozenData, {
+      set() {
+        throw new Error("[State Protected] 状態の直接書き換えは禁止されています。dispatch()を使用してください。");
+      },
+      deleteProperty() {
+        throw new Error("[State Protected] 状態の直接削除は禁止されています。dispatch()を使用してください。");
+      }
+    });
+  }
+
+  dispatch(action, payload) {
+    const prevState = this.#state;
+    let nextTokensState = { ...prevState.tokens };
+
+    switch (action) {
+      case 'MOVE_TOKEN': {
+        const { id, x, y } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          x,
+          y
+        });
+        break;
+      }
+      case 'ADD_CHARACTER': {
+        const { id, name, x = 0, y = 0 } = payload;
+        if (nextTokensState[id]) return; // 既存IDなら何もしない
+
+        nextTokensState[id] = Object.freeze({
+          id, name, x, y,
+          parameters: Object.freeze(buildDefaultParameters()),
+          components: Object.freeze({}),
+          actions: Object.freeze([])
+        });
+        EventBus.emit('CharacterCreated', { id });
+        break;
+      }
+
+      case 'REMOVE_CHARACTER': {
+        const { id } = payload;
+        if (!nextTokensState[id]) return;
+        delete nextTokensState[id];
+        EventBus.emit('CharacterDeleted', { id });
+        break;
+      }
+
+      case 'SET_PARAMETER': {
+  // 既存パラメータの値だけ更新（source問わず）
+        const { characterId, paramId, value } = payload;
+        const character = nextTokensState[characterId];
+        if (!character || !character.parameters[paramId]) return;
+
+        const nextParams = { ...character.parameters };
+        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
+
+        nextTokensState[characterId] = Object.freeze({
+        ...character,
+        parameters: Object.freeze(nextParams)
+        });
+        EventBus.emit('ParameterChanged', { characterId, paramId, value });
+        break;
+      }
+
+      case 'ADD_PARAMETER': {
+  // ②プラグイン層・③ユーザー層はここから追加する
+        const { characterId, key, label, value, source } = payload;
+        const character = nextTokensState[characterId];
+        if (!character) return;
+
+        const paramId = `${source}:${key}`;
+        if (character.parameters[paramId]) return; // 二重追加防止
+
+        const nextParams = {
+          ...character.parameters,
+          [paramId]: Object.freeze({ key, label, value, source })
+        };
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+        EventBus.emit('ParameterChanged', { characterId, paramId, value });
+        break;
+      }
+
+      case 'REMOVE_PARAMETER': {
+        const { characterId, paramId } = payload;
+        const character = nextTokensState[characterId];
+        if (!character || !character.parameters[paramId]) return;
+
+  // core由来のパラメータは削除させない（プラグイン層・ユーザー層のみ削除可）
+        if (character.parameters[paramId].source === 'core') {
+          console.warn('[Guard] coreパラメータは削除できません:', paramId);
+          return;
+        }
+
+        const nextParams = { ...character.parameters };
+        delete nextParams[paramId];
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+        break;
+      }
+      default:
+        return;
+    }
+
+    this.#state = this.#createProtectedProxy({
+      ...prevState,
+      tokens: Object.freeze(nextTokensState)
+    });
+
+    EventBus.emit('STATE_CHANGED', this.#state);
+  }
+
+  init() {
+    EventBus.emit('STATE_CHANGED', this.#state);
+  }
+}
+
+export const store = new ImmutableStore({
+  tokens: {
+    'token-lily': { id: 'token-lily', name: 'リリィ', x: 100, y: 150 },
+    'token-ragna': { id: 'token-ragna', name: 'ラグナ', x: 300, y: 200 }
+  }
+});
+
+// 状態変更を受けて描画更新
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  Object.values(state.tokens).forEach(tokenData => {
+    const element = document.getElementById(tokenData.id);
+    if (element) {
+      element.style.left = `${tokenData.x}px`;
+      element.style.top = `${tokenData.y}px`;
+    }
+  });
+});
+
+// D&D イベント制御
 window.addEventListener('DOMContentLoaded', () => {
   const board = document.getElementById('board');
   if (!board) return;
 
-  // 【仕様に基づく定数定義】
-  const GRID_SIZE = 50;       // マス目のサイズ
-  const TOKEN_SIZE = 40;      // コマのサイズ
-  const OFFSET_PADDING = 5;   // 中央合わせ用余白: (50px - 40px) / 2 = 5px
-  const MIN_VISIBLE_PX = 10;  // 見失わないブレーキ用: 最低限盤面に残すピクセル数
-
-  /**
-   * 1. アプリケーションの「状態（State）」
-   * 画面上のすべてのコマの「データ」はここに集約されます。
-   */
-  const rawTokensState = {
-    // コマのIDをキーにして、座標データを管理
-    'token-lily': { x: 100, y: 150, elementId: 'token-lily' },
-    'token-ragna': { x: 300, y: 200, elementId: 'token-ragna' }
-  };
-
-  /**
-   * 2. データ駆動の核心：Proxy（プロキシ）による監視機構
-   * データの数値が変わった瞬間を検知し、自動でHTML（DOM）へ反映させます。
-   */
-  const createTokenProxy = (tokenData) => {
-    return new Proxy(tokenData, {
-      set(target, prop, value) {
-        // まずデータを書き換える
-        target[prop] = value;
-
-        // 書き換わったデータが x または y の場合、自動で対応するHTMLの見た目を更新する（追従）
-        if (prop === 'x' || prop === 'y') {
-          const element = document.getElementById(target.elementId);
-          if (element) {
-            if (prop === 'x') element.style.left = `${value}px`;
-            if (prop === 'y') element.style.top = `${value}px`;
-          }
-        }
-        return true;
-      }
-    });
-  };
-
-  // すべてのコマのデータをProxy化して管理するオブジェクト
-  const tokensState = {};
-  Object.keys(rawTokensState).forEach(id => {
-    tokensState[id] = createTokenProxy(rawTokensState[id]);
-    
-    // 初期位置をHTMLに強制反映（初期化の同期）
-    tokensState[id].x = rawTokensState[id].x;
-    tokensState[id].y = rawTokensState[id].y;
-  });
-
-  /**
-   * 3. ドラッグ＆ドロップの操作ロジック
-   * ここではHTMLのスタイルは直接いじらず、「tokensStateのデータ」だけを更新します。
-   */
   const tokens = document.querySelectorAll('.token');
 
   tokens.forEach(token => {
-    // HTML要素側から、自分のデータIDを紐付けるためにID属性を付与（事前にHTML側にあれば不要）
-    // 例として、名前やクラスからIDを特定できるようにします
-    const tokenName = token.querySelector('.token-name').textContent;
-    const tokenId = tokenName === 'リリィ' ? 'token-lily' : 'token-ragna';
-    token.id = tokenId; // DOMにIDをセット
-
     token.addEventListener('mousedown', (event) => {
       event.preventDefault();
 
-      // このコマの「データ（Proxy）」を取得
-      const state = tokensState[tokenId];
-      if (!state) return;
+      const tokenId = token.id;
+      const currentTokenState = store.state.tokens[tokenId];
+      if (!currentTokenState) return;
 
-      // 最新の盤面サイズを取得（ブレーキ計算用）
       const boardRect = board.getBoundingClientRect();
 
-      // ブレーキ限界値の計算（クロージャ内部で保持）
       const minX = -TOKEN_SIZE + MIN_VISIBLE_PX;
       const maxX = boardRect.width - MIN_VISIBLE_PX;
       const minY = -TOKEN_SIZE + MIN_VISIBLE_PX;
       const maxY = boardRect.height - MIN_VISIBLE_PX;
 
-      // クリックした位置のズレ（オフセット）を計算
-      // ※データ（state.x, state.y）を基準にオフセットを割り出す
-      const offsetX = event.clientX - state.x;
-      const offsetY = event.clientY - state.y;
+      const offsetX = event.clientX - currentTokenState.x;
+      const offsetY = event.clientY - currentTokenState.y;
 
-      // ドラッグ中の処理
       function onMouseMove(e) {
         const newX = e.clientX - offsetX;
         const newY = e.clientY - offsetY;
 
-        // 【はみ出しブレーキ】
         const clampedX = Math.max(minX, Math.min(newX, maxX));
         const clampedY = Math.max(minY, Math.min(newY, maxY));
 
-        // 🔥【ここがデータ駆動！】🔥
-        // HTML要素を直接いじるのではなく、Proxyデータに数値を代入するだけ！
-        // これにより自動的にProxyのsetトラップが走り、HTMLが追従します。
-        state.x = clampedX;
-        state.y = clampedY;
+        store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
       }
 
-      // マウスを離した時の吸着処理
       function onMouseUp() {
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
 
-        // 現在のデータ上の座標から、最も近いグリッド位置を計算
-        const snappedX = Math.round(state.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
-        const snappedY = Math.round(state.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
+        const latestState = store.state.tokens[tokenId];
+        const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
+        const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
 
-        // 吸着後の位置にもブレーキを適用
         const finalX = Math.max(minX, Math.min(snappedX, maxX));
         const finalY = Math.max(minY, Math.min(snappedY, maxY));
 
-        // データを最終位置に更新（ここでもHTMLが勝手に吸着アニメーションのように追従）
-        state.x = finalX;
-        state.y = finalY;
+        store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
       }
 
-      // イベントの登録
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });
   });
-
-  /**
-   * 💡 データ駆動のメリット証明：外部からのデータ変更テスト
-   * 例えば、コンソールから `window.moveToken('token-lily', 500, 300)` を実行したり、
-   * 将来的にダイス機能や通信機能からこの関数を呼び出すだけで、ドラッグ以外の要因でもコマが動かせます。
-   */
-  window.moveToken = (id, newX, newY) => {
-    if (tokensState[id]) {
-      tokensState[id].x = newX;
-      tokensState[id].y = newY;
-    }
-  };
 });
+
+window.moveToken = (id, x, y) => {
+  store.dispatch('MOVE_TOKEN', { id, x, y });
+};

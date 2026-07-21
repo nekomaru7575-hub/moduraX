@@ -7,10 +7,18 @@ import { showContextMenu } from './context-menu.js';
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
-const MIN_VISIBLE_PX = 10;
 const DEFAULT_TOKEN_COLOR = '#ff4757';
 
 let tokenIdCounter = 0;
+
+// カメラ（ズーム・パン）の状態。Storeの状態ではなく、あくまでローカルな見た目の変更。
+// 他プレイヤーの視点には影響しない。
+let scale = 1;
+let panX = 0;
+let panY = 0;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.5;
+const SCALE_STEP = 0.1;
 
 class ImmutableStore {
   #state;
@@ -65,7 +73,7 @@ class ImmutableStore {
       case 'ADD_CHARACTER': {
         const { id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR } = payload;
         if (!id || !name) return;
-        if (nextTokensState[id]) return; // 既存IDなら何もしない
+        if (nextTokensState[id]) return;
 
         nextTokensState[id] = Object.freeze({
           id,
@@ -133,10 +141,24 @@ export const store = new ImmutableStore({
   }
 });
 
-// キャラクター登録UI用のID発行
 export function generateTokenId() {
   tokenIdCounter += 1;
   return `token-user-${Date.now()}-${tokenIdCounter}`;
+}
+
+// ローカル座標(コマの位置)がはみ出さない範囲にクランプする
+function clampToBoard(x, y, board) {
+  const maxX = board.offsetWidth - TOKEN_SIZE;
+  const maxY = board.offsetHeight - TOKEN_SIZE;
+
+  return {
+    x: Math.max(0, Math.min(x, maxX)),
+    y: Math.max(0, Math.min(y, maxY))
+  };
+}
+
+function applyBoardTransform(board) {
+  board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -144,28 +166,23 @@ export function generateTokenId() {
 function bindTokenDrag(element, board) {
   element.addEventListener('mousedown', (event) => {
     event.preventDefault();
+    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
 
     const tokenId = element.id;
     const currentTokenState = store.state.tokens[tokenId];
     if (!currentTokenState) return;
 
-    const boardRect = board.getBoundingClientRect();
-
-    const minX = -TOKEN_SIZE + MIN_VISIBLE_PX;
-    const maxX = boardRect.width - MIN_VISIBLE_PX;
-    const minY = -TOKEN_SIZE + MIN_VISIBLE_PX;
-    const maxY = boardRect.height - MIN_VISIBLE_PX;
-
-    const offsetX = event.clientX - currentTokenState.x;
-    const offsetY = event.clientY - currentTokenState.y;
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startX = currentTokenState.x;
+    const startY = currentTokenState.y;
 
     function onMouseMove(e) {
-      const newX = e.clientX - offsetX;
-      const newY = e.clientY - offsetY;
+      // マウスの移動量はスケールの影響を受けるので、盤面のローカル座標に変換する
+      const deltaX = (e.clientX - startClientX) / scale;
+      const deltaY = (e.clientY - startClientY) / scale;
 
-      const clampedX = Math.max(minX, Math.min(newX, maxX));
-      const clampedY = Math.max(minY, Math.min(newY, maxY));
-
+      const { x: clampedX, y: clampedY } = clampToBoard(startX + deltaX, startY + deltaY, board);
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
     }
 
@@ -174,23 +191,23 @@ function bindTokenDrag(element, board) {
       document.removeEventListener('mouseup', onMouseUp);
 
       const latestState = store.state.tokens[tokenId];
-      if (!latestState) return; // ドラッグ中に削除された場合
+      if (!latestState) return;
 
       const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
       const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
 
-      const finalX = Math.max(minX, Math.min(snappedX, maxX));
-      const finalY = Math.max(minY, Math.min(snappedY, maxY));
-
+      const { x: finalX, y: finalY } = clampToBoard(snappedX, snappedY, board);
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
     }
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   });
+
   element.addEventListener('contextmenu', (event) => {
     event.preventDefault();
-    event.stopPropagation();   // ← 追加：盤面側のcontextmenuに伝播させない
+    event.stopPropagation();
+
     const tokenId = element.id;
 
     showContextMenu(event.clientX, event.clientY, [
@@ -233,16 +250,75 @@ function createTokenElement(tokenData, board) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
-  if (!board) return;
+  if (!viewport || !board) return;
 
-   // 盤面の何もない場所を右クリック → キャラクター追加メニュー
-  board.addEventListener('contextmenu', (event) => {
+  // Ctrl+ホイール：マウス位置を中心にズーム
+  viewport.addEventListener('wheel', (event) => {
+    if (!event.ctrlKey) return;
     event.preventDefault();
 
-    const boardRect = board.getBoundingClientRect();
-    const dropX = event.clientX - boardRect.left;
-    const dropY = event.clientY - boardRect.top;
+    const viewportRect = viewport.getBoundingClientRect();
+    const cx = event.clientX - viewportRect.left;
+    const cy = event.clientY - viewportRect.top;
+
+    const oldScale = scale;
+    const delta = event.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta));
+
+    // マウスの下にある盤面上の点が、ズーム後も同じ画面位置に来るようパンを再計算
+    panX = cx - (cx - panX) * (scale / oldScale);
+    panY = cy - (cy - panY) * (scale / oldScale);
+
+    applyBoardTransform(board);
+  }, { passive: false });
+
+  // 左ドラッグ：視点移動（パン）。コマの上から始めた場合は無視してコマ移動に任せる。
+  viewport.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest('.token')) return;
+
+    const panStartClientX = event.clientX;
+    const panStartClientY = event.clientY;
+    const panStartX = panX;
+    const panStartY = panY;
+
+    viewport.style.cursor = 'grabbing';
+
+    function onMouseMove(e) {
+      panX = panStartX + (e.clientX - panStartClientX);
+      panY = panStartY + (e.clientY - panStartClientY);
+      applyBoardTransform(board);
+    }
+
+    function onMouseUp() {
+      viewport.style.cursor = 'grab';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+
+  // 盤面の何もない場所を右クリック → キャラクター追加メニュー
+  viewport.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const cx = event.clientX - viewportRect.left;
+    const cy = event.clientY - viewportRect.top;
+
+    // 画面座標 → ズーム・パンを考慮した盤面ローカル座標へ逆変換
+    const dropX = (cx - panX) / scale;
+    const dropY = (cy - panY) / scale;
+
+    const { x: clampedX, y: clampedY } = clampToBoard(
+      dropX - TOKEN_SIZE / 2,
+      dropY - TOKEN_SIZE / 2,
+      board
+    );
 
     showContextMenu(event.clientX, event.clientY, [
       {
@@ -253,8 +329,8 @@ window.addEventListener('DOMContentLoaded', () => {
             store.dispatch('ADD_CHARACTER', {
               id: generateTokenId(),
               name: name.trim(),
-              x: Math.round(dropX - TOKEN_SIZE / 2),
-              y: Math.round(dropY - TOKEN_SIZE / 2)
+              x: Math.round(clampedX),
+              y: Math.round(clampedY)
             });
           }
         }
@@ -262,14 +338,12 @@ window.addEventListener('DOMContentLoaded', () => {
     ]);
   });
 
-
   EventBus.subscribe('STATE_CHANGED', (state) => {
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)
     );
     const stateIds = new Set(Object.keys(state.tokens));
 
-    // Stateから消えたトークンのDOMを削除
     existingIds.forEach(id => {
       if (!stateIds.has(id)) {
         const el = document.getElementById(id);
@@ -277,7 +351,6 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Stateにあるトークンを生成 or 更新
     Object.values(state.tokens).forEach(tokenData => {
       let el = document.getElementById(tokenData.id);
       if (!el) {

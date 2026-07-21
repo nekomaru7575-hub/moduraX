@@ -3,6 +3,7 @@
 import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
+import { showCharacterDialog } from './character-dialog.js';
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
@@ -80,9 +81,27 @@ class ImmutableStore {
       }
 
       case 'ADD_CHARACTER': {
-        const { id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR } = payload;
+        const {
+          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR,
+          parameterOverrides = {}, customParameters = []
+        } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
+
+        const parameters = { ...buildDefaultParameters() };
+
+        // Core層のデフォルト値をダイアログの入力で上書き
+        Object.entries(parameterOverrides).forEach(([paramId, value]) => {
+          if (parameters[paramId]) {
+            parameters[paramId] = Object.freeze({ ...parameters[paramId], value });
+          }
+        });
+
+        // User層のカスタムパラメータを追加
+        customParameters.forEach(({ key, label, value }) => {
+          const paramId = `user:${key}`;
+          parameters[paramId] = Object.freeze({ key, label, value, source: 'user' });
+        });
 
         nextTokensState[id] = Object.freeze({
           id,
@@ -90,7 +109,7 @@ class ImmutableStore {
           x,
           y,
           color,
-          parameters: buildDefaultParameters(),
+          parameters: Object.freeze(parameters),
           components: Object.freeze({}),
           actions: Object.freeze([])
         });
@@ -355,15 +374,18 @@ window.addEventListener('DOMContentLoaded', () => {
       {
         label: 'キャラクターを追加',
         onSelect: () => {
-          const name = prompt('新しいキャラクター名を入力してください');
-          if (name && name.trim() !== '') {
-            store.dispatch('ADD_CHARACTER', {
-              id: generateTokenId(),
-              name: name.trim(),
-              x: Math.round(clampedX),
-              y: Math.round(clampedY)
-            });
-          }
+          showCharacterDialog({
+            onConfirm: ({ name, parameterOverrides, customParameters }) => {
+              store.dispatch('ADD_CHARACTER', {
+                id: generateTokenId(),
+                name,
+                x: Math.round(clampedX),
+                y: Math.round(clampedY),
+                parameterOverrides,
+                customParameters
+              });
+            }
+          });
         }
       }
     ]);

@@ -76,6 +76,9 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const item = document.createElement('div');
     item.className = 'character-list-item';
 
+    const header = document.createElement('div');
+    header.className = 'character-list-header';
+
     const swatch = document.createElement('span');
     swatch.className = 'character-color-swatch';
     swatch.style.backgroundColor = tokenData.color || '#ff4757';
@@ -84,15 +87,22 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     nameSpan.className = 'character-name';
     nameSpan.textContent = tokenData.name;
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn-delete-char';
-    delBtn.textContent = '削除';
-    delBtn.addEventListener('click', () => {
-      store.dispatch('REMOVE_CHARACTER', { id: tokenData.id });
+    header.appendChild(swatch);
+    header.appendChild(nameSpan);
+    item.appendChild(header);
+
+    // パラメータ一覧
+    const paramList = document.createElement('div');
+    paramList.className = 'character-param-list';
+
+    Object.values(tokenData.parameters || {}).forEach(param => {
+      const paramRow = document.createElement('div');
+      paramRow.className = 'character-param-row';
+      paramRow.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
+      paramList.appendChild(paramRow);
     });
 
-    item.appendChild(swatch);
-    item.appendChild(nameSpan);
+    item.appendChild(paramList);
     characterList.appendChild(item);
   });
 });

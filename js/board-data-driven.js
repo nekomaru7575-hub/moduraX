@@ -1,12 +1,15 @@
 // js/board-data-driven.js
 
-import { EventBus } from './EventBus.js'; // 変更：EventBus.js から読み込み
+import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
 const MIN_VISIBLE_PX = 10;
+const DEFAULT_TOKEN_COLOR = '#ff4757';
+
+let tokenIdCounter = 0;
 
 class ImmutableStore {
   #state;
@@ -31,6 +34,14 @@ class ImmutableStore {
     });
   }
 
+  #commit(prevState, nextTokensState) {
+    this.#state = this.#createProtectedProxy({
+      ...prevState,
+      tokens: Object.freeze(nextTokensState)
+    });
+    EventBus.emit('STATE_CHANGED', this.#state);
+  }
+
   dispatch(action, payload) {
     const prevState = this.#state;
     let nextTokensState = { ...prevState.tokens };
@@ -45,99 +56,45 @@ class ImmutableStore {
           x,
           y
         });
-        break;
+
+        this.#commit(prevState, nextTokensState);
+        return;
       }
+
       case 'ADD_CHARACTER': {
-        const { id, name, x = 0, y = 0 } = payload;
+        const { id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR } = payload;
+        if (!id || !name) return;
         if (nextTokensState[id]) return; // 既存IDなら何もしない
 
         nextTokensState[id] = Object.freeze({
-          id, name, x, y,
-          parameters: Object.freeze(buildDefaultParameters()),
+          id,
+          name,
+          x,
+          y,
+          color,
+          parameters: buildDefaultParameters(),
           components: Object.freeze({}),
           actions: Object.freeze([])
         });
+
+        this.#commit(prevState, nextTokensState);
         EventBus.emit('CharacterCreated', { id });
-        break;
+        return;
       }
 
       case 'REMOVE_CHARACTER': {
         const { id } = payload;
         if (!nextTokensState[id]) return;
         delete nextTokensState[id];
+
+        this.#commit(prevState, nextTokensState);
         EventBus.emit('CharacterDeleted', { id });
-        break;
+        return;
       }
 
-      case 'SET_PARAMETER': {
-  // 既存パラメータの値だけ更新（source問わず）
-        const { characterId, paramId, value } = payload;
-        const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
-
-        const nextParams = { ...character.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
-
-        nextTokensState[characterId] = Object.freeze({
-        ...character,
-        parameters: Object.freeze(nextParams)
-        });
-        EventBus.emit('ParameterChanged', { characterId, paramId, value });
-        break;
-      }
-
-      case 'ADD_PARAMETER': {
-  // ②プラグイン層・③ユーザー層はここから追加する
-        const { characterId, key, label, value, source } = payload;
-        const character = nextTokensState[characterId];
-        if (!character) return;
-
-        const paramId = `${source}:${key}`;
-        if (character.parameters[paramId]) return; // 二重追加防止
-
-        const nextParams = {
-          ...character.parameters,
-          [paramId]: Object.freeze({ key, label, value, source })
-        };
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: Object.freeze(nextParams)
-        });
-        EventBus.emit('ParameterChanged', { characterId, paramId, value });
-        break;
-      }
-
-      case 'REMOVE_PARAMETER': {
-        const { characterId, paramId } = payload;
-        const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
-
-  // core由来のパラメータは削除させない（プラグイン層・ユーザー層のみ削除可）
-        if (character.parameters[paramId].source === 'core') {
-          console.warn('[Guard] coreパラメータは削除できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...character.parameters };
-        delete nextParams[paramId];
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: Object.freeze(nextParams)
-        });
-        break;
-      }
       default:
         return;
     }
-
-    this.#state = this.#createProtectedProxy({
-      ...prevState,
-      tokens: Object.freeze(nextTokensState)
-    });
-
-    EventBus.emit('STATE_CHANGED', this.#state);
   }
 
   init() {
@@ -147,73 +104,125 @@ class ImmutableStore {
 
 export const store = new ImmutableStore({
   tokens: {
-    'token-lily': { id: 'token-lily', name: 'リリィ', x: 100, y: 150 },
-    'token-ragna': { id: 'token-ragna', name: 'ラグナ', x: 300, y: 200 }
+    'token-lily': {
+      id: 'token-lily', name: 'リリィ', x: 100, y: 150, color: '#ff4757',
+      parameters: buildDefaultParameters(),
+      components: Object.freeze({}),
+      actions: Object.freeze([])
+    },
+    'token-ragna': {
+      id: 'token-ragna', name: 'ラグナ', x: 300, y: 200, color: '#2ed573',
+      parameters: buildDefaultParameters(),
+      components: Object.freeze({}),
+      actions: Object.freeze([])
+    }
   }
 });
 
-// 状態変更を受けて描画更新
-EventBus.subscribe('STATE_CHANGED', (state) => {
-  Object.values(state.tokens).forEach(tokenData => {
-    const element = document.getElementById(tokenData.id);
-    if (element) {
-      element.style.left = `${tokenData.x}px`;
-      element.style.top = `${tokenData.y}px`;
-    }
-  });
-});
+// キャラクター登録UI用のID発行
+export function generateTokenId() {
+  tokenIdCounter += 1;
+  return `token-user-${Date.now()}-${tokenIdCounter}`;
+}
 
-// D&D イベント制御
+// --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
+
+function bindTokenDrag(element, board) {
+  element.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+
+    const tokenId = element.id;
+    const currentTokenState = store.state.tokens[tokenId];
+    if (!currentTokenState) return;
+
+    const boardRect = board.getBoundingClientRect();
+
+    const minX = -TOKEN_SIZE + MIN_VISIBLE_PX;
+    const maxX = boardRect.width - MIN_VISIBLE_PX;
+    const minY = -TOKEN_SIZE + MIN_VISIBLE_PX;
+    const maxY = boardRect.height - MIN_VISIBLE_PX;
+
+    const offsetX = event.clientX - currentTokenState.x;
+    const offsetY = event.clientY - currentTokenState.y;
+
+    function onMouseMove(e) {
+      const newX = e.clientX - offsetX;
+      const newY = e.clientY - offsetY;
+
+      const clampedX = Math.max(minX, Math.min(newX, maxX));
+      const clampedY = Math.max(minY, Math.min(newY, maxY));
+
+      store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
+    }
+
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+
+      const latestState = store.state.tokens[tokenId];
+      if (!latestState) return; // ドラッグ中に削除された場合
+
+      const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
+      const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
+
+      const finalX = Math.max(minX, Math.min(snappedX, maxX));
+      const finalY = Math.max(minY, Math.min(snappedY, maxY));
+
+      store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+}
+
+function createTokenElement(tokenData, board) {
+  const el = document.createElement('div');
+  el.className = 'token';
+  el.id = tokenData.id;
+  el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'token-name';
+  nameSpan.textContent = tokenData.name;
+  el.appendChild(nameSpan);
+
+  bindTokenDrag(el, board);
+  board.appendChild(el);
+  return el;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const board = document.getElementById('board');
   if (!board) return;
 
-  const tokens = document.querySelectorAll('.token');
+  EventBus.subscribe('STATE_CHANGED', (state) => {
+    const existingIds = new Set(
+      Array.from(board.querySelectorAll('.token')).map(el => el.id)
+    );
+    const stateIds = new Set(Object.keys(state.tokens));
 
-  tokens.forEach(token => {
-    token.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-
-      const tokenId = token.id;
-      const currentTokenState = store.state.tokens[tokenId];
-      if (!currentTokenState) return;
-
-      const boardRect = board.getBoundingClientRect();
-
-      const minX = -TOKEN_SIZE + MIN_VISIBLE_PX;
-      const maxX = boardRect.width - MIN_VISIBLE_PX;
-      const minY = -TOKEN_SIZE + MIN_VISIBLE_PX;
-      const maxY = boardRect.height - MIN_VISIBLE_PX;
-
-      const offsetX = event.clientX - currentTokenState.x;
-      const offsetY = event.clientY - currentTokenState.y;
-
-      function onMouseMove(e) {
-        const newX = e.clientX - offsetX;
-        const newY = e.clientY - offsetY;
-
-        const clampedX = Math.max(minX, Math.min(newX, maxX));
-        const clampedY = Math.max(minY, Math.min(newY, maxY));
-
-        store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
+    // Stateから消えたトークンのDOMを削除
+    existingIds.forEach(id => {
+      if (!stateIds.has(id)) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
       }
+    });
 
-      function onMouseUp() {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-
-        const latestState = store.state.tokens[tokenId];
-        const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
-        const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
-
-        const finalX = Math.max(minX, Math.min(snappedX, maxX));
-        const finalY = Math.max(minY, Math.min(snappedY, maxY));
-
-        store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
+    // Stateにあるトークンを生成 or 更新
+    Object.values(state.tokens).forEach(tokenData => {
+      let el = document.getElementById(tokenData.id);
+      if (!el) {
+        el = createTokenElement(tokenData, board);
       }
+      el.style.left = `${tokenData.x}px`;
+      el.style.top = `${tokenData.y}px`;
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      const nameSpan = el.querySelector('.token-name');
+      if (nameSpan && nameSpan.textContent !== tokenData.name) {
+        nameSpan.textContent = tokenData.name;
+      }
     });
   });
 });

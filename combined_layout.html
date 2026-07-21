@@ -101,6 +101,7 @@
       gap: 15px;
       height: 100%;
       min-width: 320px;
+      overflow-y: auto;
     }
 
     .panel {
@@ -109,6 +110,7 @@
       border-radius: 8px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
       box-sizing: border-box;
+      flex-shrink: 0;
     }
 
     .form-group {
@@ -181,6 +183,59 @@
       from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* キャラクター一覧 */
+    #characterList {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .character-list-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #333;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .character-color-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid #fff;
+    }
+
+    .character-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-delete-char {
+      background-color: #444;
+      color: #ddd;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .btn-delete-char:hover {
+      background-color: #a8323f;
+      border-color: #a8323f;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -189,14 +244,8 @@
 
   <div class="app-container">
     <div class="board-area">
-      <div id="board">
-        <div class="token" id="token-lily">
-          <span class="token-name">リリィ</span>
-        </div>
-        <div class="token" id="token-ragna" style="background-color: #2ed573;">
-          <span class="token-name">ラグナ</span>
-        </div>
-      </div>
+      <!-- トークンはStateから動的に生成されます（js/board-data-driven.js） -->
+      <div id="board"></div>
     </div>
 
     <div class="control-area">
@@ -215,6 +264,17 @@
         </div>
 
         <button class="btn-send" id="sendBtn">ダイスを振る</button>
+      </div>
+
+      <div class="panel">
+        <div class="form-group">
+          <label for="charNameInput">キャラクター名</label>
+          <input type="text" id="charNameInput" placeholder="新しいキャラクター名" autocomplete="off">
+        </div>
+        <button class="btn-send" id="addCharBtn">キャラクターを登録</button>
+
+        <label style="margin-top: 12px; display: block;">登録済みキャラクター</label>
+        <div id="characterList"></div>
       </div>
 
       <div class="log-container" id="logContainer">

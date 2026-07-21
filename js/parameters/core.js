@@ -1,7 +1,8 @@
 // js/parameters/core.js
-// Core（システム非依存）が提供するデフォルトパラメータ定義
+// Core（システム非依存）が提供するデフォルトパラメータ定義。
 // ここに書いてよいのは「どんなTRPGでも共通して使われる」ものだけ。
 // システム固有のもの（侵蝕率・SANなど）はここに書かない。
+// このファイルは状態を持たない（呼ぶたびに新しいオブジェクトを返す）。
 
 export const CORE_DEFAULT_PARAMETERS = [
   { key: 'hp', label: 'HP', value: 0 },

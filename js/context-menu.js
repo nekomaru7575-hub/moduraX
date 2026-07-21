@@ -1,0 +1,68 @@
+// js/context-menu.js
+// 汎用の右クリックコンテキストメニュー。
+// 表示位置と項目リストだけを受け取り、DOM生成・後片付けを担当する。
+// 項目の中身（何ができるか）は呼び出し側が決める。
+
+let currentMenuEl = null;
+
+function closeContextMenu() {
+  if (currentMenuEl) {
+    currentMenuEl.remove();
+    currentMenuEl = null;
+    document.removeEventListener('mousedown', onOutsideClick);
+    document.removeEventListener('keydown', onEscape);
+  }
+}
+
+function onOutsideClick(event) {
+  if (currentMenuEl && !currentMenuEl.contains(event.target)) {
+    closeContextMenu();
+  }
+}
+
+function onEscape(event) {
+  if (event.key === 'Escape') closeContextMenu();
+}
+
+/**
+ * @param {number} x クライアントX座標
+ * @param {number} y クライアントY座標
+ * @param {{label: string, onSelect: () => void, danger?: boolean}[]} items
+ */
+export function showContextMenu(x, y, items) {
+  closeContextMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+
+  items.forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'context-menu-item' + (item.danger ? ' danger' : '');
+    btn.textContent = item.label;
+    btn.addEventListener('click', () => {
+      closeContextMenu();
+      item.onSelect();
+    });
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+  currentMenuEl = menu;
+
+  // 画面端でメニューがはみ出さないよう補正
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+  }
+
+  // 開いた瞬間のclickで即閉じないよう、少し遅らせて監視開始
+  setTimeout(() => {
+    document.addEventListener('mousedown', onOutsideClick);
+    document.addEventListener('keydown', onEscape);
+  }, 0);
+}

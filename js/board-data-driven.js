@@ -2,6 +2,7 @@
 
 import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
+import { showContextMenu } from './context-menu.js';
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
@@ -92,6 +93,19 @@ class ImmutableStore {
         return;
       }
 
+      case 'RENAME_CHARACTER': {
+        const { id, name } = payload;
+        if (!nextTokensState[id] || !name) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          name
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
       default:
         return;
     }
@@ -174,6 +188,32 @@ function bindTokenDrag(element, board) {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   });
+  element.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();   // ← 追加：盤面側のcontextmenuに伝播させない
+    const tokenId = element.id;
+
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: '名前を変更',
+        onSelect: () => {
+          const current = store.state.tokens[tokenId];
+          if (!current) return;
+          const newName = prompt('新しい名前を入力してください', current.name);
+          if (newName && newName.trim() !== '') {
+            store.dispatch('RENAME_CHARACTER', { id: tokenId, name: newName.trim() });
+          }
+        }
+      },
+      {
+        label: '削除',
+        danger: true,
+        onSelect: () => {
+          store.dispatch('REMOVE_CHARACTER', { id: tokenId });
+        }
+      }
+    ]);
+  });
 }
 
 function createTokenElement(tokenData, board) {
@@ -195,6 +235,33 @@ function createTokenElement(tokenData, board) {
 window.addEventListener('DOMContentLoaded', () => {
   const board = document.getElementById('board');
   if (!board) return;
+
+   // 盤面の何もない場所を右クリック → キャラクター追加メニュー
+  board.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+
+    const boardRect = board.getBoundingClientRect();
+    const dropX = event.clientX - boardRect.left;
+    const dropY = event.clientY - boardRect.top;
+
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: 'キャラクターを追加',
+        onSelect: () => {
+          const name = prompt('新しいキャラクター名を入力してください');
+          if (name && name.trim() !== '') {
+            store.dispatch('ADD_CHARACTER', {
+              id: generateTokenId(),
+              name: name.trim(),
+              x: Math.round(dropX - TOKEN_SIZE / 2),
+              y: Math.round(dropY - TOKEN_SIZE / 2)
+            });
+          }
+        }
+      }
+    ]);
+  });
+
 
   EventBus.subscribe('STATE_CHANGED', (state) => {
     const existingIds = new Set(

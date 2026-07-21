@@ -11,8 +11,7 @@ const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
 
 // DOM要素の取得（キャラクター登録関連）
-const charNameInput = document.getElementById('charNameInput');
-const addCharBtn = document.getElementById('addCharBtn');
+
 const characterList = document.getElementById('characterList');
 
 // ダイス処理イベント
@@ -67,33 +66,6 @@ if (sendBtn) {
   });
 }
 
-// キャラクター登録
-if (addCharBtn) {
-  addCharBtn.addEventListener('click', () => {
-    const name = charNameInput.value.trim();
-
-    if (name === "") {
-      alert("キャラクター名を入力してください！");
-      return;
-    }
-
-    store.dispatch('ADD_CHARACTER', {
-      id: generateTokenId(),
-      name,
-      x: 20 + Math.round(Math.random() * 150),
-      y: 20 + Math.round(Math.random() * 150)
-    });
-
-    charNameInput.value = "";
-  });
-
-  charNameInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      addCharBtn.click();
-    }
-  });
-}
-
 // キャラクター一覧の描画（登録・削除の両方に反応）
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (!characterList) return;
@@ -121,7 +93,6 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
     item.appendChild(swatch);
     item.appendChild(nameSpan);
-    item.appendChild(delBtn);
     characterList.appendChild(item);
   });
 });

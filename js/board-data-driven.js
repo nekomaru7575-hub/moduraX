@@ -18,7 +18,16 @@ let panX = 0;
 let panY = 0;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 2.5;
-const SCALE_STEP = 0.1;
+
+let rafId = null;
+
+function scheduleBoardTransform(board) {
+  if (rafId !== null) return; // 既に予約済みなら何もしない
+  rafId = requestAnimationFrame(() => {
+    applyBoardTransform(board);
+    rafId = null;
+  });
+}
 
 class ImmutableStore {
   #state;
@@ -249,6 +258,25 @@ function createTokenElement(tokenData, board) {
   return el;
 }
 
+function clampPan(viewport, board) {
+  const boardW = board.offsetWidth * scale;
+  const boardH = board.offsetHeight * scale;
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+
+  // 画面中央より奥へ盤面の端が行かないようにする「のりしろ」
+  const marginX = vw / 2;
+  const marginY = vh / 2;
+
+  const minPanX = vw - boardW - marginX;
+  const maxPanX = marginX;
+  const minPanY = vh - boardH - marginY;
+  const maxPanY = marginY;
+
+  panX = Math.min(maxPanX, Math.max(minPanX, panX));
+  panY = Math.min(maxPanY, Math.max(minPanY, panY));
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
@@ -264,14 +292,16 @@ window.addEventListener('DOMContentLoaded', () => {
     const cy = event.clientY - viewportRect.top;
 
     const oldScale = scale;
-    const delta = event.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
-    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta));
+    const ZOOM_SENSITIVITY = 0.0015;
+    const zoomFactor = Math.exp(-event.deltaY * ZOOM_SENSITIVITY);
+    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
 
     // マウスの下にある盤面上の点が、ズーム後も同じ画面位置に来るようパンを再計算
     panX = cx - (cx - panX) * (scale / oldScale);
     panY = cy - (cy - panY) * (scale / oldScale);
 
-    applyBoardTransform(board);
+    clampPan(viewport, board);
+    scheduleBoardTransform(board);
   }, { passive: false });
 
   // 左ドラッグ：視点移動（パン）。コマの上から始めた場合は無視してコマ移動に任せる。
@@ -289,6 +319,7 @@ window.addEventListener('DOMContentLoaded', () => {
     function onMouseMove(e) {
       panX = panStartX + (e.clientX - panStartClientX);
       panY = panStartY + (e.clientY - panStartClientY);
+      clampPan(viewport, board);
       applyBoardTransform(board);
     }
 

@@ -4,7 +4,7 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
-import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins } from './parameters/registry.js';
+import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins ,applyPluginDerivedParameters } from './parameters/registry.js';
 export { listPlugins };
 
 const GRID_SIZE = 50;
@@ -65,6 +65,8 @@ class ImmutableStore {
 
   dispatch(action, payload) {
     const prevState = this.#state;
+    const activePlugin = prevState.room?.activePlugin;
+
     let nextTokensState = { ...prevState.tokens };
 
     switch (action) {
@@ -89,10 +91,10 @@ class ImmutableStore {
         } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
-
+        
         const parameters = {
           ...buildDefaultParameters(),
-          ...buildCharacterParametersForPlugin(prevState.room.activePlugin) // ← ルーム設定を参照
+          ...buildCharacterParametersForPlugin(activePlugin)
         };
 
         Object.entries(parameterOverrides).forEach(([paramId, value]) => {
@@ -106,9 +108,12 @@ class ImmutableStore {
           parameters[paramId] = Object.freeze({ key, label, value, source: 'user' });
         });
 
+        // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
+        const finalParameters = applyPluginDerivedParameters(activePlugin, parameters);
+
         nextTokensState[id] = Object.freeze({
           id, name, x, y, color,
-          parameters: Object.freeze(parameters),
+          parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           actions: Object.freeze([])
         });
@@ -147,16 +152,19 @@ class ImmutableStore {
         if (!character || !character.parameters[paramId]) return;
 
         if (character.parameters[paramId].editable === false) {
-          console.warn('[Guard] このパラメータは直接編集できません（自動計算値など）:', paramId);
+          console.warn('[Guard] このパラメータは直接編集できません:', paramId);
           return;
         }
 
         const nextParams = { ...character.parameters };
         nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
 
+        // プラグインの自動計算を通して新パラメータを取得
+        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
+
         nextTokensState[characterId] = Object.freeze({
           ...character,
-          parameters: Object.freeze(nextParams)
+          parameters: calculatedParams
         });
 
         this.#commit(prevState, nextTokensState);
@@ -177,9 +185,12 @@ class ImmutableStore {
         const nextParams = { ...character.parameters };
         delete nextParams[paramId];
 
+        // 自動計算の再評価
+        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
+
         nextTokensState[characterId] = Object.freeze({
           ...character,
-          parameters: Object.freeze(nextParams)
+          parameters: calculatedParams
         });
 
         this.#commit(prevState, nextTokensState);
@@ -200,11 +211,13 @@ class ImmutableStore {
           [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
         };
 
+        // 自動計算の適用
+        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
+
         nextTokensState[characterId] = Object.freeze({
           ...character,
-          parameters: Object.freeze(nextParams)
+          parameters: calculatedParams
         });
-
         this.#commit(prevState, nextTokensState);
         return;
       }
@@ -294,7 +307,34 @@ class ImmutableStore {
         EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
+      case 'SET_ACTIVE_PLUGIN': {
+        const { pluginId } = payload;
+        const prevRoom = prevState.room;
 
+        // システムプラグインが切り替わった際、全キャラクターの自動計算値も再計算
+        Object.keys(nextTokensState).forEach(id => {
+          const char = nextTokensState[id];
+          const updatedParams = applyPluginDerivedParameters(pluginId, char.parameters);
+          nextTokensState[id] = Object.freeze({
+            ...char,
+            parameters: updatedParams
+          });
+        });
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...prevRoom,
+            activePlugin: pluginId,
+            parameters: buildRoomParameters(pluginId)
+          }),
+          tokens: Object.freeze(nextTokensState)
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        EventBus.emit('ActivePluginChanged', { pluginId });
+        return;
+      }
       default:
         return;
     }

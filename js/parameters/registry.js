@@ -22,3 +22,35 @@ export function buildRoomParameters(pluginId) {
   const plugin = PLUGINS[pluginId];
   return plugin?.buildRoomParameters ? plugin.buildRoomParameters() : {};
 }
+
+/**
+ * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
+ * @param {string} pluginId 
+ * @param {Record<string, any>} parameters 
+ * @returns {Record<string, any>} 計算適用後のパラメータリスト
+ */
+export function applyPluginDerivedParameters(pluginId, parameters) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.computeDerivedParameters) {
+    return parameters; // プラグインがない、または計算ロジックがない場合はそのまま返す
+  }
+
+  // プラグイン側で計算された差分 { "DX3:corDB": 2, ... } を取得
+  const updates = plugin.computeDerivedParameters(parameters);
+  if (!updates || Object.keys(updates).length === 0) {
+    return parameters;
+  }
+
+  // 差分をもとにイミュータブルに新しいパラメータオブジェクト群を生成
+  const nextParameters = { ...parameters };
+  Object.entries(updates).forEach(([paramId, newValue]) => {
+    if (nextParameters[paramId] && nextParameters[paramId].value !== newValue) {
+      nextParameters[paramId] = Object.freeze({
+        ...nextParameters[paramId],
+        value: newValue
+      });
+    }
+  });
+
+  return Object.freeze(nextParameters);
+}

@@ -148,3 +148,202 @@ export function showCharacterDialog({ onConfirm }) {
   dialog.showModal(); // ネイティブのモーダル表示（背景クリック無効・Escで閉じる、が標準で付いてくる）
   nameInput.focus();
 }
+
+let editDialogEl = null;
+
+function ensureEditDialog() {
+  if (editDialogEl) return editDialogEl;
+  editDialogEl = document.createElement('dialog');
+  editDialogEl.className = 'character-dialog';
+  document.body.appendChild(editDialogEl);
+  return editDialogEl;
+}
+
+/**
+ * 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。
+ * 「編集不可(editable:false)」なパラメータは表示のみ、
+ * 「削除不可(locked:true)」なパラメータは削除ボタンを出さない。
+ *
+ * @param {{
+ *   character: { name: string, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean}> },
+ *   onConfirm: (result: {
+ *     name: string,
+ *     parameterValues: Record<string, number>,
+ *     removedParamIds: string[],
+ *     newCustomParameters: {key:string,label:string,value:number}[]
+ *   }) => void
+ * }} options
+ */
+export function showCharacterEditDialog({ character, onConfirm }) {
+  const dialog = ensureEditDialog();
+  dialog.innerHTML = '';
+
+  const form = document.createElement('form');
+
+  const title = document.createElement('h3');
+  title.textContent = 'キャラクターを更新';
+  form.appendChild(title);
+
+  // --- 名前 ---
+  const nameGroup = document.createElement('div');
+  nameGroup.className = 'dialog-form-group';
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'キャラクター名';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.required = true;
+  nameInput.value = character.name;
+  nameGroup.appendChild(nameLabel);
+  nameGroup.appendChild(nameInput);
+  form.appendChild(nameGroup);
+
+  // --- 既存パラメータ一覧（値の変更・削除） ---
+  const paramListLabel = document.createElement('label');
+  paramListLabel.textContent = 'パラメータ';
+  paramListLabel.style.display = 'block';
+  paramListLabel.style.marginTop = '4px';
+  form.appendChild(paramListLabel);
+
+  const paramListEl = document.createElement('div');
+  paramListEl.className = 'dialog-custom-list';
+  form.appendChild(paramListEl);
+
+  const existingRows = []; // { paramId, valueInput, editable }
+  const removedParamIds = new Set();
+
+  Object.entries(character.parameters).forEach(([paramId, param]) => {
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const label = document.createElement('label');
+    label.textContent = param.label;
+    label.style.flex = '1';
+    label.style.alignSelf = 'center';
+    label.style.color = '#ccc';
+    label.style.fontSize = '0.85rem';
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.value = param.value;
+    if (param.editable === false) {
+      valueInput.disabled = true;
+    }
+
+    row.appendChild(label);
+    row.appendChild(valueInput);
+
+    if (!param.locked) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.className = 'dialog-remove-row';
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        removedParamIds.add(paramId);
+        const idx = existingRows.findIndex(r => r.paramId === paramId);
+        if (idx !== -1) existingRows.splice(idx, 1);
+      });
+      row.appendChild(removeBtn);
+    }
+
+    paramListEl.appendChild(row);
+    existingRows.push({ paramId, valueInput, editable: param.editable !== false });
+  });
+
+  // --- 新規カスタムパラメータの追加 ---
+  const customListEl = document.createElement('div');
+  customListEl.className = 'dialog-custom-list';
+  form.appendChild(customListEl);
+
+  const customRows = [];
+
+  function addCustomRow() {
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.placeholder = 'パラメータ名（例: 正気度）';
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.value = 0;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.className = 'dialog-remove-row';
+    removeBtn.addEventListener('click', () => {
+      row.remove();
+      const idx = customRows.findIndex(r => r.rowEl === row);
+      if (idx !== -1) customRows.splice(idx, 1);
+    });
+
+    row.appendChild(labelInput);
+    row.appendChild(valueInput);
+    row.appendChild(removeBtn);
+    customListEl.appendChild(row);
+
+    customRows.push({ labelInput, valueInput, rowEl: row });
+  }
+
+  const addCustomBtn = document.createElement('button');
+  addCustomBtn.type = 'button';
+  addCustomBtn.textContent = '+ カスタムパラメータを追加';
+  addCustomBtn.className = 'dialog-add-row-btn';
+  addCustomBtn.addEventListener('click', addCustomRow);
+  form.appendChild(addCustomBtn);
+
+  // --- ボタン行 ---
+  const btnRow = document.createElement('div');
+  btnRow.className = 'dialog-button-row';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.addEventListener('click', () => dialog.close());
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'submit';
+  confirmBtn.textContent = '更新';
+  confirmBtn.className = 'dialog-confirm-btn';
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(confirmBtn);
+  form.appendChild(btnRow);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault(); // ページ遷移させない
+    const name = nameInput.value.trim();
+    if (name === '') {
+      nameInput.focus();
+      return;
+    }
+
+    const parameterValues = {};
+    existingRows.forEach(({ paramId, valueInput, editable }) => {
+      if (!editable) return; // editable:falseは自動計算値などなので更新対象外
+      parameterValues[paramId] = Number(valueInput.value) || 0;
+    });
+
+    const newCustomParameters = customRows
+      .map(row => ({
+        key: row.labelInput.value.trim(),
+        label: row.labelInput.value.trim(),
+        value: Number(row.valueInput.value) || 0
+      }))
+      .filter(p => p.key !== '');
+
+    dialog.close();
+    onConfirm({
+      name,
+      parameterValues,
+      removedParamIds: Array.from(removedParamIds),
+      newCustomParameters
+    });
+  });
+
+  dialog.appendChild(form);
+  dialog.showModal();
+  nameInput.focus();
+}

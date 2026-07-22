@@ -3,7 +3,7 @@
 import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
-import { showCharacterDialog } from './character-dialog.js';
+import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
 import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins } from './parameters/registry.js';
 export { listPlugins };
 
@@ -176,6 +176,29 @@ class ImmutableStore {
 
         const nextParams = { ...character.parameters };
         delete nextParams[paramId];
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      case 'ADD_PARAMETER': {
+        const { characterId, key, label, value } = payload;
+        if (!key) return;
+        const character = nextTokensState[characterId];
+        if (!character) return;
+
+        const paramId = `user:${key}`;
+        if (character.parameters[paramId]) return;
+
+        const nextParams = {
+          ...character.parameters,
+          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
+        };
 
         nextTokensState[characterId] = Object.freeze({
           ...character,
@@ -374,6 +397,40 @@ function bindTokenDrag(element, board) {
     const tokenId = element.id;
 
     showContextMenu(event.clientX, event.clientY, [
+      {
+        label: 'キャラクター更新',
+        onSelect: () => {
+          const current = store.state.tokens[tokenId];
+          if (!current) return;
+
+          showCharacterEditDialog({
+            character: current,
+            onConfirm: ({ name, parameterValues, removedParamIds, newCustomParameters }) => {
+              const latest = store.state.tokens[tokenId];
+              if (!latest) return;
+
+              if (name !== latest.name) {
+                store.dispatch('RENAME_CHARACTER', { id: tokenId, name });
+              }
+
+              Object.entries(parameterValues).forEach(([paramId, value]) => {
+                const existingParam = latest.parameters[paramId];
+                if (existingParam && existingParam.value !== value) {
+                  store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value });
+                }
+              });
+
+              removedParamIds.forEach(paramId => {
+                store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
+              });
+
+              newCustomParameters.forEach(({ key, label, value }) => {
+                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
+              });
+            }
+          });
+        }
+      },
       {
         label: '名前を変更',
         onSelect: () => {

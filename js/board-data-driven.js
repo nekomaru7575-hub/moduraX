@@ -142,6 +142,51 @@ class ImmutableStore {
         return;
       }
 
+      case 'SET_PARAMETER': {
+        const { characterId, paramId, value } = payload;
+        const character = nextTokensState[characterId];
+        if (!character || !character.parameters[paramId]) return;
+
+        if (character.parameters[paramId].editable === false) {
+          console.warn('[Guard] このパラメータは直接編集できません（自動計算値など）:', paramId);
+          return;
+        }
+
+        const nextParams = { ...character.parameters };
+        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+
+        this.#commit(prevState, nextTokensState);
+        EventBus.emit('ParameterChanged', { characterId, paramId, value });
+        return;
+      }
+
+      case 'REMOVE_PARAMETER': {
+        const { characterId, paramId } = payload;
+        const character = nextTokensState[characterId];
+        if (!character || !character.parameters[paramId]) return;
+
+        if (character.parameters[paramId].locked) {
+          console.warn('[Guard] このパラメータは削除できません:', paramId);
+          return;
+        }
+
+        const nextParams = { ...character.parameters };
+        delete nextParams[paramId];
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
       default:
         return;
     }

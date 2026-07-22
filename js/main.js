@@ -3,6 +3,7 @@
 import { rollBCDice } from './BCdice.js';
 import { store, generateTokenId, listPlugins } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
+import { showContextMenu } from './context-menu.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -17,6 +18,21 @@ const characterList = document.getElementById('characterList');
 // ...(既存のDOM取得の並びに追加)
 const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomParameterList = document.getElementById('roomParameterList');
+const roomMenuBtn = document.getElementById('roomMenuBtn');
+const roomSettingsDialog = document.getElementById('roomSettingsDialog');
+
+// ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
+if (roomMenuBtn && roomSettingsDialog) {
+  roomMenuBtn.addEventListener('click', () => {
+    const rect = roomMenuBtn.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 4, [
+      {
+        label: 'ルーム設定',
+        onSelect: () => roomSettingsDialog.showModal()
+      }
+    ]);
+  });
+}
 
 // ダイス処理イベント
 EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {

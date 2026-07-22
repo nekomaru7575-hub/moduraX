@@ -18,14 +18,37 @@
       box-sizing: border-box;
     }
 
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      border-bottom: 2px solid #3a3a3a;
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+    }
+
     h1 {
       color: #ffffff;
       font-size: 1.5rem;
-      margin-top: 0;
-      margin-bottom: 15px;
-      border-bottom: 2px solid #3a3a3a;
-      padding-bottom: 5px;
-      width: 100%;
+      margin: 0;
+    }
+
+    .room-menu-btn {
+      background-color: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #444;
+      border-radius: 6px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.3rem;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .room-menu-btn:hover {
+      background-color: #3a3a3a;
     }
 
     .app-container {
@@ -390,15 +413,25 @@
 </head>
 <body>
 
-  <h1>🎲 TRPG支援アプリ（イミュータブル＆データ駆動版）</h1>
-  <div class="panel">
-  <div class="form-group">
-    <label for="roomPluginSelect">ルームのプラグイン（システム）</label>
-    <select id="roomPluginSelect"></select>
+  <div class="app-header">
+    <h1>🎲 TRPG支援アプリ（イミュータブル＆データ駆動版）</h1>
+    <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>
   </div>
-  <label style="margin-top: 8px; display: block;">ルーム変数</label>
-  <div id="roomParameterList" class="character-param-list"></div>
-</div>
+
+  <dialog id="roomSettingsDialog" class="character-dialog">
+    <form method="dialog">
+      <h3>ルーム設定</h3>
+      <div class="dialog-form-group">
+        <label for="roomPluginSelect">ルームのプラグイン（システム）</label>
+        <select id="roomPluginSelect"></select>
+      </div>
+      <label style="margin-top: 8px; display: block;">ルーム変数</label>
+      <div id="roomParameterList" class="character-param-list"></div>
+      <div class="dialog-button-row" style="margin-top: 16px;">
+        <button type="submit" class="dialog-confirm-btn">閉じる</button>
+      </div>
+    </form>
+  </dialog>
   <div class="app-container">
   <!-- 新規：左側キャラクター一覧エリア -->
       <div class="character-panel-area">

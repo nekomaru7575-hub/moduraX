@@ -1,7 +1,7 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
-import { store, generateTokenId } from './board-data-driven.js';
+import { store, generateTokenId, listPlugins } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 
 // DOM要素の取得（ダイス関連）
@@ -13,6 +13,10 @@ const logContainer = document.getElementById('logContainer');
 // DOM要素の取得（キャラクター登録関連）
 
 const characterList = document.getElementById('characterList');
+
+// ...(既存のDOM取得の並びに追加)
+const roomPluginSelect = document.getElementById('roomPluginSelect');
+const roomParameterList = document.getElementById('roomParameterList');
 
 // ダイス処理イベント
 EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
@@ -65,6 +69,38 @@ if (sendBtn) {
     });
   });
 }
+
+// プラグイン選択肢を生成（起動時1回）
+if (roomPluginSelect) {
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = '（プラグインなし）';
+  roomPluginSelect.appendChild(noneOption);
+
+  listPlugins().forEach(plugin => {
+    const opt = document.createElement('option');
+    opt.value = plugin.id;
+    opt.textContent = plugin.label;
+    roomPluginSelect.appendChild(opt);
+  });
+
+  roomPluginSelect.addEventListener('change', () => {
+    store.dispatch('SET_ACTIVE_PLUGIN', { pluginId: roomPluginSelect.value || null });
+  });
+}
+
+// ルーム変数の表示（STATE_CHANGEDで更新）
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!roomParameterList) return;
+  roomParameterList.innerHTML = '';
+
+  Object.values(state.room.parameters).forEach(param => {
+    const row = document.createElement('div');
+    row.className = 'character-param-row';
+    row.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
+    roomParameterList.appendChild(row);
+  });
+});
 
 // キャラクター一覧の描画（登録・削除の両方に反応）
 EventBus.subscribe('STATE_CHANGED', (state) => {

@@ -391,9 +391,15 @@
 <body>
 
   <h1>🎲 TRPG支援アプリ（イミュータブル＆データ駆動版）</h1>
-
+  <div class="panel">
+  <div class="form-group">
+    <label for="roomPluginSelect">ルームのプラグイン（システム）</label>
+    <select id="roomPluginSelect"></select>
+  </div>
+  <label style="margin-top: 8px; display: block;">ルーム変数</label>
+  <div id="roomParameterList" class="character-param-list"></div>
+</div>
   <div class="app-container">
-
   <!-- 新規：左側キャラクター一覧エリア -->
       <div class="character-panel-area">
         <div class="panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">

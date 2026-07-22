@@ -4,6 +4,8 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog } from './character-dialog.js';
+import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins } from './parameters/registry.js';
+export { listPlugins };
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
@@ -88,27 +90,24 @@ class ImmutableStore {
         if (!id || !name) return;
         if (nextTokensState[id]) return;
 
-        const parameters = { ...buildDefaultParameters() };
+        const parameters = {
+          ...buildDefaultParameters(),
+          ...buildCharacterParametersForPlugin(prevState.room.activePlugin) // ← ルーム設定を参照
+        };
 
-        // Core層のデフォルト値をダイアログの入力で上書き
         Object.entries(parameterOverrides).forEach(([paramId, value]) => {
           if (parameters[paramId]) {
             parameters[paramId] = Object.freeze({ ...parameters[paramId], value });
           }
         });
 
-        // User層のカスタムパラメータを追加
         customParameters.forEach(({ key, label, value }) => {
           const paramId = `user:${key}`;
           parameters[paramId] = Object.freeze({ key, label, value, source: 'user' });
         });
 
         nextTokensState[id] = Object.freeze({
-          id,
-          name,
-          x,
-          y,
-          color,
+          id, name, x, y, color,
           parameters: Object.freeze(parameters),
           components: Object.freeze({}),
           actions: Object.freeze([])
@@ -187,6 +186,92 @@ class ImmutableStore {
         return;
       }
 
+      case 'SET_ACTIVE_PLUGIN': {
+        const { pluginId } = payload;
+        const prevRoom = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...prevRoom,
+            activePlugin: pluginId,
+            parameters: buildRoomParameters(pluginId) // プラグイン切替時、ルーム変数を作り直す
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        EventBus.emit('ActivePluginChanged', { pluginId });
+        return;
+      }
+
+      case 'SET_ROOM_PARAMETER': {
+        const { paramId, value } = payload;
+        const room = prevState.room;
+        if (!room.parameters[paramId]) return;
+
+        if (room.parameters[paramId].editable === false) {
+          console.warn('[Guard] このルーム変数は直接編集できません:', paramId);
+          return;
+        }
+
+        const nextParams = { ...room.parameters };
+        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        EventBus.emit('RoomParameterChanged', { paramId, value });
+        return;
+      }
+
+      case 'ADD_ROOM_PARAMETER': {
+        const { key, label, value } = payload;
+        if (!key) return;
+        const room = prevState.room;
+        const paramId = `user:${key}`;
+        if (room.parameters[paramId]) return;
+
+        const nextParams = {
+          ...room.parameters,
+          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
+        };
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'REMOVE_ROOM_PARAMETER': {
+        const { paramId } = payload;
+        const room = prevState.room;
+        if (!room.parameters[paramId]) return;
+
+        if (room.parameters[paramId].locked) {
+          console.warn('[Guard] このルーム変数は削除できません:', paramId);
+          return;
+        }
+
+        const nextParams = { ...room.parameters };
+        delete nextParams[paramId];
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       default:
         return;
     }
@@ -198,6 +283,11 @@ class ImmutableStore {
 }
 
 export const store = new ImmutableStore({
+room: {
+    activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
+    parameters: {}        // ルーム変数（後述）
+  },
+
   tokens: {
     'token-lily': {
       id: 'token-lily', name: 'リリィ', x: 100, y: 150, color: '#ff4757',

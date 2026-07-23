@@ -128,20 +128,33 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const item = document.createElement('div');
     item.className = 'character-list-item';
 
-    const header = document.createElement('div');
-    header.className = 'character-list-header';
+    // アバター（画像 or 色）＋ イニシアチブバッジ ＋ 名前
+    const avatarColumn = document.createElement('div');
+    avatarColumn.className = 'character-avatar-column';
 
-    const swatch = document.createElement('span');
-    swatch.className = 'character-color-swatch';
-    swatch.style.backgroundColor = tokenData.color || '#ff4757';
+    const avatar = document.createElement('div');
+    avatar.className = 'character-avatar';
+    if (tokenData.image) {
+      avatar.style.backgroundImage = `url('${tokenData.image}')`;
+    } else {
+      avatar.style.backgroundColor = tokenData.color || '#ff4757';
+    }
+
+    const initiativeParam = tokenData.parameters?.['core:initiative'];
+    if (initiativeParam) {
+      const initiativeBadge = document.createElement('span');
+      initiativeBadge.className = 'character-avatar-initiative';
+      initiativeBadge.textContent = initiativeParam.value;
+      avatar.appendChild(initiativeBadge);
+    }
 
     const nameSpan = document.createElement('span');
-    nameSpan.className = 'character-name';
+    nameSpan.className = 'character-avatar-name';
     nameSpan.textContent = tokenData.name;
 
-    header.appendChild(swatch);
-    header.appendChild(nameSpan);
-    item.appendChild(header);
+    avatarColumn.appendChild(avatar);
+    avatarColumn.appendChild(nameSpan);
+    item.appendChild(avatarColumn);
 
     // パラメータ一覧
     const paramList = document.createElement('div');
@@ -152,7 +165,16 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
       .forEach(param => {
         const paramRow = document.createElement('div');
         paramRow.className = 'character-param-row';
-        paramRow.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
+
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = truncateLabel(param.label);
+        labelSpan.title = param.label;
+
+        const valueSpan = document.createElement('span');
+        valueSpan.textContent = param.value;
+
+        paramRow.appendChild(labelSpan);
+        paramRow.appendChild(valueSpan);
         paramList.appendChild(paramRow);
       });
 
@@ -160,6 +182,11 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     characterList.appendChild(item);
   });
 });
+
+function truncateLabel(label, maxLength = 3) {
+  if (!label) return '';
+  return label.length > maxLength ? `${label.slice(0, maxLength)}...` : label;
+}
 
 function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");

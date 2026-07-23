@@ -172,6 +172,24 @@ class ImmutableStore {
         return;
       }
 
+      case 'SET_PARAMETER_VISIBILITY': {
+        const { characterId, paramId, visible } = payload;
+        const character = nextTokensState[characterId];
+        if (!character || !character.parameters[paramId]) return;
+
+        const nextParams = { ...character.parameters };
+        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], visible });
+
+        nextTokensState[characterId] = Object.freeze({
+          ...character,
+          parameters: Object.freeze(nextParams)
+        });
+
+        this.#commit(prevState, nextTokensState);
+        EventBus.emit('ParameterVisibilityChanged', { characterId, paramId, visible });
+        return;
+      }
+
       case 'REMOVE_PARAMETER': {
         const { characterId, paramId } = payload;
         const character = nextTokensState[characterId];
@@ -445,7 +463,7 @@ function bindTokenDrag(element, board) {
 
           showCharacterEditDialog({
             character: current,
-            onConfirm: ({ name, parameterValues, removedParamIds, newCustomParameters }) => {
+            onConfirm: ({ name, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -458,6 +476,10 @@ function bindTokenDrag(element, board) {
                 if (existingParam && existingParam.value !== value) {
                   store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value });
                 }
+              });
+
+              Object.entries(visibilityUpdates || {}).forEach(([paramId, visible]) => {
+                store.dispatch('SET_PARAMETER_VISIBILITY', { characterId: tokenId, paramId, visible });
               });
 
               removedParamIds.forEach(paramId => {

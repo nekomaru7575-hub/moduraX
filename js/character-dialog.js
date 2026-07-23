@@ -163,14 +163,16 @@ function ensureEditDialog() {
  * 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。
  * 「編集不可(editable:false)」なパラメータは表示のみ、
  * 「削除不可(locked:true)」なパラメータは削除ボタンを出さない。
+ * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean}> },
+ *   character: { name: string, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean}> },
  *   onConfirm: (result: {
  *     name: string,
  *     parameterValues: Record<string, number>,
  *     removedParamIds: string[],
- *     newCustomParameters: {key:string,label:string,value:number}[]
+ *     newCustomParameters: {key:string,label:string,value:number}[],
+ *     visibilityUpdates: Record<string, boolean>
  *   }) => void
  * }} options
  */
@@ -208,7 +210,7 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   paramListEl.className = 'dialog-custom-list';
   form.appendChild(paramListEl);
 
-  const existingRows = []; // { paramId, valueInput, editable }
+  const existingRows = []; // { paramId, valueInput, editable, visibleCheckbox, initialVisible }
   const removedParamIds = new Set();
 
   Object.entries(character.parameters).forEach(([paramId, param]) => {
@@ -229,8 +231,23 @@ export function showCharacterEditDialog({ character, onConfirm }) {
       valueInput.disabled = true;
     }
 
+    const initialVisible = param.visible !== false;
+    const visibleLabel = document.createElement('label');
+    visibleLabel.style.display = 'flex';
+    visibleLabel.style.alignItems = 'center';
+    visibleLabel.style.gap = '4px';
+    visibleLabel.style.color = '#aaa';
+    visibleLabel.style.fontSize = '0.8rem';
+    visibleLabel.style.flexShrink = '0';
+    const visibleCheckbox = document.createElement('input');
+    visibleCheckbox.type = 'checkbox';
+    visibleCheckbox.checked = initialVisible;
+    visibleLabel.appendChild(visibleCheckbox);
+    visibleLabel.appendChild(document.createTextNode('表示'));
+
     row.appendChild(label);
     row.appendChild(valueInput);
+    row.appendChild(visibleLabel);
 
     if (!param.locked) {
       const removeBtn = document.createElement('button');
@@ -247,7 +264,7 @@ export function showCharacterEditDialog({ character, onConfirm }) {
     }
 
     paramListEl.appendChild(row);
-    existingRows.push({ paramId, valueInput, editable: param.editable !== false });
+    existingRows.push({ paramId, valueInput, editable: param.editable !== false, visibleCheckbox, initialVisible });
   });
 
   // --- 新規カスタムパラメータの追加 ---
@@ -321,9 +338,14 @@ export function showCharacterEditDialog({ character, onConfirm }) {
     }
 
     const parameterValues = {};
-    existingRows.forEach(({ paramId, valueInput, editable }) => {
-      if (!editable) return; // editable:falseは自動計算値などなので更新対象外
-      parameterValues[paramId] = Number(valueInput.value) || 0;
+    const visibilityUpdates = {};
+    existingRows.forEach(({ paramId, valueInput, editable, visibleCheckbox, initialVisible }) => {
+      if (editable) {
+        parameterValues[paramId] = Number(valueInput.value) || 0;
+      }
+      if (visibleCheckbox.checked !== initialVisible) {
+        visibilityUpdates[paramId] = visibleCheckbox.checked;
+      }
     });
 
     const newCustomParameters = customRows
@@ -339,7 +361,8 @@ export function showCharacterEditDialog({ character, onConfirm }) {
       name,
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
-      newCustomParameters
+      newCustomParameters,
+      visibilityUpdates
     });
   });
 

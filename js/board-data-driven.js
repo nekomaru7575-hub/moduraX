@@ -89,7 +89,7 @@ class ImmutableStore {
 
       case 'ADD_CHARACTER': {
         const {
-          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR,
+          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null,
           parameterOverrides = {}, customParameters = []
         } = payload;
         if (!id || !name) return;
@@ -115,7 +115,7 @@ class ImmutableStore {
         const finalParameters = applyPluginDerivedParameters(activePlugin, parameters);
 
         nextTokensState[id] = Object.freeze({
-          id, name, x, y, color,
+          id, name, x, y, color, image,
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           actions: Object.freeze([])
@@ -143,6 +143,19 @@ class ImmutableStore {
         nextTokensState[id] = Object.freeze({
           ...nextTokensState[id],
           name
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      case 'SET_CHARACTER_IMAGE': {
+        const { id, image } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          image: image || null
         });
 
         this.#commit(prevState, nextTokensState);
@@ -497,12 +510,16 @@ function bindTokenDrag(element, board) {
 
           showCharacterEditDialog({
             character: current,
-            onConfirm: ({ name, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
+            onConfirm: ({ name, image, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
               if (name !== latest.name) {
                 store.dispatch('RENAME_CHARACTER', { id: tokenId, name });
+              }
+
+              if (image !== (latest.image || null)) {
+                store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
               }
 
               Object.entries(parameterValues).forEach(([paramId, value]) => {
@@ -549,11 +566,25 @@ function bindTokenDrag(element, board) {
   });
 }
 
+// コマの見た目（色 or 画像）をStateに合わせて反映する
+function applyTokenAppearance(el, tokenData) {
+  el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+  if (tokenData.image) {
+    el.style.backgroundImage = `url('${tokenData.image}')`;
+    el.style.backgroundSize = 'cover';
+    el.style.backgroundPosition = 'center';
+  } else {
+    el.style.backgroundImage = '';
+    el.style.backgroundSize = '';
+    el.style.backgroundPosition = '';
+  }
+}
+
 function createTokenElement(tokenData, board) {
   const el = document.createElement('div');
   el.className = 'token';
   el.id = tokenData.id;
-  el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+  applyTokenAppearance(el, tokenData);
 
   const nameSpan = document.createElement('span');
   nameSpan.className = 'token-name';
@@ -663,10 +694,11 @@ window.addEventListener('DOMContentLoaded', () => {
         label: 'キャラクターを追加',
         onSelect: () => {
           showCharacterDialog({
-            onConfirm: ({ name, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
+                image,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,
@@ -709,6 +741,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       el.style.left = `${tokenData.x}px`;
       el.style.top = `${tokenData.y}px`;
+      applyTokenAppearance(el, tokenData);
 
       const nameSpan = el.querySelector('.token-name');
       if (nameSpan && nameSpan.textContent !== tokenData.name) {

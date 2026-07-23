@@ -3,6 +3,58 @@
 // まとめて入力するためのモーダルダイアログ。
 
 import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
+import { pickFileAsDataUrl } from './file-uploader.js';
+
+// キャラクター画像の選択UI（プレビュー＋選択/削除ボタン）を組み立てる。
+// 作成/更新どちらのダイアログからも同じ形で使えるよう共通化する。
+function buildImagePicker(initialImage) {
+  let currentImage = initialImage || null;
+
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group';
+
+  const label = document.createElement('label');
+  label.textContent = '画像';
+  group.appendChild(label);
+
+  const preview = document.createElement('img');
+  preview.className = 'dialog-image-preview';
+  preview.style.display = currentImage ? 'block' : 'none';
+  if (currentImage) preview.src = currentImage;
+  group.appendChild(preview);
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'dialog-custom-row';
+
+  const pickBtn = document.createElement('button');
+  pickBtn.type = 'button';
+  pickBtn.textContent = '画像を選択';
+  pickBtn.className = 'dialog-add-row-btn';
+  pickBtn.style.marginBottom = '0';
+  pickBtn.addEventListener('click', async () => {
+    const picked = await pickFileAsDataUrl({ accept: 'image/*' });
+    if (!picked) return;
+    currentImage = picked.dataUrl;
+    preview.src = currentImage;
+    preview.style.display = 'block';
+  });
+  btnRow.appendChild(pickBtn);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.textContent = '画像を削除';
+  clearBtn.className = 'dialog-remove-row';
+  clearBtn.addEventListener('click', () => {
+    currentImage = null;
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+  });
+  btnRow.appendChild(clearBtn);
+
+  group.appendChild(btnRow);
+
+  return { element: group, getImage: () => currentImage };
+}
 
 let dialogEl = null;
 
@@ -15,7 +67,7 @@ function ensureDialog() {
 }
 
 /**
- * @param {{ onConfirm: (result: { name: string, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number}[] }) => void }} options
+ * @param {{ onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number}[] }) => void }} options
  */
 export function showCharacterDialog({ onConfirm }) {
   const dialog = ensureDialog();
@@ -38,6 +90,10 @@ export function showCharacterDialog({ onConfirm }) {
   nameGroup.appendChild(nameLabel);
   nameGroup.appendChild(nameInput);
   form.appendChild(nameGroup);
+
+  // --- 画像 ---
+  const imagePicker = buildImagePicker(null);
+  form.appendChild(imagePicker.element);
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
@@ -141,7 +197,7 @@ export function showCharacterDialog({ onConfirm }) {
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), parameterOverrides, customParameters });
   });
 
   dialog.appendChild(form);
@@ -166,9 +222,10 @@ function ensureEditDialog() {
  * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean}> },
+ *   character: { name: string, image?: string | null, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean}> },
  *   onConfirm: (result: {
  *     name: string,
+ *     image: string | null,
  *     parameterValues: Record<string, number>,
  *     removedParamIds: string[],
  *     newCustomParameters: {key:string,label:string,value:number}[],
@@ -198,6 +255,10 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   nameGroup.appendChild(nameLabel);
   nameGroup.appendChild(nameInput);
   form.appendChild(nameGroup);
+
+  // --- 画像 ---
+  const imagePicker = buildImagePicker(character.image);
+  form.appendChild(imagePicker.element);
 
   // --- 既存パラメータ一覧（値の変更・削除） ---
   const paramListLabel = document.createElement('label');
@@ -359,6 +420,7 @@ export function showCharacterEditDialog({ character, onConfirm }) {
     dialog.close();
     onConfirm({
       name,
+      image: imagePicker.getImage(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters,

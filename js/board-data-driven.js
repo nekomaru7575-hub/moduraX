@@ -11,7 +11,6 @@ import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './game
 export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
 
 const GRID_SIZE = 25;
-const OFFSET_PADDING = 5;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 
@@ -151,8 +150,8 @@ function bindTokenDrag(element, board) {
       const latestState = store.state.tokens[tokenId];
       if (!latestState) return;
 
-      const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
-      const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
+      const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE;
+      const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE;
 
       const { x: finalX, y: finalY } = clampToBoard(snappedX, snappedY, board, tokenPixelSize);
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });

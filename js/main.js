@@ -95,6 +95,50 @@ function substituteCharacterParameters(text, character) {
   });
 }
 
+// [演算子(+/-/=)][パラメータ名]([数値]) でパラメータを直接変更するコマンド。例: +侵蝕率(10)
+// editable:falseのパラメータは変更不可。
+const PARAMETER_COMMAND_PATTERN = /^([+\-=])(.+?)\(([+-]?\d+(?:\.\d+)?)\)$/;
+
+function tryHandleParameterCommand(rawInput, character) {
+  const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
+  if (!match) return false;
+
+  const [, operator, rawName, rawNumber] = match;
+  const name = rawName.trim();
+  const amount = Number(rawNumber);
+
+  if (!character) {
+    alert('パラメータを変更するキャラクターを選択してください。');
+    return true;
+  }
+
+  const entry = Object.entries(character.parameters || {}).find(
+    ([, p]) => p.label === name || p.key === name
+  );
+
+  if (!entry) {
+    alert(`パラメータ「${name}」が見つかりません。`);
+    return true;
+  }
+
+  const [paramId, param] = entry;
+  if (param.editable === false) {
+    alert(`パラメータ「${name}」は変更できません。`);
+    return true;
+  }
+
+  const before = param.value;
+  const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+
+  store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+  applyLog({
+    system: character.name,
+    resultText: `${param.label}: ${before} → ${after}`
+  });
+
+  return true;
+}
+
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
     const selectedSystem = gameSystemSelect.value;
@@ -108,6 +152,12 @@ if (sendBtn) {
     const selectedCharacter = characterParamSelect?.value
       ? store.state.tokens[characterParamSelect.value]
       : null;
+
+    if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+      commandInput.value = "";
+      return;
+    }
+
     rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
 
     EventBus.emit('DICE_ROLL_REQUESTED', {

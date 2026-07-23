@@ -11,6 +11,8 @@ const gameSystemSelect = document.getElementById('gameSystem');
 const characterParamSelect = document.getElementById('characterParamSelect');
 const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
+const currentChatLog = document.getElementById('currentChatLog');
+const currentChatPortrait = document.getElementById('currentChatPortrait');
 
 // DOM要素の取得（キャラクター登録関連）
 
@@ -50,10 +52,10 @@ if (roomMenuBtn && roomSettingsDialog) {
 }
 
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
-  sendBtn.textContent = "ダイスを振っています...";
+  sendBtn.textContent = "送信中...";
 
   try {
     const spaceIndex = splitForSpace(rawInput);
@@ -62,7 +64,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
 
     if (!isDiceCommand) {
-      applyLog({ system, resultText: rawInput });
+      applyLog({ system, character: characterName, resultText: rawInput });
       return;
     }
 
@@ -72,7 +74,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, comment, resultText, diceDetail });
+    applyLog({ system, character: characterName, comment, resultText, diceDetail });
     commandInput.value = "";
 
   } catch (error) {
@@ -80,7 +82,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
     alert(`エラーが発生しました: ${error.message}`);
   } finally {
     sendBtn.disabled = false;
-    sendBtn.textContent = "ダイスを振る";
+    sendBtn.textContent = "送信";
   }
 });
 
@@ -162,7 +164,8 @@ if (sendBtn) {
 
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,
-      rawInput: rawInput
+      rawInput: rawInput,
+      characterName: selectedCharacter?.name
     });
   });
 }
@@ -189,7 +192,24 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   if (state.tokens[previousValue]) {
     characterParamSelect.value = previousValue;
   }
+
+  updateCurrentChatPortrait();
 });
+
+// 盤面下のカレントチャット欄：選択中キャラクターのコマ画像（立ち絵代わり）を表示する。
+// 未アップロードの場合は何も表示しない。
+function updateCurrentChatPortrait() {
+  if (!currentChatPortrait) return;
+  const selectedCharacter = characterParamSelect?.value
+    ? store.state.tokens[characterParamSelect.value]
+    : null;
+
+  currentChatPortrait.style.backgroundImage = selectedCharacter?.image
+    ? `url('${selectedCharacter.image}')`
+    : '';
+}
+
+characterParamSelect?.addEventListener('change', updateCurrentChatPortrait);
 
 // プラグイン選択肢を生成（起動時1回）
 if (roomPluginSelect) {
@@ -305,19 +325,31 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function applyLog({ system = "", comment = "", resultText, diceDetail = "" }) {
-  if (!logContainer) return;
-  const newLog = document.createElement('div');
+function applyLog({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
+  const characterTag = character ? ` <span style="color: #4caf50;">${character}</span>` : '';
 
-  newLog.className = 'log-item';
-  newLog.innerHTML = `
-    <strong style="color: #007acc;">[${system}]</strong> ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
-    <span style="font-size: 1.1rem; color: #fff;">${resultText}</span><br> 
+  const html = `
+    <strong style="color: #007acc;">[${system}]</strong>${characterTag} ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
+    <span style="font-size: 1.1rem; color: #fff;">${resultText}</span><br>
     ${detail}`;
 
-  logContainer.appendChild(newLog);
-  logContainer.scrollTop = logContainer.scrollHeight;
+  if (logContainer) {
+    const newLog = document.createElement('div');
+    newLog.className = 'log-item';
+    newLog.innerHTML = html;
+    logContainer.appendChild(newLog);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  // 盤面下のカレントチャット欄は既存ログのミラー表示
+  if (currentChatLog) {
+    const mirrorLog = document.createElement('div');
+    mirrorLog.className = 'current-chat-log-item';
+    mirrorLog.innerHTML = html;
+    currentChatLog.appendChild(mirrorLog);
+    currentChatLog.scrollTop = currentChatLog.scrollHeight;
+  }
 }
 
 // 初期化処理

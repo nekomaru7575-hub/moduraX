@@ -507,14 +507,57 @@
       height: 100%;
       display: flex;
       flex-direction: column;
+      gap: 10px;
     }
 
     #board-viewport {
       position: relative;
       width: 100%;
-      height: 100%;
+      flex: 3;
+      min-height: 0;
       overflow: hidden; /* パン・ズームしてはみ出た部分をここで切り取る */
       cursor: grab;
+    }
+
+    /* 盤面下1/4：既存ログのミラー表示エリア */
+    .current-chat-bar {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 10px;
+      background-color: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* キャラ一覧パネル（オーバーレイ）と重なりうる左側領域。
+       通常のログは置かず、選択中キャラクターの画像（未設定なら空）だけを表示する */
+    .current-chat-portrait {
+      flex: 0 0 220px;
+      height: 100%;
+      background-color: #111;
+      background-size: contain;
+      background-position: bottom center;
+      background-repeat: no-repeat;
+    }
+
+    .current-chat-log {
+      flex: 1;
+      min-width: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+    }
+
+    .current-chat-log-item {
+      font-size: 0.8rem;
+      color: #ddd;
+      animation: fadeIn 0.3s ease-out;
     }
 
     #board {
@@ -576,6 +619,57 @@
       height: 100%;
       min-width: 320px;
       overflow-y: auto;
+    }
+
+    /* チャット欄（中段）：ゲームシステム/参照キャラクターの選択は小さく横並びにする */
+    .chat-input-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .chat-input-selects {
+      display: flex;
+      gap: 6px;
+    }
+
+    .compact-select {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 6px;
+      font-size: 0.75rem;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input-row input[type="text"] {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-input-row .btn-send {
+      width: auto;
+      flex-shrink: 0;
+      padding: 8px 16px;
+    }
+
+    /* チャットパレット（実装予定地）：今回は場所のみ確保 */
+    .chat-palette-placeholder {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed #444;
+      border-radius: 8px;
+      color: #666;
+      font-size: 0.85rem;
     }
 
     .panel {
@@ -800,36 +894,40 @@
       <div id="board-viewport">
         <div id="board"></div>
       </div>
+
+      <!-- 盤面下1/4：既存ログのミラー表示。左側（キャラ一覧パネルと重なりうる領域）は
+           チャット表示を置かず、選択中キャラクターの立ち絵表示に充てる -->
+      <div class="current-chat-bar" id="currentChatBar">
+        <div class="current-chat-portrait" id="currentChatPortrait"></div>
+        <div class="current-chat-log" id="currentChatLog"></div>
+      </div>
     </div>
 
     <div class="control-area">
-      <div class="panel">
-        <div class="form-group">
-          <label for="gameSystem">ゲームシステム</label>
-          <select id="gameSystem">
-            <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
-            <option value="DoubleCross">ダブルクロス (3rd)</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="characterParamSelect">参照キャラクター（{パラメータ名}を値に置換）</label>
-          <select id="characterParamSelect">
-            <option value="">（選択なし）</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="commandInput">コマンド入力 (例: CC(45) 隠れるロール、{HP}のように記述可)</label>
-          <input type="text" id="commandInput" placeholder="CC(45) 隠れます" autocomplete="off">
-        </div>
-
-        <button class="btn-send" id="sendBtn">ダイスを振る</button>
-      </div>
-
+      <!-- 上段：ログ -->
       <div class="log-container" id="logContainer">
         <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
       </div>
+
+      <!-- 中段：チャット欄（システム/キャラクター選択は小さく横並び） -->
+      <div class="panel chat-input-panel">
+        <div class="chat-input-selects">
+          <select id="gameSystem" class="compact-select" title="ゲームシステム">
+            <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
+            <option value="DoubleCross">ダブルクロス (3rd)</option>
+          </select>
+          <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">
+            <option value="">（選択なし）</option>
+          </select>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" id="commandInput" placeholder="CC(45) 隠れます／{HP}／+侵蝕率(10)" autocomplete="off">
+          <button class="btn-send" id="sendBtn">送信</button>
+        </div>
+      </div>
+
+      <!-- 下段：チャットパレット（実装予定地） -->
+      <div class="chat-palette-placeholder">チャットパレット（実装予定）</div>
     </div>
   </div>
 

@@ -1,18 +1,49 @@
-// js/board-data-driven.js
+﻿// js/board-data-driven.js
 
 import { EventBus } from './EventBus.js';
-import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
-import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins ,applyPluginDerivedParameters } from './parameters/registry.js';
-export { listPlugins };
+import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
+import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
+import { importCharacterJsonGeneric } from './character-json-import.js';
+import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './game-store.js';
+export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
-const DEFAULT_TOKEN_COLOR = '#ff4757';
+// #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
+const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 
-let tokenIdCounter = 0;
+// JSONテキストをパースする。失敗時はアラートを出してnullを返す（右クリックメニュー・D&D共通）
+function parseCharacterJsonText(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    alert(`JSONの解析に失敗しました: ${error.message}`);
+    return null;
+  }
+}
+
+// ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
+// 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
+function resolveCharacterImport(json) {
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  return (activePluginId && pluginHasCharacterImport(activePluginId))
+    ? importCharacterJsonForPlugin(activePluginId, json)
+    : importCharacterJsonGeneric(json);
+}
+
+function dispatchCharacterImport(id, importResult) {
+  store.dispatch('IMPORT_CHARACTER_DATA', {
+    id,
+    name: importResult.name,
+    valueOverrides: importResult.valueOverrides,
+    labelOverrides: importResult.labelOverrides,
+    newParameters: importResult.newParameters,
+    components: importResult.components
+  });
+}
 
 // カメラ（ズーム・パン）の状態。Storeの状態ではなく、あくまでローカルな見た目の変更。
 // 他プレイヤーの視点には影響しない。
@@ -32,345 +63,6 @@ function scheduleBoardTransform(board) {
   });
 }
 
-class ImmutableStore {
-  #state;
-
-  constructor(initialState) {
-    this.#state = this.#createProtectedProxy(initialState);
-  }
-
-  get state() {
-    return this.#state;
-  }
-
-  #createProtectedProxy(data) {
-    const frozenData = Object.freeze({ ...data });
-    return new Proxy(frozenData, {
-      set() {
-        throw new Error("[State Protected] 状態の直接書き換えは禁止されています。dispatch()を使用してください。");
-      },
-      deleteProperty() {
-        throw new Error("[State Protected] 状態の直接削除は禁止されています。dispatch()を使用してください。");
-      }
-    });
-  }
-
-  #commit(prevState, nextTokensState) {
-    this.#state = this.#createProtectedProxy({
-      ...prevState,
-      tokens: Object.freeze(nextTokensState)
-    });
-    EventBus.emit('STATE_CHANGED', this.#state);
-  }
-
-  dispatch(action, payload) {
-    const prevState = this.#state;
-    const activePlugin = prevState.room?.activePlugin;
-
-    let nextTokensState = { ...prevState.tokens };
-
-    switch (action) {
-      case 'MOVE_TOKEN': {
-        const { id, x, y } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          x,
-          y
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      case 'ADD_CHARACTER': {
-        const {
-          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR,
-          parameterOverrides = {}, customParameters = []
-        } = payload;
-        if (!id || !name) return;
-        if (nextTokensState[id]) return;
-        
-        const parameters = {
-          ...buildDefaultParameters(),
-          ...buildCharacterParametersForPlugin(activePlugin)
-        };
-
-        Object.entries(parameterOverrides).forEach(([paramId, value]) => {
-          if (parameters[paramId]) {
-            parameters[paramId] = Object.freeze({ ...parameters[paramId], value });
-          }
-        });
-
-        customParameters.forEach(({ key, label, value }) => {
-          const paramId = `user:${key}`;
-          parameters[paramId] = Object.freeze({ key, label, value, source: 'user' });
-        });
-
-        // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
-        const finalParameters = applyPluginDerivedParameters(activePlugin, parameters);
-
-        nextTokensState[id] = Object.freeze({
-          id, name, x, y, color,
-          parameters: finalParameters, // ← 適用後のパラメータをセット
-          components: Object.freeze({}),
-          actions: Object.freeze([])
-        });
-
-        this.#commit(prevState, nextTokensState);
-        EventBus.emit('CharacterCreated', { id });
-        return;
-      }
-
-      case 'REMOVE_CHARACTER': {
-        const { id } = payload;
-        if (!nextTokensState[id]) return;
-        delete nextTokensState[id];
-
-        this.#commit(prevState, nextTokensState);
-        EventBus.emit('CharacterDeleted', { id });
-        return;
-      }
-
-      case 'RENAME_CHARACTER': {
-        const { id, name } = payload;
-        if (!nextTokensState[id] || !name) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          name
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      case 'SET_PARAMETER': {
-        const { characterId, paramId, value } = payload;
-        const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
-
-        if (character.parameters[paramId].editable === false) {
-          console.warn('[Guard] このパラメータは直接編集できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...character.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
-
-        // プラグインの自動計算を通して新パラメータを取得
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
-        });
-
-        this.#commit(prevState, nextTokensState);
-        EventBus.emit('ParameterChanged', { characterId, paramId, value });
-        return;
-      }
-
-      case 'REMOVE_PARAMETER': {
-        const { characterId, paramId } = payload;
-        const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
-
-        if (character.parameters[paramId].locked) {
-          console.warn('[Guard] このパラメータは削除できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...character.parameters };
-        delete nextParams[paramId];
-
-        // 自動計算の再評価
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      case 'ADD_PARAMETER': {
-        const { characterId, key, label, value } = payload;
-        if (!key) return;
-        const character = nextTokensState[characterId];
-        if (!character) return;
-
-        const paramId = `user:${key}`;
-        if (character.parameters[paramId]) return;
-
-        const nextParams = {
-          ...character.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
-        };
-
-        // 自動計算の適用
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
-        });
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      case 'SET_ACTIVE_PLUGIN': {
-        const { pluginId } = payload;
-        const prevRoom = prevState.room;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...prevRoom,
-            activePlugin: pluginId,
-            parameters: buildRoomParameters(pluginId) // プラグイン切替時、ルーム変数を作り直す
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        EventBus.emit('ActivePluginChanged', { pluginId });
-        return;
-      }
-
-      case 'SET_ROOM_PARAMETER': {
-        const { paramId, value } = payload;
-        const room = prevState.room;
-        if (!room.parameters[paramId]) return;
-
-        if (room.parameters[paramId].editable === false) {
-          console.warn('[Guard] このルーム変数は直接編集できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...room.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        EventBus.emit('RoomParameterChanged', { paramId, value });
-        return;
-      }
-
-      case 'ADD_ROOM_PARAMETER': {
-        const { key, label, value } = payload;
-        if (!key) return;
-        const room = prevState.room;
-        const paramId = `user:${key}`;
-        if (room.parameters[paramId]) return;
-
-        const nextParams = {
-          ...room.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
-        };
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-
-      case 'REMOVE_ROOM_PARAMETER': {
-        const { paramId } = payload;
-        const room = prevState.room;
-        if (!room.parameters[paramId]) return;
-
-        if (room.parameters[paramId].locked) {
-          console.warn('[Guard] このルーム変数は削除できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...room.parameters };
-        delete nextParams[paramId];
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-      case 'SET_ACTIVE_PLUGIN': {
-        const { pluginId } = payload;
-        const prevRoom = prevState.room;
-
-        // システムプラグインが切り替わった際、全キャラクターの自動計算値も再計算
-        Object.keys(nextTokensState).forEach(id => {
-          const char = nextTokensState[id];
-          const updatedParams = applyPluginDerivedParameters(pluginId, char.parameters);
-          nextTokensState[id] = Object.freeze({
-            ...char,
-            parameters: updatedParams
-          });
-        });
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...prevRoom,
-            activePlugin: pluginId,
-            parameters: buildRoomParameters(pluginId)
-          }),
-          tokens: Object.freeze(nextTokensState)
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        EventBus.emit('ActivePluginChanged', { pluginId });
-        return;
-      }
-      default:
-        return;
-    }
-  }
-
-  init() {
-    EventBus.emit('STATE_CHANGED', this.#state);
-  }
-}
-
-export const store = new ImmutableStore({
-room: {
-    activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
-    parameters: {}        // ルーム変数（後述）
-  },
-
-  tokens: {
-    'token-lily': {
-      id: 'token-lily', name: 'リリィ', x: 100, y: 150, color: '#ff4757',
-      parameters: buildDefaultParameters(),
-      components: Object.freeze({}),
-      actions: Object.freeze([])
-    },
-    'token-ragna': {
-      id: 'token-ragna', name: 'ラグナ', x: 300, y: 200, color: '#2ed573',
-      parameters: buildDefaultParameters(),
-      components: Object.freeze({}),
-      actions: Object.freeze([])
-    }
-  }
-});
-
-export function generateTokenId() {
-  tokenIdCounter += 1;
-  return `token-user-${Date.now()}-${tokenIdCounter}`;
-}
 
 // ローカル座標(コマの位置)がはみ出さない範囲にクランプする
 function clampToBoard(x, y, board) {
@@ -385,6 +77,22 @@ function clampToBoard(x, y, board) {
 
 function applyBoardTransform(board) {
   board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
+
+// 背景画像を盤面に反映する。imageUrlが無い場合はCSS側のデフォルト背景に戻す。
+function applyBoardBackground(board, imageUrl) {
+  if (!imageUrl) {
+    board.style.backgroundImage = '';
+    board.style.backgroundSize = '';
+    board.style.backgroundPosition = '';
+    board.style.backgroundRepeat = '';
+    return;
+  }
+
+  board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
+  board.style.backgroundSize = '50px 50px, 50px 50px, cover';
+  board.style.backgroundPosition = '0 0, 0 0, center';
+  board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -445,12 +153,20 @@ function bindTokenDrag(element, board) {
 
           showCharacterEditDialog({
             character: current,
-            onConfirm: ({ name, parameterValues, removedParamIds, newCustomParameters }) => {
+            activePluginId: store.state.room?.activePlugin ?? null,
+            onComponentChange: (componentKey, value) => {
+              store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
+            },
+            onConfirm: ({ name, image, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
               if (name !== latest.name) {
                 store.dispatch('RENAME_CHARACTER', { id: tokenId, name });
+              }
+
+              if (image !== (latest.image || null)) {
+                store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
               }
 
               Object.entries(parameterValues).forEach(([paramId, value]) => {
@@ -460,15 +176,37 @@ function bindTokenDrag(element, board) {
                 }
               });
 
+              Object.entries(visibilityUpdates || {}).forEach(([paramId, visible]) => {
+                store.dispatch('SET_PARAMETER_VISIBILITY', { characterId: tokenId, paramId, visible });
+              });
+
               removedParamIds.forEach(paramId => {
                 store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
               });
 
-              newCustomParameters.forEach(({ key, label, value }) => {
-                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
+              newCustomParameters.forEach(({ key, label, value, visible }) => {
+                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible });
               });
             }
           });
+        }
+      },
+      {
+        label: 'JSONを読み込む',
+        onSelect: async () => {
+          const picked = await pickFileAsText({ accept: 'application/json' });
+          if (!picked) return;
+
+          const json = parseCharacterJsonText(picked.text);
+          if (!json) return;
+
+          const importResult = resolveCharacterImport(json);
+          if (!importResult) {
+            alert('このJSONを読み込めませんでした。');
+            return;
+          }
+
+          dispatchCharacterImport(tokenId, importResult);
         }
       },
       {
@@ -493,11 +231,25 @@ function bindTokenDrag(element, board) {
   });
 }
 
+// コマの見た目（色 or 画像）をStateに合わせて反映する
+function applyTokenAppearance(el, tokenData) {
+  el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+  if (tokenData.image) {
+    el.style.backgroundImage = `url('${tokenData.image}')`;
+    el.style.backgroundSize = 'cover';
+    el.style.backgroundPosition = 'center';
+  } else {
+    el.style.backgroundImage = '';
+    el.style.backgroundSize = '';
+    el.style.backgroundPosition = '';
+  }
+}
+
 function createTokenElement(tokenData, board) {
   const el = document.createElement('div');
   el.className = 'token';
   el.id = tokenData.id;
-  el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+  applyTokenAppearance(el, tokenData);
 
   const nameSpan = document.createElement('span');
   nameSpan.className = 'token-name';
@@ -607,10 +359,12 @@ window.addEventListener('DOMContentLoaded', () => {
         label: 'キャラクターを追加',
         onSelect: () => {
           showCharacterDialog({
-            onConfirm: ({ name, parameterOverrides, customParameters }) => {
+            activePluginId: store.state.room?.activePlugin ?? null,
+            onConfirm: ({ name, image, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
+                image,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,
@@ -619,11 +373,76 @@ window.addEventListener('DOMContentLoaded', () => {
             }
           });
         }
+      },
+      {
+        label: '背景画像を変更',
+        onSelect: async () => {
+          const picked = await pickFileAsDataUrl({ accept: 'image/*' });
+          if (!picked) return;
+          store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl });
+        }
       }
     ]);
   });
 
+  // JSONファイルをD&D：コマの上にドロップした場合はそのキャラクターへ読み込み、
+  // 盤面の何もない場所にドロップした場合はその位置に新規キャラクターとして読み込む。
+  viewport.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+
+  viewport.addEventListener('drop', async (event) => {
+    event.preventDefault();
+
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+      alert('JSONファイルをドロップしてください。');
+      return;
+    }
+
+    const text = await file.text();
+    const json = parseCharacterJsonText(text);
+    if (!json) return;
+
+    const importResult = resolveCharacterImport(json);
+    if (!importResult) {
+      alert('このJSONを読み込めませんでした。');
+      return;
+    }
+
+    const droppedTokenEl = event.target.closest('.token');
+    if (droppedTokenEl) {
+      dispatchCharacterImport(droppedTokenEl.id, importResult);
+      return;
+    }
+
+    // 盤面の何もない場所へのドロップ → その位置に新規キャラクターを作成して読み込む
+    const viewportRect = viewport.getBoundingClientRect();
+    const cx = event.clientX - viewportRect.left;
+    const cy = event.clientY - viewportRect.top;
+    const dropX = (cx - panX) / scale;
+    const dropY = (cy - panY) / scale;
+    const { x: clampedX, y: clampedY } = clampToBoard(
+      dropX - TOKEN_SIZE / 2,
+      dropY - TOKEN_SIZE / 2,
+      board
+    );
+
+    const newId = generateTokenId();
+    store.dispatch('ADD_CHARACTER', {
+      id: newId,
+      name: importResult.name || '新規キャラクター',
+      x: Math.round(clampedX),
+      y: Math.round(clampedY)
+    });
+    dispatchCharacterImport(newId, importResult);
+  });
+
   EventBus.subscribe('STATE_CHANGED', (state) => {
+    applyBoardBackground(board, state.room?.backgroundImage);
+
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)
     );
@@ -643,6 +462,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       el.style.left = `${tokenData.x}px`;
       el.style.top = `${tokenData.y}px`;
+      applyTokenAppearance(el, tokenData);
 
       const nameSpan = el.querySelector('.token-name');
       if (nameSpan && nameSpan.textContent !== tokenData.name) {

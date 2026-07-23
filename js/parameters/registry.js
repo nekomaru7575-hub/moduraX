@@ -23,6 +23,49 @@ export function buildRoomParameters(pluginId) {
   return plugin?.buildRoomParameters ? plugin.buildRoomParameters() : {};
 }
 
+// 指定プラグインがキャラ作成/更新ダイアログ用の専用表示（renderCharacterPanel）を持つか
+export function pluginHasCharacterPanel(pluginId) {
+  return !!PLUGINS[pluginId]?.renderCharacterPanel;
+}
+
+/**
+ * キャラ作成/更新ダイアログのプラグイン専用スペースに、プラグイン自身のUIを描画させる。
+ * Coreはcontainerを渡すだけで、中身の意味・デザインはプラグインに委ねる（解釈しない）。
+ * @param {string} pluginId
+ * @param {{ container: HTMLElement, mode: 'create'|'edit', parameters: Record<string, any> }} context
+ * @returns {{ getValues: () => Record<string, number> } | null}
+ *   getValues() はダイアログのsubmit時に呼ばれ、{paramId: value}を返す。
+ *   プラグインが専用UIを持たない場合はnullを返す。
+ */
+export function renderCharacterPanel(pluginId, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.renderCharacterPanel) return null;
+  return plugin.renderCharacterPanel(context) || null;
+}
+
+// 指定プラグインが拡張JSON読み込み（importCharacterJson）を持つか
+export function pluginHasCharacterImport(pluginId) {
+  return !!PLUGINS[pluginId]?.importCharacterJson;
+}
+
+/**
+ * ゲームシステム固有のキャラクターシートJSON（外部ツール出力）を、プラグイン自身の
+ * 知識で解釈させる。Coreはjsonをそのまま渡すだけで、フィールドの意味は解釈しない。
+ * @param {string} pluginId
+ * @param {any} json
+ * @returns {{
+ *   name?: string,
+ *   valueOverrides: Record<string, number>,
+ *   labelOverrides: Record<string, string>,
+ *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible?:boolean}>
+ * } | null}
+ */
+export function importCharacterJsonForPlugin(pluginId, json) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.importCharacterJson) return null;
+  return plugin.importCharacterJson(json) || null;
+}
+
 /**
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
  * @param {string} pluginId 

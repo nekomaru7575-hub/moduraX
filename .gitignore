@@ -11,3 +11,4 @@ txt/server.txt
 txt/設計方針.txt
 txt/通信実現のプラン.txt
 node_modules/
+server/state.json

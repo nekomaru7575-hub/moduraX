@@ -17,11 +17,74 @@ const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
 const chatPalettePanel = document.getElementById('chatPalettePanel');
 const controlArea = document.getElementById('controlArea');
+const chatTabsEl = document.getElementById('chatTabs');
 
 // ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
 if (controlArea) {
   makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizesV2' });
 }
+
+// --- チャットタブ ---
+// 「Main」タブは常に存在する既定タブ。他のタブはユーザーが追加する並行チャット用。
+// 盤面下のカレントチャット欄（currentChatLog）は、選択中のタブに関わらずMainタブの内容だけを表示する。
+const MAIN_TAB_ID = 'main';
+let chatTabs = [{ id: MAIN_TAB_ID, name: 'Main' }];
+let activeTabId = MAIN_TAB_ID;
+const tabEntries = { [MAIN_TAB_ID]: [] };
+
+function renderChatTabs() {
+  if (!chatTabsEl) return;
+  chatTabsEl.innerHTML = '';
+
+  chatTabs.forEach(tab => {
+    const tabBtn = document.createElement('button');
+    tabBtn.type = 'button';
+    tabBtn.className = 'chat-tab' + (tab.id === activeTabId ? ' active' : '');
+    tabBtn.textContent = tab.name;
+    tabBtn.addEventListener('click', () => switchChatTab(tab.id));
+    chatTabsEl.appendChild(tabBtn);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'chat-tab-add';
+  addBtn.title = 'チャットタブを追加';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', addChatTab);
+  chatTabsEl.appendChild(addBtn);
+}
+
+function addChatTab() {
+  const name = prompt('新しいチャットタブの名前を入力してください');
+  if (!name || !name.trim()) return;
+
+  const id = `tab-${Date.now()}`;
+  chatTabs.push({ id, name: name.trim() });
+  tabEntries[id] = [];
+  switchChatTab(id);
+}
+
+function switchChatTab(tabId) {
+  activeTabId = tabId;
+  renderChatTabs();
+  renderActiveTabLog();
+}
+
+function renderActiveTabLog() {
+  if (!logContainer) return;
+  logContainer.innerHTML = '';
+
+  (tabEntries[activeTabId] || []).forEach(entry => {
+    const logItem = document.createElement('div');
+    logItem.className = 'log-item';
+    logItem.innerHTML = buildLogHtml(entry);
+    logContainer.appendChild(logItem);
+  });
+
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+renderChatTabs();
 
 // DOM要素の取得（キャラクター登録関連）
 
@@ -61,14 +124,15 @@ if (roomMenuBtn && roomSettingsDialog) {
 }
 
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, tabId = activeTabId }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
 
   try {
     if (rawInput.includes('\n')) {
-      applyLog({ system, character: characterName, resultText: rawInput });
+      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      commandInput.value = "";
       return;
     }
 
@@ -78,7 +142,8 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
 
     if (!isDiceCommand) {
-      applyLog({ system, character: characterName, resultText: rawInput });
+      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      commandInput.value = "";
       return;
     }
 
@@ -88,7 +153,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, character: characterName, comment, resultText, diceDetail });
+    applyLog({ system, character: characterName, comment, resultText, diceDetail }, tabId);
     commandInput.value = "";
 
   } catch (error) {
@@ -175,7 +240,8 @@ function sendPaletteText(text) {
   EventBus.emit('DICE_ROLL_REQUESTED', {
     system: selectedSystem,
     rawInput: substitutedInput,
-    characterName: selectedCharacter?.name
+    characterName: selectedCharacter?.name,
+    tabId: activeTabId
   });
 }
 
@@ -207,7 +273,8 @@ if (sendBtn) {
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,
       rawInput: rawInput,
-      characterName: selectedCharacter?.name
+      characterName: selectedCharacter?.name,
+      tabId: activeTabId
     });
   });
 }
@@ -377,17 +444,26 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function applyLog({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
+function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const characterTag = character ? ` <span style="color: #4caf50;">${character}</span>` : '';
   const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
-  const html = `
+  return `
     <strong style="color: #007acc;">[${system}]</strong>${characterTag} ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
     <span style="font-size: 1.1rem; color: #fff;">${resultHtml}</span><br>
     ${detail}`;
+}
 
-  if (logContainer) {
+// entryを指定タブ（省略時は現在表示中のタブ）のログへ追加する。
+// 盤面下のカレントチャット欄は、他タブが選択されていてもMainタブの内容だけをミラー表示する。
+function applyLog(entry, tabId = activeTabId) {
+  if (!tabEntries[tabId]) tabEntries[tabId] = [];
+  tabEntries[tabId].push(entry);
+
+  const html = buildLogHtml(entry);
+
+  if (tabId === activeTabId && logContainer) {
     const newLog = document.createElement('div');
     newLog.className = 'log-item';
     newLog.innerHTML = html;
@@ -395,8 +471,7 @@ function applyLog({ system = "", character = "", comment = "", resultText, diceD
     logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  // 盤面下のカレントチャット欄は既存ログのミラー表示
-  if (currentChatLog) {
+  if (tabId === MAIN_TAB_ID && currentChatLog) {
     const mirrorLog = document.createElement('div');
     mirrorLog.className = 'current-chat-log-item';
     mirrorLog.innerHTML = html;

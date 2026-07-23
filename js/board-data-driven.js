@@ -10,7 +10,7 @@ import { importCharacterJsonGeneric } from './character-json-import.js';
 import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './game-store.js';
 export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
 
-const GRID_SIZE = 50;
+const GRID_SIZE = 25;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
@@ -110,8 +110,8 @@ function applyBoardBackground(board, room) {
 
   board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
   board.style.backgroundSize = hasCustomSize
-    ? `50px 50px, 50px 50px, ${boardWidth}px ${boardHeight}px`
-    : '50px 50px, 50px 50px, cover';
+    ? `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, ${boardWidth}px ${boardHeight}px`
+    : `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, cover`;
   board.style.backgroundPosition = '0 0, 0 0, center';
   board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
   board.style.width = hasCustomSize ? `${boardWidth}px` : '';
@@ -408,6 +408,7 @@ window.addEventListener('DOMContentLoaded', () => {
           showBackgroundSizeDialog({
             naturalWidth: width,
             naturalHeight: height,
+            gridSize: GRID_SIZE,
             onConfirm: ({ width: boardWidth, height: boardHeight }) => {
               store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl, boardWidth, boardHeight });
             }

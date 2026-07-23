@@ -1,6 +1,6 @@
 // js/background-dialog.js
-// 背景画像アップロード時に、ボードサイズ（幅・高さ）を確認・調整するための小さなダイアログ。
-// 初期値はアップロードした画像の実サイズだが、数値は自由に変更できる。
+// 背景画像アップロード時に、ボードサイズ（マス単位の幅・高さ）を確認・調整するための
+// 小さなダイアログ。初期値は画像の実サイズをマス換算した近似値だが、数値は自由に変更できる。
 
 let dialogEl = null;
 
@@ -14,13 +14,17 @@ function ensureDialog() {
 
 /**
  * @param {{
- *   naturalWidth: number, naturalHeight: number,
+ *   naturalWidth: number, naturalHeight: number, gridSize: number,
  *   onConfirm: (result: { width: number, height: number }) => void
- * }} options
+ * }} options naturalWidth/naturalHeightは画像の実ピクセルサイズ、gridSizeはマス1つのpx数。
+ *   onConfirmにはマス数×gridSizeへ変換した後のピクセルサイズを渡す。
  */
-export function showBackgroundSizeDialog({ naturalWidth, naturalHeight, onConfirm }) {
+export function showBackgroundSizeDialog({ naturalWidth, naturalHeight, gridSize, onConfirm }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
+
+  const defaultCols = Math.max(1, Math.round(naturalWidth / gridSize));
+  const defaultRows = Math.max(1, Math.round(naturalHeight / gridSize));
 
   const form = document.createElement('form');
 
@@ -30,18 +34,18 @@ export function showBackgroundSizeDialog({ naturalWidth, naturalHeight, onConfir
 
   const note = document.createElement('p');
   note.style.cssText = 'margin: 0 0 12px; font-size: 0.85rem; color: #aaa;';
-  note.textContent = '画像の実サイズを初期値にしています。必要に応じて数値を変更してください。';
+  note.textContent = '画像の実サイズをマス換算した近似値を初期値にしています。必要に応じて変更してください。';
   form.appendChild(note);
 
   const widthGroup = document.createElement('div');
   widthGroup.className = 'dialog-form-group';
   const widthLabel = document.createElement('label');
-  widthLabel.textContent = '幅（px）';
+  widthLabel.textContent = '幅（マス）';
   const widthInput = document.createElement('input');
   widthInput.type = 'number';
-  widthInput.min = '50';
+  widthInput.min = '1';
   widthInput.required = true;
-  widthInput.value = naturalWidth;
+  widthInput.value = defaultCols;
   widthGroup.appendChild(widthLabel);
   widthGroup.appendChild(widthInput);
   form.appendChild(widthGroup);
@@ -49,12 +53,12 @@ export function showBackgroundSizeDialog({ naturalWidth, naturalHeight, onConfir
   const heightGroup = document.createElement('div');
   heightGroup.className = 'dialog-form-group';
   const heightLabel = document.createElement('label');
-  heightLabel.textContent = '高さ（px）';
+  heightLabel.textContent = '高さ（マス）';
   const heightInput = document.createElement('input');
   heightInput.type = 'number';
-  heightInput.min = '50';
+  heightInput.min = '1';
   heightInput.required = true;
-  heightInput.value = naturalHeight;
+  heightInput.value = defaultRows;
   heightGroup.appendChild(heightLabel);
   heightGroup.appendChild(heightInput);
   form.appendChild(heightGroup);
@@ -78,10 +82,10 @@ export function showBackgroundSizeDialog({ naturalWidth, naturalHeight, onConfir
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const width = Number(widthInput.value) || naturalWidth;
-    const height = Number(heightInput.value) || naturalHeight;
+    const cols = Number(widthInput.value) || defaultCols;
+    const rows = Number(heightInput.value) || defaultRows;
     dialog.close();
-    onConfirm({ width, height });
+    onConfirm({ width: cols * gridSize, height: rows * gridSize });
   });
 
   dialog.appendChild(form);

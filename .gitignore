@@ -8,3 +8,7 @@ JSON/sample/安野吽.json
 JSON/sample/黒鉦大智.json
 node_modules/
 server/state.json
+txt/設計方針.txt
+txt/server.txt
+.gitignore
+txt/通信実現のプラン.txt

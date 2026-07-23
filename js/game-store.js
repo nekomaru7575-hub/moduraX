@@ -20,6 +20,13 @@ export function generateTokenId() {
   return `token-user-${Date.now()}-${tokenIdCounter}`;
 }
 
+let panelIdCounter = 0;
+
+export function generatePanelId() {
+  panelIdCounter += 1;
+  return `panel-user-${Date.now()}-${panelIdCounter}`;
+}
+
 const MAIN_CHAT_TAB_ID = 'main';
 
 class ImmutableStore {
@@ -54,9 +61,17 @@ class ImmutableStore {
   }
 
   // サーバーから受け取った最新状態で、ローカルの状態をまるごと置き換える
-  // （ネットワーク同期の初期化・再接続時にのみ使う）
+  // （ネットワーク同期の初期化・再接続時にのみ使う）。
+  // この機能より前に保存された状態にはpanels等が無いため、欠けているキーを補う。
   hydrate(newState) {
-    this.#state = this.#createProtectedProxy(newState);
+    const normalized = {
+      ...newState,
+      tokens: newState.tokens || {},
+      panels: newState.panels || {},
+      chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
+      chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] }
+    };
+    this.#state = this.#createProtectedProxy(normalized);
     EventBus.emit('STATE_CHANGED', this.#state);
   }
 
@@ -476,6 +491,103 @@ class ImmutableStore {
         return;
       }
 
+      // --- パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト） ---
+      // 位置(x,y)は盤面ローカルのピクセル座標（グリッド吸着済み、盤面外は負値もあり得る）、
+      // 大きさ(cols,rows)はマス数。隣接判定などの配置妥当性チェックはUI層(board-data-driven.js)が行う。
+      case 'ADD_PANEL': {
+        const { id, image = null, x = 0, y = 0, cols = 2, rows = 2 } = payload;
+        if (!id) return;
+        if (prevState.panels[id]) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze({
+            ...prevState.panels,
+            [id]: Object.freeze({
+              id, image: image || null, x, y,
+              cols: Math.max(1, Math.round(cols)),
+              rows: Math.max(1, Math.round(rows))
+            })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'MOVE_PANEL': {
+        const { id, x, y } = payload;
+        if (!prevState.panels[id]) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze({
+            ...prevState.panels,
+            [id]: Object.freeze({ ...prevState.panels[id], x, y })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'SET_PANEL_SIZE': {
+        const { id, cols, rows } = payload;
+        if (!prevState.panels[id]) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze({
+            ...prevState.panels,
+            [id]: Object.freeze({
+              ...prevState.panels[id],
+              cols: Math.max(1, Math.round(cols)),
+              rows: Math.max(1, Math.round(rows))
+            })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'SET_PANEL_IMAGE': {
+        const { id, image } = payload;
+        if (!prevState.panels[id]) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze({
+            ...prevState.panels,
+            [id]: Object.freeze({ ...prevState.panels[id], image: image || null })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'REMOVE_PANEL': {
+        const { id } = payload;
+        if (!prevState.panels[id]) return;
+
+        const nextPanels = { ...prevState.panels };
+        delete nextPanels[id];
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze(nextPanels)
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       default:
         return;
     }
@@ -496,6 +608,9 @@ export const store = new ImmutableStore({
   },
 
   tokens: {},
+
+  // パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト）
+  panels: {},
 
   // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
   chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],

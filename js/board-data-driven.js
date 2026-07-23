@@ -4,10 +4,11 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
 import { showBackgroundSizeDialog } from './background-dialog.js';
+import { showPanelDialog } from './panel-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
-import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './game-store.js';
+import { store, generateTokenId, generatePanelId, listPlugins, DEFAULT_TOKEN_COLOR } from './game-store.js';
 export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
 
 const GRID_SIZE = 25;
@@ -73,16 +74,58 @@ function scheduleBoardTransform(board) {
 }
 
 
-// ローカル座標(コマの位置)がはみ出さない範囲にクランプする。tokenPixelSizeは
+// コマを置ける領域の外接矩形（盤面ローカル座標）を返す。
+// 盤面本体に加え、盤面外に連結されたパネルの範囲も含める（コマをパネル上に乗せられるように）。
+function getPlacementBounds(board) {
+  let minX = 0;
+  let minY = 0;
+  let maxX = board.offsetWidth;
+  let maxY = board.offsetHeight;
+
+  Object.values(store.state.panels || {}).forEach(panel => {
+    const px2 = panel.x + panel.cols * GRID_SIZE;
+    const py2 = panel.y + panel.rows * GRID_SIZE;
+    if (panel.x < minX) minX = panel.x;
+    if (panel.y < minY) minY = panel.y;
+    if (px2 > maxX) maxX = px2;
+    if (py2 > maxY) maxY = py2;
+  });
+
+  return { minX, minY, maxX, maxY };
+}
+
+// ローカル座標(コマの位置)が配置可能領域からはみ出さない範囲にクランプする。tokenPixelSizeは
 // そのコマの実際の一辺の長さ（size×GRID_SIZE）で、コマごとに大きさが異なるため呼び出し側で渡す。
 function clampToBoard(x, y, board, tokenPixelSize = GRID_SIZE) {
-  const maxX = board.offsetWidth - tokenPixelSize;
-  const maxY = board.offsetHeight - tokenPixelSize;
+  const bounds = getPlacementBounds(board);
+  const maxX = bounds.maxX - tokenPixelSize;
+  const maxY = bounds.maxY - tokenPixelSize;
 
   return {
-    x: Math.max(0, Math.min(x, maxX)),
-    y: Math.max(0, Math.min(y, maxY))
+    x: Math.max(bounds.minX, Math.min(x, maxX)),
+    y: Math.max(bounds.minY, Math.min(y, maxY))
   };
+}
+
+// 2つの矩形が「連結している」（重なる、または辺で接している）かを判定する。
+// 角だけが触れている場合（斜めの隙間）は連結とみなさない。
+function rectsConnected(a, b) {
+  const hOverlap = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const vOverlap = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return hOverlap >= 0 && vOverlap >= 0 && (hOverlap > 0 || vOverlap > 0);
+}
+
+// パネルの配置(candidateRect)が妥当か（盤面または他のいずれかのパネルに連結しているか）を判定する。
+// selfIdは移動・リサイズ中の自分自身のパネルIDで、連結相手から除外する。
+function isPanelPlacementValid(candidateRect, board, selfId) {
+  const boardRect = { x: 0, y: 0, w: board.offsetWidth, h: board.offsetHeight };
+  if (rectsConnected(candidateRect, boardRect)) return true;
+
+  return Object.values(store.state.panels || {}).some(panel => {
+    if (panel.id === selfId) return false;
+    const rect = { x: panel.x, y: panel.y, w: panel.cols * GRID_SIZE, h: panel.rows * GRID_SIZE };
+    return rectsConnected(candidateRect, rect);
+  });
 }
 
 function applyBoardTransform(board) {
@@ -293,20 +336,132 @@ function createTokenElement(tokenData, board) {
   return el;
 }
 
+// パネルの見た目（画像・大きさ）をStateに合わせて反映する。
+// 大きさは cols×rows マス × GRID_SIZE のピクセル値にする。
+function applyPanelAppearance(el, panelData) {
+  el.style.width = `${panelData.cols * GRID_SIZE}px`;
+  el.style.height = `${panelData.rows * GRID_SIZE}px`;
+
+  if (panelData.image) {
+    el.style.backgroundImage = `url('${panelData.image}')`;
+  } else {
+    el.style.backgroundImage = '';
+  }
+}
+
+// パネルのドラッグ移動。グリッド吸着し、ドロップ時に隣接判定に通らなければ元の位置へ戻す。
+function bindPanelDrag(element, board) {
+  element.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
+
+    const panelId = element.id;
+    const currentPanelState = store.state.panels[panelId];
+    if (!currentPanelState) return;
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startX = currentPanelState.x;
+    const startY = currentPanelState.y;
+
+    function onMouseMove(e) {
+      const deltaX = (e.clientX - startClientX) / scale;
+      const deltaY = (e.clientY - startClientY) / scale;
+      store.dispatch('MOVE_PANEL', { id: panelId, x: startX + deltaX, y: startY + deltaY });
+    }
+
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+
+      const latest = store.state.panels[panelId];
+      if (!latest) return;
+
+      const snappedX = Math.round(latest.x / GRID_SIZE) * GRID_SIZE;
+      const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
+      const rect = { x: snappedX, y: snappedY, w: latest.cols * GRID_SIZE, h: latest.rows * GRID_SIZE };
+
+      if (isPanelPlacementValid(rect, board, panelId)) {
+        store.dispatch('MOVE_PANEL', { id: panelId, x: snappedX, y: snappedY });
+      } else {
+        // 連結が切れる位置には置けないので、ドラッグ開始位置へ戻す
+        store.dispatch('MOVE_PANEL', { id: panelId, x: startX, y: startY });
+      }
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+
+  element.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const panelId = element.id;
+
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: 'パネルを編集',
+        onSelect: () => {
+          const current = store.state.panels[panelId];
+          if (!current) return;
+          showPanelDialog({
+            title: 'パネルを編集',
+            initialImage: current.image,
+            initialCols: current.cols,
+            initialRows: current.rows,
+            gridSize: GRID_SIZE,
+            onConfirm: ({ image, cols, rows }) => {
+              const latest = store.state.panels[panelId];
+              if (!latest) return;
+              if (image !== (latest.image || null)) {
+                store.dispatch('SET_PANEL_IMAGE', { id: panelId, image });
+              }
+              if (cols !== latest.cols || rows !== latest.rows) {
+                store.dispatch('SET_PANEL_SIZE', { id: panelId, cols, rows });
+              }
+            }
+          });
+        }
+      },
+      {
+        label: '削除',
+        danger: true,
+        onSelect: () => {
+          store.dispatch('REMOVE_PANEL', { id: panelId });
+        }
+      }
+    ]);
+  });
+}
+
+function createPanelElement(panelData, board) {
+  const el = document.createElement('div');
+  el.className = 'panel-object';
+  el.id = panelData.id;
+  applyPanelAppearance(el, panelData);
+
+  bindPanelDrag(el, board);
+  board.appendChild(el);
+  return el;
+}
+
 function clampPan(viewport, board) {
-  const boardW = board.offsetWidth * scale;
-  const boardH = board.offsetHeight * scale;
   const vw = viewport.clientWidth;
   const vh = viewport.clientHeight;
+
+  // パネルが盤面外に連結されている場合も見渡せるよう、配置可能領域の外接矩形を基準にする
+  // （盤面外パネルはローカル座標が負にもなり得るので minX/minY も考慮する）
+  const bounds = getPlacementBounds(board);
 
   // 画面中央より奥へ盤面の端が行かないようにする「のりしろ」
   const marginX = vw / 2;
   const marginY = vh / 2;
 
-  const minPanX = vw - boardW - marginX;
-  const maxPanX = marginX;
-  const minPanY = vh - boardH - marginY;
-  const maxPanY = marginY;
+  const maxPanX = marginX - bounds.minX * scale;
+  const minPanX = vw - marginX - bounds.maxX * scale;
+  const maxPanY = marginY - bounds.minY * scale;
+  const minPanY = vh - marginY - bounds.maxY * scale;
 
   panX = Math.min(maxPanX, Math.max(minPanX, panX));
   panY = Math.min(maxPanY, Math.max(minPanY, panY));
@@ -339,10 +494,11 @@ window.addEventListener('DOMContentLoaded', () => {
     scheduleBoardTransform(board);
   }, { passive: false });
 
-  // 左ドラッグ：視点移動（パン）。コマの上から始めた場合は無視してコマ移動に任せる。
+  // 左ドラッグ：視点移動（パン）。コマ／パネルの上から始めた場合は無視して各自の移動に任せる。
   viewport.addEventListener('mousedown', (event) => {
     if (event.button !== 0) return;
     if (event.target.closest('.token')) return;
+    if (event.target.closest('.panel-object')) return;
 
     const panStartClientX = event.clientX;
     const panStartClientY = event.clientY;
@@ -402,6 +558,34 @@ window.addEventListener('DOMContentLoaded', () => {
                 y: Math.round(clampedY),
                 parameterOverrides,
                 customParameters
+              });
+            }
+          });
+        }
+      },
+      {
+        label: 'パネルを追加',
+        onSelect: () => {
+          // パネルの左上をクリック位置のマスに吸着させる
+          const snapX = Math.round(dropX / GRID_SIZE) * GRID_SIZE;
+          const snapY = Math.round(dropY / GRID_SIZE) * GRID_SIZE;
+
+          showPanelDialog({
+            title: 'パネルを追加',
+            gridSize: GRID_SIZE,
+            onConfirm: ({ image, cols, rows }) => {
+              const rect = { x: snapX, y: snapY, w: cols * GRID_SIZE, h: rows * GRID_SIZE };
+              if (!isPanelPlacementValid(rect, board, null)) {
+                alert('パネルは盤面または他のパネルに隣接する位置に配置してください。');
+                return;
+              }
+              store.dispatch('ADD_PANEL', {
+                id: generatePanelId(),
+                image,
+                x: snapX,
+                y: snapY,
+                cols,
+                rows
               });
             }
           });
@@ -486,6 +670,31 @@ window.addEventListener('DOMContentLoaded', () => {
   EventBus.subscribe('STATE_CHANGED', (state) => {
     applyBoardBackground(board, state.room);
 
+    // --- パネルの同期（コマより下に敷く背景層） ---
+    const panels = state.panels || {};
+    const existingPanelIds = new Set(
+      Array.from(board.querySelectorAll('.panel-object')).map(el => el.id)
+    );
+    const panelIds = new Set(Object.keys(panels));
+
+    existingPanelIds.forEach(id => {
+      if (!panelIds.has(id)) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      }
+    });
+
+    Object.values(panels).forEach(panelData => {
+      let el = document.getElementById(panelData.id);
+      if (!el) {
+        el = createPanelElement(panelData, board);
+      }
+      el.style.left = `${panelData.x}px`;
+      el.style.top = `${panelData.y}px`;
+      applyPanelAppearance(el, panelData);
+    });
+
+    // --- コマの同期 ---
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)
     );

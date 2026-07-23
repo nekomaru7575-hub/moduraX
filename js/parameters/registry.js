@@ -43,6 +43,29 @@ export function renderCharacterPanel(pluginId, context) {
   return plugin.renderCharacterPanel(context) || null;
 }
 
+// 指定プラグインが拡張JSON読み込み（importCharacterJson）を持つか
+export function pluginHasCharacterImport(pluginId) {
+  return !!PLUGINS[pluginId]?.importCharacterJson;
+}
+
+/**
+ * ゲームシステム固有のキャラクターシートJSON（外部ツール出力）を、プラグイン自身の
+ * 知識で解釈させる。Coreはjsonをそのまま渡すだけで、フィールドの意味は解釈しない。
+ * @param {string} pluginId
+ * @param {any} json
+ * @returns {{
+ *   name?: string,
+ *   valueOverrides: Record<string, number>,
+ *   labelOverrides: Record<string, string>,
+ *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible?:boolean}>
+ * } | null}
+ */
+export function importCharacterJsonForPlugin(pluginId, json) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.importCharacterJson) return null;
+  return plugin.importCharacterJson(json) || null;
+}
+
 /**
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
  * @param {string} pluginId 

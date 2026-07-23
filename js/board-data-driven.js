@@ -4,8 +4,12 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
-import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins ,applyPluginDerivedParameters } from './parameters/registry.js';
-import { pickFileAsDataUrl } from './file-uploader.js';
+import {
+  buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
+  pluginHasCharacterImport, importCharacterJsonForPlugin
+} from './parameters/registry.js';
+import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
+import { importCharacterJsonGeneric } from './character-json-import.js';
 export { listPlugins };
 
 const GRID_SIZE = 50;
@@ -159,6 +163,45 @@ class ImmutableStore {
         });
 
         this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // 外部JSON（汎用/プラグイン拡張どちらも）の取り込み結果をまとめて適用する。
+      // Core側はvalueOverrides/labelOverrides/newParametersの意味を解釈せず、
+      // 既存paramIdへの反映・新規paramIdの追加という機械的な処理のみ行う。
+      case 'IMPORT_CHARACTER_DATA': {
+        const { id, name, valueOverrides = {}, labelOverrides = {}, newParameters = {} } = payload;
+        const character = nextTokensState[id];
+        if (!character) return;
+
+        let nextParams = { ...character.parameters };
+
+        Object.entries(valueOverrides).forEach(([paramId, value]) => {
+          if (nextParams[paramId] && typeof value === 'number') {
+            nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
+          }
+        });
+
+        Object.entries(labelOverrides).forEach(([paramId, label]) => {
+          if (nextParams[paramId] && typeof label === 'string') {
+            nextParams[paramId] = Object.freeze({ ...nextParams[paramId], label });
+          }
+        });
+
+        Object.entries(newParameters).forEach(([paramId, paramDef]) => {
+          nextParams[paramId] = Object.freeze({ ...paramDef });
+        });
+
+        nextParams = applyPluginDerivedParameters(activePlugin, nextParams);
+
+        nextTokensState[id] = Object.freeze({
+          ...character,
+          name: name || character.name,
+          parameters: nextParams
+        });
+
+        this.#commit(prevState, nextTokensState);
+        EventBus.emit('CharacterImported', { id });
         return;
       }
 
@@ -542,6 +585,41 @@ function bindTokenDrag(element, board) {
                 store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible });
               });
             }
+          });
+        }
+      },
+      {
+        label: 'JSONを読み込む',
+        onSelect: async () => {
+          const picked = await pickFileAsText({ accept: 'application/json' });
+          if (!picked) return;
+
+          let json;
+          try {
+            json = JSON.parse(picked.text);
+          } catch (error) {
+            alert(`JSONの解析に失敗しました: ${error.message}`);
+            return;
+          }
+
+          // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
+          // 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
+          const activePluginId = store.state.room?.activePlugin ?? null;
+          const importResult = (activePluginId && pluginHasCharacterImport(activePluginId))
+            ? importCharacterJsonForPlugin(activePluginId, json)
+            : importCharacterJsonGeneric(json);
+
+          if (!importResult) {
+            alert('このJSONを読み込めませんでした。');
+            return;
+          }
+
+          store.dispatch('IMPORT_CHARACTER_DATA', {
+            id: tokenId,
+            name: importResult.name,
+            valueOverrides: importResult.valueOverrides,
+            labelOverrides: importResult.labelOverrides,
+            newParameters: importResult.newParameters
           });
         }
       },

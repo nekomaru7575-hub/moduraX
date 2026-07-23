@@ -73,11 +73,86 @@ function renderDX3CharacterPanel({ container, parameters }) {
   };
 }
 
+// DX3の能力値（固定4種）。キャラシート作成ツールのJSONキー → 表示ラベル
+const DX3_ABILITY_FIELD_MAP = {
+  sttTotalBody: '肉体',
+  sttTotalSense: '感覚',
+  sttTotalMind: '精神',
+  sttTotalSocial: '社会'
+};
+
+// DX3の固定技能。知識/技芸/騎乗/情報のような可変スロット技能（skillInfo1等）は
+// ロイス・エフェクト・コンボと同様、拡張ボックスでの対応を見据えて今回は対象外。
+const DX3_FIXED_SKILL_FIELD_MAP = {
+  skillMelee: '白兵',
+  skillRanged: '射撃',
+  skillDodge: '回避',
+  skillProcure: '調達',
+  skillRC: 'RC' // 表記がシート上の略称のままか要確認
+};
+
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * 既存のキャラクターシート作成ツール（ytsheet/dx3rd等）が出力するJSONを取り込む。
+ * ロイス・エフェクト・コンボ（複数データをまとめる拡張ボックス）は今回は対象外。
+ * @param {any} json
+ * @returns {{
+ *   name?: string,
+ *   valueOverrides: Record<string, number>,
+ *   labelOverrides: Record<string, string>,
+ *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>
+ * } | null}
+ */
+function importDX3CharacterJson(json) {
+  if (!json || typeof json !== 'object') return null;
+
+  const valueOverrides = {};
+  if (json.maxHpTotal !== undefined) valueOverrides['core:hp'] = toNumber(json.maxHpTotal);
+  if (json.initiativeTotal !== undefined) valueOverrides['core:initiative'] = toNumber(json.initiativeTotal);
+  if (json.baseEncroach !== undefined) valueOverrides['DX3:corruption'] = toNumber(json.baseEncroach);
+
+  const newParameters = {};
+  Object.entries(DX3_ABILITY_FIELD_MAP).forEach(([field, label]) => {
+    if (json[field] === undefined) return;
+    newParameters[`DX3:${field}`] = {
+      key: field,
+      label,
+      value: toNumber(json[field]),
+      source: 'DX3',
+      visible: false
+    };
+  });
+  Object.entries(DX3_FIXED_SKILL_FIELD_MAP).forEach(([field, label]) => {
+    if (json[field] === undefined) return;
+    newParameters[`DX3:${field}`] = {
+      key: field,
+      label,
+      value: toNumber(json[field]),
+      source: 'DX3',
+      visible: false
+    };
+  });
+
+  return {
+    name: typeof json.characterName === 'string' ? json.characterName : undefined,
+    valueOverrides,
+    labelOverrides: {
+      'core:initiative': '行動値'
+    },
+    newParameters
+  };
+}
+
 export const DX3_PLUGIN = {
   id: 'DX3',
   label: 'ダブルクロス (3rd)',
   buildCharacterParameters: buildDX3Parameters,
   // buildRoomParameters: 未定義 → registry側で自動的に空オブジェクト扱い
   computeDerivedParameters: computeDX3DerivedParameters, // 🆕 計算ロジックを登録
-  renderCharacterPanel: renderDX3CharacterPanel
+  renderCharacterPanel: renderDX3CharacterPanel,
+  importCharacterJson: importDX3CharacterJson
 };

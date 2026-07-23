@@ -36,3 +36,37 @@ export function pickFileAsDataUrl({ accept = 'image/*' } = {}) {
     input.click();
   });
 }
+
+/**
+ * ネイティブのファイル選択ダイアログを開き、選択されたファイルをテキストとして読み込む。
+ * JSONインポート等、バイナリ変換が不要な用途向け。キャンセルされた場合はnullを返す。
+ *
+ * @param {{ accept?: string }} options accept: input[type=file]のaccept属性（既定 'application/json'）
+ * @returns {Promise<{ file: File, text: string } | null>}
+ */
+export function pickFileAsText({ accept = 'application/json' } = {}) {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+
+    input.addEventListener('change', () => {
+      const file = input.files?.[0] ?? null;
+      input.remove();
+
+      if (!file) {
+        resolve(null);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => resolve({ file, text: reader.result });
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}

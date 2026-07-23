@@ -82,6 +82,25 @@ function buildImagePicker(initialImage) {
   return { element: group, getImage: () => currentImage };
 }
 
+// コマの大きさ（マス数、N×Nとして扱う）の入力UI。作成/更新どちらのダイアログからも使う。
+function buildSizeInput(initialSize) {
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group';
+
+  const label = document.createElement('label');
+  label.textContent = 'サイズ（マス、N×N）';
+  group.appendChild(label);
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '1';
+  input.step = '1';
+  input.value = initialSize || 1;
+  group.appendChild(input);
+
+  return { element: group, getSize: () => Math.max(1, Math.round(Number(input.value) || 1)) };
+}
+
 // 「表示」チェックボックス（visible切り替え用）を生成する共通処理。
 // 既存パラメータ行・新規カスタムパラメータ行のどちらからも使う。
 function buildVisibilityCheckbox(initialChecked = true) {
@@ -116,7 +135,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -153,6 +172,10 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   // --- 画像 ---
   const imagePicker = buildImagePicker(null);
   mainColumn.appendChild(imagePicker.element);
+
+  // --- サイズ ---
+  const sizeInput = buildSizeInput(1);
+  mainColumn.appendChild(sizeInput.element);
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
@@ -269,7 +292,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), size: sizeInput.getSize(), parameterOverrides, customParameters });
   });
 
   dialog.appendChild(form);
@@ -294,12 +317,13 @@ function ensureEditDialog() {
  * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, image?: string | null, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
+ *   character: { name: string, image?: string | null, size?: number, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
  *   onConfirm: (result: {
  *     name: string,
  *     image: string | null,
+ *     size: number,
  *     parameterValues: Record<string, number>,
  *     removedParamIds: string[],
  *     newCustomParameters: {key:string,label:string,value:number,visible:boolean}[],
@@ -342,6 +366,10 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
   // --- 画像 ---
   const imagePicker = buildImagePicker(character.image);
   mainColumn.appendChild(imagePicker.element);
+
+  // --- サイズ ---
+  const sizeInput = buildSizeInput(character.size || 1);
+  mainColumn.appendChild(sizeInput.element);
 
   // --- 既存パラメータ一覧（値の変更・削除） ---
   const paramListLabel = document.createElement('label');
@@ -523,6 +551,7 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
     onConfirm({
       name,
       image: imagePicker.getImage(),
+      size: sizeInput.getSize(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters,

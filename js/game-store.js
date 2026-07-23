@@ -83,7 +83,7 @@ class ImmutableStore {
 
       case 'ADD_CHARACTER': {
         const {
-          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null,
+          id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
           parameterOverrides = {}, customParameters = []
         } = payload;
         if (!id || !name) return;
@@ -109,7 +109,7 @@ class ImmutableStore {
         const finalParameters = applyPluginDerivedParameters(activePlugin, parameters);
 
         nextTokensState[id] = Object.freeze({
-          id, name, x, y, color, image,
+          id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           actions: Object.freeze([])
@@ -150,6 +150,20 @@ class ImmutableStore {
         nextTokensState[id] = Object.freeze({
           ...nextTokensState[id],
           image: image || null
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // コマの大きさ（マス数、N×Nとして扱う）を変更する
+      case 'SET_CHARACTER_SIZE': {
+        const { id, size } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          size: Math.max(1, Math.round(size))
         });
 
         this.#commit(prevState, nextTokensState);

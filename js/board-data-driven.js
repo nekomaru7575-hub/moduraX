@@ -11,7 +11,6 @@ import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './game
 export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
 
 const GRID_SIZE = 25;
-const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
@@ -75,10 +74,11 @@ function scheduleBoardTransform(board) {
 }
 
 
-// ローカル座標(コマの位置)がはみ出さない範囲にクランプする
-function clampToBoard(x, y, board) {
-  const maxX = board.offsetWidth - TOKEN_SIZE;
-  const maxY = board.offsetHeight - TOKEN_SIZE;
+// ローカル座標(コマの位置)がはみ出さない範囲にクランプする。tokenPixelSizeは
+// そのコマの実際の一辺の長さ（size×GRID_SIZE）で、コマごとに大きさが異なるため呼び出し側で渡す。
+function clampToBoard(x, y, board, tokenPixelSize = GRID_SIZE) {
+  const maxX = board.offsetWidth - tokenPixelSize;
+  const maxY = board.offsetHeight - tokenPixelSize;
 
   return {
     x: Math.max(0, Math.min(x, maxX)),
@@ -129,6 +129,7 @@ function bindTokenDrag(element, board) {
     const currentTokenState = store.state.tokens[tokenId];
     if (!currentTokenState) return;
 
+    const tokenPixelSize = (currentTokenState.size || 1) * GRID_SIZE;
     const startClientX = event.clientX;
     const startClientY = event.clientY;
     const startX = currentTokenState.x;
@@ -139,7 +140,7 @@ function bindTokenDrag(element, board) {
       const deltaX = (e.clientX - startClientX) / scale;
       const deltaY = (e.clientY - startClientY) / scale;
 
-      const { x: clampedX, y: clampedY } = clampToBoard(startX + deltaX, startY + deltaY, board);
+      const { x: clampedX, y: clampedY } = clampToBoard(startX + deltaX, startY + deltaY, board, tokenPixelSize);
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
     }
 
@@ -153,7 +154,7 @@ function bindTokenDrag(element, board) {
       const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
       const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE + OFFSET_PADDING;
 
-      const { x: finalX, y: finalY } = clampToBoard(snappedX, snappedY, board);
+      const { x: finalX, y: finalY } = clampToBoard(snappedX, snappedY, board, tokenPixelSize);
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
     }
 
@@ -180,7 +181,7 @@ function bindTokenDrag(element, board) {
             onComponentChange: (componentKey, value) => {
               store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
             },
-            onConfirm: ({ name, image, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
+            onConfirm: ({ name, image, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -190,6 +191,10 @@ function bindTokenDrag(element, board) {
 
               if (image !== (latest.image || null)) {
                 store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
+              }
+
+              if (size !== (latest.size || 1)) {
+                store.dispatch('SET_CHARACTER_SIZE', { id: tokenId, size });
               }
 
               Object.entries(parameterValues).forEach(([paramId, value]) => {
@@ -254,8 +259,13 @@ function bindTokenDrag(element, board) {
   });
 }
 
-// コマの見た目（色 or 画像）をStateに合わせて反映する
+// コマの見た目（色・画像・大きさ）をStateに合わせて反映する。
+// 大きさはマス数(size、N×N)×GRID_SIZEのピクセル値にする。
 function applyTokenAppearance(el, tokenData) {
+  const pixelSize = (tokenData.size || 1) * GRID_SIZE;
+  el.style.width = `${pixelSize}px`;
+  el.style.height = `${pixelSize}px`;
+
   el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
   if (tokenData.image) {
     el.style.backgroundImage = `url('${tokenData.image}')`;
@@ -372,8 +382,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const dropY = (cy - panY) / scale;
 
     const { x: clampedX, y: clampedY } = clampToBoard(
-      dropX - TOKEN_SIZE / 2,
-      dropY - TOKEN_SIZE / 2,
+      dropX - GRID_SIZE / 2,
+      dropY - GRID_SIZE / 2,
       board
     );
 
@@ -383,11 +393,12 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, size, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
                 image,
+                size,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,
@@ -458,8 +469,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const dropX = (cx - panX) / scale;
     const dropY = (cy - panY) / scale;
     const { x: clampedX, y: clampedY } = clampToBoard(
-      dropX - TOKEN_SIZE / 2,
-      dropY - TOKEN_SIZE / 2,
+      dropX - GRID_SIZE / 2,
+      dropY - GRID_SIZE / 2,
       board
     );
 

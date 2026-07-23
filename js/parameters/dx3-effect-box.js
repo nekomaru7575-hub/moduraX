@@ -12,16 +12,23 @@ function ensureDialog() {
   return dialogEl;
 }
 
-const LIMIT_TYPES = ['scenario', 'scene', 'round'];
-const LIMIT_TYPE_LABELS = {
+const LIMIT_CATEGORIES = ['scenario', 'scene', 'round'];
+const LIMIT_CATEGORY_LABELS = {
   scenario: 'シナリオ',
   scene: 'シーン',
   round: 'ラウンド'
 };
 
+function defaultLimit() {
+  return { current: 0, max: null, ebBonus: false };
+}
+
 /**
  * @param {{
- *   effects: Array<{ name:string, level:number, encroach:string, note:string, limitType:string, limitCount:number|null }>,
+ *   effects: Array<{
+ *     name:string, level:number, encroach:string, note:string,
+ *     limits: Record<'scenario'|'scene'|'round', { current:number, max:number|null, ebBonus:boolean }>
+ *   }>,
  *   onSave: (effects: Array<object>) => void
  * }} options
  */
@@ -89,52 +96,64 @@ export function showEffectBox({ effects = [], onSave }) {
     noteInput.value = effect?.note ?? '';
     item.appendChild(noteInput);
 
-    const limitRow = document.createElement('div');
-    limitRow.className = 'effect-box-limit-row';
+    // 回数制限：シナリオ/シーン/ラウンドそれぞれ独立に「現在/上限」＋EB補正の有無を持てる
+    // （例：シナリオ2回とシーン1回を同時に持つエフェクトに対応するため、排他にしない）
+    const limitsWrap = document.createElement('div');
+    limitsWrap.className = 'effect-box-limits';
 
-    const limitLabel = document.createElement('span');
-    limitLabel.className = 'effect-box-limit-label';
-    limitLabel.textContent = '回数制限:';
-    limitRow.appendChild(limitLabel);
+    const limitControls = {};
+    LIMIT_CATEGORIES.forEach(category => {
+      const limitData = effect?.limits?.[category] ?? defaultLimit();
 
-    const limitCheckboxes = {};
-    LIMIT_TYPES.forEach(type => {
-      const label = document.createElement('label');
-      label.className = 'effect-box-limit-checkbox';
+      const limitRow = document.createElement('div');
+      limitRow.className = 'effect-box-limit-row';
 
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = effect?.limitType === type;
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          LIMIT_TYPES.forEach(otherType => {
-            if (otherType !== type) limitCheckboxes[otherType].checked = false;
-          });
-        }
-      });
+      const limitLabel = document.createElement('span');
+      limitLabel.className = 'effect-box-limit-label';
+      limitLabel.textContent = LIMIT_CATEGORY_LABELS[category];
+      limitRow.appendChild(limitLabel);
 
-      limitCheckboxes[type] = checkbox;
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(LIMIT_TYPE_LABELS[type]));
-      limitRow.appendChild(label);
+      const currentInput = document.createElement('input');
+      currentInput.type = 'number';
+      currentInput.className = 'effect-box-limit-current';
+      currentInput.min = '0';
+      currentInput.value = limitData.current ?? 0;
+      limitRow.appendChild(currentInput);
+
+      const slash = document.createElement('span');
+      slash.className = 'effect-box-limit-slash';
+      slash.textContent = '/';
+      limitRow.appendChild(slash);
+
+      const maxInput = document.createElement('input');
+      maxInput.type = 'number';
+      maxInput.className = 'effect-box-limit-max';
+      maxInput.min = '0';
+      maxInput.placeholder = '無制限';
+      maxInput.value = limitData.max ?? '';
+      limitRow.appendChild(maxInput);
+
+      const countSuffix = document.createElement('span');
+      countSuffix.textContent = '回';
+      limitRow.appendChild(countSuffix);
+
+      const ebLabel = document.createElement('label');
+      ebLabel.className = 'effect-box-limit-eb';
+      const ebCheckbox = document.createElement('input');
+      ebCheckbox.type = 'checkbox';
+      ebCheckbox.checked = !!limitData.ebBonus;
+      ebLabel.appendChild(ebCheckbox);
+      ebLabel.appendChild(document.createTextNode('EB補正'));
+      limitRow.appendChild(ebLabel);
+
+      limitsWrap.appendChild(limitRow);
+      limitControls[category] = { currentInput, maxInput, ebCheckbox };
     });
 
-    const limitCountInput = document.createElement('input');
-    limitCountInput.type = 'number';
-    limitCountInput.className = 'effect-box-limit-count';
-    limitCountInput.placeholder = '回数';
-    limitCountInput.min = '1';
-    limitCountInput.value = effect?.limitCount ?? '';
-    limitRow.appendChild(limitCountInput);
-
-    const limitSuffix = document.createElement('span');
-    limitSuffix.textContent = '回';
-    limitRow.appendChild(limitSuffix);
-
-    item.appendChild(limitRow);
+    item.appendChild(limitsWrap);
     listEl.appendChild(item);
 
-    rows.push({ item, nameInput, levelInput, encroachInput, noteInput, limitCheckboxes, limitCountInput });
+    rows.push({ item, nameInput, levelInput, encroachInput, noteInput, limitControls });
   }
 
   effects.forEach(addRow);
@@ -168,14 +187,23 @@ export function showEffectBox({ effects = [], onSave }) {
 
     const nextEffects = rows
       .map(row => {
-        const selectedType = LIMIT_TYPES.find(type => row.limitCheckboxes[type].checked) ?? 'none';
+        const limits = {};
+        LIMIT_CATEGORIES.forEach(category => {
+          const { currentInput, maxInput, ebCheckbox } = row.limitControls[category];
+          const rawMax = maxInput.value.trim();
+          limits[category] = {
+            current: Number(currentInput.value) || 0,
+            max: rawMax === '' ? null : (Number(rawMax) || 0),
+            ebBonus: ebCheckbox.checked
+          };
+        });
+
         return {
           name: row.nameInput.value.trim(),
           level: Number(row.levelInput.value) || 0,
           encroach: row.encroachInput.value.trim(),
           note: row.noteInput.value,
-          limitType: selectedType,
-          limitCount: selectedType === 'none' ? null : (Number(row.limitCountInput.value) || null)
+          limits
         };
       })
       .filter(effect => effect.name !== '');

@@ -154,8 +154,13 @@ function importDX3Effects(json) {
       level: toNumber(json[`effect${n}Lv`]),
       encroach: json[`effect${n}Encroach`] ?? '',
       note: json[`effect${n}Note`] ?? '',
-      limitType: 'none',
-      limitCount: null
+      // 回数制限（シナリオ/シーン/ラウンド）はシート側に構造化フィールドがないため、
+      // 初期値は制限なし。ボックスUI側で手入力する。
+      limits: {
+        scenario: { current: 0, max: null, ebBonus: false },
+        scene: { current: 0, max: null, ebBonus: false },
+        round: { current: 0, max: null, ebBonus: false }
+      }
     });
   }
 
@@ -203,7 +208,7 @@ function importDX3VariableSkillSlots(json) {
  *   valueOverrides: Record<string, number>,
  *   labelOverrides: Record<string, string>,
  *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>,
- *   components: { effects: Array<{name:string,level:number,encroach:string,note:string,limitType:string,limitCount:number|null}> }
+ *   components: { effects: Array<{name:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null,ebBonus:boolean}>}> }
  * } | null}
  */
 function importDX3CharacterJson(json) {

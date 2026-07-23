@@ -154,10 +154,16 @@
       font-family: inherit;
     }
 
+    .effect-box-limits {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
     .effect-box-limit-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       font-size: 0.85rem;
       color: #ccc;
@@ -165,21 +171,29 @@
 
     .effect-box-limit-label {
       color: #aaa;
+      width: 4em;
+      flex-shrink: 0;
     }
 
-    .effect-box-limit-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .effect-box-limit-count {
-      width: 60px;
+    .effect-box-limit-current,
+    .effect-box-limit-max {
+      width: 52px;
       background-color: #3a3a3a;
       color: #fff;
       border: 1px solid #555;
       padding: 4px 6px;
       border-radius: 4px;
+    }
+
+    .effect-box-limit-slash {
+      color: #888;
+    }
+
+    .effect-box-limit-eb {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 8px;
     }
 
     .character-dialog::backdrop {

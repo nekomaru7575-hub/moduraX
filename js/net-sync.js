@@ -2,8 +2,9 @@
 // ブラウザ側のWebSocketクライアント。store.dispatchをラップして、ローカル適用に加えて
 // サーバーへアクションを送信し、サーバー・他クライアントからのアクションをローカルに適用する。
 //
-// 本番のサーバーに向き先を変える際は、このWS_URLを書き換えるだけでよい。
-const WS_URL = 'ws://localhost:8081';
+// server/index.jsが静的ファイル配信とWebSocketを同じポートで行っているため、
+// 接続先は「今このページを配信しているホスト」から自動で求める（手動での書き換え不要）。
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
 
 const RECONNECT_DELAY_MS = 2000;
 

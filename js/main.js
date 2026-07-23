@@ -8,6 +8,7 @@ import { showContextMenu } from './context-menu.js';
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
 const gameSystemSelect = document.getElementById('gameSystem');
+const characterParamSelect = document.getElementById('characterParamSelect');
 const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
 
@@ -83,15 +84,31 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
   }
 });
 
+// {パラメータ名}を、参照キャラクターの該当パラメータの値に置換する。
+// 該当パラメータが見つからない場合は{パラメータ名}のまま残す。
+function substituteCharacterParameters(text, character) {
+  if (!character) return text;
+  return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
+    const name = rawName.trim();
+    const param = Object.values(character.parameters || {}).find(p => p.label === name || p.key === name);
+    return param ? String(param.value) : match;
+  });
+}
+
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
     const selectedSystem = gameSystemSelect.value;
-    const rawInput = commandInput.value.trim();
+    let rawInput = commandInput.value.trim();
 
     if (rawInput === "") {
       alert("コマンドを入力してください！");
       return;
     }
+
+    const selectedCharacter = characterParamSelect?.value
+      ? store.state.tokens[characterParamSelect.value]
+      : null;
+    rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
 
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,
@@ -99,6 +116,30 @@ if (sendBtn) {
     });
   });
 }
+
+// 参照キャラクターの選択肢をキャラ一覧と同じ内容で維持する（登録・削除・改名に追従）
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!characterParamSelect) return;
+
+  const previousValue = characterParamSelect.value;
+  characterParamSelect.innerHTML = '';
+
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = '（選択なし）';
+  characterParamSelect.appendChild(noneOption);
+
+  Object.values(state.tokens).forEach(tokenData => {
+    const opt = document.createElement('option');
+    opt.value = tokenData.id;
+    opt.textContent = tokenData.name;
+    characterParamSelect.appendChild(opt);
+  });
+
+  if (state.tokens[previousValue]) {
+    characterParamSelect.value = previousValue;
+  }
+});
 
 // プラグイン選択肢を生成（起動時1回）
 if (roomPluginSelect) {

@@ -637,7 +637,14 @@
         </div>
 
         <div class="form-group">
-          <label for="commandInput">コマンド入力 (例: CC(45) 隠れるロール)</label>
+          <label for="characterParamSelect">参照キャラクター（{パラメータ名}を値に置換）</label>
+          <select id="characterParamSelect">
+            <option value="">（選択なし）</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="commandInput">コマンド入力 (例: CC(45) 隠れるロール、{HP}のように記述可)</label>
           <input type="text" id="commandInput" placeholder="CC(45) 隠れます" autocomplete="off">
         </div>
 

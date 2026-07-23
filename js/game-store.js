@@ -341,12 +341,17 @@ class ImmutableStore {
       }
 
       case 'SET_BACKGROUND_IMAGE': {
-        const { imageUrl } = payload;
+        const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;
 
         this.#state = this.#createProtectedProxy({
           ...prevState,
-          room: Object.freeze({ ...room, backgroundImage: imageUrl || null })
+          room: Object.freeze({
+            ...room,
+            backgroundImage: imageUrl || null,
+            boardWidth: imageUrl ? (boardWidth || null) : null,
+            boardHeight: imageUrl ? (boardHeight || null) : null
+          })
         });
 
         EventBus.emit('STATE_CHANGED', this.#state);
@@ -471,7 +476,9 @@ export const store = new ImmutableStore({
   room: {
     activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
     parameters: {},        // ルーム変数（後述）
-    backgroundImage: null  // null = CSS側のデフォルト背景をそのまま使う
+    backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
+    boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
+    boardHeight: null      // null = ビューポート高さいっぱい（CSSの100%）
   },
 
   tokens: {},

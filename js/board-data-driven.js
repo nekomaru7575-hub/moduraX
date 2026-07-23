@@ -3,6 +3,7 @@
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
+import { showBackgroundSizeDialog } from './background-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
@@ -14,6 +15,16 @@ const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
+
+// data URLの画像を読み込み、実際の縦横ピクセル数を取得する（背景サイズダイアログの初期値用）
+function loadImageDimensions(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 1000, height: 1000 });
+    img.src = dataUrl;
+  });
+}
 
 // JSONテキストをパースする。失敗時はアラートを出してnullを返す（右クリックメニュー・D&D共通）
 function parseCharacterJsonText(text) {
@@ -79,20 +90,32 @@ function applyBoardTransform(board) {
   board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
 }
 
-// 背景画像を盤面に反映する。imageUrlが無い場合はCSS側のデフォルト背景に戻す。
-function applyBoardBackground(board, imageUrl) {
+// 背景画像とボードサイズを盤面に反映する。imageUrlが無い場合はCSS側のデフォルト
+// （ビューポート幅いっぱい・背景グレー）に戻す。
+function applyBoardBackground(board, room) {
+  const imageUrl = room?.backgroundImage;
+
   if (!imageUrl) {
     board.style.backgroundImage = '';
     board.style.backgroundSize = '';
     board.style.backgroundPosition = '';
     board.style.backgroundRepeat = '';
+    board.style.width = '';
+    board.style.height = '';
     return;
   }
 
+  const { boardWidth, boardHeight } = room;
+  const hasCustomSize = boardWidth && boardHeight;
+
   board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
-  board.style.backgroundSize = '50px 50px, 50px 50px, cover';
+  board.style.backgroundSize = hasCustomSize
+    ? `50px 50px, 50px 50px, ${boardWidth}px ${boardHeight}px`
+    : '50px 50px, 50px 50px, cover';
   board.style.backgroundPosition = '0 0, 0 0, center';
   board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
+  board.style.width = hasCustomSize ? `${boardWidth}px` : '';
+  board.style.height = hasCustomSize ? `${boardHeight}px` : '';
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -379,7 +402,16 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: async () => {
           const picked = await pickFileAsDataUrl({ accept: 'image/*' });
           if (!picked) return;
-          store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl });
+
+          const { width, height } = await loadImageDimensions(picked.dataUrl);
+
+          showBackgroundSizeDialog({
+            naturalWidth: width,
+            naturalHeight: height,
+            onConfirm: ({ width: boardWidth, height: boardHeight }) => {
+              store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl, boardWidth, boardHeight });
+            }
+          });
         }
       }
     ]);
@@ -441,7 +473,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {
-    applyBoardBackground(board, state.room?.backgroundImage);
+    applyBoardBackground(board, state.room);
 
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)

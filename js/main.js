@@ -456,6 +456,15 @@ if (roomPluginSelect) {
   });
 }
 
+// ルームのプラグイン選択欄：他クライアントでの変更（同期）にも追従させる
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!roomPluginSelect) return;
+  const nextValue = state.room.activePlugin || '';
+  if (roomPluginSelect.value !== nextValue) {
+    roomPluginSelect.value = nextValue;
+  }
+});
+
 // ルーム変数の表示（STATE_CHANGEDで更新）
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (!roomParameterList) return;

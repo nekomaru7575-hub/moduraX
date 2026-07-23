@@ -97,6 +97,15 @@
       border-radius: 4px;
     }
 
+    .dialog-image-preview {
+      width: 64px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #555;
+      margin-bottom: 8px;
+    }
+
     .dialog-custom-list {
       display: flex;
       flex-direction: column;
@@ -223,8 +232,10 @@
       width: 40px;
       height: 40px;
       background-color: #ff4757;
+      background-size: cover;
+      background-position: center;
       border: 2px solid #ffffff;
-      border-radius: 50%;
+      border-radius: 10px;
       position: absolute;
       cursor: grab;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
@@ -250,6 +261,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       padding: 0 2px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
     }
 
     .control-area {

@@ -583,13 +583,13 @@
       position: absolute;
       width: 100%;
       height: 100%;
-      background-image: 
+      background-color: #808080;
+      background-image:
         linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-        url('./background/test.jpg');
-      background-size: 50px 50px, 50px 50px, cover;
-      background-position: 0 0, 0 0, center;  /* ← ここを変更：グリッド線は左上基準、画像だけ中央 */
-      background-repeat: repeat, repeat, no-repeat;
+        linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+      background-size: 50px 50px, 50px 50px;
+      background-position: 0 0, 0 0;
+      background-repeat: repeat, repeat;
       box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
       transform-origin: 0 0;
     }

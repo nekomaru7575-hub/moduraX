@@ -362,6 +362,9 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
 
   Object.entries(character.parameters).forEach(([paramId, param]) => {
     if (pluginOwnsDisplay && param.source === activePluginId) return;
+    // editable:falseの拡張ステータス（自動計算値・JSON同期専用の値等）は
+    // 手入力での編集対象ではないため、更新ダイアログには表示しない
+    if (param.editable === false) return;
 
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';

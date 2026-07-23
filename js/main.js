@@ -199,7 +199,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   });
 });
 
-function truncateLabel(label, maxLength = 3) {
+function truncateLabel(label, maxLength = 4) {
   if (!label) return '';
   return label.length > maxLength ? `${label.slice(0, maxLength)}...` : label;
 }

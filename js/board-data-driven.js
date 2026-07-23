@@ -494,20 +494,7 @@ room: {
     backgroundImage: null  // null = CSS側のデフォルト背景をそのまま使う
   },
 
-  tokens: {
-    'token-lily': {
-      id: 'token-lily', name: 'リリィ', x: 100, y: 150, color: '#ff4757',
-      parameters: buildDefaultParameters(),
-      components: Object.freeze({}),
-      actions: Object.freeze([])
-    },
-    'token-ragna': {
-      id: 'token-ragna', name: 'ラグナ', x: 300, y: 200, color: '#2ed573',
-      parameters: buildDefaultParameters(),
-      components: Object.freeze({}),
-      actions: Object.freeze([])
-    }
-  }
+  tokens: {}
 });
 
 export function generateTokenId() {

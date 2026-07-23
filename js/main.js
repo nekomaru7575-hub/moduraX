@@ -6,6 +6,7 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
+import { initNetSync } from './net-sync.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -18,6 +19,7 @@ const currentChatPortrait = document.getElementById('currentChatPortrait');
 const chatPalettePanel = document.getElementById('chatPalettePanel');
 const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
+const netStatusEl = document.getElementById('netStatus');
 
 // ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
 if (controlArea) {
@@ -26,17 +28,22 @@ if (controlArea) {
 
 // --- チャットタブ ---
 // 「Main」タブは常に存在する既定タブ。他のタブはユーザーが追加する並行チャット用。
+// タブ一覧・各タブのログはstore経由でサーバーと同期される。「今どのタブを見ているか」は
+// 各クライアントのローカルUI状態（人によって見ているタブが違ってよい）としてここで保持する。
 // 盤面下のカレントチャット欄（currentChatLog）は、選択中のタブに関わらずMainタブの内容だけを表示する。
 const MAIN_TAB_ID = 'main';
-let chatTabs = [{ id: MAIN_TAB_ID, name: 'Main' }];
 let activeTabId = MAIN_TAB_ID;
-const tabEntries = { [MAIN_TAB_ID]: [] };
 
-function renderChatTabs() {
+let lastRenderedChatTabsRef = null;
+let lastRenderedLogTabId = null; // logContainerに最後に描画したタブID（切り替え検知用）
+let lastRenderedLogCount = 0;    // logContainerへ反映済みの件数（差分追記用）
+let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mainタブ固定）
+
+function renderChatTabs(state) {
   if (!chatTabsEl) return;
   chatTabsEl.innerHTML = '';
 
-  chatTabs.forEach(tab => {
+  state.chatTabs.forEach(tab => {
     const tabBtn = document.createElement('button');
     tabBtn.type = 'button';
     tabBtn.className = 'chat-tab' + (tab.id === activeTabId ? ' active' : '');
@@ -59,32 +66,85 @@ function addChatTab() {
   if (!name || !name.trim()) return;
 
   const id = `tab-${Date.now()}`;
-  chatTabs.push({ id, name: name.trim() });
-  tabEntries[id] = [];
+  store.dispatch('ADD_CHAT_TAB', { id, name: name.trim() });
   switchChatTab(id);
 }
 
 function switchChatTab(tabId) {
   activeTabId = tabId;
-  renderChatTabs();
-  renderActiveTabLog();
+  lastRenderedLogTabId = null; // 強制的にlogContainerを描き直させる
+  renderChatTabs(store.state);
+  renderActiveTabLog(store.state);
 }
 
-function renderActiveTabLog() {
+// containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
+// メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）
+function appendLogEntries(container, entries, fromIndex, itemClassName) {
+  for (let i = fromIndex; i < entries.length; i++) {
+    const item = document.createElement('div');
+    item.className = itemClassName;
+    item.innerHTML = buildLogHtml(entries[i]);
+    container.appendChild(item);
+  }
+  if (entries.length > fromIndex) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function renderActiveTabLog(state) {
   if (!logContainer) return;
-  logContainer.innerHTML = '';
+  const entries = state.chatLogs[activeTabId] || [];
 
-  (tabEntries[activeTabId] || []).forEach(entry => {
-    const logItem = document.createElement('div');
-    logItem.className = 'log-item';
-    logItem.innerHTML = buildLogHtml(entry);
-    logContainer.appendChild(logItem);
-  });
+  if (lastRenderedLogTabId !== activeTabId) {
+    logContainer.innerHTML = '';
+    lastRenderedLogTabId = activeTabId;
+    lastRenderedLogCount = 0;
+  }
 
-  logContainer.scrollTop = logContainer.scrollHeight;
+  if (entries.length === 0) {
+    if (logContainer.children.length === 0) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'log-item log-placeholder';
+      placeholder.style.color = '#888';
+      placeholder.textContent = 'ここにダイスログが表示されます...';
+      logContainer.appendChild(placeholder);
+    }
+    return;
+  }
+
+  if (lastRenderedLogCount === 0 && logContainer.querySelector('.log-placeholder')) {
+    logContainer.innerHTML = '';
+  }
+
+  appendLogEntries(logContainer, entries, lastRenderedLogCount, 'log-item');
+  lastRenderedLogCount = entries.length;
 }
 
-renderChatTabs();
+function renderMainChatMirror(state) {
+  if (!currentChatLog) return;
+  const entries = state.chatLogs[MAIN_TAB_ID] || [];
+  appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item');
+  lastRenderedMainCount = entries.length;
+}
+
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (state.chatTabs !== lastRenderedChatTabsRef) {
+    lastRenderedChatTabsRef = state.chatTabs;
+    renderChatTabs(state);
+  }
+
+  renderActiveTabLog(state);
+  renderMainChatMirror(state);
+});
+
+// 接続状態インジケータ（ヘッダー）
+EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
+  if (!netStatusEl) return;
+  netStatusEl.className = `net-status net-status-${status}`;
+  netStatusEl.textContent = status === 'connected' ? '● 接続済み'
+    : status === 'connecting' ? '● 接続中...'
+    : '● 切断';
+});
 
 // DOM要素の取得（キャラクター登録関連）
 
@@ -456,31 +516,14 @@ function buildLogHtml({ system = "", character = "", comment = "", resultText, d
 }
 
 // entryを指定タブ（省略時は現在表示中のタブ）のログへ追加する。
-// 盤面下のカレントチャット欄は、他タブが選択されていてもMainタブの内容だけをミラー表示する。
+// storeへdispatchするだけで、DOMへの反映はSTATE_CHANGED購読側（renderActiveTabLog／
+// renderMainChatMirror）が行う。他クライアントとの同期もこのdispatchを経由して行われる。
 function applyLog(entry, tabId = activeTabId) {
-  if (!tabEntries[tabId]) tabEntries[tabId] = [];
-  tabEntries[tabId].push(entry);
-
-  const html = buildLogHtml(entry);
-
-  if (tabId === activeTabId && logContainer) {
-    const newLog = document.createElement('div');
-    newLog.className = 'log-item';
-    newLog.innerHTML = html;
-    logContainer.appendChild(newLog);
-    logContainer.scrollTop = logContainer.scrollHeight;
-  }
-
-  if (tabId === MAIN_TAB_ID && currentChatLog) {
-    const mirrorLog = document.createElement('div');
-    mirrorLog.className = 'current-chat-log-item';
-    mirrorLog.innerHTML = html;
-    currentChatLog.appendChild(mirrorLog);
-    currentChatLog.scrollTop = currentChatLog.scrollHeight;
-  }
+  store.dispatch('ADD_CHAT_MESSAGE', { tabId, entry });
 }
 
 // 初期化処理
 window.addEventListener('DOMContentLoaded', () => {
+  initNetSync();
   store.init();
 });

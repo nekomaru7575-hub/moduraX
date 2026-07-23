@@ -21,7 +21,7 @@
     .app-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       width: 100%;
       border-bottom: 2px solid #3a3a3a;
       padding-bottom: 5px;
@@ -32,6 +32,25 @@
       color: #ffffff;
       font-size: 1.5rem;
       margin: 0;
+      flex: 1;
+    }
+
+    .net-status {
+      font-size: 0.8rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .net-status-connected {
+      color: #4caf50;
+    }
+
+    .net-status-connecting {
+      color: #e0a020;
+    }
+
+    .net-status-disconnected {
+      color: #e05252;
     }
 
     .room-menu-btn {
@@ -1024,6 +1043,7 @@
 
   <div class="app-header">
     <h1>🎲 TRPG支援アプリ</h1>
+    <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
     <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>
   </div>
 

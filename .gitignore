@@ -6,3 +6,5 @@ image/sample/download20250804204224.png
 image/sample/face.PNG
 JSON/sample/安野吽.json
 JSON/sample/黒鉦大智.json
+node_modules/
+server/state.json

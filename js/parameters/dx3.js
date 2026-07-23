@@ -3,7 +3,18 @@ import { buildParameters } from './paramFactory.js';
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
     {key : "corDB", label : "侵蝕率ダイスボーナス",value : 0 , editable : false,visible : false},
-    {key : "corEB", label : "侵蝕率エフェクトボーナス",value : 0, editable : false,visible : false}
+    {key : "corEB", label : "侵蝕率エフェクトボーナス",value : 0, editable : false,visible : false},
+    // 能力値・技能値：JSON読み込みで同期する値。手入力での編集・表示は想定しないため
+    // locked:true（削除不可）,editable:false（値の直接編集不可）,visible:false（一覧非表示）
+    {key : "sttTotalBody", label : "肉体",value : 0, locked : true, editable : false,visible : false},
+    {key : "sttTotalSense", label : "感覚",value : 0, locked : true, editable : false,visible : false},
+    {key : "sttTotalMind", label : "精神",value : 0, locked : true, editable : false,visible : false},
+    {key : "sttTotalSocial", label : "社会",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillMelee", label : "白兵",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillRanged", label : "射撃",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillDodge", label : "回避",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillProcure", label : "調達",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillRC", label : "RC",value : 0, locked : true, editable : false,visible : false} // 表記がシート上の略称のままか要確認
 ]
 
 export function buildDX3Parameters(){
@@ -98,6 +109,8 @@ function toNumber(value) {
 
 /**
  * 既存のキャラクターシート作成ツール（ytsheet/dx3rd等）が出力するJSONを取り込む。
+ * 能力値・技能値はDX3_PARAMETERSに既定パラメータとして存在するため、ここでは
+ * 値の同期のみ行う（新規パラメータとしては追加しない）。
  * ロイス・エフェクト・コンボ（複数データをまとめる拡張ボックス）は今回は対象外。
  * @param {any} json
  * @returns {{
@@ -115,26 +128,13 @@ function importDX3CharacterJson(json) {
   if (json.initiativeTotal !== undefined) valueOverrides['core:initiative'] = toNumber(json.initiativeTotal);
   if (json.baseEncroach !== undefined) valueOverrides['DX3:corruption'] = toNumber(json.baseEncroach);
 
-  const newParameters = {};
-  Object.entries(DX3_ABILITY_FIELD_MAP).forEach(([field, label]) => {
+  Object.keys(DX3_ABILITY_FIELD_MAP).forEach(field => {
     if (json[field] === undefined) return;
-    newParameters[`DX3:${field}`] = {
-      key: field,
-      label,
-      value: toNumber(json[field]),
-      source: 'DX3',
-      visible: false
-    };
+    valueOverrides[`DX3:${field}`] = toNumber(json[field]);
   });
-  Object.entries(DX3_FIXED_SKILL_FIELD_MAP).forEach(([field, label]) => {
+  Object.keys(DX3_FIXED_SKILL_FIELD_MAP).forEach(field => {
     if (json[field] === undefined) return;
-    newParameters[`DX3:${field}`] = {
-      key: field,
-      label,
-      value: toNumber(json[field]),
-      source: 'DX3',
-      visible: false
-    };
+    valueOverrides[`DX3:${field}`] = toNumber(json[field]);
   });
 
   return {
@@ -143,7 +143,7 @@ function importDX3CharacterJson(json) {
     labelOverrides: {
       'core:initiative': '行動値'
     },
-    newParameters
+    newParameters: {}
   };
 }
 

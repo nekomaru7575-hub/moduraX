@@ -105,7 +105,7 @@ class ImmutableStore {
 
         customParameters.forEach(({ key, label, value }) => {
           const paramId = `user:${key}`;
-          parameters[paramId] = Object.freeze({ key, label, value, source: 'user' });
+          parameters[paramId] = Object.freeze({ key, label, value, source: 'user', visible: true });
         });
 
         // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
@@ -208,7 +208,7 @@ class ImmutableStore {
 
         const nextParams = {
           ...character.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
+          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true, visible: true })
         };
 
         // 自動計算の適用

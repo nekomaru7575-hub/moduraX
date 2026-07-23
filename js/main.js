@@ -147,12 +147,14 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const paramList = document.createElement('div');
     paramList.className = 'character-param-list';
 
-    Object.values(tokenData.parameters || {}).forEach(param => {
-      const paramRow = document.createElement('div');
-      paramRow.className = 'character-param-row';
-      paramRow.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
-      paramList.appendChild(paramRow);
-    });
+    Object.values(tokenData.parameters || {})
+      .filter(param => param.visible !== false)
+      .forEach(param => {
+        const paramRow = document.createElement('div');
+        paramRow.className = 'character-param-row';
+        paramRow.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
+        paramList.appendChild(paramRow);
+      });
 
     item.appendChild(paramList);
     characterList.appendChild(item);

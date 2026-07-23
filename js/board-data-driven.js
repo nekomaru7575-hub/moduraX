@@ -19,6 +19,35 @@ export const DEFAULT_TOKEN_COLOR = 'transparent';
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 
+// JSONテキストをパースする。失敗時はアラートを出してnullを返す（右クリックメニュー・D&D共通）
+function parseCharacterJsonText(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    alert(`JSONの解析に失敗しました: ${error.message}`);
+    return null;
+  }
+}
+
+// ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
+// 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
+function resolveCharacterImport(json) {
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  return (activePluginId && pluginHasCharacterImport(activePluginId))
+    ? importCharacterJsonForPlugin(activePluginId, json)
+    : importCharacterJsonGeneric(json);
+}
+
+function dispatchCharacterImport(id, importResult) {
+  store.dispatch('IMPORT_CHARACTER_DATA', {
+    id,
+    name: importResult.name,
+    valueOverrides: importResult.valueOverrides,
+    labelOverrides: importResult.labelOverrides,
+    newParameters: importResult.newParameters
+  });
+}
+
 let tokenIdCounter = 0;
 
 // カメラ（ズーム・パン）の状態。Storeの状態ではなく、あくまでローカルな見た目の変更。
@@ -594,33 +623,16 @@ function bindTokenDrag(element, board) {
           const picked = await pickFileAsText({ accept: 'application/json' });
           if (!picked) return;
 
-          let json;
-          try {
-            json = JSON.parse(picked.text);
-          } catch (error) {
-            alert(`JSONの解析に失敗しました: ${error.message}`);
-            return;
-          }
+          const json = parseCharacterJsonText(picked.text);
+          if (!json) return;
 
-          // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
-          // 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
-          const activePluginId = store.state.room?.activePlugin ?? null;
-          const importResult = (activePluginId && pluginHasCharacterImport(activePluginId))
-            ? importCharacterJsonForPlugin(activePluginId, json)
-            : importCharacterJsonGeneric(json);
-
+          const importResult = resolveCharacterImport(json);
           if (!importResult) {
             alert('このJSONを読み込めませんでした。');
             return;
           }
 
-          store.dispatch('IMPORT_CHARACTER_DATA', {
-            id: tokenId,
-            name: importResult.name,
-            valueOverrides: importResult.valueOverrides,
-            labelOverrides: importResult.labelOverrides,
-            newParameters: importResult.newParameters
-          });
+          dispatchCharacterImport(tokenId, importResult);
         }
       },
       {
@@ -797,6 +809,61 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }
     ]);
+  });
+
+  // JSONファイルをD&D：コマの上にドロップした場合はそのキャラクターへ読み込み、
+  // 盤面の何もない場所にドロップした場合はその位置に新規キャラクターとして読み込む。
+  viewport.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+
+  viewport.addEventListener('drop', async (event) => {
+    event.preventDefault();
+
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+      alert('JSONファイルをドロップしてください。');
+      return;
+    }
+
+    const text = await file.text();
+    const json = parseCharacterJsonText(text);
+    if (!json) return;
+
+    const importResult = resolveCharacterImport(json);
+    if (!importResult) {
+      alert('このJSONを読み込めませんでした。');
+      return;
+    }
+
+    const droppedTokenEl = event.target.closest('.token');
+    if (droppedTokenEl) {
+      dispatchCharacterImport(droppedTokenEl.id, importResult);
+      return;
+    }
+
+    // 盤面の何もない場所へのドロップ → その位置に新規キャラクターを作成して読み込む
+    const viewportRect = viewport.getBoundingClientRect();
+    const cx = event.clientX - viewportRect.left;
+    const cy = event.clientY - viewportRect.top;
+    const dropX = (cx - panX) / scale;
+    const dropY = (cy - panY) / scale;
+    const { x: clampedX, y: clampedY } = clampToBoard(
+      dropX - TOKEN_SIZE / 2,
+      dropY - TOKEN_SIZE / 2,
+      board
+    );
+
+    const newId = generateTokenId();
+    store.dispatch('ADD_CHARACTER', {
+      id: newId,
+      name: importResult.name || '新規キャラクター',
+      x: Math.round(clampedX),
+      y: Math.round(clampedY)
+    });
+    dispatchCharacterImport(newId, importResult);
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {

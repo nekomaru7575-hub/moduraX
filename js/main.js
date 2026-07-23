@@ -20,7 +20,7 @@ const controlArea = document.getElementById('controlArea');
 
 // ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
 if (controlArea) {
-  makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizes' });
+  makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizesV2' });
 }
 
 // DOM要素の取得（キャラクター登録関連）

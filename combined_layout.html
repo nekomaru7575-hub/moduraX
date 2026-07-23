@@ -621,14 +621,20 @@
       overflow-y: auto;
     }
 
-    /* チャット欄（中段）：ゲームシステム/参照キャラクターの選択は小さく横並びにする */
-    .chat-input-panel {
-      flex: 1;
-      min-height: 0;
+    /* チャット送信欄＋チャットパレットの統合区画。ログとの間のみリサイズ可能 */
+    .chat-send-panel {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      justify-content: center;
+      min-height: 0;
+    }
+
+    /* チャット欄：ゲームシステム/参照キャラクターの選択は小さく横並びにする */
+    .chat-input-panel {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .chat-input-selects {
@@ -645,17 +651,22 @@
 
     .chat-input-row {
       display: flex;
+      align-items: flex-end;
       gap: 8px;
     }
 
-    .chat-input-row input[type="text"] {
+    .chat-input-row textarea {
       flex: 1;
       min-width: 0;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.4;
     }
 
     .chat-input-row .btn-send {
       width: auto;
       flex-shrink: 0;
+      align-self: stretch;
       padding: 8px 16px;
     }
 
@@ -793,7 +804,7 @@
       margin-bottom: 5px;
     }
 
-    select, input[type="text"] {
+    select, input[type="text"], textarea {
       background-color: #3a3a3a;
       color: #fff;
       border: 1px solid #555;
@@ -803,7 +814,7 @@
       outline: none;
     }
 
-    select:focus, input[type="text"]:focus {
+    select:focus, input[type="text"]:focus, textarea:focus {
       border-color: #007acc;
     }
 
@@ -1009,25 +1020,26 @@
         <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
       </div>
 
-      <!-- 中段：チャット欄（システム/キャラクター選択は小さく横並び） -->
-      <div class="panel chat-input-panel" data-resizable-section="chatInput">
-        <div class="chat-input-selects">
-          <select id="gameSystem" class="compact-select" title="ゲームシステム">
-            <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
-            <option value="DoubleCross">ダブルクロス (3rd)</option>
-          </select>
-          <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">
-            <option value="">（選択なし）</option>
-          </select>
+      <!-- 下段：チャット送信欄＋チャットパレットを統合。ログとの間のみリサイズ可能 -->
+      <div class="chat-send-panel" data-resizable-section="chatSend">
+        <div class="panel chat-input-panel">
+          <div class="chat-input-selects">
+            <select id="gameSystem" class="compact-select" title="ゲームシステム">
+              <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
+              <option value="DoubleCross">ダブルクロス (3rd)</option>
+            </select>
+            <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">
+              <option value="">（選択なし）</option>
+            </select>
+          </div>
+          <div class="chat-input-row">
+            <textarea id="commandInput" rows="3" placeholder="CC(45) 隠れます／{HP}／+侵蝕率(10)"></textarea>
+            <button class="btn-send" id="sendBtn">送信</button>
+          </div>
         </div>
-        <div class="chat-input-row">
-          <input type="text" id="commandInput" placeholder="CC(45) 隠れます／{HP}／+侵蝕率(10)" autocomplete="off">
-          <button class="btn-send" id="sendBtn">送信</button>
-        </div>
-      </div>
 
-      <!-- 下段：チャットパレット -->
-      <div class="chat-palette-panel" id="chatPalettePanel" data-resizable-section="chatPalette"></div>
+        <div class="chat-palette-panel" id="chatPalettePanel"></div>
+      </div>
     </div>
   </div>
 

@@ -1,5 +1,6 @@
 import { buildParameters } from './paramFactory.js';
 import { showEffectBox } from './dx3-effect-box.js';
+import { showAbilitySkillBox } from './dx3-ability-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -83,6 +84,18 @@ function renderDX3CharacterPanel({ container, mode, parameters, components, onCo
 
   // エフェクト一覧（ボックス）。既存キャラクターの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外）。
+  if (mode === 'edit') {
+    const abilityBtn = document.createElement('button');
+    abilityBtn.type = 'button';
+    abilityBtn.className = 'dialog-add-row-btn';
+    abilityBtn.style.marginTop = '8px';
+    abilityBtn.textContent = '能力・技能値を表示';
+    abilityBtn.addEventListener('click', () => {
+      showAbilitySkillBox({ parameters });
+    });
+    container.appendChild(abilityBtn);
+  }
+
   if (mode === 'edit' && onComponentChange) {
     const effectBtn = document.createElement('button');
     effectBtn.type = 'button';

@@ -372,7 +372,7 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
 
     const label = document.createElement('label');
     label.textContent = param.label;
-    label.style.flex = '1';
+    label.className = 'dialog-param-label';
     label.style.alignSelf = 'center';
     label.style.color = '#ccc';
     label.style.fontSize = '0.85rem';
@@ -392,19 +392,24 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
     row.appendChild(valueInput);
     row.appendChild(visibility.element);
 
-    if (!param.locked) {
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.textContent = '×';
-      removeBtn.className = 'dialog-remove-row';
+    // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・表示・削除の
+    // 縦位置を全行で揃えるため。無いと行ごとに列の位置がずれてしまう）
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.className = 'dialog-remove-row';
+    if (param.locked) {
+      removeBtn.style.visibility = 'hidden';
+      removeBtn.disabled = true;
+    } else {
       removeBtn.addEventListener('click', () => {
         row.remove();
         removedParamIds.add(paramId);
         const idx = existingRows.findIndex(r => r.paramId === paramId);
         if (idx !== -1) existingRows.splice(idx, 1);
       });
-      row.appendChild(removeBtn);
     }
+    row.appendChild(removeBtn);
 
     paramListEl.appendChild(row);
     existingRows.push({ paramId, valueInput, editable: param.editable !== false, visibleCheckbox, initialVisible });

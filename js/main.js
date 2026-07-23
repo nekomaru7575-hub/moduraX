@@ -67,6 +67,11 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
   sendBtn.textContent = "送信中...";
 
   try {
+    if (rawInput.includes('\n')) {
+      applyLog({ system, character: characterName, resultText: rawInput });
+      return;
+    }
+
     const spaceIndex = splitForSpace(rawInput);
     const command = spaceIndex[0];
     const comment = spaceIndex.slice(1).join(" ");
@@ -204,6 +209,16 @@ if (sendBtn) {
       rawInput: rawInput,
       characterName: selectedCharacter?.name
     });
+  });
+}
+
+// チャット欄編集中、Enterキーで送信できるようにする（Shift+Enterで改行、IME変換中は無視）
+if (commandInput && sendBtn) {
+  commandInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendBtn.click();
+    }
   });
 }
 
@@ -365,10 +380,11 @@ function splitForSpace(string) {
 function applyLog({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const characterTag = character ? ` <span style="color: #4caf50;">${character}</span>` : '';
+  const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
   const html = `
     <strong style="color: #007acc;">[${system}]</strong>${characterTag} ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
-    <span style="font-size: 1.1rem; color: #fff;">${resultText}</span><br>
+    <span style="font-size: 1.1rem; color: #fff;">${resultHtml}</span><br>
     ${detail}`;
 
   if (logContainer) {

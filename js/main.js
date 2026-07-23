@@ -1,7 +1,7 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
-import { store, generateTokenId, listPlugins } from './board-data-driven.js';
+import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 
@@ -137,7 +137,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     if (tokenData.image) {
       avatar.style.backgroundImage = `url('${tokenData.image}')`;
     } else {
-      avatar.style.backgroundColor = tokenData.color || '#ff4757';
+      avatar.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
     }
 
     const initiativeParam = tokenData.parameters?.['core:initiative'];

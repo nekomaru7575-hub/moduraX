@@ -11,7 +11,7 @@ export { listPlugins };
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
-const DEFAULT_TOKEN_COLOR = '#ff4757';
+export const DEFAULT_TOKEN_COLOR = 'transparent';
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 

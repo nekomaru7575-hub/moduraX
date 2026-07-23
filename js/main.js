@@ -6,7 +6,7 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
-import { initNetSync } from './net-sync.js';
+import { initNetSync, replaceState } from './net-sync.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -155,6 +155,9 @@ const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomParameterList = document.getElementById('roomParameterList');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
+const exportStateBtn = document.getElementById('exportStateBtn');
+const importStateBtn = document.getElementById('importStateBtn');
+const importStateInput = document.getElementById('importStateInput');
 
 // キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
 const characterPanelArea = document.getElementById('characterPanelArea');
@@ -180,6 +183,50 @@ if (roomMenuBtn && roomSettingsDialog) {
         onSelect: () => roomSettingsDialog.showModal()
       }
     ]);
+  });
+}
+
+// セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
+// 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
+if (exportStateBtn) {
+  exportStateBtn.addEventListener('click', () => {
+    const json = JSON.stringify(store.state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trpg-room-${dateStr}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  });
+}
+
+if (importStateBtn && importStateInput) {
+  importStateBtn.addEventListener('click', () => {
+    importStateInput.click();
+  });
+
+  importStateInput.addEventListener('change', async () => {
+    const file = importStateInput.files?.[0];
+    importStateInput.value = ""; // 同じファイルを連続で選び直せるようにリセット
+    if (!file) return;
+
+    let state;
+    try {
+      state = JSON.parse(await file.text());
+    } catch (error) {
+      alert(`ファイルの読み込みに失敗しました: ${error.message}`);
+      return;
+    }
+
+    if (!confirm('読み込んだ内容で、今のセッション（接続中の全員）を上書きします。よろしいですか？')) {
+      return;
+    }
+
+    replaceState(state);
   });
 }
 

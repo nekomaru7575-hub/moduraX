@@ -62,6 +62,18 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (message.type === 'REPLACE_STATE') {
+      store.hydrate(message.state);
+
+      const outgoing = JSON.stringify({ type: 'INIT', state: store.state });
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(outgoing);
+        }
+      });
+      return;
+    }
+
     if (message.type !== 'ACTION') return;
 
     store.dispatch(message.action, message.payload);

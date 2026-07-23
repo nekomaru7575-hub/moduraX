@@ -1056,6 +1056,12 @@
       </div>
       <label style="margin-top: 8px; display: block;">ルーム変数</label>
       <div id="roomParameterList" class="character-param-list"></div>
+      <label style="margin-top: 8px; display: block;">セッションデータ</label>
+      <div class="dialog-button-row">
+        <button type="button" id="exportStateBtn" class="dialog-confirm-btn">ファイルに保存</button>
+        <button type="button" id="importStateBtn" class="dialog-confirm-btn">ファイルから読み込み</button>
+        <input type="file" id="importStateInput" accept="application/json" style="display: none;">
+      </div>
       <div class="dialog-button-row" style="margin-top: 16px;">
         <button type="submit" class="dialog-confirm-btn">閉じる</button>
       </div>

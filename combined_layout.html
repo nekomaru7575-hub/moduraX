@@ -255,6 +255,17 @@
       flex: 1;
     }
 
+    /* 数値入力欄はテキスト欄と同じ比率で広げる必要がないため、幅を固定して小さくする（元の約1/5）。
+       min-width:0がないと、input要素のデフォルトの自動最小幅に負けて縮まないため必須 */
+    .dialog-custom-row input[type="number"] {
+      flex: 0 0 38px;
+      min-width: 0;
+      width: 38px;
+      box-sizing: border-box;
+      padding: 6px 4px;
+      text-align: right;
+    }
+
     .dialog-remove-row {
       background-color: #444;
       color: #ddd;

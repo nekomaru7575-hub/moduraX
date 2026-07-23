@@ -2,8 +2,8 @@ import { buildParameters } from './paramFactory.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
-    {key : "corDB", label : "侵蝕率ダイスボーナス",value : 0 , editable : false,visible : false},
-    {key : "corEB", label : "侵蝕率エフェクトボーナス",value : 0, editable : false,visible : false},
+    {key : "corDB", label : "DB",value : 0 , editable : false,visible : false},
+    {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
     // 能力値・技能値：JSON読み込みで同期する値。手入力での編集・表示は想定しないため
     // locked:true（削除不可）,editable:false（値の直接編集不可）,visible:false（一覧非表示）
     {key : "sttTotalBody", label : "肉体",value : 0, locked : true, editable : false,visible : false},

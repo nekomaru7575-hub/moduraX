@@ -14,6 +14,9 @@ export const DX3_PARAMETERS =[
     {key : "skillRanged", label : "射撃",value : 0, locked : true, editable : false,visible : false},
     {key : "skillDodge", label : "回避",value : 0, locked : true, editable : false,visible : false},
     {key : "skillProcure", label : "調達",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillPercept", label : "知覚",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillWill", label : "意志",value : 0, locked : true, editable : false,visible : false},
+    {key : "skillNegotiate", label : "交渉",value : 0, locked : true, editable : false,visible : false},
     {key : "skillRC", label : "RC",value : 0, locked : true, editable : false,visible : false} // 表記がシート上の略称のままか要確認
 ]
 
@@ -92,19 +95,55 @@ const DX3_ABILITY_FIELD_MAP = {
   sttTotalSocial: '社会'
 };
 
-// DX3の固定技能。知識/技芸/騎乗/情報のような可変スロット技能（skillInfo1等）は
-// ロイス・エフェクト・コンボと同様、拡張ボックスでの対応を見据えて今回は対象外。
+// DX3の固定技能（8種）。常に存在するためDX3_PARAMETERSにも既定パラメータとして登録済み。
 const DX3_FIXED_SKILL_FIELD_MAP = {
   skillMelee: '白兵',
   skillRanged: '射撃',
   skillDodge: '回避',
   skillProcure: '調達',
+  skillPercept: '知覚',
+  skillWill: '意志',
+  skillNegotiate: '交渉',
   skillRC: 'RC' // 表記がシート上の略称のままか要確認
 };
+
+// 知識/技芸/騎乗/情報のような可変スロット技能。キャラクターごとに名前が異なるため
+// DX3_PARAMETERSには含めず、JSON読み込み時に見つかった分だけnewParametersとして追加する。
+const DX3_SKILL_SLOT_CATEGORIES = ['Art', 'Know', 'Ride', 'Info'];
+const DX3_MAX_SKILL_SLOTS = 10; // シート上のNum値に関わらず安全に走査するための上限
 
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+// 可変スロット技能（skillArt1/skillArt1Name等）のうち、名前が設定されているものだけを
+// locked:true, editable:false, visible:falseの新規パラメータとして拾い上げる。
+function importDX3VariableSkillSlots(json) {
+  const newParameters = {};
+
+  DX3_SKILL_SLOT_CATEGORIES.forEach(category => {
+    for (let n = 1; n <= DX3_MAX_SKILL_SLOTS; n++) {
+      const nameField = `skill${category}${n}Name`;
+      const valueField = `skill${category}${n}`;
+      if (json[nameField] === undefined && json[valueField] === undefined) continue;
+
+      const label = json[nameField];
+      if (!label) continue; // スロットはあっても未使用（名前未設定）
+
+      newParameters[`DX3:${valueField}`] = {
+        key: valueField,
+        label,
+        value: toNumber(json[valueField]),
+        source: 'DX3',
+        locked: true,
+        editable: false,
+        visible: false
+      };
+    }
+  });
+
+  return newParameters;
 }
 
 /**
@@ -143,7 +182,7 @@ function importDX3CharacterJson(json) {
     labelOverrides: {
       'core:initiative': '行動値'
     },
-    newParameters: {}
+    newParameters: importDX3VariableSkillSlots(json)
   };
 }
 

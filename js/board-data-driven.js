@@ -132,32 +132,45 @@ function applyBoardTransform(board) {
   board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
 }
 
-// 背景画像とボードサイズを盤面に反映する。imageUrlが無い場合はCSS側のデフォルト
-// （ビューポート幅いっぱい・背景グレー）に戻す。
+// 盤面のピクセルサイズをマスの整数倍に決める。
+// 背景アップロード時に指定されたカスタムサイズ(boardWidth/boardHeight, 既にマスの整数倍)が
+// あればそれを、無ければビューポートをマス単位に切り上げたサイズを使う（端のマスが
+// 中途半端に切れないようにする）。
+function resolveBoardPixelSize(board, room) {
+  if (room?.boardWidth && room?.boardHeight) {
+    return { width: room.boardWidth, height: room.boardHeight };
+  }
+  const viewport = board.parentElement;
+  const vw = viewport ? viewport.clientWidth : board.offsetWidth;
+  const vh = viewport ? viewport.clientHeight : board.offsetHeight;
+  return {
+    width: Math.max(GRID_SIZE, Math.ceil(vw / GRID_SIZE) * GRID_SIZE),
+    height: Math.max(GRID_SIZE, Math.ceil(vh / GRID_SIZE) * GRID_SIZE)
+  };
+}
+
+// 背景画像とボードサイズを盤面に反映する。盤面サイズは常にマスの整数倍にし、
+// 背景画像はその盤面全体へ拡縮して敷く（マス目からはみ出さない）。imageUrlが無い場合は
+// CSS側のデフォルト背景（グリッド＋グレー）に戻す。
 function applyBoardBackground(board, room) {
   const imageUrl = room?.backgroundImage;
+  const { width: bw, height: bh } = resolveBoardPixelSize(board, room);
+
+  board.style.width = `${bw}px`;
+  board.style.height = `${bh}px`;
 
   if (!imageUrl) {
     board.style.backgroundImage = '';
     board.style.backgroundSize = '';
     board.style.backgroundPosition = '';
     board.style.backgroundRepeat = '';
-    board.style.width = '';
-    board.style.height = '';
     return;
   }
 
-  const { boardWidth, boardHeight } = room;
-  const hasCustomSize = boardWidth && boardHeight;
-
   board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
-  board.style.backgroundSize = hasCustomSize
-    ? `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, ${boardWidth}px ${boardHeight}px`
-    : `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, cover`;
-  board.style.backgroundPosition = '0 0, 0 0, center';
+  board.style.backgroundSize = `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, ${bw}px ${bh}px`;
+  board.style.backgroundPosition = '0 0, 0 0, 0 0';
   board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
-  board.style.width = hasCustomSize ? `${boardWidth}px` : '';
-  board.style.height = hasCustomSize ? `${boardHeight}px` : '';
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -471,6 +484,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
   if (!viewport || !board) return;
+
+  // ウィンドウサイズ変更時：カスタムサイズ未設定のデフォルト盤面は、マス整数倍サイズを
+  // ビューポートに合わせて再計算する（端のマスが切れないよう保つ）。
+  window.addEventListener('resize', () => {
+    applyBoardBackground(board, store.state.room);
+    clampPan(viewport, board);
+    scheduleBoardTransform(board);
+  });
 
   // Ctrl+ホイール：マウス位置を中心にズーム
   viewport.addEventListener('wheel', (event) => {

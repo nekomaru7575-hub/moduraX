@@ -5,12 +5,15 @@ import { buildDefaultParameters } from './parameters/core.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
 import { buildCharacterParametersForPlugin, buildRoomParameters, listPlugins ,applyPluginDerivedParameters } from './parameters/registry.js';
+import { pickFileAsDataUrl } from './file-uploader.js';
 export { listPlugins };
 
 const GRID_SIZE = 50;
 const TOKEN_SIZE = 40;
 const OFFSET_PADDING = 5;
 const DEFAULT_TOKEN_COLOR = '#ff4757';
+// #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
+const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 
 let tokenIdCounter = 0;
 
@@ -258,6 +261,20 @@ class ImmutableStore {
         return;
       }
 
+      case 'SET_BACKGROUND_IMAGE': {
+        const { imageUrl } = payload;
+        const room = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({ ...room, backgroundImage: imageUrl || null })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        EventBus.emit('BackgroundImageChanged', { imageUrl });
+        return;
+      }
+
       case 'SET_ROOM_PARAMETER': {
         const { paramId, value } = payload;
         const room = prevState.room;
@@ -366,7 +383,8 @@ class ImmutableStore {
 export const store = new ImmutableStore({
 room: {
     activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
-    parameters: {}        // ルーム変数（後述）
+    parameters: {},        // ルーム変数（後述）
+    backgroundImage: null  // null = CSS側のデフォルト背景をそのまま使う
   },
 
   tokens: {
@@ -403,6 +421,22 @@ function clampToBoard(x, y, board) {
 
 function applyBoardTransform(board) {
   board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
+
+// 背景画像を盤面に反映する。imageUrlが無い場合はCSS側のデフォルト背景に戻す。
+function applyBoardBackground(board, imageUrl) {
+  if (!imageUrl) {
+    board.style.backgroundImage = '';
+    board.style.backgroundSize = '';
+    board.style.backgroundPosition = '';
+    board.style.backgroundRepeat = '';
+    return;
+  }
+
+  board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
+  board.style.backgroundSize = '50px 50px, 50px 50px, cover';
+  board.style.backgroundPosition = '0 0, 0 0, center';
+  board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -641,11 +675,21 @@ window.addEventListener('DOMContentLoaded', () => {
             }
           });
         }
+      },
+      {
+        label: '背景画像を変更',
+        onSelect: async () => {
+          const picked = await pickFileAsDataUrl({ accept: 'image/*' });
+          if (!picked) return;
+          store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl });
+        }
       }
     ]);
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {
+    applyBoardBackground(board, state.room?.backgroundImage);
+
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)
     );

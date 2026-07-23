@@ -5,6 +5,7 @@ import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './boar
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
+import { makeResizableStack } from './resizable-stack.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -15,6 +16,12 @@ const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
 const chatPalettePanel = document.getElementById('chatPalettePanel');
+const controlArea = document.getElementById('controlArea');
+
+// ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
+if (controlArea) {
+  makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizes' });
+}
 
 // DOM要素の取得（キャラクター登録関連）
 

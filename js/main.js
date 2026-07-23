@@ -21,6 +21,20 @@ const roomParameterList = document.getElementById('roomParameterList');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 
+// キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
+const characterPanelArea = document.getElementById('characterPanelArea');
+const characterPanelCollapseBtn = document.getElementById('characterPanelCollapseBtn');
+const characterPanelExpandBtn = document.getElementById('characterPanelExpandBtn');
+
+if (characterPanelArea && characterPanelCollapseBtn && characterPanelExpandBtn) {
+  characterPanelCollapseBtn.addEventListener('click', () => {
+    characterPanelArea.classList.add('collapsed');
+  });
+  characterPanelExpandBtn.addEventListener('click', () => {
+    characterPanelArea.classList.remove('collapsed');
+  });
+}
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {

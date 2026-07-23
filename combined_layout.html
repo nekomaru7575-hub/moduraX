@@ -93,6 +93,95 @@
       margin: 0;
     }
 
+    /* エフェクト等の「ボックス」編集ダイアログ */
+    .effect-box-dialog {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .effect-box-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 50vh;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .effect-box-item {
+      background-color: #333;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .effect-box-header-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .effect-box-header-row input {
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+
+    .effect-box-name {
+      flex: 2;
+      min-width: 0;
+    }
+
+    .effect-box-level {
+      flex: 0 0 56px;
+    }
+
+    .effect-box-encroach {
+      flex: 0 0 90px;
+    }
+
+    .effect-box-note {
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 8px;
+      border-radius: 4px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .effect-box-limit-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .effect-box-limit-label {
+      color: #aaa;
+    }
+
+    .effect-box-limit-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .effect-box-limit-count {
+      width: 60px;
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+
     .character-dialog::backdrop {
       background: rgba(0, 0, 0, 0.5);
     }

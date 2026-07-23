@@ -1,4 +1,5 @@
 import { buildParameters } from './paramFactory.js';
+import { showEffectBox } from './dx3-effect-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -45,7 +46,7 @@ export function computeDX3DerivedParameters(parameters) {
 
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
-function renderDX3CharacterPanel({ container, parameters }) {
+function renderDX3CharacterPanel({ container, mode, parameters, components, onComponentChange }) {
   container.innerHTML = '';
 
   const title = document.createElement('h4');
@@ -79,6 +80,23 @@ function renderDX3CharacterPanel({ container, parameters }) {
     derivedList.appendChild(row);
   });
   container.appendChild(derivedList);
+
+  // エフェクト一覧（ボックス）。既存キャラクターの更新時のみ開ける
+  // （新規作成時はまだcomponentsを持たないため対象外）。
+  if (mode === 'edit' && onComponentChange) {
+    const effectBtn = document.createElement('button');
+    effectBtn.type = 'button';
+    effectBtn.className = 'dialog-add-row-btn';
+    effectBtn.style.marginTop = '8px';
+    effectBtn.textContent = `エフェクト一覧を開く（${(components?.effects ?? []).length}件）`;
+    effectBtn.addEventListener('click', () => {
+      showEffectBox({
+        effects: components?.effects ?? [],
+        onSave: (nextEffects) => onComponentChange('effects', nextEffects)
+      });
+    });
+    container.appendChild(effectBtn);
+  }
 
   return {
     getValues: () => ({
@@ -117,6 +135,33 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// 見出し行（"▼オート"等の区切り）はエフェクト本体ではないため除外する
+const DX3_EFFECT_HEADER_PATTERN = /^▼/;
+
+// effectNNameを起点に、シート上の全エフェクトを読み込む。
+// 回数制限（シナリオ/シーン/ラウンド×n回）はシート側に専用フィールドがないため、
+// ここでは初期値なし（制限なし）とし、ボックスUI側で手入力できるようにする。
+function importDX3Effects(json) {
+  const effectNum = toNumber(json.effectNum);
+  const effects = [];
+
+  for (let n = 1; n <= effectNum; n++) {
+    const name = json[`effect${n}Name`];
+    if (!name || DX3_EFFECT_HEADER_PATTERN.test(name)) continue;
+
+    effects.push({
+      name,
+      level: toNumber(json[`effect${n}Lv`]),
+      encroach: json[`effect${n}Encroach`] ?? '',
+      note: json[`effect${n}Note`] ?? '',
+      limitType: 'none',
+      limitCount: null
+    });
+  }
+
+  return effects;
+}
+
 // 可変スロット技能（skillArt1/skillArt1Name等）のうち、名前が設定されているものだけを
 // locked:true, editable:false, visible:falseの新規パラメータとして拾い上げる。
 function importDX3VariableSkillSlots(json) {
@@ -150,13 +195,15 @@ function importDX3VariableSkillSlots(json) {
  * 既存のキャラクターシート作成ツール（ytsheet/dx3rd等）が出力するJSONを取り込む。
  * 能力値・技能値はDX3_PARAMETERSに既定パラメータとして存在するため、ここでは
  * 値の同期のみ行う（新規パラメータとしては追加しない）。
- * ロイス・エフェクト・コンボ（複数データをまとめる拡張ボックス）は今回は対象外。
+ * エフェクトはcomponents.effectsとして丸ごと読み込む（ボックスUIで表示・編集）。
+ * ロイス・コンボ（複数データをまとめる拡張ボックス）は今回はまだ対象外。
  * @param {any} json
  * @returns {{
  *   name?: string,
  *   valueOverrides: Record<string, number>,
  *   labelOverrides: Record<string, string>,
- *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>
+ *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>,
+ *   components: { effects: Array<{name:string,level:number,encroach:string,note:string,limitType:string,limitCount:number|null}> }
  * } | null}
  */
 function importDX3CharacterJson(json) {
@@ -182,7 +229,10 @@ function importDX3CharacterJson(json) {
     labelOverrides: {
       'core:initiative': '行動値'
     },
-    newParameters: importDX3VariableSkillSlots(json)
+    newParameters: importDX3VariableSkillSlots(json),
+    components: {
+      effects: importDX3Effects(json)
+    }
   };
 }
 

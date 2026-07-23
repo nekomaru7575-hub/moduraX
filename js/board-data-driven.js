@@ -44,7 +44,8 @@ function dispatchCharacterImport(id, importResult) {
     name: importResult.name,
     valueOverrides: importResult.valueOverrides,
     labelOverrides: importResult.labelOverrides,
-    newParameters: importResult.newParameters
+    newParameters: importResult.newParameters,
+    components: importResult.components
   });
 }
 
@@ -199,7 +200,7 @@ class ImmutableStore {
       // Core側はvalueOverrides/labelOverrides/newParametersの意味を解釈せず、
       // 既存paramIdへの反映・新規paramIdの追加という機械的な処理のみ行う。
       case 'IMPORT_CHARACTER_DATA': {
-        const { id, name, valueOverrides = {}, labelOverrides = {}, newParameters = {} } = payload;
+        const { id, name, valueOverrides = {}, labelOverrides = {}, newParameters = {}, components = {} } = payload;
         const character = nextTokensState[id];
         if (!character) return;
 
@@ -223,14 +224,35 @@ class ImmutableStore {
 
         nextParams = applyPluginDerivedParameters(activePlugin, nextParams);
 
+        // componentsの中身（ロイス・エフェクト・コンボ等の複雑なデータ）はCoreは解釈せず、
+        // componentKey単位でそのまま置き換えるだけ
+        const nextComponents = Object.freeze({ ...character.components, ...components });
+
         nextTokensState[id] = Object.freeze({
           ...character,
           name: name || character.name,
-          parameters: nextParams
+          parameters: nextParams,
+          components: nextComponents
         });
 
         this.#commit(prevState, nextTokensState);
         EventBus.emit('CharacterImported', { id });
+        return;
+      }
+
+      // ロイス・エフェクト・コンボのような「ボックス」データを丸ごと更新する。
+      // Coreはvalueの中身を解釈せず、componentKeyに紐づく値をそのまま置き換える。
+      case 'SET_COMPONENT': {
+        const { id, componentKey, value } = payload;
+        const character = nextTokensState[id];
+        if (!character || !componentKey) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...character,
+          components: Object.freeze({ ...character.components, [componentKey]: value })
+        });
+
+        this.#commit(prevState, nextTokensState);
         return;
       }
 
@@ -583,6 +605,9 @@ function bindTokenDrag(element, board) {
           showCharacterEditDialog({
             character: current,
             activePluginId: store.state.room?.activePlugin ?? null,
+            onComponentChange: (componentKey, value) => {
+              store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
+            },
             onConfirm: ({ name, image, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;

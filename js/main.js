@@ -138,7 +138,13 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
   characterList.innerHTML = "";
 
-  Object.values(state.tokens).forEach(tokenData => {
+  const sortedTokens = Object.values(state.tokens).sort((a, b) => {
+    const initiativeA = a.parameters?.['core:initiative']?.value ?? 0;
+    const initiativeB = b.parameters?.['core:initiative']?.value ?? 0;
+    return initiativeB - initiativeA;
+  });
+
+  sortedTokens.forEach(tokenData => {
     const item = document.createElement('div');
     item.className = 'character-list-item';
 

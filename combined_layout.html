@@ -21,7 +21,7 @@
     .app-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       width: 100%;
       border-bottom: 2px solid #3a3a3a;
       padding-bottom: 5px;
@@ -32,6 +32,25 @@
       color: #ffffff;
       font-size: 1.5rem;
       margin: 0;
+      flex: 1;
+    }
+
+    .net-status {
+      font-size: 0.8rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .net-status-connected {
+      color: #4caf50;
+    }
+
+    .net-status-connecting {
+      color: #e0a020;
+    }
+
+    .net-status-disconnected {
+      color: #e05252;
     }
 
     .room-menu-btn {
@@ -66,6 +85,187 @@
       border-radius: 8px;
       padding: 20px;
       min-width: 320px;
+      max-width: 720px;
+    }
+
+    .dialog-columns {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .dialog-main-column {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .dialog-plugin-column {
+      flex: 1;
+      min-width: 220px;
+      padding-left: 20px;
+      border-left: 1px solid #444;
+    }
+
+    .dialog-plugin-placeholder {
+      color: #777;
+      font-size: 0.85rem;
+      margin: 0;
+    }
+
+    /* エフェクト等の「ボックス」編集ダイアログ */
+    .effect-box-dialog {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .effect-box-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 50vh;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .effect-box-item {
+      background-color: #333;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .effect-box-header-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .effect-box-header-row input {
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+
+    .effect-box-name {
+      flex: 2;
+      min-width: 0;
+    }
+
+    .effect-box-level {
+      flex: 0 0 56px;
+    }
+
+    .effect-box-encroach {
+      flex: 0 0 90px;
+    }
+
+    .effect-box-note {
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 8px;
+      border-radius: 4px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .effect-box-limits {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .effect-box-limit-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .effect-box-limit-label {
+      color: #aaa;
+      width: 4em;
+      flex-shrink: 0;
+    }
+
+    .effect-box-limit-current,
+    .effect-box-limit-max {
+      width: 52px;
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+
+    .effect-box-limit-slash {
+      color: #888;
+    }
+
+    .effect-box-limit-eb {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 8px;
+    }
+
+    /* 能力・技能値の表示ボックス */
+    .ability-box-dialog {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .ability-box-group-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .ability-box-group {
+      background-color: #333;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .ability-box-ability-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .ability-box-ability-label {
+      font-size: 1rem;
+      color: #ccc;
+    }
+
+    .ability-box-ability-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .ability-box-skill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+    }
+
+    .ability-box-skill {
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    .ability-box-skill-empty {
+      color: #666;
     }
 
     .character-dialog::backdrop {
@@ -115,7 +315,16 @@
 
     .dialog-custom-row {
       display: flex;
+      align-items: center;
       gap: 6px;
+    }
+
+    /* 既存パラメータ一覧のラベル列。幅を固定し、数値入力・表示・削除の縦位置を全行で揃える */
+    .dialog-param-label {
+      flex: 0 0 96px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .dialog-custom-row input {
@@ -125,6 +334,17 @@
       padding: 6px 8px;
       border-radius: 4px;
       flex: 1;
+    }
+
+    /* 数値入力欄はテキスト欄と同じ比率で広げる必要がないため、幅を固定して小さくする（元の約1/5）。
+       min-width:0がないと、input要素のデフォルトの自動最小幅に負けて縮まないため必須 */
+    .dialog-custom-row input[type="number"] {
+      flex: 0 0 38px;
+      min-width: 0;
+      width: 38px;
+      box-sizing: border-box;
+      padding: 6px 4px;
+      text-align: right;
     }
 
     .dialog-remove-row {
@@ -181,16 +401,119 @@
       font-size: 0.8rem;
       color: #bbb;
     }
-/* 新規：左側キャラクター一覧エリア（画面全体の1/5固定） */
-    .character-panel-area {
-      flex: 0 0 10%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
+
+    /* キャラ一覧サイドバー専用（ルーム変数一覧とは見た目を分ける） */
+    .character-list-param-row {
+      display: grid;
+      grid-template-columns: 4.4em 1fr;
+      column-gap: 8px;
+      font-size: 0.8rem;
+      color: #bbb;
     }
 
-/* 新規：盤面＋コントロールをまとめる残り80%のコンテナ */
+    .character-param-label {
+      color: #2ecc71;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .character-param-value {
+      text-align: left;
+    }
+/* キャラクター一覧：main-area内に浮かせるオーバーレイ。
+   盤面・チャット（board-area/control-area）のflex比率には関与しない。 */
+    .character-panel-area {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 220px;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.15s ease;
+      pointer-events: none;
+    }
+
+    .character-panel-area > * {
+      pointer-events: auto;
+    }
+
+    .character-panel-area.collapsed {
+      width: 28px;
+    }
+
+    .character-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .character-panel-area.collapsed .character-panel {
+      display: none;
+    }
+
+    .character-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .character-panel-header label {
+      margin: 0;
+    }
+
+    .character-panel-collapse-btn {
+      background: none;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #aaa;
+      cursor: pointer;
+      width: 22px;
+      height: 22px;
+      font-size: 0.8rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .character-panel-collapse-btn:hover {
+      background-color: #3a3a3a;
+    }
+
+    .character-panel-expand-strip {
+      display: none;
+      width: 100%;
+      height: 100%;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
+      color: #aaa;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 0;
+      writing-mode: vertical-rl;
+      letter-spacing: 2px;
+      font-size: 0.8rem;
+    }
+
+    .character-panel-area.collapsed .character-panel-expand-strip {
+      display: flex;
+    }
+
+    .character-panel-expand-strip:hover {
+      background-color: #3a3a3a;
+    }
+
+/* 盤面＋コントロールのコンテナ。キャラ一覧オーバーレイの基準位置にもなる */
     .main-area {
+      position: relative;
       flex: 1;
       display: flex;
       gap: 20px;
@@ -203,27 +526,70 @@
       height: 100%;
       display: flex;
       flex-direction: column;
+      gap: 10px;
     }
 
     #board-viewport {
       position: relative;
       width: 100%;
-      height: 100%;
+      flex: 3;
+      min-height: 0;
       overflow: hidden; /* パン・ズームしてはみ出た部分をここで切り取る */
       cursor: grab;
+    }
+
+    /* 盤面下1/4：既存ログのミラー表示エリア */
+    .current-chat-bar {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 10px;
+      background-color: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* キャラ一覧パネル（オーバーレイ）と重なりうる左側領域。
+       通常のログは置かず、選択中キャラクターの画像（未設定なら空）だけを表示する */
+    .current-chat-portrait {
+      flex: 0 0 220px;
+      height: 100%;
+      background-color: #111;
+      background-size: contain;
+      background-position: bottom center;
+      background-repeat: no-repeat;
+    }
+
+    .current-chat-log {
+      flex: 1;
+      min-width: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+    }
+
+    .current-chat-log-item {
+      font-size: 0.8rem;
+      color: #ddd;
+      animation: fadeIn 0.3s ease-out;
     }
 
     #board {
       position: absolute;
       width: 100%;
       height: 100%;
-      background-image: 
+      background-color: #808080;
+      background-image:
         linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-        url('./background/test.jpg');
-      background-size: 50px 50px, 50px 50px, cover;
-      background-position: 0 0, 0 0, center;  /* ← ここを変更：グリッド線は左上基準、画像だけ中央 */
-      background-repeat: repeat, repeat, no-repeat;
+        linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+      background-size: 50px 50px, 50px 50px;
+      background-position: 0 0, 0 0;
+      background-repeat: repeat, repeat;
       box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
       transform-origin: 0 0;
     }
@@ -231,7 +597,7 @@
     .token {
       width: 40px;
       height: 40px;
-      background-color: #ff4757;
+      background-color: transparent;
       background-size: cover;
       background-position: center;
       border: 2px solid #ffffff;
@@ -274,6 +640,168 @@
       overflow-y: auto;
     }
 
+    /* チャット送信欄＋チャットパレットの統合区画。ログとの間のみリサイズ可能 */
+    .chat-send-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    /* チャット欄：ゲームシステム/参照キャラクターの選択は小さく横並びにする */
+    .chat-input-panel {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-input-selects {
+      display: flex;
+      gap: 6px;
+    }
+
+    .compact-select {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 6px;
+      font-size: 0.75rem;
+    }
+
+    .chat-input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .chat-input-row textarea {
+      flex: 1;
+      min-width: 0;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.4;
+    }
+
+    .chat-input-row .btn-send {
+      width: auto;
+      flex-shrink: 0;
+      align-self: stretch;
+      padding: 8px 16px;
+    }
+
+    /* チャットパレット：保存フレーズをクリックだけで送信できるボタン一覧 */
+    .chat-palette-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 6px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .chat-palette-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 6px;
+    }
+
+    .chat-palette-btn {
+      background-color: #333;
+      color: #ddd;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chat-palette-btn:hover {
+      background-color: #3f3f3f;
+    }
+
+    .chat-palette-empty {
+      color: #666;
+      font-size: 0.8rem;
+      margin: 0;
+      padding: 4px;
+    }
+
+    .chat-palette-edit-btn {
+      align-self: flex-end;
+      background: none;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .chat-palette-edit-btn:hover {
+      background-color: #3a3a3a;
+    }
+
+    .chat-palette-editor-dialog {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .chat-palette-editor-hint {
+      color: #999;
+      font-size: 0.8rem;
+      margin: 0 0 8px;
+    }
+
+    .chat-palette-editor-textarea {
+      width: 100%;
+      min-height: 240px;
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    /* ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整するためのハンドル */
+    .resize-handle {
+      flex: 0 0 10px;
+      cursor: row-resize;
+      position: relative;
+    }
+
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      left: 25%;
+      right: 25%;
+      top: 4px;
+      height: 2px;
+      background-color: #444;
+      border-radius: 1px;
+    }
+
+    .resize-handle:hover::after,
+    .resize-handle.dragging::after {
+      background-color: #007acc;
+    }
+
     .panel {
       background-color: #2a2a2a;
       padding: 15px;
@@ -295,7 +823,7 @@
       margin-bottom: 5px;
     }
 
-    select, input[type="text"] {
+    select, input[type="text"], textarea {
       background-color: #3a3a3a;
       color: #fff;
       border: 1px solid #555;
@@ -305,7 +833,7 @@
       outline: none;
     }
 
-    select:focus, input[type="text"]:focus {
+    select:focus, input[type="text"]:focus, textarea:focus {
       border-color: #007acc;
     }
 
@@ -330,6 +858,61 @@
       background-color: #555;
       color: #888;
       cursor: not-allowed;
+    }
+
+    .log-section {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .chat-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      padding-bottom: 6px;
+      overflow-x: auto;
+    }
+
+    .chat-tab {
+      background-color: #2a2a2a;
+      color: #aaa;
+      border: 1px solid #444;
+      border-radius: 4px 4px 0 0;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .chat-tab:hover {
+      background-color: #333;
+      color: #fff;
+    }
+
+    .chat-tab.active {
+      background-color: #007acc;
+      color: #fff;
+      border-color: #007acc;
+    }
+
+    .chat-tab-add {
+      background: none;
+      color: #888;
+      border: 1px dashed #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .chat-tab-add:hover {
+      color: #fff;
+      border-color: #007acc;
     }
 
     .log-container {
@@ -373,19 +956,52 @@
       font-size: 0.9rem;
     }
 
-    .character-color-swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
+    .character-avatar-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
       flex-shrink: 0;
-      border: 1px solid #fff;
     }
 
-    .character-name {
-      flex: 1;
+    .character-avatar {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid #fff;
+      background-color: transparent;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
+
+    .character-avatar-initiative {
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 2px;
+      background-color: #1a1a1a;
+      color: #fff;
+      border: 1px solid #888;
+      border-radius: 3px;
+      font-size: 0.6rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .character-avatar-name {
+      font-size: 0.65rem;
+      color: #bbb;
+      max-width: 44px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-align: center;
     }
 
     .context-menu {
@@ -426,7 +1042,8 @@
 <body>
 
   <div class="app-header">
-    <h1>🎲 TRPG支援アプリ（イミュータブル＆データ駆動版）</h1>
+    <h1>🎲 TRPG支援アプリ</h1>
+    <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
     <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>
   </div>
 
@@ -439,48 +1056,73 @@
       </div>
       <label style="margin-top: 8px; display: block;">ルーム変数</label>
       <div id="roomParameterList" class="character-param-list"></div>
+      <label style="margin-top: 8px; display: block;">セッションデータ</label>
+      <div class="dialog-button-row">
+        <button type="button" id="exportStateBtn" class="dialog-confirm-btn">ファイルに保存</button>
+        <button type="button" id="importStateBtn" class="dialog-confirm-btn">ファイルから読み込み</button>
+        <input type="file" id="importStateInput" accept="application/json" style="display: none;">
+      </div>
       <div class="dialog-button-row" style="margin-top: 16px;">
         <button type="submit" class="dialog-confirm-btn">閉じる</button>
       </div>
     </form>
   </dialog>
   <div class="app-container">
-  <!-- 新規：左側キャラクター一覧エリア -->
-      <div class="character-panel-area">
-        <div class="panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-          <label>登録済みキャラクター</label>
-          <div id="characterList" style="flex: 1; max-height: none;"></div>
-        </div>
-      </div>
-
   <!-- 既存の盤面＋コントロールを、新しいラッパーで囲む -->
   <div class="main-area">
+    <!-- キャラクター一覧：main-area内に浮かせるオーバーレイ。board-area/control-areaの大きさには影響しない -->
+      <div class="character-panel-area" id="characterPanelArea">
+        <div class="panel character-panel">
+          <div class="character-panel-header">
+            <label>登録済みキャラクター</label>
+            <button type="button" id="characterPanelCollapseBtn" class="character-panel-collapse-btn" title="折りたたむ">◂</button>
+          </div>
+          <div id="characterList" style="flex: 1; max-height: none;"></div>
+        </div>
+        <button type="button" id="characterPanelExpandBtn" class="character-panel-expand-strip" title="展開する">キャラクター一覧</button>
+      </div>
+
     <div class="board-area">
       <div id="board-viewport">
         <div id="board"></div>
       </div>
+
+      <!-- 盤面下1/4：既存ログのミラー表示。左側（キャラ一覧パネルと重なりうる領域）は
+           チャット表示を置かず、選択中キャラクターの立ち絵表示に充てる -->
+      <div class="current-chat-bar" id="currentChatBar">
+        <div class="current-chat-portrait" id="currentChatPortrait"></div>
+        <div class="current-chat-log" id="currentChatLog"></div>
+      </div>
     </div>
 
-    <div class="control-area">
-      <div class="panel">
-        <div class="form-group">
-          <label for="gameSystem">ゲームシステム</label>
-          <select id="gameSystem">
-            <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
-            <option value="DoubleCross">ダブルクロス (3rd)</option>
-          </select>
+    <div class="control-area" id="controlArea">
+      <!-- 上段：チャットタブ＋ログ -->
+      <div class="log-section" data-resizable-section="log">
+        <div class="chat-tabs" id="chatTabs"></div>
+        <div class="log-container" id="logContainer">
+          <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
         </div>
-
-        <div class="form-group">
-          <label for="commandInput">コマンド入力 (例: CC(45) 隠れるロール)</label>
-          <input type="text" id="commandInput" placeholder="CC(45) 隠れます" autocomplete="off">
-        </div>
-
-        <button class="btn-send" id="sendBtn">ダイスを振る</button>
       </div>
 
-      <div class="log-container" id="logContainer">
-        <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
+      <!-- 下段：チャット送信欄＋チャットパレットを統合。ログとの間のみリサイズ可能 -->
+      <div class="chat-send-panel" data-resizable-section="chatSend">
+        <div class="panel chat-input-panel">
+          <div class="chat-input-selects">
+            <select id="gameSystem" class="compact-select" title="ゲームシステム">
+              <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
+              <option value="DoubleCross">ダブルクロス (3rd)</option>
+            </select>
+            <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">
+              <option value="">（選択なし）</option>
+            </select>
+          </div>
+          <div class="chat-input-row">
+            <textarea id="commandInput" rows="3" placeholder="CC(45) 隠れます／{HP}／+侵蝕率(10)"></textarea>
+            <button class="btn-send" id="sendBtn">送信</button>
+          </div>
+        </div>
+
+        <div class="chat-palette-panel" id="chatPalettePanel"></div>
       </div>
     </div>
   </div>

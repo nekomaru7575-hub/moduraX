@@ -1,15 +1,150 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
-import { store, generateTokenId, listPlugins } from './board-data-driven.js';
+import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
+import { renderChatPalette } from './chat-palette.js';
+import { makeResizableStack } from './resizable-stack.js';
+import { initNetSync, replaceState } from './net-sync.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
 const gameSystemSelect = document.getElementById('gameSystem');
+const characterParamSelect = document.getElementById('characterParamSelect');
 const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
+const currentChatLog = document.getElementById('currentChatLog');
+const currentChatPortrait = document.getElementById('currentChatPortrait');
+const chatPalettePanel = document.getElementById('chatPalettePanel');
+const controlArea = document.getElementById('controlArea');
+const chatTabsEl = document.getElementById('chatTabs');
+const netStatusEl = document.getElementById('netStatus');
+
+// ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
+if (controlArea) {
+  makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizesV2' });
+}
+
+// --- チャットタブ ---
+// 「Main」タブは常に存在する既定タブ。他のタブはユーザーが追加する並行チャット用。
+// タブ一覧・各タブのログはstore経由でサーバーと同期される。「今どのタブを見ているか」は
+// 各クライアントのローカルUI状態（人によって見ているタブが違ってよい）としてここで保持する。
+// 盤面下のカレントチャット欄（currentChatLog）は、選択中のタブに関わらずMainタブの内容だけを表示する。
+const MAIN_TAB_ID = 'main';
+let activeTabId = MAIN_TAB_ID;
+
+let lastRenderedChatTabsRef = null;
+let lastRenderedLogTabId = null; // logContainerに最後に描画したタブID（切り替え検知用）
+let lastRenderedLogCount = 0;    // logContainerへ反映済みの件数（差分追記用）
+let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mainタブ固定）
+
+function renderChatTabs(state) {
+  if (!chatTabsEl) return;
+  chatTabsEl.innerHTML = '';
+
+  state.chatTabs.forEach(tab => {
+    const tabBtn = document.createElement('button');
+    tabBtn.type = 'button';
+    tabBtn.className = 'chat-tab' + (tab.id === activeTabId ? ' active' : '');
+    tabBtn.textContent = tab.name;
+    tabBtn.addEventListener('click', () => switchChatTab(tab.id));
+    chatTabsEl.appendChild(tabBtn);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'chat-tab-add';
+  addBtn.title = 'チャットタブを追加';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', addChatTab);
+  chatTabsEl.appendChild(addBtn);
+}
+
+function addChatTab() {
+  const name = prompt('新しいチャットタブの名前を入力してください');
+  if (!name || !name.trim()) return;
+
+  const id = `tab-${Date.now()}`;
+  store.dispatch('ADD_CHAT_TAB', { id, name: name.trim() });
+  switchChatTab(id);
+}
+
+function switchChatTab(tabId) {
+  activeTabId = tabId;
+  lastRenderedLogTabId = null; // 強制的にlogContainerを描き直させる
+  renderChatTabs(store.state);
+  renderActiveTabLog(store.state);
+}
+
+// containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
+// メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）
+function appendLogEntries(container, entries, fromIndex, itemClassName) {
+  for (let i = fromIndex; i < entries.length; i++) {
+    const item = document.createElement('div');
+    item.className = itemClassName;
+    item.innerHTML = buildLogHtml(entries[i]);
+    container.appendChild(item);
+  }
+  if (entries.length > fromIndex) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function renderActiveTabLog(state) {
+  if (!logContainer) return;
+  const entries = state.chatLogs[activeTabId] || [];
+
+  if (lastRenderedLogTabId !== activeTabId) {
+    logContainer.innerHTML = '';
+    lastRenderedLogTabId = activeTabId;
+    lastRenderedLogCount = 0;
+  }
+
+  if (entries.length === 0) {
+    if (logContainer.children.length === 0) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'log-item log-placeholder';
+      placeholder.style.color = '#888';
+      placeholder.textContent = 'ここにダイスログが表示されます...';
+      logContainer.appendChild(placeholder);
+    }
+    return;
+  }
+
+  if (lastRenderedLogCount === 0 && logContainer.querySelector('.log-placeholder')) {
+    logContainer.innerHTML = '';
+  }
+
+  appendLogEntries(logContainer, entries, lastRenderedLogCount, 'log-item');
+  lastRenderedLogCount = entries.length;
+}
+
+function renderMainChatMirror(state) {
+  if (!currentChatLog) return;
+  const entries = state.chatLogs[MAIN_TAB_ID] || [];
+  appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item');
+  lastRenderedMainCount = entries.length;
+}
+
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (state.chatTabs !== lastRenderedChatTabsRef) {
+    lastRenderedChatTabsRef = state.chatTabs;
+    renderChatTabs(state);
+  }
+
+  renderActiveTabLog(state);
+  renderMainChatMirror(state);
+});
+
+// 接続状態インジケータ（ヘッダー）
+EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
+  if (!netStatusEl) return;
+  netStatusEl.className = `net-status net-status-${status}`;
+  netStatusEl.textContent = status === 'connected' ? '● 接続済み'
+    : status === 'connecting' ? '● 接続中...'
+    : '● 切断';
+});
 
 // DOM要素の取得（キャラクター登録関連）
 
@@ -20,6 +155,23 @@ const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomParameterList = document.getElementById('roomParameterList');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
+const exportStateBtn = document.getElementById('exportStateBtn');
+const importStateBtn = document.getElementById('importStateBtn');
+const importStateInput = document.getElementById('importStateInput');
+
+// キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
+const characterPanelArea = document.getElementById('characterPanelArea');
+const characterPanelCollapseBtn = document.getElementById('characterPanelCollapseBtn');
+const characterPanelExpandBtn = document.getElementById('characterPanelExpandBtn');
+
+if (characterPanelArea && characterPanelCollapseBtn && characterPanelExpandBtn) {
+  characterPanelCollapseBtn.addEventListener('click', () => {
+    characterPanelArea.classList.add('collapsed');
+  });
+  characterPanelExpandBtn.addEventListener('click', () => {
+    characterPanelArea.classList.remove('collapsed');
+  });
+}
 
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
@@ -34,20 +186,71 @@ if (roomMenuBtn && roomSettingsDialog) {
   });
 }
 
+// セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
+// 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
+if (exportStateBtn) {
+  exportStateBtn.addEventListener('click', () => {
+    const json = JSON.stringify(store.state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trpg-room-${dateStr}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  });
+}
+
+if (importStateBtn && importStateInput) {
+  importStateBtn.addEventListener('click', () => {
+    importStateInput.click();
+  });
+
+  importStateInput.addEventListener('change', async () => {
+    const file = importStateInput.files?.[0];
+    importStateInput.value = ""; // 同じファイルを連続で選び直せるようにリセット
+    if (!file) return;
+
+    let state;
+    try {
+      state = JSON.parse(await file.text());
+    } catch (error) {
+      alert(`ファイルの読み込みに失敗しました: ${error.message}`);
+      return;
+    }
+
+    if (!confirm('読み込んだ内容で、今のセッション（接続中の全員）を上書きします。よろしいですか？')) {
+      return;
+    }
+
+    replaceState(state);
+  });
+}
+
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, tabId = activeTabId }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
-  sendBtn.textContent = "ダイスを振っています...";
+  sendBtn.textContent = "送信中...";
 
   try {
+    if (rawInput.includes('\n')) {
+      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      commandInput.value = "";
+      return;
+    }
+
     const spaceIndex = splitForSpace(rawInput);
     const command = spaceIndex[0];
     const comment = spaceIndex.slice(1).join(" ");
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
 
     if (!isDiceCommand) {
-      applyLog({ system, resultText: rawInput });
+      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      commandInput.value = "";
       return;
     }
 
@@ -57,7 +260,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, comment, resultText, diceDetail });
+    applyLog({ system, character: characterName, comment, resultText, diceDetail }, tabId);
     commandInput.value = "";
 
   } catch (error) {
@@ -65,26 +268,174 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput }) => {
     alert(`エラーが発生しました: ${error.message}`);
   } finally {
     sendBtn.disabled = false;
-    sendBtn.textContent = "ダイスを振る";
+    sendBtn.textContent = "送信";
   }
 });
+
+// {パラメータ名}を、参照キャラクターの該当パラメータの値に置換する。
+// 該当パラメータが見つからない場合は{パラメータ名}のまま残す。
+function substituteCharacterParameters(text, character) {
+  if (!character) return text;
+  return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
+    const name = rawName.trim();
+    const param = Object.values(character.parameters || {}).find(p => p.label === name || p.key === name);
+    return param ? String(param.value) : match;
+  });
+}
+
+// [演算子(+/-/=)][パラメータ名]([数値]) でパラメータを直接変更するコマンド。例: +侵蝕率(10)
+// editable:falseのパラメータは変更不可。
+const PARAMETER_COMMAND_PATTERN = /^([+\-=])(.+?)\(([+-]?\d+(?:\.\d+)?)\)$/;
+
+function tryHandleParameterCommand(rawInput, character) {
+  const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
+  if (!match) return false;
+
+  const [, operator, rawName, rawNumber] = match;
+  const name = rawName.trim();
+  const amount = Number(rawNumber);
+
+  if (!character) {
+    alert('パラメータを変更するキャラクターを選択してください。');
+    return true;
+  }
+
+  const entry = Object.entries(character.parameters || {}).find(
+    ([, p]) => p.label === name || p.key === name
+  );
+
+  if (!entry) {
+    alert(`パラメータ「${name}」が見つかりません。`);
+    return true;
+  }
+
+  const [paramId, param] = entry;
+  if (param.editable === false) {
+    alert(`パラメータ「${name}」は変更できません。`);
+    return true;
+  }
+
+  const before = param.value;
+  const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+
+  store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+  applyLog({
+    system: character.name,
+    resultText: `${param.label}: ${before} → ${after}`
+  });
+
+  return true;
+}
+
+// チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
+// パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
+function sendPaletteText(text) {
+  const selectedSystem = gameSystemSelect.value;
+  const rawInput = text.trim();
+  if (rawInput === "") return;
+
+  const selectedCharacter = characterParamSelect?.value
+    ? store.state.tokens[characterParamSelect.value]
+    : null;
+
+  if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+    return;
+  }
+
+  const substitutedInput = substituteCharacterParameters(rawInput, selectedCharacter);
+
+  EventBus.emit('DICE_ROLL_REQUESTED', {
+    system: selectedSystem,
+    rawInput: substitutedInput,
+    characterName: selectedCharacter?.name,
+    tabId: activeTabId
+  });
+}
+
+if (chatPalettePanel) {
+  renderChatPalette({ container: chatPalettePanel, onSend: sendPaletteText });
+}
 
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
     const selectedSystem = gameSystemSelect.value;
-    const rawInput = commandInput.value.trim();
+    let rawInput = commandInput.value.trim();
 
     if (rawInput === "") {
       alert("コマンドを入力してください！");
       return;
     }
 
+    const selectedCharacter = characterParamSelect?.value
+      ? store.state.tokens[characterParamSelect.value]
+      : null;
+
+    if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+      commandInput.value = "";
+      return;
+    }
+
+    rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
+
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,
-      rawInput: rawInput
+      rawInput: rawInput,
+      characterName: selectedCharacter?.name,
+      tabId: activeTabId
     });
   });
 }
+
+// チャット欄編集中、Enterキーで送信できるようにする（Shift+Enterで改行、IME変換中は無視）
+if (commandInput && sendBtn) {
+  commandInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+}
+
+// 参照キャラクターの選択肢をキャラ一覧と同じ内容で維持する（登録・削除・改名に追従）
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!characterParamSelect) return;
+
+  const previousValue = characterParamSelect.value;
+  characterParamSelect.innerHTML = '';
+
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = '（選択なし）';
+  characterParamSelect.appendChild(noneOption);
+
+  Object.values(state.tokens).forEach(tokenData => {
+    const opt = document.createElement('option');
+    opt.value = tokenData.id;
+    opt.textContent = tokenData.name;
+    characterParamSelect.appendChild(opt);
+  });
+
+  if (state.tokens[previousValue]) {
+    characterParamSelect.value = previousValue;
+  }
+
+  updateCurrentChatPortrait();
+});
+
+// 盤面下のカレントチャット欄：選択中キャラクターのコマ画像（立ち絵代わり）を表示する。
+// 未アップロードの場合は何も表示しない。
+function updateCurrentChatPortrait() {
+  if (!currentChatPortrait) return;
+  const selectedCharacter = characterParamSelect?.value
+    ? store.state.tokens[characterParamSelect.value]
+    : null;
+
+  currentChatPortrait.style.backgroundImage = selectedCharacter?.image
+    ? `url('${selectedCharacter.image}')`
+    : '';
+}
+
+characterParamSelect?.addEventListener('change', updateCurrentChatPortrait);
 
 // プラグイン選択肢を生成（起動時1回）
 if (roomPluginSelect) {
@@ -105,6 +456,15 @@ if (roomPluginSelect) {
   });
 }
 
+// ルームのプラグイン選択欄：他クライアントでの変更（同期）にも追従させる
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!roomPluginSelect) return;
+  const nextValue = state.room.activePlugin || '';
+  if (roomPluginSelect.value !== nextValue) {
+    roomPluginSelect.value = nextValue;
+  }
+});
+
 // ルーム変数の表示（STATE_CHANGEDで更新）
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (!roomParameterList) return;
@@ -124,24 +484,43 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
   characterList.innerHTML = "";
 
-  Object.values(state.tokens).forEach(tokenData => {
+  const sortedTokens = Object.values(state.tokens).sort((a, b) => {
+    const initiativeA = a.parameters?.['core:initiative']?.value ?? 0;
+    const initiativeB = b.parameters?.['core:initiative']?.value ?? 0;
+    return initiativeB - initiativeA;
+  });
+
+  sortedTokens.forEach(tokenData => {
     const item = document.createElement('div');
     item.className = 'character-list-item';
 
-    const header = document.createElement('div');
-    header.className = 'character-list-header';
+    // アバター（画像 or 色）＋ イニシアチブバッジ ＋ 名前
+    const avatarColumn = document.createElement('div');
+    avatarColumn.className = 'character-avatar-column';
 
-    const swatch = document.createElement('span');
-    swatch.className = 'character-color-swatch';
-    swatch.style.backgroundColor = tokenData.color || '#ff4757';
+    const avatar = document.createElement('div');
+    avatar.className = 'character-avatar';
+    if (tokenData.image) {
+      avatar.style.backgroundImage = `url('${tokenData.image}')`;
+    } else {
+      avatar.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+    }
+
+    const initiativeParam = tokenData.parameters?.['core:initiative'];
+    if (initiativeParam) {
+      const initiativeBadge = document.createElement('span');
+      initiativeBadge.className = 'character-avatar-initiative';
+      initiativeBadge.textContent = initiativeParam.value;
+      avatar.appendChild(initiativeBadge);
+    }
 
     const nameSpan = document.createElement('span');
-    nameSpan.className = 'character-name';
+    nameSpan.className = 'character-avatar-name';
     nameSpan.textContent = tokenData.name;
 
-    header.appendChild(swatch);
-    header.appendChild(nameSpan);
-    item.appendChild(header);
+    avatarColumn.appendChild(avatar);
+    avatarColumn.appendChild(nameSpan);
+    item.appendChild(avatarColumn);
 
     // パラメータ一覧
     const paramList = document.createElement('div');
@@ -151,8 +530,19 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
       .filter(param => param.visible !== false)
       .forEach(param => {
         const paramRow = document.createElement('div');
-        paramRow.className = 'character-param-row';
-        paramRow.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
+        paramRow.className = 'character-list-param-row';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'character-param-label';
+        labelSpan.textContent = truncateLabel(param.label);
+        labelSpan.title = param.label;
+
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'character-param-value';
+        valueSpan.textContent = param.value;
+
+        paramRow.appendChild(labelSpan);
+        paramRow.appendChild(valueSpan);
         paramList.appendChild(paramRow);
       });
 
@@ -161,26 +551,35 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   });
 });
 
+function truncateLabel(label, maxLength = 4) {
+  if (!label) return '';
+  return label.length > maxLength ? `${label.slice(0, maxLength)}...` : label;
+}
+
 function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function applyLog({ system = "", comment = "", resultText, diceDetail = "" }) {
-  if (!logContainer) return;
-  const newLog = document.createElement('div');
+function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
+  const characterTag = character ? ` <span style="color: #4caf50;">${character}</span>` : '';
+  const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
-  newLog.className = 'log-item';
-  newLog.innerHTML = `
-    <strong style="color: #007acc;">[${system}]</strong> ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
-    <span style="font-size: 1.1rem; color: #fff;">${resultText}</span><br> 
+  return `
+    <strong style="color: #007acc;">[${system}]</strong>${characterTag} ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
+    <span style="font-size: 1.1rem; color: #fff;">${resultHtml}</span><br>
     ${detail}`;
+}
 
-  logContainer.appendChild(newLog);
-  logContainer.scrollTop = logContainer.scrollHeight;
+// entryを指定タブ（省略時は現在表示中のタブ）のログへ追加する。
+// storeへdispatchするだけで、DOMへの反映はSTATE_CHANGED購読側（renderActiveTabLog／
+// renderMainChatMirror）が行う。他クライアントとの同期もこのdispatchを経由して行われる。
+function applyLog(entry, tabId = activeTabId) {
+  store.dispatch('ADD_CHAT_MESSAGE', { tabId, entry });
 }
 
 // 初期化処理
 window.addEventListener('DOMContentLoaded', () => {
+  initNetSync();
   store.init();
 });

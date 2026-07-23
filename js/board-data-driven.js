@@ -106,9 +106,9 @@ class ImmutableStore {
           }
         });
 
-        customParameters.forEach(({ key, label, value }) => {
+        customParameters.forEach(({ key, label, value, visible = true }) => {
           const paramId = `user:${key}`;
-          parameters[paramId] = Object.freeze({ key, label, value, source: 'user', visible: true });
+          parameters[paramId] = Object.freeze({ key, label, value, source: 'user', visible });
         });
 
         // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
@@ -232,7 +232,7 @@ class ImmutableStore {
       }
 
       case 'ADD_PARAMETER': {
-        const { characterId, key, label, value } = payload;
+        const { characterId, key, label, value, visible = true } = payload;
         if (!key) return;
         const character = nextTokensState[characterId];
         if (!character) return;
@@ -242,7 +242,7 @@ class ImmutableStore {
 
         const nextParams = {
           ...character.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true, visible: true })
+          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true, visible })
         };
 
         // 自動計算の適用
@@ -537,8 +537,8 @@ function bindTokenDrag(element, board) {
                 store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
               });
 
-              newCustomParameters.forEach(({ key, label, value }) => {
-                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
+              newCustomParameters.forEach(({ key, label, value, visible }) => {
+                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible });
               });
             }
           });

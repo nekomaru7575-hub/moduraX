@@ -181,6 +181,26 @@
       font-size: 0.8rem;
       color: #bbb;
     }
+
+    /* キャラ一覧サイドバー専用（ルーム変数一覧とは見た目を分ける） */
+    .character-list-param-row {
+      display: grid;
+      grid-template-columns: 2.8em 1fr;
+      column-gap: 8px;
+      font-size: 0.8rem;
+      color: #bbb;
+    }
+
+    .character-param-label {
+      color: #2ecc71;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .character-param-value {
+      text-align: left;
+    }
 /* 新規：左側キャラクター一覧エリア（画面全体の1/5固定） */
     .character-panel-area {
       flex: 0 0 10%;

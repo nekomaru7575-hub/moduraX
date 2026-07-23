@@ -164,13 +164,15 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
       .filter(param => param.visible !== false)
       .forEach(param => {
         const paramRow = document.createElement('div');
-        paramRow.className = 'character-param-row';
+        paramRow.className = 'character-list-param-row';
 
         const labelSpan = document.createElement('span');
+        labelSpan.className = 'character-param-label';
         labelSpan.textContent = truncateLabel(param.label);
         labelSpan.title = param.label;
 
         const valueSpan = document.createElement('span');
+        valueSpan.className = 'character-param-value';
         valueSpan.textContent = param.value;
 
         paramRow.appendChild(labelSpan);

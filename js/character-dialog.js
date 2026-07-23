@@ -56,6 +56,27 @@ function buildImagePicker(initialImage) {
   return { element: group, getImage: () => currentImage };
 }
 
+// 「表示」チェックボックス（visible切り替え用）を生成する共通処理。
+// 既存パラメータ行・新規カスタムパラメータ行のどちらからも使う。
+function buildVisibilityCheckbox(initialChecked = true) {
+  const label = document.createElement('label');
+  label.style.display = 'flex';
+  label.style.alignItems = 'center';
+  label.style.gap = '4px';
+  label.style.color = '#aaa';
+  label.style.fontSize = '0.8rem';
+  label.style.flexShrink = '0';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = initialChecked;
+
+  label.appendChild(checkbox);
+  label.appendChild(document.createTextNode('表示'));
+
+  return { element: label, checkbox };
+}
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -67,7 +88,7 @@ function ensureDialog() {
 }
 
 /**
- * @param {{ onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number}[] }) => void }} options
+ * @param {{ onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void }} options
  */
 export function showCharacterDialog({ onConfirm }) {
   const dialog = ensureDialog();
@@ -130,6 +151,8 @@ export function showCharacterDialog({ onConfirm }) {
     valueInput.type = 'number';
     valueInput.value = 0;
 
+    const visibility = buildVisibilityCheckbox(true);
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -142,10 +165,11 @@ export function showCharacterDialog({ onConfirm }) {
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
+    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, rowEl: row });
+    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -192,7 +216,8 @@ export function showCharacterDialog({ onConfirm }) {
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: Number(row.valueInput.value) || 0
+        value: Number(row.valueInput.value) || 0,
+        visible: row.visibleCheckbox.checked
       }))
       .filter(p => p.key !== '');
 
@@ -228,7 +253,7 @@ function ensureEditDialog() {
  *     image: string | null,
  *     parameterValues: Record<string, number>,
  *     removedParamIds: string[],
- *     newCustomParameters: {key:string,label:string,value:number}[],
+ *     newCustomParameters: {key:string,label:string,value:number,visible:boolean}[],
  *     visibilityUpdates: Record<string, boolean>
  *   }) => void
  * }} options
@@ -293,22 +318,12 @@ export function showCharacterEditDialog({ character, onConfirm }) {
     }
 
     const initialVisible = param.visible !== false;
-    const visibleLabel = document.createElement('label');
-    visibleLabel.style.display = 'flex';
-    visibleLabel.style.alignItems = 'center';
-    visibleLabel.style.gap = '4px';
-    visibleLabel.style.color = '#aaa';
-    visibleLabel.style.fontSize = '0.8rem';
-    visibleLabel.style.flexShrink = '0';
-    const visibleCheckbox = document.createElement('input');
-    visibleCheckbox.type = 'checkbox';
-    visibleCheckbox.checked = initialVisible;
-    visibleLabel.appendChild(visibleCheckbox);
-    visibleLabel.appendChild(document.createTextNode('表示'));
+    const visibility = buildVisibilityCheckbox(initialVisible);
+    const visibleCheckbox = visibility.checkbox;
 
     row.appendChild(label);
     row.appendChild(valueInput);
-    row.appendChild(visibleLabel);
+    row.appendChild(visibility.element);
 
     if (!param.locked) {
       const removeBtn = document.createElement('button');
@@ -347,6 +362,8 @@ export function showCharacterEditDialog({ character, onConfirm }) {
     valueInput.type = 'number';
     valueInput.value = 0;
 
+    const visibility = buildVisibilityCheckbox(true);
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -359,10 +376,11 @@ export function showCharacterEditDialog({ character, onConfirm }) {
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
+    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, rowEl: row });
+    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -413,7 +431,8 @@ export function showCharacterEditDialog({ character, onConfirm }) {
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: Number(row.valueInput.value) || 0
+        value: Number(row.valueInput.value) || 0,
+        visible: row.visibleCheckbox.checked
       }))
       .filter(p => p.key !== '');
 

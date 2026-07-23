@@ -4,6 +4,7 @@ import { rollBCDice } from './BCdice.js';
 import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
+import { renderChatPalette } from './chat-palette.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -13,6 +14,7 @@ const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
+const chatPalettePanel = document.getElementById('chatPalettePanel');
 
 // DOM要素の取得（キャラクター登録関連）
 
@@ -139,6 +141,34 @@ function tryHandleParameterCommand(rawInput, character) {
   });
 
   return true;
+}
+
+// チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
+// パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
+function sendPaletteText(text) {
+  const selectedSystem = gameSystemSelect.value;
+  const rawInput = text.trim();
+  if (rawInput === "") return;
+
+  const selectedCharacter = characterParamSelect?.value
+    ? store.state.tokens[characterParamSelect.value]
+    : null;
+
+  if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+    return;
+  }
+
+  const substitutedInput = substituteCharacterParameters(rawInput, selectedCharacter);
+
+  EventBus.emit('DICE_ROLL_REQUESTED', {
+    system: selectedSystem,
+    rawInput: substitutedInput,
+    characterName: selectedCharacter?.name
+  });
+}
+
+if (chatPalettePanel) {
+  renderChatPalette({ container: chatPalettePanel, onSend: sendPaletteText });
 }
 
 if (sendBtn) {

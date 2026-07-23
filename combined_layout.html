@@ -659,17 +659,94 @@
       padding: 8px 16px;
     }
 
-    /* チャットパレット（実装予定地）：今回は場所のみ確保 */
-    .chat-palette-placeholder {
+    /* チャットパレット：保存フレーズをクリックだけで送信できるボタン一覧 */
+    .chat-palette-panel {
       flex: 1;
       min-height: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px dashed #444;
+      flex-direction: column;
+      gap: 6px;
+      border: 1px solid #333;
       border-radius: 8px;
+      padding: 6px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .chat-palette-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 6px;
+    }
+
+    .chat-palette-btn {
+      background-color: #333;
+      color: #ddd;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chat-palette-btn:hover {
+      background-color: #3f3f3f;
+    }
+
+    .chat-palette-empty {
       color: #666;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      margin: 0;
+      padding: 4px;
+    }
+
+    .chat-palette-edit-btn {
+      align-self: flex-end;
+      background: none;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .chat-palette-edit-btn:hover {
+      background-color: #3a3a3a;
+    }
+
+    .chat-palette-editor-dialog {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .chat-palette-editor-hint {
+      color: #999;
+      font-size: 0.8rem;
+      margin: 0 0 8px;
+    }
+
+    .chat-palette-editor-textarea {
+      width: 100%;
+      min-height: 240px;
+      background-color: #3a3a3a;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+      box-sizing: border-box;
     }
 
     .panel {
@@ -927,7 +1004,7 @@
       </div>
 
       <!-- 下段：チャットパレット（実装予定地） -->
-      <div class="chat-palette-placeholder">チャットパレット（実装予定）</div>
+      <div class="chat-palette-panel" id="chatPalettePanel"></div>
     </div>
   </div>
 

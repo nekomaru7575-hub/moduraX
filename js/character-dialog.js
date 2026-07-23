@@ -4,6 +4,32 @@
 
 import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
 import { pickFileAsDataUrl } from './file-uploader.js';
+import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
+
+// プラグイン専用スペースを組み立てる。プラグインが専用UI(renderCharacterPanel)を
+// 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
+// getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
+function buildPluginPanel({ activePluginId, mode, parameters }) {
+  const column = document.createElement('div');
+  column.className = 'dialog-plugin-column';
+
+  let panel = null;
+  if (activePluginId && pluginHasCharacterPanel(activePluginId)) {
+    panel = renderCharacterPanel(activePluginId, { container: column, mode, parameters });
+  } else {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'dialog-plugin-placeholder';
+    placeholder.textContent = activePluginId
+      ? 'このプラグインには専用表示がありません。'
+      : 'プラグイン未選択です。';
+    column.appendChild(placeholder);
+  }
+
+  return {
+    element: column,
+    getValues: () => panel?.getValues() ?? {}
+  };
+}
 
 // キャラクター画像の選択UI（プレビュー＋選択/削除ボタン）を組み立てる。
 // 作成/更新どちらのダイアログからも同じ形で使えるよう共通化する。
@@ -88,9 +114,12 @@ function ensureDialog() {
 }
 
 /**
- * @param {{ onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void }} options
+ * @param {{
+ *   activePluginId?: string | null,
+ *   onConfirm: (result: { name: string, image: string | null, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
+ * }} options
  */
-export function showCharacterDialog({ onConfirm }) {
+export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -99,6 +128,15 @@ export function showCharacterDialog({ onConfirm }) {
   const title = document.createElement('h3');
   title.textContent = 'キャラクターを登録';
   form.appendChild(title);
+
+  // --- 本体（左）＋ プラグイン専用スペース（右） ---
+  const columns = document.createElement('div');
+  columns.className = 'dialog-columns';
+  form.appendChild(columns);
+
+  const mainColumn = document.createElement('div');
+  mainColumn.className = 'dialog-main-column';
+  columns.appendChild(mainColumn);
 
   // --- 名前 ---
   const nameGroup = document.createElement('div');
@@ -110,11 +148,11 @@ export function showCharacterDialog({ onConfirm }) {
   nameInput.required = true;
   nameGroup.appendChild(nameLabel);
   nameGroup.appendChild(nameInput);
-  form.appendChild(nameGroup);
+  mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
   const imagePicker = buildImagePicker(null);
-  form.appendChild(imagePicker.element);
+  mainColumn.appendChild(imagePicker.element);
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
@@ -128,14 +166,14 @@ export function showCharacterDialog({ onConfirm }) {
     input.value = def.value;
     group.appendChild(label);
     group.appendChild(input);
-    form.appendChild(group);
+    mainColumn.appendChild(group);
     defaultInputs[def.key] = input;
   });
 
   // --- カスタムパラメータ（User層） ---
   const customListEl = document.createElement('div');
   customListEl.className = 'dialog-custom-list';
-  form.appendChild(customListEl);
+  mainColumn.appendChild(customListEl);
 
   const customRows = [];
 
@@ -177,7 +215,15 @@ export function showCharacterDialog({ onConfirm }) {
   addCustomBtn.textContent = '+ カスタムパラメータを追加';
   addCustomBtn.className = 'dialog-add-row-btn';
   addCustomBtn.addEventListener('click', addCustomRow);
-  form.appendChild(addCustomBtn);
+  mainColumn.appendChild(addCustomBtn);
+
+  // --- プラグイン専用スペース（右） ---
+  const pluginPanel = buildPluginPanel({
+    activePluginId,
+    mode: 'create',
+    parameters: activePluginId ? buildCharacterParametersForPlugin(activePluginId) : {}
+  });
+  columns.appendChild(pluginPanel.element);
 
   // --- ボタン行 ---
   const btnRow = document.createElement('div');
@@ -211,6 +257,7 @@ export function showCharacterDialog({ onConfirm }) {
       const raw = defaultInputs[def.key].value;
       parameterOverrides[paramId] = raw === '' ? def.value : Number(raw);
     });
+    Object.assign(parameterOverrides, pluginPanel.getValues());
 
     const customParameters = customRows
       .map(row => ({
@@ -247,7 +294,8 @@ function ensureEditDialog() {
  * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, image?: string | null, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean}> },
+ *   character: { name: string, image?: string | null, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}> },
+ *   activePluginId?: string | null,
  *   onConfirm: (result: {
  *     name: string,
  *     image: string | null,
@@ -258,7 +306,7 @@ function ensureEditDialog() {
  *   }) => void
  * }} options
  */
-export function showCharacterEditDialog({ character, onConfirm }) {
+export function showCharacterEditDialog({ character, activePluginId = null, onConfirm }) {
   const dialog = ensureEditDialog();
   dialog.innerHTML = '';
 
@@ -267,6 +315,15 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   const title = document.createElement('h3');
   title.textContent = 'キャラクターを更新';
   form.appendChild(title);
+
+  // --- 本体（左）＋ プラグイン専用スペース（右） ---
+  const columns = document.createElement('div');
+  columns.className = 'dialog-columns';
+  form.appendChild(columns);
+
+  const mainColumn = document.createElement('div');
+  mainColumn.className = 'dialog-main-column';
+  columns.appendChild(mainColumn);
 
   // --- 名前 ---
   const nameGroup = document.createElement('div');
@@ -279,27 +336,33 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   nameInput.value = character.name;
   nameGroup.appendChild(nameLabel);
   nameGroup.appendChild(nameInput);
-  form.appendChild(nameGroup);
+  mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
   const imagePicker = buildImagePicker(character.image);
-  form.appendChild(imagePicker.element);
+  mainColumn.appendChild(imagePicker.element);
 
   // --- 既存パラメータ一覧（値の変更・削除） ---
   const paramListLabel = document.createElement('label');
   paramListLabel.textContent = 'パラメータ';
   paramListLabel.style.display = 'block';
   paramListLabel.style.marginTop = '4px';
-  form.appendChild(paramListLabel);
+  mainColumn.appendChild(paramListLabel);
 
   const paramListEl = document.createElement('div');
   paramListEl.className = 'dialog-custom-list';
-  form.appendChild(paramListEl);
+  mainColumn.appendChild(paramListEl);
 
   const existingRows = []; // { paramId, valueInput, editable, visibleCheckbox, initialVisible }
   const removedParamIds = new Set();
 
+  // プラグインが専用スペースを持つ場合、そのプラグイン由来のパラメータは
+  // 右側のプラグイン専用スペースだけに表示し、こちらの汎用一覧には出さない（二重表示防止）
+  const pluginOwnsDisplay = !!activePluginId && pluginHasCharacterPanel(activePluginId);
+
   Object.entries(character.parameters).forEach(([paramId, param]) => {
+    if (pluginOwnsDisplay && param.source === activePluginId) return;
+
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
 
@@ -346,7 +409,7 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   // --- 新規カスタムパラメータの追加 ---
   const customListEl = document.createElement('div');
   customListEl.className = 'dialog-custom-list';
-  form.appendChild(customListEl);
+  mainColumn.appendChild(customListEl);
 
   const customRows = [];
 
@@ -388,7 +451,15 @@ export function showCharacterEditDialog({ character, onConfirm }) {
   addCustomBtn.textContent = '+ カスタムパラメータを追加';
   addCustomBtn.className = 'dialog-add-row-btn';
   addCustomBtn.addEventListener('click', addCustomRow);
-  form.appendChild(addCustomBtn);
+  mainColumn.appendChild(addCustomBtn);
+
+  // --- プラグイン専用スペース（右） ---
+  const pluginPanel = buildPluginPanel({
+    activePluginId,
+    mode: 'edit',
+    parameters: character.parameters
+  });
+  columns.appendChild(pluginPanel.element);
 
   // --- ボタン行 ---
   const btnRow = document.createElement('div');
@@ -426,6 +497,7 @@ export function showCharacterEditDialog({ character, onConfirm }) {
         visibilityUpdates[paramId] = visibleCheckbox.checked;
       }
     });
+    Object.assign(parameterValues, pluginPanel.getValues());
 
     const newCustomParameters = customRows
       .map(row => ({

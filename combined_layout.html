@@ -66,6 +66,31 @@
       border-radius: 8px;
       padding: 20px;
       min-width: 320px;
+      max-width: 720px;
+    }
+
+    .dialog-columns {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .dialog-main-column {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .dialog-plugin-column {
+      flex: 1;
+      min-width: 220px;
+      padding-left: 20px;
+      border-left: 1px solid #444;
+    }
+
+    .dialog-plugin-placeholder {
+      color: #777;
+      font-size: 0.85rem;
+      margin: 0;
     }
 
     .character-dialog::backdrop {

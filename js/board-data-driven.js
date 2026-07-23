@@ -510,6 +510,7 @@ function bindTokenDrag(element, board) {
 
           showCharacterEditDialog({
             character: current,
+            activePluginId: store.state.room?.activePlugin ?? null,
             onConfirm: ({ name, image, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
@@ -694,6 +695,7 @@ window.addEventListener('DOMContentLoaded', () => {
         label: 'キャラクターを追加',
         onSelect: () => {
           showCharacterDialog({
+            activePluginId: store.state.room?.activePlugin ?? null,
             onConfirm: ({ name, image, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),

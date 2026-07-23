@@ -23,6 +23,26 @@ export function buildRoomParameters(pluginId) {
   return plugin?.buildRoomParameters ? plugin.buildRoomParameters() : {};
 }
 
+// 指定プラグインがキャラ作成/更新ダイアログ用の専用表示（renderCharacterPanel）を持つか
+export function pluginHasCharacterPanel(pluginId) {
+  return !!PLUGINS[pluginId]?.renderCharacterPanel;
+}
+
+/**
+ * キャラ作成/更新ダイアログのプラグイン専用スペースに、プラグイン自身のUIを描画させる。
+ * Coreはcontainerを渡すだけで、中身の意味・デザインはプラグインに委ねる（解釈しない）。
+ * @param {string} pluginId
+ * @param {{ container: HTMLElement, mode: 'create'|'edit', parameters: Record<string, any> }} context
+ * @returns {{ getValues: () => Record<string, number> } | null}
+ *   getValues() はダイアログのsubmit時に呼ばれ、{paramId: value}を返す。
+ *   プラグインが専用UIを持たない場合はnullを返す。
+ */
+export function renderCharacterPanel(pluginId, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.renderCharacterPanel) return null;
+  return plugin.renderCharacterPanel(context) || null;
+}
+
 /**
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
  * @param {string} pluginId 

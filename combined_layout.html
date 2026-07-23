@@ -201,18 +201,27 @@
     .character-param-value {
       text-align: left;
     }
-/* 新規：左側キャラクター一覧エリア（画面全体の1/5固定） */
+/* キャラクター一覧：main-area内に浮かせるオーバーレイ。
+   盤面・チャット（board-area/control-area）のflex比率には関与しない。 */
     .character-panel-area {
-      flex: 0 0 16%;
-      min-width: 220px;
+      position: absolute;
+      top: 0;
+      left: 0;
       height: 100%;
+      width: 220px;
+      z-index: 30;
       display: flex;
       flex-direction: column;
+      transition: width 0.15s ease;
+      pointer-events: none;
+    }
+
+    .character-panel-area > * {
+      pointer-events: auto;
     }
 
     .character-panel-area.collapsed {
-      flex: 0 0 28px;
-      min-width: 28px;
+      width: 28px;
     }
 
     .character-panel {
@@ -220,6 +229,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
     }
 
     .character-panel-area.collapsed .character-panel {
@@ -262,6 +272,7 @@
       background-color: #2a2a2a;
       border: 1px solid #444;
       border-radius: 6px;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
       color: #aaa;
       cursor: pointer;
       align-items: center;
@@ -280,8 +291,9 @@
       background-color: #3a3a3a;
     }
 
-/* 新規：盤面＋コントロールをまとめる残り80%のコンテナ */
+/* 盤面＋コントロールのコンテナ。キャラ一覧オーバーレイの基準位置にもなる */
     .main-area {
+      position: relative;
       flex: 1;
       display: flex;
       gap: 20px;
@@ -569,7 +581,9 @@
     </form>
   </dialog>
   <div class="app-container">
-  <!-- 新規：左側キャラクター一覧エリア -->
+  <!-- 既存の盤面＋コントロールを、新しいラッパーで囲む -->
+  <div class="main-area">
+    <!-- キャラクター一覧：main-area内に浮かせるオーバーレイ。board-area/control-areaの大きさには影響しない -->
       <div class="character-panel-area" id="characterPanelArea">
         <div class="panel character-panel">
           <div class="character-panel-header">
@@ -581,8 +595,6 @@
         <button type="button" id="characterPanelExpandBtn" class="character-panel-expand-strip" title="展開する">キャラクター一覧</button>
       </div>
 
-  <!-- 既存の盤面＋コントロールを、新しいラッパーで囲む -->
-  <div class="main-area">
     <div class="board-area">
       <div id="board-viewport">
         <div id="board"></div>

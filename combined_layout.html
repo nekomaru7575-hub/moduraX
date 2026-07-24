@@ -297,13 +297,45 @@
       border-radius: 4px;
     }
 
-    .dialog-image-preview {
-      width: 64px;
-      height: 64px;
-      object-fit: cover;
+    /* コマ画像トリミング用の正方形クロッパー。中の画像をドラッグして位置調整、
+       ホイール/スライダーでズームする。コマは常にN×Nの正方形なので枠も正方形。 */
+    .image-cropper {
+      width: 160px;
+      height: 160px;
+      overflow: hidden;
       border-radius: 8px;
       border: 1px solid #555;
+      background-color: #111;
       margin-bottom: 8px;
+      cursor: grab;
+      touch-action: none; /* ドラッグ中にスクロール/ジェスチャへ取られないように */
+      position: relative;
+    }
+
+    .image-cropper:active {
+      cursor: grabbing;
+    }
+
+    .image-cropper-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .image-crop-zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: #aaa;
+      font-size: 0.85rem;
+    }
+
+    .image-crop-zoom-row input[type="range"] {
+      flex: 1;
     }
 
     .dialog-custom-list {
@@ -598,8 +630,7 @@
       width: 25px;
       height: 25px;
       background-color: transparent;
-      background-size: cover;
-      background-position: center;
+      overflow: hidden;
       border: 2px solid #ffffff;
       border-radius: 10px;
       position: absolute;
@@ -622,7 +653,22 @@
       transition: none;
     }
 
+    /* コマ画像。内側に敷き、トリミング設定(object-position/transform)で見え方を変える。
+       名前(.token-name)より下に来るよう、名前側にz-indexを持たせている。 */
+    .token-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
     .token-name {
+      position: relative;
+      z-index: 1;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

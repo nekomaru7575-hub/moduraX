@@ -6,6 +6,25 @@ import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
 import { pickFileAsDataUrl } from './file-uploader.js';
 import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
 
+// コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
+// これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
+export function defaultImageCrop() {
+  return { zoom: 1, posX: 50, posY: 50 };
+}
+
+// トリミング設定(crop)を<img>のCSSへ反映する。ダイアログのプレビューと盤面のコマで
+// 同じ関数を使うことでWYSIWYGを保証する。object-fit:coverを基準に、object-positionで
+// 表示位置、transform:scaleで拡大（原点を表示位置に合わせる）する。
+export function applyImageCropStyle(imgEl, crop) {
+  const zoom = crop?.zoom ?? 1;
+  const posX = crop?.posX ?? 50;
+  const posY = crop?.posY ?? 50;
+  imgEl.style.objectFit = 'cover';
+  imgEl.style.objectPosition = `${posX}% ${posY}%`;
+  imgEl.style.transformOrigin = `${posX}% ${posY}%`;
+  imgEl.style.transform = `scale(${zoom})`;
+}
+
 // プラグイン専用スペースを組み立てる。プラグインが専用UI(renderCharacterPanel)を
 // 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
@@ -31,24 +50,107 @@ function buildPluginPanel({ activePluginId, mode, parameters, components, onComp
   };
 }
 
-// キャラクター画像の選択UI（プレビュー＋選択/削除ボタン）を組み立てる。
-// 作成/更新どちらのダイアログからも同じ形で使えるよう共通化する。
-function buildImagePicker(initialImage) {
+// キャラクター画像の選択UI（正方形クロッパー＋選択/削除ボタン）を組み立てる。
+// クロッパー内で画像をドラッグして表示位置を、スライダー/ホイールでズームを調整でき、
+// その結果を非破壊のトリミング設定(crop)として返す。作成/更新どちらのダイアログからも使う。
+function buildImagePicker(initialImage, initialCrop) {
   let currentImage = initialImage || null;
+  const crop = { ...defaultImageCrop(), ...(initialCrop || {}) };
 
   const group = document.createElement('div');
   group.className = 'dialog-form-group';
 
   const label = document.createElement('label');
-  label.textContent = '画像';
+  label.textContent = '画像（ドラッグで位置調整・ズームで拡大）';
   group.appendChild(label);
 
-  const preview = document.createElement('img');
-  preview.className = 'dialog-image-preview';
-  preview.style.display = currentImage ? 'block' : 'none';
-  if (currentImage) preview.src = currentImage;
-  group.appendChild(preview);
+  // 正方形クロッパー（コマは常にN×Nの正方形なので枠も正方形）
+  const cropper = document.createElement('div');
+  cropper.className = 'image-cropper';
 
+  const img = document.createElement('img');
+  img.className = 'image-cropper-img';
+  img.alt = '';
+  cropper.appendChild(img);
+  group.appendChild(cropper);
+
+  // ズーム操作
+  const zoomRow = document.createElement('div');
+  zoomRow.className = 'image-crop-zoom-row';
+  const zoomLabel = document.createElement('span');
+  zoomLabel.textContent = 'ズーム';
+  const zoomInput = document.createElement('input');
+  zoomInput.type = 'range';
+  zoomInput.min = '1';
+  zoomInput.max = '3';
+  zoomInput.step = '0.02';
+  zoomInput.value = String(crop.zoom);
+  zoomRow.appendChild(zoomLabel);
+  zoomRow.appendChild(zoomInput);
+  group.appendChild(zoomRow);
+
+  const applyCrop = () => applyImageCropStyle(img, crop);
+
+  function updateVisibility() {
+    const has = !!currentImage;
+    cropper.style.display = has ? '' : 'none';
+    zoomRow.style.display = has ? '' : 'none';
+    if (has) {
+      img.src = currentImage;
+      zoomInput.value = String(crop.zoom);
+      applyCrop();
+    } else {
+      img.removeAttribute('src');
+    }
+  }
+
+  // ドラッグで表示位置(posX/posY)を調整。枠幅いっぱいのドラッグで0〜100%を移動する。
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  cropper.addEventListener('pointerdown', (e) => {
+    if (!currentImage) return;
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    cropper.setPointerCapture(e.pointerId);
+  });
+  cropper.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const rect = cropper.getBoundingClientRect();
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    // 画像を右へドラッグ＝左側を見せる＝object-positionを0%側へ。よって符号は減算。
+    crop.posX = Math.min(100, Math.max(0, crop.posX - (dx / rect.width) * 100));
+    crop.posY = Math.min(100, Math.max(0, crop.posY - (dy / rect.height) * 100));
+    applyCrop();
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    try { cropper.releasePointerCapture(e.pointerId); } catch { /* 解放済みは無視 */ }
+  };
+  cropper.addEventListener('pointerup', endDrag);
+  cropper.addEventListener('pointercancel', endDrag);
+
+  // ホイールでもズームできるようにする（スライダーと同期）
+  cropper.addEventListener('wheel', (e) => {
+    if (!currentImage) return;
+    e.preventDefault();
+    const next = Math.min(3, Math.max(1, crop.zoom + (e.deltaY < 0 ? 0.1 : -0.1)));
+    crop.zoom = Math.round(next * 100) / 100;
+    zoomInput.value = String(crop.zoom);
+    applyCrop();
+  }, { passive: false });
+
+  zoomInput.addEventListener('input', () => {
+    crop.zoom = Number(zoomInput.value) || 1;
+    applyCrop();
+  });
+
+  // 選択/削除ボタン
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-custom-row';
 
@@ -61,8 +163,8 @@ function buildImagePicker(initialImage) {
     const picked = await pickFileAsDataUrl({ accept: 'image/*' });
     if (!picked) return;
     currentImage = picked.dataUrl;
-    preview.src = currentImage;
-    preview.style.display = 'block';
+    Object.assign(crop, defaultImageCrop()); // 新しい画像は中央・等倍から始める
+    updateVisibility();
   });
   btnRow.appendChild(pickBtn);
 
@@ -72,14 +174,20 @@ function buildImagePicker(initialImage) {
   clearBtn.className = 'dialog-remove-row';
   clearBtn.addEventListener('click', () => {
     currentImage = null;
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
+    Object.assign(crop, defaultImageCrop());
+    updateVisibility();
   });
   btnRow.appendChild(clearBtn);
 
   group.appendChild(btnRow);
 
-  return { element: group, getImage: () => currentImage };
+  updateVisibility();
+
+  return {
+    element: group,
+    getImage: () => currentImage,
+    getCrop: () => (currentImage ? { ...crop } : null)
+  };
 }
 
 // コマの大きさ（マス数、N×Nとして扱う）の入力UI。作成/更新どちらのダイアログからも使う。
@@ -135,7 +243,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -170,7 +278,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
-  const imagePicker = buildImagePicker(null);
+  const imagePicker = buildImagePicker(null, null);
   mainColumn.appendChild(imagePicker.element);
 
   // --- サイズ ---
@@ -292,7 +400,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), size: sizeInput.getSize(), parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), parameterOverrides, customParameters });
   });
 
   dialog.appendChild(form);
@@ -317,13 +425,14 @@ function ensureEditDialog() {
  * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, image?: string | null, size?: number, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
+ *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
  *   getComponents?: () => Record<string, any>,
  *   onConfirm: (result: {
  *     name: string,
  *     image: string | null,
+ *     imageCrop: {zoom:number,posX:number,posY:number} | null,
  *     size: number,
  *     parameterValues: Record<string, number>,
  *     removedParamIds: string[],
@@ -365,7 +474,7 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
   mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
-  const imagePicker = buildImagePicker(character.image);
+  const imagePicker = buildImagePicker(character.image, character.imageCrop);
   mainColumn.appendChild(imagePicker.element);
 
   // --- サイズ ---
@@ -553,6 +662,7 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
     onConfirm({
       name,
       image: imagePicker.getImage(),
+      imageCrop: imagePicker.getCrop(),
       size: sizeInput.getSize(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),

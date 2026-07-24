@@ -99,7 +99,7 @@ class ImmutableStore {
       case 'ADD_CHARACTER': {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
-          parameterOverrides = {}, customParameters = []
+          imageCrop = null, parameterOverrides = {}, customParameters = []
         } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
@@ -125,6 +125,7 @@ class ImmutableStore {
 
         nextTokensState[id] = Object.freeze({
           id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
+          imageCrop: imageCrop ? Object.freeze({ ...imageCrop }) : null, // コマ画像のトリミング（非破壊）
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           actions: Object.freeze([])
@@ -165,6 +166,21 @@ class ImmutableStore {
         nextTokensState[id] = Object.freeze({
           ...nextTokensState[id],
           image: image || null
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // コマ画像のトリミング（ズーム・表示位置）を更新する。中身は{zoom,posX,posY}だが
+      // Coreは解釈せず、そのまま保持・同期する（描画側が解釈する）。
+      case 'SET_CHARACTER_IMAGE_CROP': {
+        const { id, crop } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          imageCrop: crop ? Object.freeze({ ...crop }) : null
         });
 
         this.#commit(prevState, nextTokensState);

@@ -2,7 +2,7 @@
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
-import { showCharacterDialog, showCharacterEditDialog } from './character-dialog.js';
+import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, defaultImageCrop } from './character-dialog.js';
 import { showBackgroundSizeDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
@@ -240,7 +240,7 @@ function bindTokenDrag(element, board) {
             // components（他クライアントの同期・直前の保存を含む）を読めるようにする。
             // 開いた時点のスナップショットを握り続けると、再編集で古い内容に巻き戻る。
             getComponents: () => store.state.tokens[tokenId]?.components ?? {},
-            onConfirm: ({ name, image, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
+            onConfirm: ({ name, image, imageCrop, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -250,6 +250,12 @@ function bindTokenDrag(element, board) {
 
               if (image !== (latest.image || null)) {
                 store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
+              }
+
+              // トリミング設定の変更を反映（値が実際に変わったときだけ同期する）
+              const nextCrop = image ? (imageCrop || defaultImageCrop()) : null;
+              if (JSON.stringify(nextCrop) !== JSON.stringify(latest.imageCrop ?? null)) {
+                store.dispatch('SET_CHARACTER_IMAGE_CROP', { id: tokenId, crop: nextCrop });
               }
 
               if (size !== (latest.size || 1)) {
@@ -318,22 +324,32 @@ function bindTokenDrag(element, board) {
   });
 }
 
-// コマの見た目（色・画像・大きさ）をStateに合わせて反映する。
+// コマの見た目（色・画像・トリミング・大きさ）をStateに合わせて反映する。
 // 大きさはマス数(size、N×N)×GRID_SIZEのピクセル値にする。
+// 画像は内側の<img class="token-img">で表示し、トリミング設定(imageCrop)を
+// applyImageCropStyleで反映する（ダイアログのプレビューと同じ見た目になる）。
 function applyTokenAppearance(el, tokenData) {
   const pixelSize = (tokenData.size || 1) * GRID_SIZE;
   el.style.width = `${pixelSize}px`;
   el.style.height = `${pixelSize}px`;
 
   el.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+
+  let img = el.querySelector('.token-img');
+  if (!img) {
+    img = document.createElement('img');
+    img.className = 'token-img';
+    img.alt = '';
+    el.insertBefore(img, el.firstChild);
+  }
+
   if (tokenData.image) {
-    el.style.backgroundImage = `url('${tokenData.image}')`;
-    el.style.backgroundSize = 'cover';
-    el.style.backgroundPosition = 'center';
+    if (img.getAttribute('src') !== tokenData.image) img.src = tokenData.image;
+    img.style.display = '';
+    applyImageCropStyle(img, tokenData.imageCrop);
   } else {
-    el.style.backgroundImage = '';
-    el.style.backgroundSize = '';
-    el.style.backgroundPosition = '';
+    img.removeAttribute('src');
+    img.style.display = 'none';
   }
 }
 
@@ -341,13 +357,18 @@ function createTokenElement(tokenData, board) {
   const el = document.createElement('div');
   el.className = 'token';
   el.id = tokenData.id;
-  applyTokenAppearance(el, tokenData);
+
+  const img = document.createElement('img');
+  img.className = 'token-img';
+  img.alt = '';
+  el.appendChild(img);
 
   const nameSpan = document.createElement('span');
   nameSpan.className = 'token-name';
   nameSpan.textContent = tokenData.name;
   el.appendChild(nameSpan);
 
+  applyTokenAppearance(el, tokenData);
   bindTokenDrag(el, board);
   board.appendChild(el);
   return el;
@@ -573,11 +594,12 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, size, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
                 image,
+                imageCrop,
                 size,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),

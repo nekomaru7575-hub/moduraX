@@ -222,15 +222,26 @@ async function handleCreateRoom(req, res) {
 
   let initialState;
   if (importedState && typeof importedState === 'object') {
-    // 全データ読み込み：既存の状態をベースに、フォームで指定した部屋名・プラグイン・
-    // システムで上書きする（インポートしたファイル自体の値より、その場でのフォーム入力を優先）。
+    // 全データ読み込み：既存の状態をベースに、部屋名はフォーム入力で上書きするが、
+    // プラグイン・システムはインポートしたファイル側に値があればそちらを優先する
+    // （読み込んだ部屋データが前提にしていた構成を、その場のフォーム選択で誤って
+    // 上書きしないようにするため）。ファイル側に値が無い場合のみフォーム入力を使う。
+    const importedRoom = importedState.room || {};
+    const importedActivePlugin = importedRoom.activePlugin;
+    const resolvedActivePlugin = importedActivePlugin && validPluginIds.has(importedActivePlugin)
+      ? importedActivePlugin
+      : safeActivePlugin;
+    const resolvedBcdiceSystem = typeof importedRoom.bcdiceSystem === 'string' && importedRoom.bcdiceSystem
+      ? importedRoom.bcdiceSystem
+      : safeBcdiceSystem;
+
     initialState = {
       ...importedState,
       room: {
-        ...(importedState.room || {}),
+        ...importedRoom,
         name: trimmedName,
-        activePlugin: safeActivePlugin,
-        bcdiceSystem: safeBcdiceSystem
+        activePlugin: resolvedActivePlugin,
+        bcdiceSystem: resolvedBcdiceSystem
       }
     };
   } else {

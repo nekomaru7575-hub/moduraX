@@ -8,14 +8,9 @@ export const DX3_PARAMETERS =[
     {key : "corDB", label : "DB",value : 0 , editable : false,visible : false},
     {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
     {key : "attackPower", label : "攻撃力",value : 0},
-    // コンボ発動時のバフの対象になる内部レジスタ。手入力での編集・一覧表示は想定しないため
-    // editable:false・visible:falseだが、バフ（ADD_BUFF）はeditableを見ずに加算できる。
-    {key : "comboCheckDice", label : "判定ダイス修正(コンボ)",value : 0, editable : false,visible : false},
-    {key : "comboFixedValue", label : "判定固定値修正(コンボ)",value : 0, editable : false,visible : false},
-    {key : "comboAttackPower", label : "攻撃力修正(コンボ)",value : 0, editable : false,visible : false},
-    {key : "comboDamageDice", label : "ダメージダイス修正(コンボ)",value : 0, editable : false,visible : false},
-    {key : "comboCriticalMod", label : "クリティカル値修正(コンボ)",value : 0, editable : false,visible : false},
     // エフェクトによるバフを受け取る汎用レジスタ（コンボに限らず判定/ダメージ全般で使う想定）。
+    // コンボ発動時は、選択したエフェクトの「コンボ時修正」（dx3-effect-box.jsのCOMBO_MOD_FIELDS）を
+    // ここへバフとして加算する（js/parameters/dx3-combo-box.jsのCOMBO_PARAM_MAP参照）。
     // 手入力での編集・一覧表示は想定しないためeditable:false・visible:falseだが、
     // バフ（ADD_BUFF）はeditableを見ずに加算できる。keyをDX3公式の略称（AdB等）にしているのは、
     // バフ/パラメータ変更コマンド（js/main.js）がlabel一致に加えてkey一致でも対象を特定できるため、

@@ -22,13 +22,13 @@ function ensureDialog() {
   return dialogEl;
 }
 
-// エフェクトの「コンボ時修正」キー → バフの対象パラメータID
+// エフェクトの「コンボ時修正」キー → バフの対象パラメータID（DX3の拡張レジスタ、js/parameters/dx3.js参照）
 const COMBO_PARAM_MAP = {
-  checkDice: 'DX3:comboCheckDice',
-  fixedValue: 'DX3:comboFixedValue',
-  attackPower: 'DX3:comboAttackPower',
-  damageDice: 'DX3:comboDamageDice',
-  criticalMod: 'DX3:comboCriticalMod'
+  checkDice: 'DX3:AdB',
+  fixedValue: 'DX3:AnB',
+  attackPower: 'DX3:DaB',
+  damageDice: 'DX3:DdB',
+  criticalMod: 'DX3:AcB'
 };
 
 function sumComboMod(effects, key) {
@@ -135,11 +135,11 @@ export function showComboBox({
     if (!token) return;
 
     const ability = combo.abilityParamId ? (getEffectiveParameterValue(token, combo.abilityParamId) ?? 0) : 0;
-    const checkDice = getEffectiveParameterValue(token, 'DX3:comboCheckDice') ?? 0;
+    const checkDice = getEffectiveParameterValue(token, 'DX3:AdB') ?? 0;
     const db = getEffectiveParameterValue(token, 'DX3:corDB') ?? 0;
     const skill = combo.skillParamId ? (getEffectiveParameterValue(token, combo.skillParamId) ?? 0) : 0;
-    const fixedValue = getEffectiveParameterValue(token, 'DX3:comboFixedValue') ?? 0;
-    const criticalMod = getEffectiveParameterValue(token, 'DX3:comboCriticalMod') ?? 0;
+    const fixedValue = getEffectiveParameterValue(token, 'DX3:AnB') ?? 0;
+    const criticalMod = getEffectiveParameterValue(token, 'DX3:AcB') ?? 0;
 
     const diceCount = Math.max(1, Math.round(ability + checkDice + db));
     const criticalValue = 10 + criticalMod;
@@ -163,7 +163,7 @@ export function showComboBox({
         const bonusDice = Math.ceil(achievement / 10);
         dispatch('ADD_BUFF', {
           tokenId, id: generateBuffId(), name: `コンボ:${combo.name}(達成値ボーナス)`,
-          paramId: 'DX3:comboDamageDice', delta: bonusDice, expirePhase: null, tag: combo.id
+          paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id
         });
       }
     } catch (error) {
@@ -178,9 +178,9 @@ export function showComboBox({
     const token = getToken();
     if (!token) return;
 
-    const damageDice = getEffectiveParameterValue(token, 'DX3:comboDamageDice') ?? 0;
+    const damageDice = getEffectiveParameterValue(token, 'DX3:DdB') ?? 0;
     const attackPower = getEffectiveParameterValue(token, 'DX3:attackPower') ?? 0;
-    const attackPowerMod = getEffectiveParameterValue(token, 'DX3:comboAttackPower') ?? 0;
+    const attackPowerMod = getEffectiveParameterValue(token, 'DX3:DaB') ?? 0;
 
     const diceCount = Math.max(1, Math.round(damageDice));
     const command = `${diceCount}D10+${attackPower}+${attackPowerMod}`;

@@ -236,6 +236,10 @@ function bindTokenDrag(element, board) {
             onComponentChange: (componentKey, value) => {
               store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
             },
+            // ダイアログを開いたまま複数回エフェクト等を編集しても、常に最新の
+            // components（他クライアントの同期・直前の保存を含む）を読めるようにする。
+            // 開いた時点のスナップショットを握り続けると、再編集で古い内容に巻き戻る。
+            getComponents: () => store.state.tokens[tokenId]?.components ?? {},
             onConfirm: ({ name, image, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;

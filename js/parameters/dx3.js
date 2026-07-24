@@ -47,7 +47,7 @@ export function computeDX3DerivedParameters(parameters) {
 
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
-function renderDX3CharacterPanel({ container, mode, parameters, components, onComponentChange }) {
+function renderDX3CharacterPanel({ container, mode, parameters, components, onComponentChange, getComponents }) {
   container.innerHTML = '';
 
   const title = document.createElement('h4');
@@ -97,15 +97,25 @@ function renderDX3CharacterPanel({ container, mode, parameters, components, onCo
   }
 
   if (mode === 'edit' && onComponentChange) {
+    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のeffectsを読む。
+    // getComponentsが無い場合のみ、開いた時点のスナップショット(components)にフォールバックする。
+    const readEffects = () => (getComponents ? getComponents() : components)?.effects ?? [];
+
     const effectBtn = document.createElement('button');
     effectBtn.type = 'button';
     effectBtn.className = 'dialog-add-row-btn';
     effectBtn.style.marginTop = '8px';
-    effectBtn.textContent = `エフェクト一覧を開く（${(components?.effects ?? []).length}件）`;
+    const updateEffectBtnLabel = () => {
+      effectBtn.textContent = `エフェクト一覧を開く（${readEffects().length}件）`;
+    };
+    updateEffectBtnLabel();
     effectBtn.addEventListener('click', () => {
       showEffectBox({
-        effects: components?.effects ?? [],
-        onSave: (nextEffects) => onComponentChange('effects', nextEffects)
+        effects: readEffects(),
+        onSave: (nextEffects) => {
+          onComponentChange('effects', nextEffects);
+          updateEffectBtnLabel();
+        }
       });
     });
     container.appendChild(effectBtn);

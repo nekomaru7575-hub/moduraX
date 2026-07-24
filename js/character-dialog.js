@@ -9,13 +9,13 @@ import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderChara
 // プラグイン専用スペースを組み立てる。プラグインが専用UI(renderCharacterPanel)を
 // 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
-function buildPluginPanel({ activePluginId, mode, parameters, components, onComponentChange }) {
+function buildPluginPanel({ activePluginId, mode, parameters, components, onComponentChange, getComponents }) {
   const column = document.createElement('div');
   column.className = 'dialog-plugin-column';
 
   let panel = null;
   if (activePluginId && pluginHasCharacterPanel(activePluginId)) {
-    panel = renderCharacterPanel(activePluginId, { container: column, mode, parameters, components, onComponentChange });
+    panel = renderCharacterPanel(activePluginId, { container: column, mode, parameters, components, onComponentChange, getComponents });
   } else {
     const placeholder = document.createElement('p');
     placeholder.className = 'dialog-plugin-placeholder';
@@ -320,6 +320,7 @@ function ensureEditDialog() {
  *   character: { name: string, image?: string | null, size?: number, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
+ *   getComponents?: () => Record<string, any>,
  *   onConfirm: (result: {
  *     name: string,
  *     image: string | null,
@@ -331,7 +332,7 @@ function ensureEditDialog() {
  *   }) => void
  * }} options
  */
-export function showCharacterEditDialog({ character, activePluginId = null, onComponentChange, onConfirm }) {
+export function showCharacterEditDialog({ character, activePluginId = null, onComponentChange, getComponents, onConfirm }) {
   const dialog = ensureEditDialog();
   dialog.innerHTML = '';
 
@@ -496,7 +497,8 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
     mode: 'edit',
     parameters: character.parameters,
     components: character.components,
-    onComponentChange
+    onComponentChange,
+    getComponents
   });
   columns.appendChild(pluginPanel.element);
 

@@ -627,9 +627,19 @@
     }
 
     .current-chat-log-item {
-      font-size: 0.8rem;
+      font-size: 1.05rem;
       color: #ddd;
       animation: fadeIn 0.3s ease-out;
+    }
+
+    /* ダイス結果等の本文。通常のログでは1.1rem、カレントチャット欄では
+       最新発言1件だけを大きく見せたいのでさらに拡大する */
+    .log-result-text {
+      font-size: 1.1rem;
+    }
+
+    .current-chat-log-item .log-result-text {
+      font-size: 1.4rem;
     }
 
     #board {

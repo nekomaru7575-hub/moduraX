@@ -130,9 +130,16 @@ function renderMainChatMirror(state) {
   const entries = state.chatLogs[MAIN_TAB_ID] || [];
 
   if (entries.length > lastRenderedMainCount) {
-    appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item', { hideSystem: true });
-
     const latestEntry = entries[entries.length - 1];
+
+    // 履歴を積み上げず、最新の発言1件だけに置き換える（要素を作り直すことで
+    // fadeInアニメーションも都度再生される）。
+    currentChatLog.innerHTML = '';
+    const item = document.createElement('div');
+    item.className = 'current-chat-log-item';
+    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true });
+    currentChatLog.appendChild(item);
+
     if ('characterId' in latestEntry) {
       lastSpokenCharacterId = latestEntry.characterId || null;
     }
@@ -796,7 +803,7 @@ function buildLogHtml({ system = "", character = "", comment = "", resultText, d
 
   return `
     ${headerHtml}
-    <span style="font-size: 1.1rem; color: #fff;">${resultHtml}</span><br>
+    <span class="log-result-text" style="color: #fff;">${resultHtml}</span><br>
     ${detail}`;
 }
 

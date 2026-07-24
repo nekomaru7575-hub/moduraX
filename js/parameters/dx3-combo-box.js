@@ -152,14 +152,8 @@ export function runComboActivate({
   });
   onSaveEffects(nextEffects);
 
-  // 2. 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす
-  const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
-  if (corruptionGain) {
-    const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
-    dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
-  }
-
-  // 3. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
+  // 2. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
+  // 上昇侵蝕率はここでは加算しない（runComboDamageで、ダメージロール後に反映する）。
   // 係数モードの換算に使うEB（DX3:corEB）はここで一度だけ取得する
   const eb = getEffectiveParameterValue(token, 'DX3:corEB') ?? 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
@@ -217,11 +211,11 @@ export async function runComboCheck({
 }
 
 /**
- * @param {{combo:object, tokenId:string, dispatch:Function, getToken:Function,
- *   getEffectiveParameterValue:Function, rollBCDice:Function}} options
+ * @param {{combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
+ *   getToken:Function, getEffectiveParameterValue:Function, rollBCDice:Function}} options
  */
 export async function runComboDamage({
-  combo, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice
+  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice
 }) {
   const token = getToken();
   if (!token) return;
@@ -236,6 +230,16 @@ export async function runComboDamage({
   try {
     const { success, resultText } = await rollBCDice('DoubleCross', command);
     logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}`);
+
+    // 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす。
+    // ダメージを出した後に反映してほしいという要望のため、発動(runComboActivate)ではなく
+    // ここ（ダメージロール後）で加算する。
+    const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
+    const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
+    if (corruptionGain) {
+      const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
+      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
+    }
   } catch (error) {
     alert(`コンボダメージでエラーが発生しました: ${error.message}`);
   } finally {

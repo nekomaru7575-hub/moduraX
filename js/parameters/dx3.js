@@ -345,9 +345,9 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
 
   const tokenId = token.id;
   const getToken = () => token;
+  const effects = token.components?.effects ?? [];
 
   if (action === 'awk') {
-    const effects = token.components?.effects ?? [];
     runComboActivate({
       combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
       onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
@@ -355,7 +355,7 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
   } else if (action === 'jdm') {
     runComboCheck({ combo, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
   } else if (action === 'dmg') {
-    runComboDamage({ combo, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });
+    runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });
   }
 
   return true;

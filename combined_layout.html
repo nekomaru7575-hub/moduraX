@@ -694,6 +694,17 @@
       cursor: grabbing;
     }
 
+    /* 固定中のパネル：ドラッグ移動できない（背景タイル扱い）。実線枠と通常カーソルで示す */
+    .panel-object.locked {
+      cursor: default;
+      border-style: solid;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .panel-object.locked:active {
+      cursor: default;
+    }
+
     .control-area {
       flex: 3;
       display: flex;

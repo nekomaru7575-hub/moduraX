@@ -385,17 +385,24 @@ function applyPanelAppearance(el, panelData) {
   } else {
     el.style.backgroundImage = '';
   }
+
+  // 固定中はカーソル・枠線で見分けられるようにする（CSSは.panel-object.lockedで定義）
+  el.classList.toggle('locked', !!panelData.locked);
 }
 
 // パネルのドラッグ移動。グリッド吸着し、ドロップ時に隣接判定に通らなければ元の位置へ戻す。
 function bindPanelDrag(element, board) {
   element.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
-
     const panelId = element.id;
     const currentPanelState = store.state.panels[panelId];
     if (!currentPanelState) return;
+
+    // 固定中は移動しない。preventDefault/stopPropagationもせず、mousedownを
+    // 盤面(viewport)へ伝播させて、その上のドラッグを盤面パンに委ねる。
+    if (currentPanelState.locked) return;
+
+    event.preventDefault();
+    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
 
     const startClientX = event.clientX;
     const startClientY = event.clientY;
@@ -436,6 +443,7 @@ function bindPanelDrag(element, board) {
     event.stopPropagation();
 
     const panelId = element.id;
+    const isLocked = !!store.state.panels[panelId]?.locked;
 
     showContextMenu(event.clientX, event.clientY, [
       {
@@ -460,6 +468,12 @@ function bindPanelDrag(element, board) {
               }
             }
           });
+        }
+      },
+      {
+        label: isLocked ? '固定を解除' : '固定',
+        onSelect: () => {
+          store.dispatch('SET_PANEL_LOCKED', { id: panelId, locked: !isLocked });
         }
       },
       {
@@ -544,7 +558,10 @@ window.addEventListener('DOMContentLoaded', () => {
   viewport.addEventListener('mousedown', (event) => {
     if (event.button !== 0) return;
     if (event.target.closest('.token')) return;
-    if (event.target.closest('.panel-object')) return;
+    // 未固定のパネル上から始めた場合はパネル移動に任せる。固定パネルは背景扱いなので
+    // その上のドラッグは通常どおり盤面パンとして処理する。
+    const panelEl = event.target.closest('.panel-object');
+    if (panelEl && !store.state.panels[panelEl.id]?.locked) return;
 
     const panStartClientX = event.clientX;
     const panStartClientY = event.clientY;

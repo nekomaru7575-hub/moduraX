@@ -5,11 +5,18 @@ import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, defaultImageCrop } from './character-dialog.js';
 import { showBackgroundSizeDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
+import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
-import { store, generateTokenId, generatePanelId, listPlugins, DEFAULT_TOKEN_COLOR } from './game-store.js';
-export { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR };
+import {
+  store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
+  getEffectiveParameterValue, BUFF_PHASE_LABELS
+} from './game-store.js';
+export {
+  store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
+  getEffectiveParameterValue, BUFF_PHASE_LABELS
+};
 
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
@@ -311,6 +318,39 @@ function bindTokenDrag(element, board) {
           if (newName && newName.trim() !== '') {
             store.dispatch('RENAME_CHARACTER', { id: tokenId, name: newName.trim() });
           }
+        }
+      },
+      {
+        label: 'バフ/デバフを付与',
+        onSelect: () => {
+          const current = store.state.tokens[tokenId];
+          if (!current) return;
+
+          showAddBuffDialog({
+            parameters: current.parameters,
+            onConfirm: ({ name, paramId, delta, expirePhase }) => {
+              store.dispatch('ADD_BUFF', {
+                tokenId, id: generateBuffId(), name, paramId, delta, expirePhase
+              });
+            }
+          });
+        }
+      },
+      {
+        label: 'バフ/デバフ一覧',
+        onSelect: () => {
+          if (!store.state.tokens[tokenId]) return;
+
+          showBuffListDialog({
+            // 一覧を開いたまま削除操作をしても常に最新を読めるよう、スナップショットではなく
+            // ゲッターを渡す（エフェクトボックスで一度踏んだ「開いた時点の値を握り続けて
+            // 巻き戻る」問題と同じ轍を踏まないため）。
+            getBuffs: () => store.state.tokens[tokenId]?.buffs ?? [],
+            getParameters: () => store.state.tokens[tokenId]?.parameters ?? {},
+            onRemove: (buffId) => {
+              store.dispatch('REMOVE_BUFF', { tokenId, id: buffId });
+            }
+          });
         }
       },
       {

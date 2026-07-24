@@ -27,6 +27,32 @@ export function generatePanelId() {
   return `panel-user-${Date.now()}-${panelIdCounter}`;
 }
 
+let buffIdCounter = 0;
+
+export function generateBuffId() {
+  buffIdCounter += 1;
+  return `buff-user-${Date.now()}-${buffIdCounter}`;
+}
+
+// バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
+export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ' };
+
+// 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。
+// パラメータが存在しないtokenId/paramIdの組み合わせではundefinedを返す（＝呼び出し側は無視すればよい）。
+// baseとなるparameters[paramId].value自体は書き換えない。SET_PARAMETERや「+パラメータ(n)」
+// コマンドのような直接編集は常に基礎値を対象にする（実効値を対象にすると編集の度にバフ分が
+// 基礎値へ混入し、加算が二重になってしまうため）。
+export function getEffectiveParameterValue(token, paramId) {
+  const param = token?.parameters?.[paramId];
+  if (!param) return undefined;
+
+  const buffTotal = (token.buffs || [])
+    .filter(b => b.paramId === paramId)
+    .reduce((sum, b) => sum + b.delta, 0);
+
+  return param.value + buffTotal;
+}
+
 const MAIN_CHAT_TAB_ID = 'main';
 
 class ImmutableStore {
@@ -128,6 +154,7 @@ class ImmutableStore {
           imageCrop: imageCrop ? Object.freeze({ ...imageCrop }) : null, // コマ画像のトリミング（非破壊）
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
+          buffs: Object.freeze([]), // バフ/デバフ一覧（{id,name,paramId,delta,expirePhase}）
           actions: Object.freeze([])
         });
 
@@ -352,6 +379,94 @@ class ImmutableStore {
           parameters: calculatedParams
         });
         this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // バフ/デバフを1件付与する。paramIdが解決できない（=対象のパラメータをこのコマが
+      // 持っていない）場合もnullのまま保持し、実効値計算（getEffectiveParameterValue）側で
+      // 単に無視される＝効果を持たないバフとして扱う。
+      case 'ADD_BUFF': {
+        const { tokenId, id, name, paramId = null, delta, expirePhase = null } = payload;
+        const character = nextTokensState[tokenId];
+        if (!character || !id || !name) return;
+
+        const buff = Object.freeze({
+          id,
+          name,
+          paramId,
+          delta: Number(delta) || 0,
+          expirePhase: expirePhase || null // 'scene' | 'round' | 'scenario' | null(手動のみ)
+        });
+
+        nextTokensState[tokenId] = Object.freeze({
+          ...character,
+          buffs: Object.freeze([...(character.buffs || []), buff])
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      case 'REMOVE_BUFF': {
+        const { tokenId, id } = payload;
+        const character = nextTokensState[tokenId];
+        if (!character || !character.buffs) return;
+
+        nextTokensState[tokenId] = Object.freeze({
+          ...character,
+          buffs: Object.freeze(character.buffs.filter(b => b.id !== id))
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // シーン/ラウンド/シナリオ終了を検知し、該当する終了条件を持つバフ/デバフを全コマから
+      // 一括で消す。将来実装予定の「シーン進行」機能から呼ばれる想定で、現状はチャットコマンド
+      // （「シーン終了」等）がエスケープハッチとして直接dispatchする。
+      // 結果はMainタブのチャットログへ直接追記する（EventBus経由の副作用にすると、この
+      // アクションが同期される全クライアントでそれぞれ「受信→追記dispatch→再送信」が走り、
+      // クライアント数だけログが重複してしまうため、1回のdispatchで完結させている）。
+      case 'EXPIRE_BUFFS': {
+        const { phase } = payload;
+        if (!phase) return;
+
+        const removedNames = [];
+        Object.keys(nextTokensState).forEach(tokenId => {
+          const character = nextTokensState[tokenId];
+          const buffs = character.buffs || [];
+          const remaining = buffs.filter(b => {
+            if (b.expirePhase === phase) {
+              removedNames.push(`${character.name}:${b.name}`);
+              return false;
+            }
+            return true;
+          });
+          if (remaining.length !== buffs.length) {
+            nextTokensState[tokenId] = Object.freeze({ ...character, buffs: Object.freeze(remaining) });
+          }
+        });
+
+        const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
+        const logText = removedNames.length > 0
+          ? `${phaseLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
+          : `${phaseLabel}終了。`;
+
+        const nextChatLogs = {
+          ...prevState.chatLogs,
+          [MAIN_CHAT_TAB_ID]: Object.freeze([
+            ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
+            Object.freeze({ system: 'システム', resultText: logText })
+          ])
+        };
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          chatLogs: Object.freeze(nextChatLogs)
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 

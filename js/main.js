@@ -1,7 +1,10 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
-import { store, generateTokenId, listPlugins, DEFAULT_TOKEN_COLOR } from './board-data-driven.js';
+import {
+  store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
+  BUFF_PHASE_LABELS
+} from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
@@ -283,14 +286,19 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
   }
 });
 
-// {パラメータ名}を、参照キャラクターの該当パラメータの値に置換する。
+// {パラメータ名}を、参照キャラクターの該当パラメータの実効値（基礎値＋バフ/デバフ合計）に
+// 置換する。ダイスロールに直接影響させるため、基礎値ではなく実効値を使う。
 // 該当パラメータが見つからない場合は{パラメータ名}のまま残す。
 function substituteCharacterParameters(text, character) {
   if (!character) return text;
   return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
     const name = rawName.trim();
-    const param = Object.values(character.parameters || {}).find(p => p.label === name || p.key === name);
-    return param ? String(param.value) : match;
+    const entry = Object.entries(character.parameters || {}).find(
+      ([, p]) => p.label === name || p.key === name
+    );
+    if (!entry) return match;
+    const [paramId] = entry;
+    return String(getEffectiveParameterValue(character, paramId));
   });
 }
 
@@ -338,6 +346,88 @@ function tryHandleParameterCommand(rawInput, character) {
   return true;
 }
 
+// バフ(名前,パラメータ,増減値,終了条件) または バフ>対象コマ名(名前,パラメータ,増減値,終了条件)
+// で、コマにバフ/デバフを付与するコマンド。
+// 例: バフ(集中,知覚,+10,シーン)　バフ>ゴブリンA(苦しみ,回避,-10,ラウンド)
+// ">対象コマ名"を省略した場合は参照キャラクター欄で選択中のコマが対象になる（従来どおり）。
+// 指定した場合はその名前のコマ（コマ名の完全一致）を、選択中のキャラクターより優先して
+// 対象にする。終了条件は シーン/ラウンド/シナリオ/手動 のいずれか（「◯◯終了」表記でも可）。
+// 対象パラメータが見つからない場合もバフ自体は付与するが、効果を持たない
+// （getEffectiveParameterValue側で無視される）。
+const BUFF_COMMAND_PATTERN = /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)\)$/;
+
+const BUFF_PHASE_TEXT_TO_KEY = {
+  'シーン': 'scene', 'シーン終了': 'scene',
+  'ラウンド': 'round', 'ラウンド終了': 'round',
+  'シナリオ': 'scenario', 'シナリオ終了': 'scenario',
+  '手動': null, '手動のみ': null
+};
+
+function tryHandleBuffCommand(rawInput, character) {
+  const match = rawInput.match(BUFF_COMMAND_PATTERN);
+  if (!match) return false;
+
+  const [, rawTargetName, rawName, rawParamName, rawDelta, rawPhase] = match;
+  const name = rawName.trim();
+  const paramName = rawParamName.trim();
+  const delta = Number(rawDelta);
+  const phaseText = rawPhase.trim();
+
+  let targetCharacter = character;
+  if (rawTargetName !== undefined) {
+    const targetName = rawTargetName.trim();
+    targetCharacter = Object.values(store.state.tokens).find(t => t.name === targetName) || null;
+    if (!targetCharacter) {
+      alert(`コマ「${targetName}」が見つかりません。`);
+      return true;
+    }
+  }
+
+  if (!targetCharacter) {
+    alert('バフ/デバフを付与するキャラクターを選択してください。');
+    return true;
+  }
+
+  const entry = Object.entries(targetCharacter.parameters || {}).find(
+    ([, p]) => p.label === paramName || p.key === paramName
+  );
+  // パラメータが見つからなければparamId=nullのまま付与する（＝効果を持たないバフになる）
+  const paramId = entry ? entry[0] : null;
+  const expirePhase = phaseText in BUFF_PHASE_TEXT_TO_KEY ? BUFF_PHASE_TEXT_TO_KEY[phaseText] : null;
+
+  store.dispatch('ADD_BUFF', {
+    tokenId: targetCharacter.id,
+    id: generateBuffId(),
+    name,
+    paramId,
+    delta,
+    expirePhase
+  });
+
+  const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
+  const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
+  applyLog({
+    system: targetCharacter.name,
+    resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）`
+  });
+
+  return true;
+}
+
+// 「シーン終了」「ラウンド終了」「シナリオ終了」とだけ入力して送信すると、該当する終了条件の
+// バフ/デバフを全コマから一括で消す（EXPIRE_BUFFSはstore側で全クライアント同期・ログ追記まで
+// 完結するので、ここではdispatchするだけでよい）。標準の「シーン進行」機能実装までの
+// エスケープハッチ。
+const PHASE_END_COMMANDS = { 'シーン終了': 'scene', 'ラウンド終了': 'round', 'シナリオ終了': 'scenario' };
+
+function tryHandlePhaseEndCommand(rawInput) {
+  const phase = PHASE_END_COMMANDS[rawInput.trim()];
+  if (!phase) return false;
+
+  store.dispatch('EXPIRE_BUFFS', { phase });
+  return true;
+}
+
 // チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
 // パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
 function sendPaletteText(text) {
@@ -348,6 +438,14 @@ function sendPaletteText(text) {
   const selectedCharacter = characterParamSelect?.value
     ? store.state.tokens[characterParamSelect.value]
     : null;
+
+  if (tryHandlePhaseEndCommand(rawInput)) {
+    return;
+  }
+
+  if (tryHandleBuffCommand(rawInput, selectedCharacter)) {
+    return;
+  }
 
   if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
     return;
@@ -381,6 +479,16 @@ if (sendBtn) {
     const selectedCharacter = characterParamSelect?.value
       ? store.state.tokens[characterParamSelect.value]
       : null;
+
+    if (tryHandlePhaseEndCommand(rawInput)) {
+      commandInput.value = "";
+      return;
+    }
+
+    if (tryHandleBuffCommand(rawInput, selectedCharacter)) {
+      commandInput.value = "";
+      return;
+    }
 
     if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
       commandInput.value = "";
@@ -493,8 +601,8 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   characterList.innerHTML = "";
 
   const sortedTokens = Object.values(state.tokens).sort((a, b) => {
-    const initiativeA = a.parameters?.['core:initiative']?.value ?? 0;
-    const initiativeB = b.parameters?.['core:initiative']?.value ?? 0;
+    const initiativeA = a.parameters?.['core:initiative'] ? getEffectiveParameterValue(a, 'core:initiative') : 0;
+    const initiativeB = b.parameters?.['core:initiative'] ? getEffectiveParameterValue(b, 'core:initiative') : 0;
     return initiativeB - initiativeA;
   });
 
@@ -518,7 +626,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     if (initiativeParam) {
       const initiativeBadge = document.createElement('span');
       initiativeBadge.className = 'character-avatar-initiative';
-      initiativeBadge.textContent = initiativeParam.value;
+      initiativeBadge.textContent = getEffectiveParameterValue(tokenData, 'core:initiative');
       avatar.appendChild(initiativeBadge);
     }
 
@@ -534,9 +642,9 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const paramList = document.createElement('div');
     paramList.className = 'character-param-list';
 
-    Object.values(tokenData.parameters || {})
-      .filter(param => param.visible !== false)
-      .forEach(param => {
+    Object.entries(tokenData.parameters || {})
+      .filter(([, param]) => param.visible !== false)
+      .forEach(([paramId, param]) => {
         const paramRow = document.createElement('div');
         paramRow.className = 'character-list-param-row';
 
@@ -545,9 +653,19 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
         labelSpan.textContent = truncateLabel(param.label);
         labelSpan.title = param.label;
 
+        // バフ/デバフがかかっている場合は実効値（基礎値＋合計）を表示し、
+        // 差分を括弧書きで添える（例: 68 (+10)）
+        const effectiveValue = getEffectiveParameterValue(tokenData, paramId);
+        const buffTotal = effectiveValue - param.value;
+
         const valueSpan = document.createElement('span');
         valueSpan.className = 'character-param-value';
-        valueSpan.textContent = param.value;
+        valueSpan.textContent = buffTotal !== 0
+          ? `${effectiveValue} (${buffTotal > 0 ? '+' : ''}${buffTotal})`
+          : String(effectiveValue);
+        if (buffTotal !== 0) {
+          valueSpan.title = `基礎値 ${param.value}${buffTotal > 0 ? '+' : ''}${buffTotal}`;
+        }
 
         paramRow.appendChild(labelSpan);
         paramRow.appendChild(valueSpan);

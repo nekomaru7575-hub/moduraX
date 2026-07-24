@@ -38,6 +38,7 @@ let lastRenderedChatTabsRef = null;
 let lastRenderedLogTabId = null; // logContainerに最後に描画したタブID（切り替え検知用）
 let lastRenderedLogCount = 0;    // logContainerへ反映済みの件数（差分追記用）
 let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mainタブ固定）
+let lastSpokenCharacterId = null; // カレントチャット欄に最後に流れたメッセージの参照キャラクター（立ち絵表示用）
 
 function renderChatTabs(state) {
   if (!chatTabsEl) return;
@@ -123,7 +124,16 @@ function renderActiveTabLog(state) {
 function renderMainChatMirror(state) {
   if (!currentChatLog) return;
   const entries = state.chatLogs[MAIN_TAB_ID] || [];
-  appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item');
+
+  if (entries.length > lastRenderedMainCount) {
+    appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item');
+
+    const latestEntry = entries[entries.length - 1];
+    if ('characterId' in latestEntry) {
+      lastSpokenCharacterId = latestEntry.characterId || null;
+    }
+  }
+
   lastRenderedMainCount = entries.length;
 }
 
@@ -135,6 +145,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
   renderActiveTabLog(state);
   renderMainChatMirror(state);
+  updateCurrentChatPortrait();
 });
 
 // 接続状態インジケータ（ヘッダー）
@@ -231,14 +242,14 @@ if (importStateBtn && importStateInput) {
 }
 
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, tabId = activeTabId }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, tabId = activeTabId }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
 
   try {
     if (rawInput.includes('\n')) {
-      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      applyLog({ system, character: characterName, characterId, resultText: rawInput }, tabId);
       commandInput.value = "";
       return;
     }
@@ -249,7 +260,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
 
     if (!isDiceCommand) {
-      applyLog({ system, character: characterName, resultText: rawInput }, tabId);
+      applyLog({ system, character: characterName, characterId, resultText: rawInput }, tabId);
       commandInput.value = "";
       return;
     }
@@ -260,7 +271,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, character: characterName, comment, resultText, diceDetail }, tabId);
+    applyLog({ system, character: characterName, characterId, comment, resultText, diceDetail }, tabId);
     commandInput.value = "";
 
   } catch (error) {
@@ -348,6 +359,7 @@ function sendPaletteText(text) {
     system: selectedSystem,
     rawInput: substitutedInput,
     characterName: selectedCharacter?.name,
+    characterId: selectedCharacter?.id,
     tabId: activeTabId
   });
 }
@@ -381,6 +393,7 @@ if (sendBtn) {
       system: selectedSystem,
       rawInput: rawInput,
       characterName: selectedCharacter?.name,
+      characterId: selectedCharacter?.id,
       tabId: activeTabId
     });
   });
@@ -418,24 +431,19 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   if (state.tokens[previousValue]) {
     characterParamSelect.value = previousValue;
   }
-
-  updateCurrentChatPortrait();
 });
 
-// 盤面下のカレントチャット欄：選択中キャラクターのコマ画像（立ち絵代わり）を表示する。
-// 未アップロードの場合は何も表示しない。
+// 盤面下のカレントチャット欄：直近にカレントチャットへ流れたメッセージの参照キャラクターの
+// コマ画像を立ち絵代わりに表示する。次のメッセージが流れるまで表示され続ける。
+// 未アップロードの場合、または参照キャラクターなしで送られた場合は何も表示しない。
 function updateCurrentChatPortrait() {
   if (!currentChatPortrait) return;
-  const selectedCharacter = characterParamSelect?.value
-    ? store.state.tokens[characterParamSelect.value]
-    : null;
+  const speakingCharacter = lastSpokenCharacterId ? store.state.tokens[lastSpokenCharacterId] : null;
 
-  currentChatPortrait.style.backgroundImage = selectedCharacter?.image
-    ? `url('${selectedCharacter.image}')`
+  currentChatPortrait.style.backgroundImage = speakingCharacter?.image
+    ? `url('${speakingCharacter.image}')`
     : '';
 }
-
-characterParamSelect?.addEventListener('change', updateCurrentChatPortrait);
 
 // プラグイン選択肢を生成（起動時1回）
 if (roomPluginSelect) {
@@ -562,7 +570,7 @@ function splitForSpace(string) {
 
 function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
-  const characterTag = character ? ` <span style="color: #4caf50;">${character}</span>` : '';
+  const characterTag = character ? ` <span style="color: #4caf50; font-size: 0.85em;">${character}</span>` : '';
   const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
   return `

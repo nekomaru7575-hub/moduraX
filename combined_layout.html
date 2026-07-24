@@ -551,7 +551,7 @@
     }
 
     /* キャラ一覧パネル（オーバーレイ）と重なりうる左側領域。
-       通常のログは置かず、選択中キャラクターの画像（未設定なら空）だけを表示する */
+       通常のログは置かず、直近に発言した参照キャラクターの立ち絵（未設定なら空）だけを表示する */
     .current-chat-portrait {
       flex: 0 0 220px;
       height: 100%;
@@ -1106,7 +1106,7 @@
       </div>
 
       <!-- 盤面下1/4：既存ログのミラー表示。左側（キャラ一覧パネルと重なりうる領域）は
-           チャット表示を置かず、選択中キャラクターの立ち絵表示に充てる -->
+           チャット表示を置かず、直近に発言した参照キャラクターの立ち絵表示に充てる -->
       <div class="current-chat-bar" id="currentChatBar">
         <div class="current-chat-portrait" id="currentChatPortrait"></div>
         <div class="current-chat-log" id="currentChatLog"></div>

@@ -227,6 +227,7 @@ function importDX3Effects(json) {
 
     effects.push({
       name,
+      timing: json[`effect${n}Timing`] ?? '',
       level: toNumber(json[`effect${n}Lv`]),
       encroach: json[`effect${n}Encroach`] ?? '',
       note: json[`effect${n}Note`] ?? '',
@@ -284,7 +285,7 @@ function importDX3VariableSkillSlots(json) {
  *   valueOverrides: Record<string, number>,
  *   labelOverrides: Record<string, string>,
  *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>,
- *   components: { effects: Array<{name:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null,ebBonus:boolean}>}> }
+ *   components: { effects: Array<{name:string,timing:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null,ebBonus:boolean}>}> }
  * } | null}
  */
 function importDX3CharacterJson(json) {

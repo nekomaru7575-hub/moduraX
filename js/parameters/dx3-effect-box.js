@@ -72,6 +72,14 @@ export function showEffectBox({ effects = [], onSave }) {
     nameInput.placeholder = 'エフェクト名';
     nameInput.value = effect?.name ?? '';
 
+    // タイミング（メジャー/マイナー/オート等）。コンボ側で「同じタイミングのエフェクトのみ表示」
+    // する絞り込みに使うため、JSON読み込み時のeffectNTimingをそのまま文字列として保持する。
+    const timingInput = document.createElement('input');
+    timingInput.type = 'text';
+    timingInput.className = 'effect-box-timing';
+    timingInput.placeholder = 'タイミング';
+    timingInput.value = effect?.timing ?? '';
+
     const levelInput = document.createElement('input');
     levelInput.type = 'number';
     levelInput.className = 'effect-box-level';
@@ -95,6 +103,7 @@ export function showEffectBox({ effects = [], onSave }) {
     });
 
     headerRow.appendChild(nameInput);
+    headerRow.appendChild(timingInput);
     headerRow.appendChild(levelInput);
     headerRow.appendChild(encroachInput);
     headerRow.appendChild(removeBtn);
@@ -201,7 +210,7 @@ export function showEffectBox({ effects = [], onSave }) {
 
     listEl.appendChild(item);
 
-    rows.push({ item, nameInput, levelInput, encroachInput, noteInput, limitControls, comboControls });
+    rows.push({ item, nameInput, timingInput, levelInput, encroachInput, noteInput, limitControls, comboControls });
   }
 
   effects.forEach(addRow);
@@ -253,6 +262,7 @@ export function showEffectBox({ effects = [], onSave }) {
 
         return {
           name: row.nameInput.value.trim(),
+          timing: row.timingInput.value.trim(),
           level: Number(row.levelInput.value) || 0,
           encroach: row.encroachInput.value.trim(),
           note: row.noteInput.value,

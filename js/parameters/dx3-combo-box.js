@@ -35,6 +35,40 @@ function sumComboMod(effects, key) {
   return effects.reduce((sum, e) => sum + (e.combo?.[key] || 0), 0);
 }
 
+// コンボの「使用能力値」「使用技能」プルダウンをそれぞれの種類だけに絞り込むための判定。
+// dx3-ability-box.jsのDX3_ABILITY_SKILL_GROUPSと同じ対応関係を、ここでは選択肢の
+// フィルタ用に持つ（循環importを避けるため、js/parameters/dx3.js側の定義はimportせず
+// このファイル内に必要な分だけ複製する）。
+const DX3_ABILITY_KEYS = ['sttTotalBody', 'sttTotalSense', 'sttTotalMind', 'sttTotalSocial'];
+const DX3_FIXED_SKILL_KEYS = ['skillMelee', 'skillRanged', 'skillDodge', 'skillProcure', 'skillPercept', 'skillWill', 'skillNegotiate', 'skillRC'];
+const DX3_VARIABLE_SKILL_PREFIXES = ['skillArt', 'skillKnow', 'skillRide', 'skillInfo'];
+
+function isDX3AbilityParam(paramId) {
+  return DX3_ABILITY_KEYS.some(key => paramId === `DX3:${key}`);
+}
+
+function isDX3SkillParam(paramId) {
+  if (!paramId.startsWith('DX3:')) return false;
+  const key = paramId.slice(4);
+  if (DX3_FIXED_SKILL_KEYS.includes(key)) return true;
+  return DX3_VARIABLE_SKILL_PREFIXES.some(prefix => key.startsWith(prefix) && /^\d+$/.test(key.slice(prefix.length)));
+}
+
+// タイミングのプルダウンを、DX3のアクション順に近い並びで表示するための優先順位。
+// 一覧にない値（シート側の表記ゆれ等）は末尾にそのまま表示する。
+const DX3_TIMING_ORDER = ['オート', 'セットアップ', 'メジャー', 'マイナー', 'ジャッジ', 'リアクション', 'インスタント'];
+
+function sortTimings(timings) {
+  return [...timings].sort((a, b) => {
+    const ia = DX3_TIMING_ORDER.indexOf(a);
+    const ib = DX3_TIMING_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b, 'ja');
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
 // BCDiceの結果テキストは "(コマンド) ＞ 内訳 ＞ 合計" の形。内訳の解釈（クリティカルの
 // 展開等）はBCDice(DoubleCross)側に任せ、最後の「＞」より後ろの数値だけを読み取る。
 function parseFinalNumber(resultText) {
@@ -54,7 +88,7 @@ function logToMain(dispatch, resultText) {
 
 /**
  * @param {{
- *   combos: Array<{id:string,name:string,effectNames:string[],abilityParamId:string|null,skillParamId:string|null}>,
+ *   combos: Array<{id:string,name:string,timing:string|null,effectNames:string[],abilityParamId:string|null,skillParamId:string|null}>,
  *   effects: Array<object>,
  *   parameters: Record<string, {label:string}>,
  *   tokenId: string,
@@ -207,6 +241,7 @@ export function showComboBox({
     const savedCombo = {
       id: combo?.id ?? `combo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       name: combo?.name ?? '',
+      timing: combo?.timing ?? null,
       effectNames: combo?.effectNames ?? [],
       abilityParamId: combo?.abilityParamId ?? null,
       skillParamId: combo?.skillParamId ?? null
@@ -238,7 +273,33 @@ export function showComboBox({
     headerRow.appendChild(removeBtn);
     item.appendChild(headerRow);
 
-    // エフェクト選択（チェックボックス一覧）
+    // タイミング（メジャー/マイナー等）。選択すると、下の「使用するエフェクト」を
+    // 同じタイミングのものだけに絞り込む。未選択（すべて）の場合は絞り込まない。
+    const timingField = document.createElement('div');
+    timingField.className = 'effect-box-combo-field';
+    const timingLabel = document.createElement('span');
+    timingLabel.className = 'effect-box-combo-label';
+    timingLabel.textContent = 'タイミング';
+    const timingSelect = document.createElement('select');
+    const timingAllOpt = document.createElement('option');
+    timingAllOpt.value = '';
+    timingAllOpt.textContent = '（すべて）';
+    timingSelect.appendChild(timingAllOpt);
+    const availableTimings = new Set(effects.map(e => e.timing).filter(Boolean));
+    if (savedCombo.timing) availableTimings.add(savedCombo.timing);
+    sortTimings([...availableTimings]).forEach(timing => {
+      const opt = document.createElement('option');
+      opt.value = timing;
+      opt.textContent = timing;
+      timingSelect.appendChild(opt);
+    });
+    timingSelect.value = savedCombo.timing || '';
+    timingField.appendChild(timingLabel);
+    timingField.appendChild(timingSelect);
+    item.appendChild(timingField);
+
+    // エフェクト選択（チェックボックス一覧）。タイミングで絞り込んでも選択状態自体は
+    // checkedEffectNamesに保持し続けるため、絞り込みを変えても既存の選択は失われない。
     const effectsWrap = document.createElement('div');
     effectsWrap.className = 'effect-box-limits';
     const effectsLabel = document.createElement('div');
@@ -246,43 +307,72 @@ export function showComboBox({
     effectsLabel.textContent = '使用するエフェクト';
     effectsWrap.appendChild(effectsLabel);
 
-    const effectCheckboxes = [];
-    if (effects.length === 0) {
-      const empty = document.createElement('span');
-      empty.style.color = '#888';
-      empty.style.fontSize = '0.8rem';
-      empty.textContent = '（登録済みのエフェクトがありません）';
-      effectsWrap.appendChild(empty);
-    }
-    effects.forEach(effect => {
-      const label = document.createElement('label');
-      label.className = 'effect-box-limit-eb';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = savedCombo.effectNames.includes(effect.name);
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(effect.name));
-      effectsWrap.appendChild(label);
-      effectCheckboxes.push({ name: effect.name, checkbox });
-    });
+    const checkboxListEl = document.createElement('div');
+    effectsWrap.appendChild(checkboxListEl);
     item.appendChild(effectsWrap);
+
+    const checkedEffectNames = new Set(savedCombo.effectNames);
+
+    function renderEffectCheckboxes() {
+      checkboxListEl.innerHTML = '';
+
+      if (effects.length === 0) {
+        const empty = document.createElement('span');
+        empty.style.color = '#888';
+        empty.style.fontSize = '0.8rem';
+        empty.textContent = '（登録済みのエフェクトがありません）';
+        checkboxListEl.appendChild(empty);
+        return;
+      }
+
+      const timing = timingSelect.value;
+      const visibleEffects = effects.filter(e => !timing || e.timing === timing);
+      if (visibleEffects.length === 0) {
+        const empty = document.createElement('span');
+        empty.style.color = '#888';
+        empty.style.fontSize = '0.8rem';
+        empty.textContent = `（タイミング「${timing}」のエフェクトがありません）`;
+        checkboxListEl.appendChild(empty);
+        return;
+      }
+
+      visibleEffects.forEach(effect => {
+        const label = document.createElement('label');
+        label.className = 'effect-box-limit-eb';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = checkedEffectNames.has(effect.name);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) checkedEffectNames.add(effect.name);
+          else checkedEffectNames.delete(effect.name);
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(effect.name));
+        checkboxListEl.appendChild(label);
+      });
+    }
+
+    timingSelect.addEventListener('change', renderEffectCheckboxes);
+    renderEffectCheckboxes();
 
     // 使用能力値/技能値
     const selectRow = document.createElement('div');
     selectRow.className = 'effect-box-combo-row';
 
-    function buildParamSelect(selectedId) {
+    function buildParamSelect(selectedId, filterFn) {
       const select = document.createElement('select');
       const noneOpt = document.createElement('option');
       noneOpt.value = '';
       noneOpt.textContent = '（選択なし）';
       select.appendChild(noneOpt);
-      Object.entries(parameters).forEach(([paramId, param]) => {
-        const opt = document.createElement('option');
-        opt.value = paramId;
-        opt.textContent = param.label;
-        select.appendChild(opt);
-      });
+      Object.entries(parameters)
+        .filter(([paramId]) => filterFn(paramId))
+        .forEach(([paramId, param]) => {
+          const opt = document.createElement('option');
+          opt.value = paramId;
+          opt.textContent = param.label;
+          select.appendChild(opt);
+        });
       select.value = selectedId || '';
       return select;
     }
@@ -292,7 +382,7 @@ export function showComboBox({
     const abilityLabel = document.createElement('span');
     abilityLabel.className = 'effect-box-combo-label';
     abilityLabel.textContent = '使用能力値';
-    const abilitySelect = buildParamSelect(savedCombo.abilityParamId);
+    const abilitySelect = buildParamSelect(savedCombo.abilityParamId, isDX3AbilityParam);
     abilityField.appendChild(abilityLabel);
     abilityField.appendChild(abilitySelect);
     selectRow.appendChild(abilityField);
@@ -302,7 +392,7 @@ export function showComboBox({
     const skillLabel = document.createElement('span');
     skillLabel.className = 'effect-box-combo-label';
     skillLabel.textContent = '使用技能';
-    const skillSelect = buildParamSelect(savedCombo.skillParamId);
+    const skillSelect = buildParamSelect(savedCombo.skillParamId, isDX3SkillParam);
     skillField.appendChild(skillLabel);
     skillField.appendChild(skillSelect);
     selectRow.appendChild(skillField);
@@ -339,7 +429,7 @@ export function showComboBox({
 
     listEl.appendChild(item);
 
-    rows.push({ item, savedCombo, nameInput, effectCheckboxes, abilitySelect, skillSelect });
+    rows.push({ item, savedCombo, nameInput, timingSelect, checkedEffectNames, abilitySelect, skillSelect });
   }
 
   combos.forEach(addRow);
@@ -375,7 +465,10 @@ export function showComboBox({
       .map(row => ({
         id: row.savedCombo.id,
         name: row.nameInput.value.trim(),
-        effectNames: row.effectCheckboxes.filter(c => c.checkbox.checked).map(c => c.name),
+        timing: row.timingSelect.value || null,
+        // タイミングの絞り込みで一時的に隠れているエフェクトも選択状態を保つため、
+        // 表示中のチェックボックスではなくcheckedEffectNames（Set）を正とする。
+        effectNames: effects.filter(e => row.checkedEffectNames.has(e.name)).map(e => e.name),
         abilityParamId: row.abilitySelect.value || null,
         skillParamId: row.skillSelect.value || null
       }))

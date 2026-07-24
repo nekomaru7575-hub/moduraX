@@ -197,14 +197,16 @@ export function showEffectBox({ effects = [], onSave }) {
       const savedMod = effect?.combo?.[key];
 
       // 係数モード：レベル×3のような表記に対応するため、値を「(エフェクトのLv + EB) に
-      // 掛ける係数」として扱う。未チェック（既定）は従来どおりの固定値。
-      const modeLabel = document.createElement('label');
-      modeLabel.className = 'effect-box-combo-mode-label';
-      const modeCheckbox = document.createElement('input');
-      modeCheckbox.type = 'checkbox';
-      modeCheckbox.checked = savedMod?.mode === 'coefficient';
-      modeLabel.appendChild(modeCheckbox);
-      modeLabel.appendChild(document.createTextNode('係数'));
+      // 掛ける係数」として扱う。既定は固定値。
+      const modeSelect = document.createElement('select');
+      modeSelect.className = 'effect-box-combo-mode';
+      [['fixed', '固定値'], ['coefficient', '係数']].forEach(([value, text]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = text;
+        modeSelect.appendChild(opt);
+      });
+      modeSelect.value = savedMod?.mode === 'coefficient' ? 'coefficient' : 'fixed';
 
       const input = document.createElement('input');
       input.type = 'number';
@@ -212,11 +214,11 @@ export function showEffectBox({ effects = [], onSave }) {
       input.value = savedMod?.value ?? 0;
 
       field.appendChild(fieldLabel);
-      field.appendChild(modeLabel);
+      field.appendChild(modeSelect);
       field.appendChild(input);
       comboRow.appendChild(field);
 
-      comboControls[key] = { modeCheckbox, input };
+      comboControls[key] = { modeSelect, input };
     });
 
     comboWrap.appendChild(comboRow);
@@ -271,9 +273,9 @@ export function showEffectBox({ effects = [], onSave }) {
 
         const combo = {};
         COMBO_MOD_FIELDS.forEach(({ key }) => {
-          const { modeCheckbox, input } = row.comboControls[key];
+          const { modeSelect, input } = row.comboControls[key];
           combo[key] = {
-            mode: modeCheckbox.checked ? 'coefficient' : 'fixed',
+            mode: modeSelect.value === 'coefficient' ? 'coefficient' : 'fixed',
             value: Number(input.value) || 0
           };
         });

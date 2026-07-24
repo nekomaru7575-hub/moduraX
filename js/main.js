@@ -10,6 +10,7 @@ import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState } from './net-sync.js';
+import { getLocalUserId } from './local-identity.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -184,6 +185,21 @@ if (characterPanelArea && characterPanelCollapseBtn && characterPanelExpandBtn) 
   });
   characterPanelExpandBtn.addEventListener('click', () => {
     characterPanelArea.classList.remove('collapsed');
+  });
+}
+
+// バックヤードパネルの折りたたみ（キャラ一覧パネルと同じ、見た目だけのローカル状態）
+const backyardPanelArea = document.getElementById('backyardPanelArea');
+const backyardPanelCollapseBtn = document.getElementById('backyardPanelCollapseBtn');
+const backyardPanelExpandBtn = document.getElementById('backyardPanelExpandBtn');
+const backyardList = document.getElementById('backyardList');
+
+if (backyardPanelArea && backyardPanelCollapseBtn && backyardPanelExpandBtn) {
+  backyardPanelCollapseBtn.addEventListener('click', () => {
+    backyardPanelArea.classList.add('collapsed');
+  });
+  backyardPanelExpandBtn.addEventListener('click', () => {
+    backyardPanelArea.classList.remove('collapsed');
   });
 }
 
@@ -517,7 +533,8 @@ if (commandInput && sendBtn) {
   });
 }
 
-// 参照キャラクターの選択肢をキャラ一覧と同じ内容で維持する（登録・削除・改名に追従）
+// 参照キャラクターの選択肢をキャラ一覧と同じ内容で維持する（登録・削除・改名に追従）。
+// バックヤードにしまわれているコマは、盤面上に存在しない扱いなので選択肢から除外する。
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (!characterParamSelect) return;
 
@@ -529,14 +546,16 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   noneOption.textContent = '（選択なし）';
   characterParamSelect.appendChild(noneOption);
 
-  Object.values(state.tokens).forEach(tokenData => {
-    const opt = document.createElement('option');
-    opt.value = tokenData.id;
-    opt.textContent = tokenData.name;
-    characterParamSelect.appendChild(opt);
-  });
+  Object.values(state.tokens)
+    .filter(tokenData => !tokenData.inBackyard)
+    .forEach(tokenData => {
+      const opt = document.createElement('option');
+      opt.value = tokenData.id;
+      opt.textContent = tokenData.name;
+      characterParamSelect.appendChild(opt);
+    });
 
-  if (state.tokens[previousValue]) {
+  if (state.tokens[previousValue] && !state.tokens[previousValue].inBackyard) {
     characterParamSelect.value = previousValue;
   }
 });
@@ -594,13 +613,14 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   });
 });
 
-// キャラクター一覧の描画（登録・削除の両方に反応）
+// キャラクター一覧の描画（登録・削除の両方に反応）。
+// バックヤードにしまわれているコマは「今、盤面にいない」扱いなので一覧には出さない。
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (!characterList) return;
 
   characterList.innerHTML = "";
 
-  const sortedTokens = Object.values(state.tokens).sort((a, b) => {
+  const sortedTokens = Object.values(state.tokens).filter(t => !t.inBackyard).sort((a, b) => {
     const initiativeA = a.parameters?.['core:initiative'] ? getEffectiveParameterValue(a, 'core:initiative') : 0;
     const initiativeB = b.parameters?.['core:initiative'] ? getEffectiveParameterValue(b, 'core:initiative') : 0;
     return initiativeB - initiativeA;
@@ -674,6 +694,64 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
     item.appendChild(paramList);
     characterList.appendChild(item);
+  });
+});
+
+// バックヤードの描画：自分（このブラウザ）がしまったコマだけを表示する。
+// 操作権は制限しないので、これはあくまでUI上の絞り込み（他人のバックヤードは
+// 単に一覧に出さないだけで、盤面へ戻す操作自体を禁止するものではない）。
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!backyardList) return;
+
+  backyardList.innerHTML = "";
+  const myUserId = getLocalUserId();
+
+  const myBackyardTokens = Object.values(state.tokens)
+    .filter(t => t.inBackyard && t.backyardOwnerId === myUserId);
+
+  if (myBackyardTokens.length === 0) {
+    const placeholder = document.createElement('p');
+    placeholder.style.color = '#888';
+    placeholder.style.fontSize = '0.85rem';
+    placeholder.textContent = 'バックヤードは空です。';
+    backyardList.appendChild(placeholder);
+    return;
+  }
+
+  myBackyardTokens.forEach(tokenData => {
+    const item = document.createElement('div');
+    item.className = 'character-list-item';
+
+    const avatarColumn = document.createElement('div');
+    avatarColumn.className = 'character-avatar-column';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'character-avatar';
+    if (tokenData.image) {
+      avatar.style.backgroundImage = `url('${tokenData.image}')`;
+    } else {
+      avatar.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
+    }
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'character-avatar-name';
+    nameSpan.textContent = tokenData.name;
+
+    avatarColumn.appendChild(avatar);
+    avatarColumn.appendChild(nameSpan);
+    item.appendChild(avatarColumn);
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'dialog-add-row-btn';
+    restoreBtn.style.marginBottom = '0';
+    restoreBtn.textContent = '盤面に戻す';
+    restoreBtn.addEventListener('click', () => {
+      store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenData.id });
+    });
+    item.appendChild(restoreBtn);
+
+    backyardList.appendChild(item);
   });
 });
 

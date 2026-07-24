@@ -155,7 +155,9 @@ class ImmutableStore {
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           buffs: Object.freeze([]), // バフ/デバフ一覧（{id,name,paramId,delta,expirePhase}）
-          actions: Object.freeze([])
+          actions: Object.freeze([]),
+          inBackyard: false, // バックヤード（盤面外の個人保管場所）にしまわれているか
+          backyardOwnerId: null // しまった人のローカルID（バックヤード一覧の絞り込みに使う）
         });
 
         this.#commit(prevState, nextTokensState);
@@ -222,6 +224,38 @@ class ImmutableStore {
         nextTokensState[id] = Object.freeze({
           ...nextTokensState[id],
           size: Math.max(1, Math.round(size))
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // コマを盤面からバックヤード（個人保管場所）へしまう。しまった人のローカルID
+      // (ownerId)を記録し、参照キャラクター欄・キャラ一覧・盤面描画から除外する
+      // （board-data-driven.js/main.js側がinBackyardを見て判断する）。位置(x,y)は
+      // そのまま保持し、盤面に戻したときに元の位置へ復元できるようにする。
+      case 'MOVE_TO_BACKYARD': {
+        const { id, ownerId } = payload;
+        if (!nextTokensState[id] || !ownerId) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          inBackyard: true,
+          backyardOwnerId: ownerId
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // バックヤードから盤面へ戻す。位置は保管前の(x,y)をそのまま使う。
+      case 'RESTORE_FROM_BACKYARD': {
+        const { id } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          inBackyard: false
         });
 
         this.#commit(prevState, nextTokensState);

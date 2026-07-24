@@ -9,6 +9,7 @@ import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
+import { getLocalUserId } from './local-identity.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
   getEffectiveParameterValue, BUFF_PHASE_LABELS
@@ -351,6 +352,12 @@ function bindTokenDrag(element, board) {
               store.dispatch('REMOVE_BUFF', { tokenId, id: buffId });
             }
           });
+        }
+      },
+      {
+        label: 'バックヤードにしまう',
+        onSelect: () => {
+          store.dispatch('MOVE_TO_BACKYARD', { id: tokenId, ownerId: getLocalUserId() });
         }
       },
       {
@@ -799,10 +806,13 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- コマの同期 ---
+    // バックヤードにしまわれたコマは盤面には描画しない（DOM上は削除して、しまう前の状態に
+    // 戻ってきても再生成できるようにする）。
     const existingIds = new Set(
       Array.from(board.querySelectorAll('.token')).map(el => el.id)
     );
-    const stateIds = new Set(Object.keys(state.tokens));
+    const boardTokens = Object.values(state.tokens).filter(t => !t.inBackyard);
+    const stateIds = new Set(boardTokens.map(t => t.id));
 
     existingIds.forEach(id => {
       if (!stateIds.has(id)) {
@@ -811,7 +821,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    Object.values(state.tokens).forEach(tokenData => {
+    boardTokens.forEach(tokenData => {
       let el = document.getElementById(tokenData.id);
       if (!el) {
         el = createTokenElement(tokenData, board);

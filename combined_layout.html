@@ -550,6 +550,20 @@
       background-color: #3a3a3a;
     }
 
+    /* バックヤードパネル：キャラ一覧パネルと同じ挙動を右側に配置しただけの変種 */
+    .backyard-panel-area {
+      left: auto;
+      right: 0;
+    }
+
+    .backyard-panel-area .character-panel {
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .backyard-panel-area .character-panel-expand-strip {
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.5);
+    }
+
 /* 盤面＋コントロールのコンテナ。キャラ一覧オーバーレイの基準位置にもなる */
     .main-area {
       position: relative;
@@ -1162,6 +1176,20 @@
           <div id="characterList" style="flex: 1; max-height: none;"></div>
         </div>
         <button type="button" id="characterPanelExpandBtn" class="character-panel-expand-strip" title="展開する">キャラクター一覧</button>
+      </div>
+
+      <!-- バックヤード：盤面からしまったコマの個人保管場所。自分がしまったコマだけが見える
+           （操作権自体は制限しない、UI上の絞り込みのみ）。character-panel-areaと同じ
+           折りたたみ挙動を右側に配置する。 -->
+      <div class="character-panel-area backyard-panel-area" id="backyardPanelArea">
+        <div class="panel character-panel">
+          <div class="character-panel-header">
+            <label>バックヤード</label>
+            <button type="button" id="backyardPanelCollapseBtn" class="character-panel-collapse-btn" title="折りたたむ">▸</button>
+          </div>
+          <div id="backyardList" style="flex: 1; max-height: none;"></div>
+        </div>
+        <button type="button" id="backyardPanelExpandBtn" class="character-panel-expand-strip" title="展開する">バックヤード</button>
       </div>
 
     <div class="board-area">

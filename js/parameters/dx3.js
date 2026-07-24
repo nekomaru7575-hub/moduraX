@@ -1,7 +1,7 @@
 import { buildParameters } from './paramFactory.js';
 import { showEffectBox } from './dx3-effect-box.js';
 import { showAbilitySkillBox } from './dx3-ability-box.js';
-import { showComboBox } from './dx3-combo-box.js';
+import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage } from './dx3-combo-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -62,8 +62,7 @@ export function computeDX3DerivedParameters(parameters) {
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
 function renderDX3CharacterPanel({
-  container, mode, parameters, components, onComponentChange, getComponents,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+  container, mode, parameters, components, onComponentChange, getComponents
 }) {
   container.innerHTML = '';
 
@@ -138,40 +137,29 @@ function renderDX3CharacterPanel({
     });
     container.appendChild(effectBtn);
 
-    // コンボ一覧（ボックス）。判定/ダメージロールとバフ付与を行うため、
-    // store操作一式（dispatch等）とrollBCDiceが揃っている場合のみ表示する。
-    if (dispatch && getToken && getEffectiveParameterValue && generateBuffId && rollBCDice && tokenId) {
-      const comboBtn = document.createElement('button');
-      comboBtn.type = 'button';
-      comboBtn.className = 'dialog-add-row-btn';
-      comboBtn.style.marginTop = '8px';
-      const updateComboBtnLabel = () => {
-        comboBtn.textContent = `コンボ一覧を開く（${readCombos().length}件）`;
-      };
-      updateComboBtnLabel();
-      comboBtn.addEventListener('click', () => {
-        showComboBox({
-          combos: readCombos(),
-          effects: readEffects(),
-          parameters,
-          tokenId,
-          dispatch,
-          getToken,
-          getEffectiveParameterValue,
-          generateBuffId,
-          rollBCDice,
-          onSave: (nextCombos) => {
-            onComponentChange('combos', nextCombos);
-            updateComboBtnLabel();
-          },
-          onSaveEffects: (nextEffects) => {
-            onComponentChange('effects', nextEffects);
-            updateEffectBtnLabel();
-          }
-        });
+    // コンボ一覧（ボックス）。発動/判定/ダメージの実行はチャットコマンド
+    // （combo.awk/combo.jdm/combo.dmg、js/main.js）から行うため、このボックス自体は
+    // コンボの登録・編集とコマンドのコピーのみを担当する。
+    const comboBtn = document.createElement('button');
+    comboBtn.type = 'button';
+    comboBtn.className = 'dialog-add-row-btn';
+    comboBtn.style.marginTop = '8px';
+    const updateComboBtnLabel = () => {
+      comboBtn.textContent = `コンボ一覧を開く（${readCombos().length}件）`;
+    };
+    updateComboBtnLabel();
+    comboBtn.addEventListener('click', () => {
+      showComboBox({
+        combos: readCombos(),
+        effects: readEffects(),
+        parameters,
+        onSave: (nextCombos) => {
+          onComponentChange('combos', nextCombos);
+          updateComboBtnLabel();
+        }
       });
-      container.appendChild(comboBtn);
-    }
+    });
+    container.appendChild(comboBtn);
   }
 
   return {
@@ -318,6 +306,61 @@ function importDX3CharacterJson(json) {
   };
 }
 
+// コンボのチャットコマンド。combo.awk(コンボ名)で発動、combo.jdm(コンボ名)で判定、
+// combo.dmg(コンボ名)でダメージロールする（実処理はdx3-combo-box.jsのrunComboActivate等）。
+// コンボ名は参照キャラクターのcomponents.combosから完全一致で探す。
+const COMBO_COMMAND_PATTERN = /^combo\.(awk|jdm|dmg)\((.+)\)$/;
+
+/**
+ * DX3プラグイン固有のチャットコマンドを解釈・実行する。
+ * @param {string} rawInput
+ * @param {{
+ *   token: object|null,
+ *   dispatch: (action:string, payload:object) => void,
+ *   getEffectiveParameterValue: (token:object, paramId:string) => number|undefined,
+ *   generateBuffId: () => string,
+ *   rollBCDice: (system:string, command:string) => Promise<{success:boolean, resultText:string}>
+ * }} context
+ * @returns {boolean} コマンドとして処理したか。falseの場合、呼び出し元は通常の
+ *   ダイスロール等にフォールバックする。
+ */
+function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId, rollBCDice }) {
+  const match = rawInput.match(COMBO_COMMAND_PATTERN);
+  if (!match) return false;
+
+  const [, action, rawName] = match;
+  const name = rawName.trim();
+
+  if (!token) {
+    alert('コンボを実行する参照キャラクターを選択してください。');
+    return true;
+  }
+
+  const combos = token.components?.combos ?? [];
+  const combo = findComboByName(combos, name);
+  if (!combo) {
+    alert(`コンボ「${name}」が見つかりません。`);
+    return true;
+  }
+
+  const tokenId = token.id;
+  const getToken = () => token;
+
+  if (action === 'awk') {
+    const effects = token.components?.effects ?? [];
+    runComboActivate({
+      combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
+      onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
+    });
+  } else if (action === 'jdm') {
+    runComboCheck({ combo, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
+  } else if (action === 'dmg') {
+    runComboDamage({ combo, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });
+  }
+
+  return true;
+}
+
 export const DX3_PLUGIN = {
   id: 'DX3',
   label: 'ダブルクロス (3rd)',
@@ -325,5 +368,6 @@ export const DX3_PLUGIN = {
   // buildRoomParameters: 未定義 → registry側で自動的に空オブジェクト扱い
   computeDerivedParameters: computeDX3DerivedParameters, // 🆕 計算ロジックを登録
   renderCharacterPanel: renderDX3CharacterPanel,
-  importCharacterJson: importDX3CharacterJson
+  importCharacterJson: importDX3CharacterJson,
+  handleChatCommand: handleDX3ChatCommand
 };

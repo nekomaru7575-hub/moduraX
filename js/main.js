@@ -11,6 +11,7 @@ import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState } from './net-sync.js';
 import { getLocalUserId } from './local-identity.js';
+import { handlePluginChatCommand } from './parameters/registry.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -457,6 +458,23 @@ function tryHandlePhaseEndCommand(rawInput) {
   return true;
 }
 
+// 適用中プラグイン固有のチャットコマンド（DX3のcombo.awk/combo.jdm/combo.dmg等）を試す。
+// プラグイン未適用、または該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
+// 実処理（判定/ダメージのロール・バフ付与）は各プラグイン側で完結させ、成否のalertや
+// チャットへのログ追記もプラグイン側（DX3ならdx3-combo-box.jsのrunCombo*）が行う。
+function tryHandlePluginChatCommand(rawInput, character) {
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  if (!activePluginId) return false;
+
+  return handlePluginChatCommand(activePluginId, rawInput, {
+    token: character,
+    dispatch: store.dispatch.bind(store),
+    getEffectiveParameterValue,
+    generateBuffId,
+    rollBCDice
+  });
+}
+
 // チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
 // パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
 function sendPaletteText(text) {
@@ -477,6 +495,10 @@ function sendPaletteText(text) {
   }
 
   if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+    return;
+  }
+
+  if (tryHandlePluginChatCommand(rawInput, selectedCharacter)) {
     return;
   }
 
@@ -520,6 +542,11 @@ if (sendBtn) {
     }
 
     if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
+      commandInput.value = "";
+      return;
+    }
+
+    if (tryHandlePluginChatCommand(rawInput, selectedCharacter)) {
       commandInput.value = "";
       return;
     }

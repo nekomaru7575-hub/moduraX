@@ -67,6 +67,21 @@ export function importCharacterJsonForPlugin(pluginId, json) {
 }
 
 /**
+ * チャット欄に入力されたテキストを、ルームに適用中のプラグイン固有のコマンドとして
+ * 解釈・実行させる（例: DX3の combo.awk(コンボ名) 等）。Coreはコマンドの構文を解釈せず、
+ * プラグインのhandleChatCommandにそのまま委ねる。
+ * @param {string} pluginId
+ * @param {string} rawInput
+ * @param {object} context プラグインが実行に必要とする値一式（token/dispatch等）
+ * @returns {boolean} コマンドとして処理されたか。プラグイン未適用/非対応の場合はfalse。
+ */
+export function handlePluginChatCommand(pluginId, rawInput, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.handleChatCommand) return false;
+  return plugin.handleChatCommand(rawInput, context);
+}
+
+/**
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
  * @param {string} pluginId 
  * @param {Record<string, any>} parameters 

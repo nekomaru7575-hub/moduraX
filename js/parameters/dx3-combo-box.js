@@ -1,14 +1,19 @@
 // js/parameters/dx3-combo-box.js
-// DX3の「コンボ」一覧・編集・実行を行うボックス。コンボは登録済みエフェクトの組み合わせ
+// DX3の「コンボ」一覧・編集を行うボックス。コンボは登録済みエフェクトの組み合わせ
 // （参照リストのみ）で、各エフェクトが持つ「コンボ時修正」（dx3-effect-box.js側の値）を
 // 合算して判定・ダメージロールに使う。
 //
-// 発動/判定/ダメージの実処理（バフ付与・パラメータ変更・ダイスロール）はこのファイルで
-// 完結させる。game-store.jsは parameters/registry.js → dx3.js から参照されるため、
-// ここで直接import するとgame-store.js → registry.js → dx3.js → dx3-combo-box.js →
-// game-store.js という循環importになってしまう。そのため store操作・rollBCDiceは
-// 呼び出し元（board-data-driven.js）からpropsとしてすべて受け取る
-// （getComponents/onComponentChangeと同じ流儀）。
+// 発動/判定/ダメージの実処理（バフ付与・パラメータ変更・ダイスロール）はこのファイルの
+// runComboActivate/runComboCheck/runComboDamageが担うが、これらはボタンではなく
+// チャットコマンド（combo.awk(コンボ名)/combo.jdm(コンボ名)/combo.dmg(コンボ名)）から
+// 実行する。コマンドの解釈はjs/parameters/dx3.jsのhandleDX3ChatCommandが行い、
+// js/main.jsのtryHandlePluginChatCommand→js/parameters/registry.jsのhandlePluginChatCommand
+// 経由で呼び出される。このボックス自体はコンボの登録・編集と、チャットパレットに
+// 貼り付けるための3コマンドのコピーだけを担当する。
+// game-store.jsは parameters/registry.js → dx3.js から参照されるため、ここで直接import
+// するとgame-store.js → registry.js → dx3.js → dx3-combo-box.js → game-store.js という
+// 循環importになってしまう。そのためstore操作・rollBCDiceは、実行系の関数
+// （runComboActivate等）の引数として呼び出し元（js/main.js）から受け取る。
 
 import { COMBO_MOD_FIELDS } from './dx3-effect-box.js';
 
@@ -105,25 +110,150 @@ function logToMain(dispatch, resultText) {
   });
 }
 
+// チャットパレット貼り付け用の3コマンド（発動/判定/ダメージ）を生成する。
+// js/parameters/dx3.js側のhandleDX3ChatCommandが同じ書式（combo.awk/combo.jdm/combo.dmg）で解釈する。
+export function buildComboChatLines(comboName) {
+  return [
+    `combo.awk(${comboName})`,
+    `combo.jdm(${comboName})`,
+    `combo.dmg(${comboName})`
+  ];
+}
+
+// コンボ一覧から名前（完全一致）でコンボを探す。チャットコマンドがコンボ名から
+// 保存済みのコンボデータを引くために使う。
+export function findComboByName(combos, name) {
+  return combos.find(c => c.name === name) ?? null;
+}
+
+// --- 発動/判定/ダメージの実処理。チャットコマンド（combo.awk/combo.jdm/combo.dmg、
+// js/parameters/dx3.jsのhandleDX3ChatCommand）から呼び出される。 ---
+
+/**
+ * @param {{combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
+ *   getToken:Function, getEffectiveParameterValue:Function, generateBuffId:Function,
+ *   onSaveEffects:Function}} options
+ */
+export function runComboActivate({
+  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects
+}) {
+  const token = getToken();
+  if (!token) return;
+
+  const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
+
+  // 1. 回数制限のカウント（シナリオ/シーン/ラウンドすべて+1。上限が無いカテゴリも
+  //    記録だけはしておく）
+  const nextEffects = effects.map(e => {
+    if (!combo.effectNames.includes(e.name)) return e;
+    const limits = e.limits || {};
+    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null, ebBonus: false }), current: (limits[cat]?.current || 0) + 1 });
+    return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
+  });
+  onSaveEffects(nextEffects);
+
+  // 2. 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす
+  const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
+  if (corruptionGain) {
+    const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
+    dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
+  }
+
+  // 3. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
+  // 係数モードの換算に使うEB（DX3:corEB）はここで一度だけ取得する
+  const eb = getEffectiveParameterValue(token, 'DX3:corEB') ?? 0;
+  Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
+    const delta = sumComboMod(selectedEffects, key, eb);
+    if (!delta) return;
+    dispatch('ADD_BUFF', {
+      tokenId, id: generateBuffId(), name: `コンボ:${combo.name}`, paramId, delta, expirePhase: null, tag: combo.id
+    });
+  });
+
+  logToMain(dispatch, `コンボ発動: ${combo.name}`);
+}
+
+/**
+ * @param {{combo:object, tokenId:string, dispatch:Function, getToken:Function,
+ *   getEffectiveParameterValue:Function, generateBuffId:Function, rollBCDice:Function}} options
+ */
+export async function runComboCheck({
+  combo, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice
+}) {
+  const token = getToken();
+  if (!token) return;
+
+  const ability = combo.abilityParamId ? (getEffectiveParameterValue(token, combo.abilityParamId) ?? 0) : 0;
+  const checkDice = getEffectiveParameterValue(token, 'DX3:AdB') ?? 0;
+  const db = getEffectiveParameterValue(token, 'DX3:corDB') ?? 0;
+  const skill = combo.skillParamId ? (getEffectiveParameterValue(token, combo.skillParamId) ?? 0) : 0;
+  const fixedValue = getEffectiveParameterValue(token, 'DX3:AnB') ?? 0;
+  const criticalMod = getEffectiveParameterValue(token, 'DX3:AcB') ?? 0;
+
+  const diceCount = Math.max(1, Math.round(ability + checkDice + db));
+  const criticalValue = 10 + criticalMod;
+  const command = `${diceCount}DX${criticalValue}+${skill}+${fixedValue}`;
+
+  try {
+    const { success, resultText } = await rollBCDice('DoubleCross', command);
+    if (!success) {
+      alert(`コンボ判定に失敗しました: ${resultText}`);
+      return;
+    }
+
+    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}`);
+
+    const achievement = parseFinalNumber(resultText);
+    if (achievement !== null) {
+      const bonusDice = Math.ceil(achievement / 10);
+      dispatch('ADD_BUFF', {
+        tokenId, id: generateBuffId(), name: `コンボ:${combo.name}(達成値ボーナス)`,
+        paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id
+      });
+    }
+  } catch (error) {
+    alert(`コンボ判定でエラーが発生しました: ${error.message}`);
+  }
+}
+
+/**
+ * @param {{combo:object, tokenId:string, dispatch:Function, getToken:Function,
+ *   getEffectiveParameterValue:Function, rollBCDice:Function}} options
+ */
+export async function runComboDamage({
+  combo, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice
+}) {
+  const token = getToken();
+  if (!token) return;
+
+  const damageDice = getEffectiveParameterValue(token, 'DX3:DdB') ?? 0;
+  const attackPower = getEffectiveParameterValue(token, 'DX3:attackPower') ?? 0;
+  const attackPowerMod = getEffectiveParameterValue(token, 'DX3:DaB') ?? 0;
+
+  const diceCount = Math.max(1, Math.round(damageDice));
+  const command = `${diceCount}D10+${attackPower}+${attackPowerMod}`;
+
+  try {
+    const { success, resultText } = await rollBCDice('DoubleCross', command);
+    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}`);
+  } catch (error) {
+    alert(`コンボダメージでエラーが発生しました: ${error.message}`);
+  } finally {
+    dispatch('REMOVE_BUFFS_BY_TAG', { tokenId, tag: combo.id });
+  }
+}
+
 /**
  * @param {{
  *   combos: Array<{id:string,name:string,timing:string|null,effectNames:string[],abilityParamId:string|null,skillParamId:string|null}>,
  *   effects: Array<object>,
  *   parameters: Record<string, {label:string}>,
- *   tokenId: string,
- *   dispatch: (action:string, payload:object) => void,
- *   getToken: () => object,
- *   getEffectiveParameterValue: (token:object, paramId:string) => number|undefined,
- *   generateBuffId: () => string,
- *   rollBCDice: (system:string, command:string) => Promise<{success:boolean, resultText:string}>,
- *   onSave: (combos: Array<object>) => void,
- *   onSaveEffects: (effects: Array<object>) => void
+ *   onSave: (combos: Array<object>) => void
  * }} options
  */
 export function showComboBox({
-  combos = [], effects = [], parameters = {}, tokenId,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice,
-  onSave, onSaveEffects
+  combos = [], effects = [], parameters = {},
+  onSave
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -137,7 +267,7 @@ export function showComboBox({
   const note = document.createElement('p');
   note.style.color = '#888';
   note.style.fontSize = '0.8rem';
-  note.textContent = '発動/判定/ダメージは保存済みの内容に対して実行されます。エフェクトの選択や能力値/技能値を変えたら、先に保存してください。';
+  note.textContent = '発動/判定/ダメージはチャットコマンド（combo.awk(コンボ名)/combo.jdm(コンボ名)/combo.dmg(コンボ名)）から実行します。「コマンドをコピー」で3つのコマンドをコピーし、チャットパレットの編集欄（複数行貼り付け可）に貼り付けてください。保存済みの内容に対して実行されるため、エフェクトの選択や能力値/技能値を変えたら、先に保存してください。';
   form.appendChild(note);
 
   const listEl = document.createElement('div');
@@ -145,116 +275,6 @@ export function showComboBox({
   form.appendChild(listEl);
 
   const rows = [];
-
-  // --- 発動/判定/ダメージの実処理 ---
-
-  function activateCombo(combo) {
-    const token = getToken();
-    if (!token) return;
-
-    const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
-
-    // 1. 回数制限のカウント（シナリオ/シーン/ラウンドすべて+1。上限が無いカテゴリも
-    //    記録だけはしておく）
-    const nextEffects = effects.map(e => {
-      if (!combo.effectNames.includes(e.name)) return e;
-      const limits = e.limits || {};
-      const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null, ebBonus: false }), current: (limits[cat]?.current || 0) + 1 });
-      return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
-    });
-    onSaveEffects(nextEffects);
-
-    // 2. 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす
-    const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
-    if (corruptionGain) {
-      const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
-      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
-    }
-
-    // 3. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
-    // 係数モードの換算に使うEB（DX3:corEB）はここで一度だけ取得する
-    const eb = getEffectiveParameterValue(token, 'DX3:corEB') ?? 0;
-    Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
-      const delta = sumComboMod(selectedEffects, key, eb);
-      if (!delta) return;
-      dispatch('ADD_BUFF', {
-        tokenId, id: generateBuffId(), name: `コンボ:${combo.name}`, paramId, delta, expirePhase: null, tag: combo.id
-      });
-    });
-
-    logToMain(dispatch, `コンボ発動: ${combo.name}`);
-  }
-
-  async function checkCombo(combo, button) {
-    const token = getToken();
-    if (!token) return;
-
-    const ability = combo.abilityParamId ? (getEffectiveParameterValue(token, combo.abilityParamId) ?? 0) : 0;
-    const checkDice = getEffectiveParameterValue(token, 'DX3:AdB') ?? 0;
-    const db = getEffectiveParameterValue(token, 'DX3:corDB') ?? 0;
-    const skill = combo.skillParamId ? (getEffectiveParameterValue(token, combo.skillParamId) ?? 0) : 0;
-    const fixedValue = getEffectiveParameterValue(token, 'DX3:AnB') ?? 0;
-    const criticalMod = getEffectiveParameterValue(token, 'DX3:AcB') ?? 0;
-
-    const diceCount = Math.max(1, Math.round(ability + checkDice + db));
-    const criticalValue = 10 + criticalMod;
-    const command = `${diceCount}DX${criticalValue}+${skill}+${fixedValue}`;
-
-    button.disabled = true;
-    const originalLabel = button.textContent;
-    button.textContent = '判定中...';
-
-    try {
-      const { success, resultText } = await rollBCDice('DoubleCross', command);
-      if (!success) {
-        alert(`コンボ判定に失敗しました: ${resultText}`);
-        return;
-      }
-
-      logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}`);
-
-      const achievement = parseFinalNumber(resultText);
-      if (achievement !== null) {
-        const bonusDice = Math.ceil(achievement / 10);
-        dispatch('ADD_BUFF', {
-          tokenId, id: generateBuffId(), name: `コンボ:${combo.name}(達成値ボーナス)`,
-          paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id
-        });
-      }
-    } catch (error) {
-      alert(`コンボ判定でエラーが発生しました: ${error.message}`);
-    } finally {
-      button.disabled = false;
-      button.textContent = originalLabel;
-    }
-  }
-
-  async function damageCombo(combo, button) {
-    const token = getToken();
-    if (!token) return;
-
-    const damageDice = getEffectiveParameterValue(token, 'DX3:DdB') ?? 0;
-    const attackPower = getEffectiveParameterValue(token, 'DX3:attackPower') ?? 0;
-    const attackPowerMod = getEffectiveParameterValue(token, 'DX3:DaB') ?? 0;
-
-    const diceCount = Math.max(1, Math.round(damageDice));
-    const command = `${diceCount}D10+${attackPower}+${attackPowerMod}`;
-
-    button.disabled = true;
-    const originalLabel = button.textContent;
-    button.textContent = 'ロール中...';
-
-    try {
-      const { success, resultText } = await rollBCDice('DoubleCross', command);
-      logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}`);
-    } catch (error) {
-      alert(`コンボダメージでエラーが発生しました: ${error.message}`);
-    } finally {
-      dispatch('REMOVE_BUFFS_BY_TAG', { tokenId, tag: combo.id });
-      button.disabled = false;
-      button.textContent = originalLabel;
-    }
-  }
 
   // --- 一覧の描画 ---
 
@@ -420,32 +440,37 @@ export function showComboBox({
 
     item.appendChild(selectRow);
 
-    // 発動/判定/ダメージボタン（保存済みのsavedComboに対して動作する）
+    // 発動/判定/ダメージは実行ボタンではなく、チャットコマンド
+    // （combo.awk/combo.jdm/combo.dmg、js/parameters/dx3.jsのhandleDX3ChatCommandが処理）
+    // から行う。ここではその3行をクリップボードへコピーし、チャットパレットの編集欄に
+    // 貼り付けて使えるようにするだけにする。
     const actionRow = document.createElement('div');
     actionRow.className = 'dialog-button-row';
     actionRow.style.marginTop = '8px';
 
-    const activateBtn = document.createElement('button');
-    activateBtn.type = 'button';
-    activateBtn.className = 'dialog-add-row-btn';
-    activateBtn.textContent = '発動';
-    activateBtn.addEventListener('click', () => activateCombo(savedCombo));
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'dialog-add-row-btn';
+    copyBtn.textContent = 'コマンドをコピー';
+    copyBtn.addEventListener('click', async () => {
+      const name = nameInput.value.trim() || savedCombo.name;
+      if (!name) {
+        alert('コンボ名を入力してください。');
+        return;
+      }
+      const text = buildComboChatLines(name).join('\n');
+      const originalLabel = copyBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'コピーしました';
+      } catch (error) {
+        alert(`クリップボードへのコピーに失敗しました: ${error.message}`);
+        return;
+      }
+      setTimeout(() => { copyBtn.textContent = originalLabel; }, 1500);
+    });
 
-    const checkBtn = document.createElement('button');
-    checkBtn.type = 'button';
-    checkBtn.className = 'dialog-add-row-btn';
-    checkBtn.textContent = '判定';
-    checkBtn.addEventListener('click', () => checkCombo(savedCombo, checkBtn));
-
-    const damageBtn = document.createElement('button');
-    damageBtn.type = 'button';
-    damageBtn.className = 'dialog-add-row-btn';
-    damageBtn.textContent = 'ダメージ';
-    damageBtn.addEventListener('click', () => damageCombo(savedCombo, damageBtn));
-
-    actionRow.appendChild(activateBtn);
-    actionRow.appendChild(checkBtn);
-    actionRow.appendChild(damageBtn);
+    actionRow.appendChild(copyBtn);
     item.appendChild(actionRow);
 
     listEl.appendChild(item);
@@ -495,8 +520,7 @@ export function showComboBox({
       }))
       .filter(combo => combo.name !== '');
 
-    // ダイアログは閉じない（保存直後にそのまま発動/判定/ダメージを使えるようにするため）。
-    // 発動/判定/ダメージは各行のsavedComboを参照するので、保存内容をその場で反映する。
+    // ダイアログは閉じない（保存後もそのままコンボの追加・編集・コマンドコピーを続けられるようにするため）。
     nextCombos.forEach(nc => {
       const row = rows.find(r => r.savedCombo.id === nc.id);
       if (row) Object.assign(row.savedCombo, nc);

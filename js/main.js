@@ -80,11 +80,11 @@ function switchChatTab(tabId) {
 
 // containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
 // メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）
-function appendLogEntries(container, entries, fromIndex, itemClassName) {
+function appendLogEntries(container, entries, fromIndex, itemClassName, buildOptions = {}) {
   for (let i = fromIndex; i < entries.length; i++) {
     const item = document.createElement('div');
     item.className = itemClassName;
-    item.innerHTML = buildLogHtml(entries[i]);
+    item.innerHTML = buildLogHtml(entries[i], buildOptions);
     container.appendChild(item);
   }
   if (entries.length > fromIndex) {
@@ -126,7 +126,7 @@ function renderMainChatMirror(state) {
   const entries = state.chatLogs[MAIN_TAB_ID] || [];
 
   if (entries.length > lastRenderedMainCount) {
-    appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item');
+    appendLogEntries(currentChatLog, entries, lastRenderedMainCount, 'current-chat-log-item', { hideSystem: true });
 
     const latestEntry = entries[entries.length - 1];
     if ('characterId' in latestEntry) {
@@ -568,13 +568,21 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }) {
+// hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
+function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }, { hideSystem = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
-  const characterTag = character ? ` <span style="color: #4caf50; font-size: 0.85em;">${character}</span>` : '';
+  const systemTag = hideSystem ? '' : `<strong style="color: #007acc;">[${system}]</strong>`;
+  const characterTag = character ? `<span style="color: #4caf50;">${character}</span>` : '';
+  const commentTag = comment ? `<span style="color: #aaa;">(${comment})</span>` : '';
   const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
+  // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
+  // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
+  const headerLine = [systemTag, characterTag, commentTag].filter(Boolean).join(' ');
+  const headerHtml = headerLine ? `${headerLine}<br>` : '';
+
   return `
-    <strong style="color: #007acc;">[${system}]</strong>${characterTag} ${comment ? `<span style="color: #aaa;">(${comment})</span>` : ''}<br>
+    ${headerHtml}
     <span style="font-size: 1.1rem; color: #fff;">${resultHtml}</span><br>
     ${detail}`;
 }

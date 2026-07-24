@@ -55,7 +55,7 @@ export function getEffectiveParameterValue(token, paramId) {
 
 const MAIN_CHAT_TAB_ID = 'main';
 
-class ImmutableStore {
+export class ImmutableStore {
   #state;
 
   constructor(initialState) {
@@ -96,9 +96,10 @@ class ImmutableStore {
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
-      // この機能より前に保存された状態にはroom.bcdiceSystemが無いため、既定値を補う
+      // この機能より前に保存された状態にはroom.bcdiceSystem/nameが無いため、既定値を補う
       room: {
         ...newState.room,
+        name: newState.room?.name || '',
         bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM
       }
     };
@@ -555,6 +556,21 @@ class ImmutableStore {
         return;
       }
 
+      // 部屋名（複数部屋運用時のインデックスページ表示・見出し表示に使う）を変更する。
+      case 'SET_ROOM_NAME': {
+        const { name } = payload;
+        if (typeof name !== 'string') return;
+        const room = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({ ...room, name })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;
@@ -806,22 +822,29 @@ class ImmutableStore {
 
 export const DEFAULT_BCDICE_SYSTEM = 'Cthulhu7th';
 
-export const store = new ImmutableStore({
-  room: {
-    activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
-    parameters: {},        // ルーム変数（後述）
-    backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
-    boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
-    boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
-    bcdiceSystem: DEFAULT_BCDICE_SYSTEM // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
-  },
+// 新規部屋の初期状態を組み立てる。クライアント側の単一store（ブラウザ1タブ＝1部屋）と、
+// サーバー側が複数部屋分（server/index.js）作る際の両方から使う共通のひな形。
+export function createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {}) {
+  return {
+    room: {
+      name,                // 部屋名（複数部屋運用時のインデックスページ・見出し表示に使う）
+      activePlugin,        // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
+      parameters: {},        // ルーム変数（後述）
+      backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
+      boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
+      boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
+      bcdiceSystem // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
+    },
 
-  tokens: {},
+    tokens: {},
 
-  // パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト）
-  panels: {},
+    // パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト）
+    panels: {},
 
-  // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
-  chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
-  chatLogs: { [MAIN_CHAT_TAB_ID]: [] }
-});
+    // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
+    chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
+    chatLogs: { [MAIN_CHAT_TAB_ID]: [] }
+  };
+}
+
+export const store = new ImmutableStore(createInitialGameState());

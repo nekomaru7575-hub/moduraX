@@ -1,24 +1,26 @@
 // server/index.js
 // 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを
-// 同じNodeサーバー・同じポートで提供する。クライアントと同じreducer
-// （js/game-store.js）を使い、サーバー自身が「今のセッションの正しい状態」を
-// 常に保持する（サーバー権威型リレー）。1つのサービスとしてRender等にそのまま
-// デプロイできる。
+// 同じNodeサーバー・同じポートで提供する。複数の部屋（セッション）を1つの
+// サーバーで運用できるよう、部屋ごとに独立したImmutableStore・接続クライアント集合・
+// 永続化ファイルを持つ（server/rooms/room-N.json）。1つのサービスとしてRender等に
+// そのままデプロイできる。
 //
 // 起動: npm start　（ポートは環境変数PORTで上書き可、既定8081）
+// 部屋数上限は環境変数MAX_ROOMSで上書き可、既定5。
 
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { store } from '../js/game-store.js';
-import { EventBus } from '../js/EventBus.js';
+import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
 
 const PORT = Number(process.env.PORT) || 8081;
+const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
-const STATE_FILE = path.join(__dirname, 'state.json');
+const ROOMS_DIR = path.join(__dirname, 'rooms');
+const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 const SAVE_DEBOUNCE_MS = 1000;
 
 const MIME_TYPES = {
@@ -36,10 +38,10 @@ const MIME_TYPES = {
 };
 
 // 盤面のHTML/JS/画像などをそのままファイルシステムから配信する。
-// ルート（/）はcombined_layout.htmlを返す。
+// ルート（/）は部屋一覧のindex.htmlを返す。盤面自体はcombined_layout.html?room=room-Nで開く。
 async function serveStaticFile(req, res) {
   const requestedPath = decodeURIComponent(req.url.split('?')[0]);
-  const relativePath = requestedPath === '/' ? '/combined_layout.html' : requestedPath;
+  const relativePath = requestedPath === '/' ? '/index.html' : requestedPath;
   const filePath = path.join(ROOT_DIR, relativePath);
 
   // パストラバーサル対策：ROOT_DIRの外を指すリクエストは拒否する
@@ -60,46 +62,232 @@ async function serveStaticFile(req, res) {
   }
 }
 
-async function loadPersistedState() {
+function sendJson(res, statusCode, body) {
+  const json = JSON.stringify(body);
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(json);
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// --- 部屋管理 ---
+// roomId -> { store, clients: Set<ws>, saveTimer }
+// 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
+const rooms = new Map();
+
+function isValidRoomId(id) {
+  if (typeof id !== 'string') return false;
+  const match = id.match(/^room-([1-9]\d*)$/);
+  if (!match) return false;
+  const n = Number(match[1]);
+  return n >= 1 && n <= MAX_ROOMS;
+}
+
+function roomFilePath(roomId) {
+  return path.join(ROOMS_DIR, `${roomId}.json`);
+}
+
+// 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければ
+// ディスクから読み込む。ファイルが無ければ「まだ作られていない空き部屋」としてnullを返す。
+async function getOrLoadRoom(roomId) {
+  if (rooms.has(roomId)) return rooms.get(roomId);
+
   try {
-    const raw = await readFile(STATE_FILE, 'utf-8');
-    const state = JSON.parse(raw);
-    store.hydrate(state);
-    console.log(`[server] 保存済み状態を復元しました: ${STATE_FILE}`);
+    const raw = await readFile(roomFilePath(roomId), 'utf-8');
+    const savedState = JSON.parse(raw);
+    const entry = { store: new ImmutableStore(savedState), clients: new Set(), saveTimer: null };
+    rooms.set(roomId, entry);
+    return entry;
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      console.warn('[server] 保存済み状態の読み込みに失敗しました:', error.message);
+      console.warn(`[server] ${roomId} の読み込みに失敗しました:`, error.message);
     }
+    return null;
   }
 }
 
-let saveTimer = null;
-function schedulePersist() {
-  if (saveTimer) return;
-  saveTimer = setTimeout(async () => {
-    saveTimer = null;
+function schedulePersistForRoom(roomId, entry) {
+  if (entry.saveTimer) return;
+  entry.saveTimer = setTimeout(async () => {
+    entry.saveTimer = null;
     try {
-      await writeFile(STATE_FILE, JSON.stringify(store.state));
+      await writeFile(roomFilePath(roomId), JSON.stringify(entry.store.state));
     } catch (error) {
-      console.warn('[server] 状態の保存に失敗しました:', error.message);
+      console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
     }
   }, SAVE_DEBOUNCE_MS);
 }
 
-EventBus.subscribe('STATE_CHANGED', schedulePersist);
+function broadcastToRoom(entry, sender, message) {
+  const outgoing = JSON.stringify(message);
+  entry.clients.forEach((client) => {
+    if (client !== sender && client.readyState === WebSocket.OPEN) {
+      client.send(outgoing);
+    }
+  });
+}
 
-await loadPersistedState();
+// 起動時、まだserver/rooms/が無ければ作成する。既存のserver/state.json（本機能より前の
+// 単一部屋運用のデータ）があれば、それを「部屋1」としてrooms/room-1.jsonへ複製する
+// （元のstate.jsonは安全のため残したまま削除しない）。
+async function migrateLegacyStateIfNeeded() {
+  try {
+    await access(ROOMS_DIR);
+    return; // 既にrooms/があるので移行済み
+  } catch {
+    // rooms/がまだ無い→続行
+  }
 
-const httpServer = http.createServer((req, res) => {
-  serveStaticFile(req, res);
+  await mkdir(ROOMS_DIR, { recursive: true });
+
+  try {
+    const raw = await readFile(LEGACY_STATE_FILE, 'utf-8');
+    const legacyState = JSON.parse(raw);
+    const migrated = {
+      ...legacyState,
+      room: { ...legacyState.room, name: legacyState.room?.name || '部屋1' }
+    };
+    await writeFile(roomFilePath('room-1'), JSON.stringify(migrated));
+    console.log('[server] 既存のstate.jsonを部屋1(rooms/room-1.json)へ移行しました（元ファイルはそのまま残します）');
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn('[server] 旧state.jsonの移行に失敗しました:', error.message);
+    }
+    // state.jsonが無ければ何もしない（新規デプロイ等）
+  }
+}
+
+// GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
+async function handleListRooms(req, res) {
+  const list = [];
+  for (let n = 1; n <= MAX_ROOMS; n++) {
+    const id = `room-${n}`;
+    const entry = await getOrLoadRoom(id);
+    if (!entry) {
+      list.push({ id, occupied: false });
+      continue;
+    }
+    const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
+    list.push({ id, occupied: true, name, activePlugin, bcdiceSystem });
+  }
+  sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list });
+}
+
+// POST /api/rooms：空きスロットに新しい部屋を作成する。
+// body: { id, name, activePlugin, bcdiceSystem, importedState? }
+async function handleCreateRoom(req, res) {
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    return;
+  }
+
+  const { id, name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, importedState } = body;
+
+  if (!isValidRoomId(id)) {
+    sendJson(res, 400, { error: '無効な部屋IDです。' });
+    return;
+  }
+
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  if (!trimmedName) {
+    sendJson(res, 400, { error: '部屋名を入力してください。' });
+    return;
+  }
+
+  const existing = await getOrLoadRoom(id);
+  if (existing) {
+    sendJson(res, 409, { error: 'その部屋は既に使われています。' });
+    return;
+  }
+
+  const validPluginIds = new Set(listPlugins().map((p) => p.id));
+  const safeActivePlugin = activePlugin && validPluginIds.has(activePlugin) ? activePlugin : null;
+  const safeBcdiceSystem = typeof bcdiceSystem === 'string' && bcdiceSystem ? bcdiceSystem : DEFAULT_BCDICE_SYSTEM;
+
+  let initialState;
+  if (importedState && typeof importedState === 'object') {
+    // 全データ読み込み：既存の状態をベースに、フォームで指定した部屋名・プラグイン・
+    // システムで上書きする（インポートしたファイル自体の値より、その場でのフォーム入力を優先）。
+    initialState = {
+      ...importedState,
+      room: {
+        ...(importedState.room || {}),
+        name: trimmedName,
+        activePlugin: safeActivePlugin,
+        bcdiceSystem: safeBcdiceSystem
+      }
+    };
+  } else {
+    initialState = createInitialGameState({ name: trimmedName, activePlugin: safeActivePlugin, bcdiceSystem: safeBcdiceSystem });
+  }
+
+  try {
+    await writeFile(roomFilePath(id), JSON.stringify(initialState));
+  } catch (error) {
+    console.warn(`[server] ${id} の作成に失敗しました:`, error.message);
+    sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
+    return;
+  }
+
+  rooms.set(id, { store: new ImmutableStore(initialState), clients: new Set(), saveTimer: null });
+  sendJson(res, 201, { id });
+}
+
+await migrateLegacyStateIfNeeded();
+
+const httpServer = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/rooms' && req.method === 'GET') {
+    await handleListRooms(req, res);
+    return;
+  }
+
+  if (url.pathname === '/api/rooms' && req.method === 'POST') {
+    await handleCreateRoom(req, res);
+    return;
+  }
+
+  await serveStaticFile(req, res);
 });
 
 const wss = new WebSocketServer({ server: httpServer });
 
-wss.on('connection', (ws) => {
-  console.log(`[server] クライアント接続（現在${wss.clients.size}件）`);
+wss.on('connection', async (ws, req) => {
+  const url = new URL(req.url, 'http://localhost');
+  const roomId = url.searchParams.get('room');
 
-  ws.send(JSON.stringify({ type: 'INIT', state: store.state }));
+  if (!isValidRoomId(roomId)) {
+    ws.close(4000, 'invalid room');
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    ws.close(4004, 'room not found');
+    return;
+  }
+
+  entry.clients.add(ws);
+  console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
+
+  ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
 
   ws.on('message', (data) => {
     let message;
@@ -110,34 +298,25 @@ wss.on('connection', (ws) => {
     }
 
     if (message.type === 'REPLACE_STATE') {
-      store.hydrate(message.state);
-
-      const outgoing = JSON.stringify({ type: 'INIT', state: store.state });
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(outgoing);
-        }
-      });
+      entry.store.hydrate(message.state);
+      schedulePersistForRoom(roomId, entry);
+      broadcastToRoom(entry, ws, { type: 'INIT', state: entry.store.state });
       return;
     }
 
     if (message.type !== 'ACTION') return;
 
-    store.dispatch(message.action, message.payload);
-
-    const outgoing = JSON.stringify({ type: 'ACTION', action: message.action, payload: message.payload });
-    wss.clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(outgoing);
-      }
-    });
+    entry.store.dispatch(message.action, message.payload);
+    schedulePersistForRoom(roomId, entry);
+    broadcastToRoom(entry, ws, { type: 'ACTION', action: message.action, payload: message.payload });
   });
 
   ws.on('close', () => {
-    console.log(`[server] クライアント切断（残り${wss.clients.size - 1}件）`);
+    entry.clients.delete(ws);
+    console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
   });
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`[server] サーバーを起動しました: http://localhost:${PORT}`);
+  console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);
 });

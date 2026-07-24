@@ -41,6 +41,12 @@
       flex-shrink: 0;
     }
 
+    .room-name-label {
+      color: #999;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
     .net-status-connected {
       color: #4caf50;
     }
@@ -1149,6 +1155,7 @@
 
   <div class="app-header">
     <h1>🎲 もじゅらX</h1>
+    <span id="roomNameLabel" class="room-name-label"></span>
     <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
     <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>
   </div>
@@ -1156,6 +1163,10 @@
   <dialog id="roomSettingsDialog" class="character-dialog">
     <form method="dialog">
       <h3>ルーム設定</h3>
+      <div class="dialog-form-group">
+        <label for="roomNameInput">部屋名</label>
+        <input type="text" id="roomNameInput">
+      </div>
       <div class="dialog-form-group">
         <label for="gameSystem">BCDiceのシステム（ダイスロールの解釈規則）</label>
         <select id="gameSystem">

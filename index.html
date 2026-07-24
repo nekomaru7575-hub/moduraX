@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>もじゅらX - 部屋一覧</title>
+<style>
+  body {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 720px;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid #3a3a3a;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+  }
+
+  .app-header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  .app-header span {
+    color: #888;
+    font-size: 0.9rem;
+  }
+
+  .room-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .room-card {
+    background-color: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .room-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .room-card-title {
+    font-weight: bold;
+    font-size: 1.05rem;
+  }
+
+  .room-card-meta {
+    color: #999;
+    font-size: 0.85rem;
+    margin-top: 2px;
+  }
+
+  .room-card.vacant .room-card-title {
+    color: #888;
+  }
+
+  .btn {
+    background-color: #007acc;
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 0.9rem;
+  }
+
+  .btn:hover {
+    background-color: #0090f0;
+  }
+
+  .btn-secondary {
+    background-color: #444;
+  }
+
+  .btn-secondary:hover {
+    background-color: #555;
+  }
+
+  .vacant-form {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+    border-top: 1px solid #3a3a3a;
+    padding-top: 10px;
+  }
+
+  .room-card.vacant.open .vacant-form {
+    display: flex;
+  }
+
+  .vacant-form label {
+    font-size: 0.8rem;
+    color: #aaa;
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .vacant-form input[type="text"],
+  .vacant-form select {
+    width: 100%;
+    background-color: #3a3a3a;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 6px 8px;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .vacant-form input[type="file"] {
+    color: #ccc;
+    font-size: 0.85rem;
+  }
+
+  .vacant-form-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .vacant-form-row > div {
+    flex: 1;
+  }
+
+  .vacant-form-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .error-text {
+    color: #f28b82;
+    font-size: 0.85rem;
+    margin: 4px 0 0;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="app-header">
+      <h1>🎲 もじゅらX</h1>
+      <span>部屋一覧</span>
+    </div>
+
+    <div id="roomList" class="room-list">
+      <p style="color:#888;">読み込み中...</p>
+    </div>
+  </div>
+
+  <script type="module" src="/js/room-index.js"></script>
+</body>
+</html>

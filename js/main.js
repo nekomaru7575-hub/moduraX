@@ -177,6 +177,8 @@ const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomParameterList = document.getElementById('roomParameterList');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
+const roomNameInput = document.getElementById('roomNameInput');
+const roomNameLabel = document.getElementById('roomNameLabel');
 const exportStateBtn = document.getElementById('exportStateBtn');
 const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
@@ -218,6 +220,10 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'ルーム設定',
         onSelect: () => roomSettingsDialog.showModal()
+      },
+      {
+        label: '部屋一覧に戻る',
+        onSelect: () => { window.location.href = '/'; }
       }
     ]);
   });
@@ -621,6 +627,25 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   const nextValue = state.room.bcdiceSystem;
   if (gameSystemSelect.value !== nextValue) {
     gameSystemSelect.value = nextValue;
+  }
+});
+
+// 部屋名：複数部屋運用時にどの部屋かを判別しやすくするためのルーム単位の設定。
+// 入力のたびではなく、確定時（change）にのみ同期する。
+if (roomNameInput) {
+  roomNameInput.addEventListener('change', () => {
+    store.dispatch('SET_ROOM_NAME', { name: roomNameInput.value });
+  });
+}
+
+// 部屋名：他クライアントでの変更（同期）にも追従させ、ヘッダーの表示にも反映する
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  const nextValue = state.room.name || '';
+  if (roomNameInput && document.activeElement !== roomNameInput && roomNameInput.value !== nextValue) {
+    roomNameInput.value = nextValue;
+  }
+  if (roomNameLabel) {
+    roomNameLabel.textContent = nextValue ? `— ${nextValue}` : '';
   }
 });
 

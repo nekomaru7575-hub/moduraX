@@ -4,9 +4,14 @@
 //
 // server/index.jsが静的ファイル配信とWebSocketを同じポートで行っているため、
 // 接続先は「今このページを配信しているホスト」から自動で求める（手動での書き換え不要）。
-const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+// location.search（?room=room-3）を引き継ぎ、サーバー側でどの部屋の接続かを判別できるようにする。
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + location.search;
 
 const RECONNECT_DELAY_MS = 2000;
+
+// サーバーが「不正な部屋ID」「未作成（空き）の部屋」を理由に切断する際のcloseコード
+// （server/index.jsのws.close(4000/4004, ...)と対応させている）。
+const INVALID_ROOM_CLOSE_CODES = new Set([4000, 4004]);
 
 import { store } from './game-store.js';
 import { EventBus } from './EventBus.js';
@@ -20,6 +25,7 @@ let ws = null;
 function connect() {
   EventBus.emit('NET_STATUS_CHANGED', 'connecting');
   ws = new WebSocket(WS_URL);
+  let hasReceivedInit = false;
 
   ws.addEventListener('open', () => {
     EventBus.emit('NET_STATUS_CHANGED', 'connected');
@@ -34,6 +40,7 @@ function connect() {
     }
 
     if (message.type === 'INIT') {
+      hasReceivedInit = true;
       store.hydrate(message.state);
       return;
     }
@@ -43,8 +50,17 @@ function connect() {
     }
   });
 
-  ws.addEventListener('close', () => {
+  ws.addEventListener('close', (event) => {
     EventBus.emit('NET_STATUS_CHANGED', 'disconnected');
+
+    // 一度もINITを受け取れないまま、不正/未作成の部屋を理由に切断された場合は、
+    // 再接続を試みても無駄なので部屋一覧へ案内する。
+    if (!hasReceivedInit && INVALID_ROOM_CLOSE_CODES.has(event.code)) {
+      alert('この部屋には接続できませんでした（存在しないか、まだ作成されていません）。部屋一覧へ戻ります。');
+      window.location.href = '/';
+      return;
+    }
+
     setTimeout(connect, RECONNECT_DELAY_MS);
   });
 

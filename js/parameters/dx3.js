@@ -15,6 +15,16 @@ export const DX3_PARAMETERS =[
     {key : "comboAttackPower", label : "攻撃力修正(コンボ)",value : 0, editable : false,visible : false},
     {key : "comboDamageDice", label : "ダメージダイス修正(コンボ)",value : 0, editable : false,visible : false},
     {key : "comboCriticalMod", label : "クリティカル値修正(コンボ)",value : 0, editable : false,visible : false},
+    // エフェクトによるバフを受け取る汎用レジスタ（コンボに限らず判定/ダメージ全般で使う想定）。
+    // 手入力での編集・一覧表示は想定しないためeditable:false・visible:falseだが、
+    // バフ（ADD_BUFF）はeditableを見ずに加算できる。keyをDX3公式の略称（AdB等）にしているのは、
+    // バフ/パラメータ変更コマンド（js/main.js）がlabel一致に加えてkey一致でも対象を特定できるため、
+    // ラベル内の（）で示した略称をそのままチャットから参照できるようにするため。
+    {key : "AdB", label : "判定ダイス修正(AdB)",value : 0, editable : false,visible : false},
+    {key : "AnB", label : "判定固定値修正(AnB)",value : 0, editable : false,visible : false},
+    {key : "AcB", label : "クリティカル修正(AcB)",value : 0, editable : false,visible : false},
+    {key : "DdB", label : "ダメージダイス修正(DdB)",value : 0, editable : false,visible : false},
+    {key : "DaB", label : "攻撃力修正(DaB)",value : 0, editable : false,visible : false},
     // 能力値・技能値：JSON読み込みで同期する値。手入力での編集・表示は想定しないため
     // locked:true（削除不可）,editable:false（値の直接編集不可）,visible:false（一覧非表示）
     {key : "sttTotalBody", label : "肉体",value : 0, locked : true, editable : false,visible : false},

@@ -1147,6 +1147,13 @@
     <form method="dialog">
       <h3>ルーム設定</h3>
       <div class="dialog-form-group">
+        <label for="gameSystem">BCDiceのシステム（ダイスロールの解釈規則）</label>
+        <select id="gameSystem">
+          <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
+          <option value="DoubleCross">ダブルクロス (3rd)</option>
+        </select>
+      </div>
+      <div class="dialog-form-group">
         <label for="roomPluginSelect">ルームのプラグイン（システム）</label>
         <select id="roomPluginSelect"></select>
       </div>
@@ -1218,10 +1225,6 @@
       <div class="chat-send-panel" data-resizable-section="chatSend">
         <div class="panel chat-input-panel">
           <div class="chat-input-selects">
-            <select id="gameSystem" class="compact-select" title="ゲームシステム">
-              <option value="Cthulhu7th">クトゥルフ神話TRPG (7版)</option>
-              <option value="DoubleCross">ダブルクロス (3rd)</option>
-            </select>
             <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">
               <option value="">（選択なし）</option>
             </select>

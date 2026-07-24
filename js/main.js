@@ -447,7 +447,7 @@ function tryHandlePhaseEndCommand(rawInput) {
 // チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
 // パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
 function sendPaletteText(text) {
-  const selectedSystem = gameSystemSelect.value;
+  const selectedSystem = store.state.room.bcdiceSystem;
   const rawInput = text.trim();
   if (rawInput === "") return;
 
@@ -484,7 +484,7 @@ if (chatPalettePanel) {
 
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
-    const selectedSystem = gameSystemSelect.value;
+    const selectedSystem = store.state.room.bcdiceSystem;
     let rawInput = commandInput.value.trim();
 
     if (rawInput === "") {
@@ -597,6 +597,23 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   const nextValue = state.room.activePlugin || '';
   if (roomPluginSelect.value !== nextValue) {
     roomPluginSelect.value = nextValue;
+  }
+});
+
+// BCDiceのシステムはキャラクターパラメータ用プラグイン（activePlugin）とは別軸で、
+// ルーム単位・全員共通の設定にする（各クライアントがローカルに持つ値ではない）。
+if (gameSystemSelect) {
+  gameSystemSelect.addEventListener('change', () => {
+    store.dispatch('SET_BCDICE_SYSTEM', { system: gameSystemSelect.value });
+  });
+}
+
+// ゲームシステム欄：他クライアントでの変更（同期）にも追従させる
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  if (!gameSystemSelect) return;
+  const nextValue = state.room.bcdiceSystem;
+  if (gameSystemSelect.value !== nextValue) {
+    gameSystemSelect.value = nextValue;
   }
 });
 

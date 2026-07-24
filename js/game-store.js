@@ -95,7 +95,12 @@ class ImmutableStore {
       tokens: newState.tokens || {},
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
-      chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] }
+      chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
+      // この機能より前に保存された状態にはroom.bcdiceSystemが無いため、既定値を補う
+      room: {
+        ...newState.room,
+        bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM
+      }
     };
     this.#state = this.#createProtectedProxy(normalized);
     EventBus.emit('STATE_CHANGED', this.#state);
@@ -534,6 +539,22 @@ class ImmutableStore {
         return;
       }
 
+      // BCDiceのシステム（ダイスロールの解釈規則）を切り替える。キャラクターパラメータ用の
+      // プラグイン（activePlugin）とは別軸の設定で、ルーム単位・全員共通にするためroomに置く。
+      case 'SET_BCDICE_SYSTEM': {
+        const { system } = payload;
+        if (!system) return;
+        const room = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({ ...room, bcdiceSystem: system })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;
@@ -783,13 +804,16 @@ class ImmutableStore {
   }
 }
 
+export const DEFAULT_BCDICE_SYSTEM = 'Cthulhu7th';
+
 export const store = new ImmutableStore({
   room: {
     activePlugin: null,   // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
     parameters: {},        // ルーム変数（後述）
     backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
     boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
-    boardHeight: null      // null = ビューポート高さいっぱい（CSSの100%）
+    boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
+    bcdiceSystem: DEFAULT_BCDICE_SYSTEM // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
   },
 
   tokens: {},

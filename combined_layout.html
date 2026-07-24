@@ -145,6 +145,7 @@
 
     .effect-box-header-row {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
     }
 
@@ -156,8 +157,19 @@
       border-radius: 4px;
     }
 
+    /* 名前欄は他の固定幅項目（タイミング/Lv/上昇侵蝕率）に押しつぶされないよう、
+       最低幅を確保する。入りきらない場合はheader-row側のflex-wrapで折り返す。 */
     .effect-box-name {
-      flex: 2;
+      flex: 1 1 160px;
+      min-width: 120px;
+    }
+
+    /* inputは既定でmin-width:autoを持ち、flex-basisを指定しても中身のサイズ分までしか
+       縮まない（結果、隣の.effect-box-nameが押しつぶされる）。min-width:0で明示的に
+       flex-basisどおりの幅まで縮められるようにする。 */
+    .effect-box-timing,
+    .effect-box-level,
+    .effect-box-encroach {
       min-width: 0;
     }
 

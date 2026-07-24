@@ -25,13 +25,14 @@ function defaultLimit() {
 
 // エフェクトを「コンボとして使用した場合」の修正値。単体使用時とは別に持つ
 // （コンボ側はこれらの値を持たず、選択されたエフェクトの値を合算して使う）。
+// 上昇侵蝕率はヘッダー行の「上昇侵蝕率」欄（effect.encroach）と重複するため、ここには持たない
+// （コンボ発動時はeffect.encroachを数値として解釈して使う。dx3-combo-box.js側で処理）。
 export const COMBO_MOD_FIELDS = [
   { key: 'checkDice', label: '判定ダイス' },
   { key: 'fixedValue', label: '固定値' },
   { key: 'attackPower', label: '攻撃力修正' },
   { key: 'damageDice', label: 'ダメージダイス' },
-  { key: 'criticalMod', label: 'クリティカル修正' },
-  { key: 'corruptionGain', label: '上昇侵蝕率' }
+  { key: 'criticalMod', label: 'クリティカル修正' }
 ];
 
 /**
@@ -193,16 +194,29 @@ export function showEffectBox({ effects = [], onSave }) {
       fieldLabel.className = 'effect-box-combo-label';
       fieldLabel.textContent = label;
 
+      const savedMod = effect?.combo?.[key];
+
+      // 係数モード：レベル×3のような表記に対応するため、値を「(エフェクトのLv + EB) に
+      // 掛ける係数」として扱う。未チェック（既定）は従来どおりの固定値。
+      const modeLabel = document.createElement('label');
+      modeLabel.className = 'effect-box-combo-mode-label';
+      const modeCheckbox = document.createElement('input');
+      modeCheckbox.type = 'checkbox';
+      modeCheckbox.checked = savedMod?.mode === 'coefficient';
+      modeLabel.appendChild(modeCheckbox);
+      modeLabel.appendChild(document.createTextNode('係数'));
+
       const input = document.createElement('input');
       input.type = 'number';
       input.className = 'effect-box-combo-input';
-      input.value = effect?.combo?.[key] ?? 0;
+      input.value = savedMod?.value ?? 0;
 
       field.appendChild(fieldLabel);
+      field.appendChild(modeLabel);
       field.appendChild(input);
       comboRow.appendChild(field);
 
-      comboControls[key] = input;
+      comboControls[key] = { modeCheckbox, input };
     });
 
     comboWrap.appendChild(comboRow);
@@ -257,7 +271,11 @@ export function showEffectBox({ effects = [], onSave }) {
 
         const combo = {};
         COMBO_MOD_FIELDS.forEach(({ key }) => {
-          combo[key] = Number(row.comboControls[key].value) || 0;
+          const { modeCheckbox, input } = row.comboControls[key];
+          combo[key] = {
+            mode: modeCheckbox.checked ? 'coefficient' : 'fixed',
+            value: Number(input.value) || 0
+          };
         });
 
         return {

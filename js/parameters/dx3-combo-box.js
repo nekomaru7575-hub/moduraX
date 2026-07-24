@@ -31,8 +31,27 @@ const COMBO_PARAM_MAP = {
   criticalMod: 'DX3:AcB'
 };
 
-function sumComboMod(effects, key) {
-  return effects.reduce((sum, e) => sum + (e.combo?.[key] || 0), 0);
+// コンボ時修正1件分の値。「固定値」はそのまま、「係数」は(エフェクトのLv + EB)に掛けた値を返す
+// （例：判定ダイス+レベル×3のような効果テキストに対応するため）。
+function comboModContribution(effect, key, eb) {
+  const mod = effect.combo?.[key];
+  if (!mod) return 0;
+  const value = mod.value || 0;
+  if (mod.mode === 'coefficient') {
+    return value * ((effect.level || 0) + eb);
+  }
+  return value;
+}
+
+function sumComboMod(effects, key, eb) {
+  return effects.reduce((sum, e) => sum + comboModContribution(e, key, eb), 0);
+}
+
+// 上昇侵蝕率はエフェクト自身の「上昇侵蝕率」欄（encroach）をそのまま使う。
+// シート上は「効果参照」等の非数値も入るため、数値化できないものは0として扱う。
+function parseEncroachNumber(encroach) {
+  const n = Number(encroach);
+  return Number.isFinite(n) ? n : 0;
 }
 
 // コンボの「使用能力値」「使用技能」プルダウンをそれぞれの種類だけに絞り込むための判定。
@@ -145,16 +164,18 @@ export function showComboBox({
     });
     onSaveEffects(nextEffects);
 
-    // 2. 上昇侵蝕率：基礎値を永続的に増やす
-    const corruptionGain = sumComboMod(selectedEffects, 'corruptionGain');
+    // 2. 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす
+    const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
     if (corruptionGain) {
       const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
       dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
     }
 
     // 3. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
+    // 係数モードの換算に使うEB（DX3:corEB）はここで一度だけ取得する
+    const eb = getEffectiveParameterValue(token, 'DX3:corEB') ?? 0;
     Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
-      const delta = sumComboMod(selectedEffects, key);
+      const delta = sumComboMod(selectedEffects, key, eb);
       if (!delta) return;
       dispatch('ADD_BUFF', {
         tokenId, id: generateBuffId(), name: `コンボ:${combo.name}`, paramId, delta, expirePhase: null, tag: combo.id

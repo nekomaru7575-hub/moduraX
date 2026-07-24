@@ -426,7 +426,7 @@ export class ImmutableStore {
       // 持っていない）場合もnullのまま保持し、実効値計算（getEffectiveParameterValue）側で
       // 単に無視される＝効果を持たないバフとして扱う。
       case 'ADD_BUFF': {
-        const { tokenId, id, name, paramId = null, delta, expirePhase = null } = payload;
+        const { tokenId, id, name, paramId = null, delta, expirePhase = null, tag = null } = payload;
         const character = nextTokensState[tokenId];
         if (!character || !id || !name) return;
 
@@ -435,7 +435,8 @@ export class ImmutableStore {
           name,
           paramId,
           delta: Number(delta) || 0,
-          expirePhase: expirePhase || null // 'scene' | 'round' | 'scenario' | null(手動のみ)
+          expirePhase: expirePhase || null, // 'scene' | 'round' | 'scenario' | null(手動のみ)
+          tag: tag || null // 発行元をまとめて識別するための任意タグ（例: コンボ発動時のcombo.id）
         });
 
         nextTokensState[tokenId] = Object.freeze({
@@ -455,6 +456,23 @@ export class ImmutableStore {
         nextTokensState[tokenId] = Object.freeze({
           ...character,
           buffs: Object.freeze(character.buffs.filter(b => b.id !== id))
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // 指定tagを持つバフ/デバフを1コマから一括削除する（例: コンボダメージ実行後、
+      // そのコンボ発動由来のバフをまとめて消す）。EXPIRE_BUFFSと違い通常の行動完了に
+      // 伴う片付けなのでログへの記録はしない。
+      case 'REMOVE_BUFFS_BY_TAG': {
+        const { tokenId, tag } = payload;
+        const character = nextTokensState[tokenId];
+        if (!character || !character.buffs || !tag) return;
+
+        nextTokensState[tokenId] = Object.freeze({
+          ...character,
+          buffs: Object.freeze(character.buffs.filter(b => b.tag !== tag))
         });
 
         this.#commit(prevState, nextTokensState);

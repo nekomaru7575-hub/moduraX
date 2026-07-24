@@ -28,13 +28,19 @@ export function applyImageCropStyle(imgEl, crop) {
 // プラグイン専用スペースを組み立てる。プラグインが専用UI(renderCharacterPanel)を
 // 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
-function buildPluginPanel({ activePluginId, mode, parameters, components, onComponentChange, getComponents }) {
+function buildPluginPanel({
+  activePluginId, mode, parameters, components, onComponentChange, getComponents,
+  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+}) {
   const column = document.createElement('div');
   column.className = 'dialog-plugin-column';
 
   let panel = null;
   if (activePluginId && pluginHasCharacterPanel(activePluginId)) {
-    panel = renderCharacterPanel(activePluginId, { container: column, mode, parameters, components, onComponentChange, getComponents });
+    panel = renderCharacterPanel(activePluginId, {
+      container: column, mode, parameters, components, onComponentChange, getComponents,
+      dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+    });
   } else {
     const placeholder = document.createElement('p');
     placeholder.className = 'dialog-plugin-placeholder';
@@ -441,7 +447,10 @@ function ensureEditDialog() {
  *   }) => void
  * }} options
  */
-export function showCharacterEditDialog({ character, activePluginId = null, onComponentChange, getComponents, onConfirm }) {
+export function showCharacterEditDialog({
+  character, activePluginId = null, onComponentChange, getComponents, onConfirm,
+  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+}) {
   const dialog = ensureEditDialog();
   dialog.innerHTML = '';
 
@@ -607,7 +616,8 @@ export function showCharacterEditDialog({ character, activePluginId = null, onCo
     parameters: character.parameters,
     components: character.components,
     onComponentChange,
-    getComponents
+    getComponents,
+    dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
   });
   columns.appendChild(pluginPanel.element);
 

@@ -23,6 +23,17 @@ function defaultLimit() {
   return { current: 0, max: null, ebBonus: false };
 }
 
+// エフェクトを「コンボとして使用した場合」の修正値。単体使用時とは別に持つ
+// （コンボ側はこれらの値を持たず、選択されたエフェクトの値を合算して使う）。
+export const COMBO_MOD_FIELDS = [
+  { key: 'checkDice', label: '判定ダイス' },
+  { key: 'fixedValue', label: '固定値' },
+  { key: 'attackPower', label: '攻撃力修正' },
+  { key: 'damageDice', label: 'ダメージダイス' },
+  { key: 'criticalMod', label: 'クリティカル修正' },
+  { key: 'corruptionGain', label: '上昇侵蝕率' }
+];
+
 /**
  * @param {{
  *   effects: Array<{
@@ -151,9 +162,46 @@ export function showEffectBox({ effects = [], onSave }) {
     });
 
     item.appendChild(limitsWrap);
+
+    // コンボ時修正：このエフェクトがコンボへ組み込まれたときの修正値（単体使用時とは別値）
+    const comboWrap = document.createElement('div');
+    comboWrap.className = 'effect-box-combo-mods';
+
+    const comboTitle = document.createElement('div');
+    comboTitle.className = 'effect-box-combo-title';
+    comboTitle.textContent = 'コンボ時修正';
+    comboWrap.appendChild(comboTitle);
+
+    const comboRow = document.createElement('div');
+    comboRow.className = 'effect-box-combo-row';
+
+    const comboControls = {};
+    COMBO_MOD_FIELDS.forEach(({ key, label }) => {
+      const field = document.createElement('div');
+      field.className = 'effect-box-combo-field';
+
+      const fieldLabel = document.createElement('span');
+      fieldLabel.className = 'effect-box-combo-label';
+      fieldLabel.textContent = label;
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'effect-box-combo-input';
+      input.value = effect?.combo?.[key] ?? 0;
+
+      field.appendChild(fieldLabel);
+      field.appendChild(input);
+      comboRow.appendChild(field);
+
+      comboControls[key] = input;
+    });
+
+    comboWrap.appendChild(comboRow);
+    item.appendChild(comboWrap);
+
     listEl.appendChild(item);
 
-    rows.push({ item, nameInput, levelInput, encroachInput, noteInput, limitControls });
+    rows.push({ item, nameInput, levelInput, encroachInput, noteInput, limitControls, comboControls });
   }
 
   effects.forEach(addRow);
@@ -198,12 +246,18 @@ export function showEffectBox({ effects = [], onSave }) {
           };
         });
 
+        const combo = {};
+        COMBO_MOD_FIELDS.forEach(({ key }) => {
+          combo[key] = Number(row.comboControls[key].value) || 0;
+        });
+
         return {
           name: row.nameInput.value.trim(),
           level: Number(row.levelInput.value) || 0,
           encroach: row.encroachInput.value.trim(),
           note: row.noteInput.value,
-          limits
+          limits,
+          combo
         };
       })
       .filter(effect => effect.name !== '');

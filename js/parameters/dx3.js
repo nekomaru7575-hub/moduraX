@@ -1,11 +1,20 @@
 import { buildParameters } from './paramFactory.js';
 import { showEffectBox } from './dx3-effect-box.js';
 import { showAbilitySkillBox } from './dx3-ability-box.js';
+import { showComboBox } from './dx3-combo-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
     {key : "corDB", label : "DB",value : 0 , editable : false,visible : false},
     {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
+    {key : "attackPower", label : "攻撃力",value : 0},
+    // コンボ発動時のバフの対象になる内部レジスタ。手入力での編集・一覧表示は想定しないため
+    // editable:false・visible:falseだが、バフ（ADD_BUFF）はeditableを見ずに加算できる。
+    {key : "comboCheckDice", label : "判定ダイス修正(コンボ)",value : 0, editable : false,visible : false},
+    {key : "comboFixedValue", label : "判定固定値修正(コンボ)",value : 0, editable : false,visible : false},
+    {key : "comboAttackPower", label : "攻撃力修正(コンボ)",value : 0, editable : false,visible : false},
+    {key : "comboDamageDice", label : "ダメージダイス修正(コンボ)",value : 0, editable : false,visible : false},
+    {key : "comboCriticalMod", label : "クリティカル値修正(コンボ)",value : 0, editable : false,visible : false},
     // 能力値・技能値：JSON読み込みで同期する値。手入力での編集・表示は想定しないため
     // locked:true（削除不可）,editable:false（値の直接編集不可）,visible:false（一覧非表示）
     {key : "sttTotalBody", label : "肉体",value : 0, locked : true, editable : false,visible : false},
@@ -47,7 +56,10 @@ export function computeDX3DerivedParameters(parameters) {
 
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
-function renderDX3CharacterPanel({ container, mode, parameters, components, onComponentChange, getComponents }) {
+function renderDX3CharacterPanel({
+  container, mode, parameters, components, onComponentChange, getComponents,
+  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+}) {
   container.innerHTML = '';
 
   const title = document.createElement('h4');
@@ -97,9 +109,10 @@ function renderDX3CharacterPanel({ container, mode, parameters, components, onCo
   }
 
   if (mode === 'edit' && onComponentChange) {
-    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のeffectsを読む。
+    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のeffects/combosを読む。
     // getComponentsが無い場合のみ、開いた時点のスナップショット(components)にフォールバックする。
     const readEffects = () => (getComponents ? getComponents() : components)?.effects ?? [];
+    const readCombos = () => (getComponents ? getComponents() : components)?.combos ?? [];
 
     const effectBtn = document.createElement('button');
     effectBtn.type = 'button';
@@ -119,6 +132,41 @@ function renderDX3CharacterPanel({ container, mode, parameters, components, onCo
       });
     });
     container.appendChild(effectBtn);
+
+    // コンボ一覧（ボックス）。判定/ダメージロールとバフ付与を行うため、
+    // store操作一式（dispatch等）とrollBCDiceが揃っている場合のみ表示する。
+    if (dispatch && getToken && getEffectiveParameterValue && generateBuffId && rollBCDice && tokenId) {
+      const comboBtn = document.createElement('button');
+      comboBtn.type = 'button';
+      comboBtn.className = 'dialog-add-row-btn';
+      comboBtn.style.marginTop = '8px';
+      const updateComboBtnLabel = () => {
+        comboBtn.textContent = `コンボ一覧を開く（${readCombos().length}件）`;
+      };
+      updateComboBtnLabel();
+      comboBtn.addEventListener('click', () => {
+        showComboBox({
+          combos: readCombos(),
+          effects: readEffects(),
+          parameters,
+          tokenId,
+          dispatch,
+          getToken,
+          getEffectiveParameterValue,
+          generateBuffId,
+          rollBCDice,
+          onSave: (nextCombos) => {
+            onComponentChange('combos', nextCombos);
+            updateComboBtnLabel();
+          },
+          onSaveEffects: (nextEffects) => {
+            onComponentChange('effects', nextEffects);
+            updateEffectBtnLabel();
+          }
+        });
+      });
+      container.appendChild(comboBtn);
+    }
   }
 
   return {

@@ -10,6 +10,7 @@ import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parame
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId } from './local-identity.js';
+import { rollBCDice } from './BCdice.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
   getEffectiveParameterValue, BUFF_PHASE_LABELS
@@ -248,6 +249,14 @@ function bindTokenDrag(element, board) {
             // components（他クライアントの同期・直前の保存を含む）を読めるようにする。
             // 開いた時点のスナップショットを握り続けると、再編集で古い内容に巻き戻る。
             getComponents: () => store.state.tokens[tokenId]?.components ?? {},
+            // DX3のコンボ機能（発動/判定/ダメージ）が必要とするstore操作・ダイスロール一式。
+            // getTokenも同様に、開いた時点のスナップショットではなく都度最新を返す。
+            tokenId,
+            dispatch: store.dispatch.bind(store),
+            getToken: () => store.state.tokens[tokenId],
+            getEffectiveParameterValue,
+            generateBuffId,
+            rollBCDice,
             onConfirm: ({ name, image, imageCrop, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;

@@ -159,8 +159,13 @@ export function runComboActivate({
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
     const delta = sumComboMod(selectedEffects, key, eb);
     if (!delta) return;
+    // バフ名はコンボ名ではなく、このパラメータへ実際に修正を与えたエフェクト名（複数なら" + "区切り）にする。
+    const contributingNames = selectedEffects
+      .filter(e => comboModContribution(e, key, eb) !== 0)
+      .map(e => e.name)
+      .join(' + ');
     dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: `コンボ:${combo.name}`, paramId, delta, expirePhase: null, tag: combo.id
+      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta, expirePhase: null, tag: combo.id
     });
   });
 

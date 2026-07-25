@@ -232,13 +232,16 @@ export async function runComboDamage({
 
   try {
     const { success, resultText } = await rollBCDice('DoubleCross', command);
-    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}`);
 
     // 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす。
     // ダメージを出した後に反映してほしいという要望のため、発動(runComboActivate)ではなく
     // ここ（ダメージロール後）で加算する。
     const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
     const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
+
+    const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
+    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`);
+
     if (corruptionGain) {
       const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
       dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });

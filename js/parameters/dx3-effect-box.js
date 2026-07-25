@@ -216,9 +216,23 @@ export function showEffectBox({ effects = [], onSave }) {
       field.appendChild(fieldLabel);
       field.appendChild(modeSelect);
       field.appendChild(input);
+
+      // クリティカル修正のみ、クリティカル値の下限（このエフェクトが有効な間、修正後の
+      // クリティカル値がこれを下回らないようにする値）を追加で持てる。空欄なら下限なし。
+      let floorInput = null;
+      if (key === 'criticalMod') {
+        floorInput = document.createElement('input');
+        floorInput.type = 'number';
+        floorInput.className = 'effect-box-combo-input effect-box-combo-floor';
+        floorInput.placeholder = '下限';
+        floorInput.title = 'クリティカル値の下限（空欄で下限なし）';
+        floorInput.value = savedMod?.floor ?? '';
+        field.appendChild(floorInput);
+      }
+
       comboRow.appendChild(field);
 
-      comboControls[key] = { modeSelect, input };
+      comboControls[key] = { modeSelect, input, floorInput };
     });
 
     comboWrap.appendChild(comboRow);
@@ -273,11 +287,15 @@ export function showEffectBox({ effects = [], onSave }) {
 
         const combo = {};
         COMBO_MOD_FIELDS.forEach(({ key }) => {
-          const { modeSelect, input } = row.comboControls[key];
+          const { modeSelect, input, floorInput } = row.comboControls[key];
           combo[key] = {
             mode: modeSelect.value === 'coefficient' ? 'coefficient' : 'fixed',
             value: Number(input.value) || 0
           };
+          if (floorInput) {
+            const rawFloor = floorInput.value.trim();
+            combo[key].floor = rawFloor === '' ? null : (Number(rawFloor) || 0);
+          }
         });
 
         return {

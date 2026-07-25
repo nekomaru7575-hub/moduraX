@@ -52,6 +52,16 @@ function sumComboMod(effects, key, eb) {
   return effects.reduce((sum, e) => sum + comboModContribution(e, key, eb), 0);
 }
 
+// クリティカル修正を持つエフェクトの「クリティカル値の下限」。複数のエフェクトが下限を
+// 持つ場合は、一番低い（＝一番緩い）ものを適用する。下限を持たないエフェクトはnullを返す。
+function lowestCriticalFloor(effects) {
+  const floors = effects
+    .map(e => e.combo?.criticalMod?.floor)
+    .filter(f => f !== null && f !== undefined && Number.isFinite(f));
+  if (floors.length === 0) return null;
+  return Math.min(...floors);
+}
+
 // 上昇侵蝕率はエフェクト自身の「上昇侵蝕率」欄（encroach）をそのまま使う。
 // シート上は「効果参照」等の非数値も入るため、数値化できないものは0として扱う。
 function parseEncroachNumber(encroach) {
@@ -176,11 +186,11 @@ export function runComboActivate({
 }
 
 /**
- * @param {{combo:object, tokenId:string, dispatch:Function, getToken:Function,
+ * @param {{combo:object, effects:Array<object>, tokenId:string, dispatch:Function, getToken:Function,
  *   getEffectiveParameterValue:Function, generateBuffId:Function, rollBCDice:Function}} options
  */
 export async function runComboCheck({
-  combo, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice
+  combo, effects = [], tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice
 }) {
   const token = getToken();
   if (!token) return;
@@ -193,7 +203,14 @@ export async function runComboCheck({
   const criticalMod = getEffectiveParameterValue(token, 'DX3:AcB') ?? 0;
 
   const diceCount = Math.max(1, Math.round(ability + checkDice + db));
-  const criticalValue = 10 + criticalMod;
+  const rawCriticalValue = 10 + criticalMod;
+
+  // クリティカル値の下限：このコンボで使用するエフェクトのうち下限を持つものだけを見て、
+  // 一番低い（緩い）下限を適用する。修正後のクリティカル値がそれを下回っていたら下限に引き上げる。
+  const selectedEffectsForCheck = effects.filter(e => combo.effectNames.includes(e.name));
+  const criticalFloor = lowestCriticalFloor(selectedEffectsForCheck);
+  const criticalValue = criticalFloor !== null ? Math.max(rawCriticalValue, criticalFloor) : rawCriticalValue;
+
   const command = `${diceCount}DX${criticalValue}+${skill}+${fixedValue}`;
 
   try {
@@ -203,7 +220,8 @@ export async function runComboCheck({
       return;
     }
 
-    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}`);
+    const floorText = criticalValue !== rawCriticalValue ? `\nクリティカル値下限（${criticalFloor}）を適用` : '';
+    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}`);
 
     const achievement = parseFinalNumber(resultText);
     if (achievement !== null) {

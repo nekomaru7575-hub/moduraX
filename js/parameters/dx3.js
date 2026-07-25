@@ -391,7 +391,7 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
       onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
     });
   } else if (action === 'jdm') {
-    runComboCheck({ combo, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
+    runComboCheck({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
   } else if (action === 'dmg') {
     runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });
   }

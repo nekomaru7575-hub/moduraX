@@ -62,7 +62,7 @@ export function computeDX3DerivedParameters(parameters) {
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
 function renderDX3CharacterPanel({
-  container, mode, parameters, components, onComponentChange, getComponents
+  container, mode, parameters, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue
 }) {
   container.innerHTML = '';
 
@@ -76,27 +76,65 @@ function renderDX3CharacterPanel({
   const corDBParam = parameters['DX3:corDB'];
   const corEBParam = parameters['DX3:corEB'];
 
-  const group = document.createElement('div');
-  group.className = 'dialog-form-group';
+  // 侵蝕率・DB・EBを横並びのコンパクトな枠で表示（縦スペースを節約する）
+  const compactRow = document.createElement('div');
+  compactRow.className = 'dx3-compact-row';
+
+  const corruptionField = document.createElement('div');
+  corruptionField.className = 'dx3-compact-field';
   const label = document.createElement('label');
   label.textContent = corruptionParam?.label ?? '侵蝕率';
   const input = document.createElement('input');
   input.type = 'number';
   input.value = corruptionParam?.value ?? 0;
-  group.appendChild(label);
-  group.appendChild(input);
-  container.appendChild(group);
+  corruptionField.appendChild(label);
+  corruptionField.appendChild(input);
+  compactRow.appendChild(corruptionField);
 
-  const derivedList = document.createElement('div');
-  derivedList.className = 'character-param-list';
   [corDBParam, corEBParam].forEach(param => {
     if (!param) return;
-    const row = document.createElement('div');
-    row.className = 'character-param-row';
-    row.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
-    derivedList.appendChild(row);
+    const field = document.createElement('div');
+    field.className = 'dx3-compact-field';
+    field.innerHTML = `<label>${param.label}</label><span class="dx3-compact-value">${param.value}</span>`;
+    compactRow.appendChild(field);
   });
-  container.appendChild(derivedList);
+  container.appendChild(compactRow);
+
+  // エフェクトによるバフを受け取る汎用レジスタ（AdB/AnB/AcB/DdB/DaB）を表示。
+  // コンボ発動等でバフが加算された際の現在値を確認できるようにする（手入力不可）。
+  const BUFF_REGISTER_KEYS = ['AdB', 'AnB', 'AcB', 'DdB', 'DaB'];
+  const buffRegisterParams = BUFF_REGISTER_KEYS
+    .map(key => parameters[`DX3:${key}`])
+    .filter(Boolean);
+
+  if (buffRegisterParams.length > 0) {
+    const buffSection = document.createElement('div');
+    buffSection.className = 'dx3-buff-registers';
+
+    const buffTitle = document.createElement('div');
+    buffTitle.className = 'dx3-buff-registers-title';
+    buffTitle.textContent = 'エフェクトによる修正値';
+    buffSection.appendChild(buffTitle);
+
+    // バフは基礎値(param.value)ではなく token.buffs 側に積まれるため、常に実効値
+    // （基礎値＋アクティブなバフ合計）を読んで表示する。取得手段がない場合のみ基礎値で代用する。
+    const token = getToken ? getToken() : null;
+    const buffGrid = document.createElement('div');
+    buffGrid.className = 'dx3-buff-register-grid';
+    buffRegisterParams.forEach(param => {
+      const paramId = `DX3:${param.key}`;
+      const effectiveValue = (getEffectiveParameterValue && token)
+        ? getEffectiveParameterValue(token, paramId)
+        : param.value;
+      const cell = document.createElement('div');
+      cell.className = 'dx3-buff-register-cell';
+      cell.title = param.label;
+      cell.innerHTML = `<span class="dx3-buff-register-label">${param.key}</span><span class="dx3-buff-register-value">${effectiveValue ?? param.value}</span>`;
+      buffGrid.appendChild(cell);
+    });
+    buffSection.appendChild(buffGrid);
+    container.appendChild(buffSection);
+  }
 
   // エフェクト一覧（ボックス）。既存キャラクターの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外）。

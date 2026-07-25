@@ -10,7 +10,9 @@ const EXPIRE_PHASE_OPTIONS = [
   { value: '', label: '手動のみ（自動消滅なし）' },
   { value: 'scene', label: 'シーン終了で消滅' },
   { value: 'round', label: 'ラウンド終了で消滅' },
-  { value: 'scenario', label: 'シナリオ終了で消滅' }
+  { value: 'scenario', label: 'シナリオ終了で消滅' },
+  { value: 'check', label: '判定終了で消滅' },
+  { value: 'process', label: 'プロセス終了で消滅' }
 ];
 
 let addDialogEl = null;

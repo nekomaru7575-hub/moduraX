@@ -165,7 +165,7 @@ export function runComboActivate({
       .map(e => e.name)
       .join(' + ');
     dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta, expirePhase: null, tag: combo.id
+      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta, expirePhase: 'process', tag: combo.id
     });
   });
 

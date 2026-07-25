@@ -381,7 +381,7 @@ function tryHandleParameterCommand(rawInput, character) {
 // 例: バフ(集中,知覚,+10,シーン)　バフ>ゴブリンA(苦しみ,回避,-10,ラウンド)
 // ">対象コマ名"を省略した場合は参照キャラクター欄で選択中のコマが対象になる（従来どおり）。
 // 指定した場合はその名前のコマ（コマ名の完全一致）を、選択中のキャラクターより優先して
-// 対象にする。終了条件は シーン/ラウンド/シナリオ/手動 のいずれか（「◯◯終了」表記でも可）。
+// 対象にする。終了条件は シーン/ラウンド/シナリオ/判定/プロセス/手動 のいずれか（「◯◯終了」表記でも可）。
 // 対象パラメータが見つからない場合もバフ自体は付与するが、効果を持たない
 // （getEffectiveParameterValue側で無視される）。
 const BUFF_COMMAND_PATTERN = /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)\)$/;
@@ -390,6 +390,8 @@ const BUFF_PHASE_TEXT_TO_KEY = {
   'シーン': 'scene', 'シーン終了': 'scene',
   'ラウンド': 'round', 'ラウンド終了': 'round',
   'シナリオ': 'scenario', 'シナリオ終了': 'scenario',
+  '判定': 'check', '判定終了': 'check',
+  'プロセス': 'process', 'プロセス終了': 'process',
   '手動': null, '手動のみ': null
 };
 
@@ -444,11 +446,14 @@ function tryHandleBuffCommand(rawInput, character) {
   return true;
 }
 
-// 「シーン終了」「ラウンド終了」「シナリオ終了」とだけ入力して送信すると、該当する終了条件の
+// 「シーン終了」「ラウンド終了」「シナリオ終了」「判定終了」「プロセス終了」とだけ入力して送信すると、該当する終了条件の
 // バフ/デバフを全コマから一括で消す（EXPIRE_BUFFSはstore側で全クライアント同期・ログ追記まで
 // 完結するので、ここではdispatchするだけでよい）。標準の「シーン進行」機能実装までの
 // エスケープハッチ。
-const PHASE_END_COMMANDS = { 'シーン終了': 'scene', 'ラウンド終了': 'round', 'シナリオ終了': 'scenario' };
+const PHASE_END_COMMANDS = {
+  'シーン終了': 'scene', 'ラウンド終了': 'round', 'シナリオ終了': 'scenario',
+  '判定終了': 'check', 'プロセス終了': 'process'
+};
 
 function tryHandlePhaseEndCommand(rawInput) {
   const phase = PHASE_END_COMMANDS[rawInput.trim()];

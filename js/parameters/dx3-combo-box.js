@@ -164,7 +164,10 @@ export function runComboActivate({
     });
   });
 
-  logToMain(dispatch, `コンボ発動: ${combo.name}`);
+  const effectNamesText = selectedEffects.map(e => e.name).join(' + ');
+  logToMain(dispatch, effectNamesText
+    ? `コンボ発動: ${combo.name}\n${effectNamesText}`
+    : `コンボ発動: ${combo.name}`);
 }
 
 /**

@@ -442,6 +442,13 @@ function applyPanelAppearance(el, panelData) {
     el.style.backgroundImage = '';
   }
 
+  // マウスオーバー時にブラウザ標準のツールチップとして表示する（画像とは独立）
+  if (panelData.text) {
+    el.title = panelData.text;
+  } else {
+    el.removeAttribute('title');
+  }
+
   // 固定中はカーソル・枠線で見分けられるようにする（CSSは.panel-object.lockedで定義）
   el.classList.toggle('locked', !!panelData.locked);
 }
@@ -510,14 +517,18 @@ function bindPanelDrag(element, board) {
           showPanelDialog({
             title: 'パネルを編集',
             initialImage: current.image,
+            initialText: current.text,
             initialCols: current.cols,
             initialRows: current.rows,
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, cols, rows }) => {
+            onConfirm: ({ image, text, cols, rows }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
               if (image !== (latest.image || null)) {
                 store.dispatch('SET_PANEL_IMAGE', { id: panelId, image });
+              }
+              if (text !== (latest.text || '')) {
+                store.dispatch('SET_PANEL_TEXT', { id: panelId, text });
               }
               if (cols !== latest.cols || rows !== latest.rows) {
                 store.dispatch('SET_PANEL_SIZE', { id: panelId, cols, rows });
@@ -693,7 +704,7 @@ window.addEventListener('DOMContentLoaded', () => {
           showPanelDialog({
             title: 'パネルを追加',
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, cols, rows }) => {
+            onConfirm: ({ image, text, cols, rows }) => {
               const rect = { x: snapX, y: snapY, w: cols * GRID_SIZE, h: rows * GRID_SIZE };
               if (!isPanelPlacementValid(rect, board, null)) {
                 alert('パネルは盤面または他のパネルに隣接する位置に配置してください。');
@@ -702,6 +713,7 @@ window.addEventListener('DOMContentLoaded', () => {
               store.dispatch('ADD_PANEL', {
                 id: generatePanelId(),
                 image,
+                text,
                 x: snapX,
                 y: snapY,
                 cols,

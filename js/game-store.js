@@ -715,7 +715,7 @@ export class ImmutableStore {
       // 位置(x,y)は盤面ローカルのピクセル座標（グリッド吸着済み、盤面外は負値もあり得る）、
       // 大きさ(cols,rows)はマス数。隣接判定などの配置妥当性チェックはUI層(board-data-driven.js)が行う。
       case 'ADD_PANEL': {
-        const { id, image = null, x = 0, y = 0, cols = 2, rows = 2, locked = false } = payload;
+        const { id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false } = payload;
         if (!id) return;
         if (prevState.panels[id]) return;
 
@@ -725,7 +725,7 @@ export class ImmutableStore {
           panels: Object.freeze({
             ...prevState.panels,
             [id]: Object.freeze({
-              id, image: image || null, x, y,
+              id, image: image || null, text: text || '', x, y,
               cols: Math.max(1, Math.round(cols)),
               rows: Math.max(1, Math.round(rows)),
               locked: !!locked // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
@@ -804,6 +804,23 @@ export class ImmutableStore {
           panels: Object.freeze({
             ...prevState.panels,
             [id]: Object.freeze({ ...prevState.panels[id], image: image || null })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'SET_PANEL_TEXT': {
+        const { id, text } = payload;
+        if (!prevState.panels[id]) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(nextTokensState),
+          panels: Object.freeze({
+            ...prevState.panels,
+            [id]: Object.freeze({ ...prevState.panels[id], text: text || '' })
           })
         });
 

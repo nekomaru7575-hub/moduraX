@@ -29,14 +29,15 @@ function loadImageDimensions(dataUrl) {
  * @param {{
  *   title?: string,
  *   initialImage?: string | null,
+ *   initialText?: string,
  *   initialCols?: number,
  *   initialRows?: number,
  *   gridSize: number,
- *   onConfirm: (result: { image: string | null, cols: number, rows: number }) => void
+ *   onConfirm: (result: { image: string | null, text: string, cols: number, rows: number }) => void
  * }} options
  */
 export function showPanelDialog({
-  title = 'パネルを追加', initialImage = null, initialCols = 2, initialRows = 2, gridSize, onConfirm
+  title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -100,6 +101,19 @@ export function showPanelDialog({
   imageGroup.appendChild(imageBtnRow);
   form.appendChild(imageGroup);
 
+  // --- マウスオーバーテキスト ---
+  const textGroup = document.createElement('div');
+  textGroup.className = 'dialog-form-group';
+  const textLabel = document.createElement('label');
+  textLabel.textContent = 'マウスオーバーテキスト';
+  const textInput = document.createElement('textarea');
+  textInput.rows = 4;
+  textInput.value = initialText || '';
+  textInput.placeholder = 'パネルにカーソルを合わせたときに表示するテキスト';
+  textGroup.appendChild(textLabel);
+  textGroup.appendChild(textInput);
+  form.appendChild(textGroup);
+
   // --- 幅（マス） ---
   const colsGroup = document.createElement('div');
   colsGroup.className = 'dialog-form-group';
@@ -153,7 +167,7 @@ export function showPanelDialog({
     const cols = Math.max(1, Math.round(Number(colsInput.value) || initialCols));
     const rows = Math.max(1, Math.round(Number(rowsInput.value) || initialRows));
     dialog.close();
-    onConfirm({ image: currentImage, cols, rows });
+    onConfirm({ image: currentImage, text: textInput.value, cols, rows });
   });
 
   dialog.appendChild(form);

@@ -5,11 +5,10 @@ image/sample/DediDevi.png
 .gitignore
 image/sample/face.PNG
 image/sample/download20250804204224.png
-JSON/sample/安野吽.json
-JSON/sample/黒鉦大智.json
-txt/server.txt
-txt/設計方針.txt
-txt/通信実現のプラン.txt
+image/iconDediDevi.png
 node_modules/
 server/state.json
 server/rooms/
+JSON/
+txt/
+.claude/

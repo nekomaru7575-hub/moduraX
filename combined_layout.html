@@ -1129,7 +1129,7 @@
       align-items: center;
       gap: 4px;
       flex-shrink: 0;
-      padding-bottom: 6px;
+      padding-top: 6px;
       overflow-x: auto;
     }
 
@@ -1137,7 +1137,7 @@
       background-color: #2a2a2a;
       color: #aaa;
       border: 1px solid #444;
-      border-radius: 4px 4px 0 0;
+      border-radius: 0 0 4px 4px;
       padding: 4px 10px;
       font-size: 0.8rem;
       cursor: pointer;
@@ -1634,12 +1634,12 @@
     </div>
 
     <div class="control-area" id="controlArea">
-      <!-- 上段：チャットタブ＋ログ -->
+      <!-- 上段：ログ＋チャットタブ。タブは入力欄に近い下側に置く -->
       <div class="log-section" data-resizable-section="log">
-        <div class="chat-tabs" id="chatTabs"></div>
         <div class="log-container" id="logContainer">
           <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
         </div>
+        <div class="chat-tabs" id="chatTabs"></div>
       </div>
 
       <!-- 下段：チャット送信欄＋チャットパレットを統合。ログとの間のみリサイズ可能 -->

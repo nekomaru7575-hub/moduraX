@@ -224,10 +224,10 @@ const DX3_FIXED_SKILL_FIELD_MAP = {
   skillPercept: '知覚',
   skillWill: '意志',
   skillNegotiate: '交渉',
-  skillRC: 'RC' // 表記がシート上の略称のままか要確認
+  skillRC: 'RC'
 };
 
-// 知識/技芸/騎乗/情報のような可変スロット技能。キャラクターごとに名前が異なるため
+// 知識/芸術/運転/情報のような可変スロット技能。キャラクターごとに名前が異なるため
 // DX3_PARAMETERSには含めず、JSON読み込み時に見つかった分だけnewParametersとして追加する。
 const DX3_SKILL_SLOT_CATEGORIES = ['Art', 'Know', 'Ride', 'Info'];
 const DX3_MAX_SKILL_SLOTS = 10; // シート上のNum値に関わらず安全に走査するための上限

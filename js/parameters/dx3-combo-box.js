@@ -90,7 +90,7 @@ function isDX3SkillParam(paramId) {
 
 // タイミングのプルダウンを、DX3のアクション順に近い並びで表示するための優先順位。
 // 一覧にない値（シート側の表記ゆれ等）は末尾にそのまま表示する。
-const DX3_TIMING_ORDER = ['オート', 'セットアップ', 'メジャー', 'マイナー', 'ジャッジ', 'リアクション', 'インスタント'];
+const DX3_TIMING_ORDER = ['オート', 'セットアップ', 'メジャー', 'マイナー', 'リアクション'];
 
 function sortTimings(timings) {
   return [...timings].sort((a, b) => {
@@ -225,7 +225,7 @@ export async function runComboCheck({
 
     const achievement = parseFinalNumber(resultText);
     if (achievement !== null) {
-      const bonusDice = Math.ceil(achievement / 10);
+      const bonusDice = Math.floor(achievement / 10)+1;
       dispatch('ADD_BUFF', {
         tokenId, id: generateBuffId(), name: `コンボ:${combo.name}(達成値ボーナス)`,
         paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id

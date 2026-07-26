@@ -1,14 +1,17 @@
 // js/round-panel.js
-// ラウンド進行の常時表示ステータスバー。net-sync.jsと同様にinitRoundPanel()をexportし、
-// main.jsの初期化処理から1回だけ呼ぶ。STATE_CHANGEDを自前で購読し、state.round/state.tokensの
-// 参照が変わったときだけ再描画する（lastRenderedChatTabsRefと同じ差分チェックパターン）。
+// ラウンド進行の状態バー。進行中（state.round.active）のときだけ表示し、平常時は
+// 邪魔にならないよう非表示にする。開始のきっかけ（ラウンド進行を開始）はルームメニュー
+// （js/main.jsのroomMenuBtn）側から呼ばれるopenRoundStartDialog()が担う。
+// net-sync.jsと同様にinitRoundPanel()をexportし、main.jsの初期化処理から1回だけ呼ぶ。
+// STATE_CHANGEDを自前で購読し、state.round/state.tokensの参照が変わったときだけ再描画する
+// （lastRenderedChatTabsRefと同じ差分チェックパターン）。
 // 点呼(confirmation)はソフトな可視化のみで、進行操作自体はブロックしない。
 
 import { store } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
-import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
+import { getLocalUserId, getNickname } from './local-identity.js';
 
 let lastRenderedRoundRef = null;
 let lastRenderedTokensRef = null;
@@ -22,10 +25,9 @@ function currentPhase(round) {
   return round.template ? round.template[round.phaseIndex] : null;
 }
 
-// 直前の遷移に対して点呼/割り込み確認を表示すべきか。未開始時は開始そのものの点呼として
-// 常に表示し、進行中はその場のフェーズのconfirmModeに従う。
+// 直前の遷移に対して点呼/割り込み確認を表示すべきか（進行中のみ意味を持つ。フェーズの
+// confirmModeに従う）。
 function shouldShowConfirmation(round) {
-  if (!round.active) return true;
   const phase = currentPhase(round);
   return phase ? phase.confirmMode === 'confirm' : true;
 }
@@ -34,6 +36,20 @@ function listBoardTokens(state) {
   return Object.values(state.tokens)
     .filter(t => !t.inBackyard)
     .map(t => ({ id: t.id, name: t.name }));
+}
+
+// ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。参加者選択ダイアログを開き、
+// 確定するとROUND_PROGRESSION_STARTをdispatchする（これでround.activeがtrueになり、
+// このパネル自体が表示される）。
+export function openRoundStartDialog() {
+  showRoundSetupDialog({
+    title: 'ラウンド進行の参加者を選択',
+    tokens: listBoardTokens(store.state),
+    currentParticipantIds: [],
+    onConfirm: ({ participantIds }) => {
+      store.dispatch('ROUND_PROGRESSION_START', { participantIds });
+    }
+  });
 }
 
 export function initRoundPanel() {
@@ -50,16 +66,17 @@ export function initRoundPanel() {
   function render(state) {
     const round = state.round;
 
+    // 平常時（未進行）はバー・詳細ともに非表示にして邪魔にならないようにする
+    bar.style.display = round.active ? '' : 'none';
+    if (detailEl && !round.active) detailEl.style.display = 'none';
+    if (!round.active) return;
+
     // --- ステータス行 ---
-    if (!round.active) {
-      statusEl.textContent = 'ラウンド進行前';
-    } else {
-      const phase = currentPhase(round);
-      const turnText = phase?.kind === 'perCharacter' && round.participants.length > 0
-        ? `（手番: ${getTokenName(state, round.participants[round.turnIndex])}）`
-        : '';
-      statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`;
-    }
+    const phase = currentPhase(round);
+    const turnText = phase?.kind === 'perCharacter' && round.participants.length > 0
+      ? `（手番: ${getTokenName(state, round.participants[round.turnIndex])}）`
+      : '';
+    statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`;
 
     // --- 点呼チップ ---
     if (readyListEl) {
@@ -92,15 +109,10 @@ export function initRoundPanel() {
     }
 
     // --- 主操作ボタン（ソフトゲート：点呼の状態に関わらず常に押せる） ---
-    if (!round.active) {
-      actionBtn.textContent = 'ラウンド進行を開始';
-    } else {
-      const phase = currentPhase(round);
-      const isLastParticipant = round.turnIndex >= round.participants.length - 1;
-      const isLastStepOfPhase = phase?.kind !== 'perCharacter' || isLastParticipant;
-      const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
-      actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ' : '次へ進む';
-    }
+    const isLastParticipant = round.turnIndex >= round.participants.length - 1;
+    const isLastStepOfPhase = phase?.kind !== 'perCharacter' || isLastParticipant;
+    const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
+    actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ' : '次へ進む';
 
     // --- 詳細（手番順）リスト ---
     if (detailEl) {
@@ -115,11 +127,10 @@ export function initRoundPanel() {
           empty.textContent = '参加者がいません。';
           detailEl.appendChild(empty);
         } else {
-          const phase = currentPhase(round);
           round.participants.forEach((tokenId, idx) => {
             const row = document.createElement('div');
             row.className = 'round-panel-turn-row';
-            if (round.active && idx === round.turnIndex && phase?.kind === 'perCharacter') {
+            if (idx === round.turnIndex && phase?.kind === 'perCharacter') {
               row.classList.add('active-turn');
             }
             row.textContent = getTokenName(state, tokenId);
@@ -138,19 +149,7 @@ export function initRoundPanel() {
   });
 
   actionBtn.addEventListener('click', () => {
-    const round = store.state.round;
-    if (!round.active) {
-      showRoundSetupDialog({
-        title: 'ラウンド進行の参加者を選択',
-        tokens: listBoardTokens(store.state),
-        currentParticipantIds: [],
-        onConfirm: ({ participantIds }) => {
-          store.dispatch('ROUND_PROGRESSION_START', { participantIds });
-        }
-      });
-    } else {
-      store.dispatch('ROUND_ADVANCE_PHASE', {});
-    }
+    store.dispatch('ROUND_ADVANCE_PHASE', {});
   });
 
   if (readyToggleBtn) {
@@ -166,45 +165,27 @@ export function initRoundPanel() {
   if (menuBtn) {
     menuBtn.addEventListener('click', () => {
       const rect = menuBtn.getBoundingClientRect();
-      const round = store.state.round;
 
-      const items = [
+      showContextMenu(rect.left, rect.bottom + 4, [
         {
-          label: round.active ? '参加者を編集' : '参加者を選択',
+          label: '参加者を編集',
           onSelect: () => {
             showRoundSetupDialog({
-              title: round.active ? '参加者を編集' : 'ラウンド進行の参加者を選択',
+              title: '参加者を編集',
               tokens: listBoardTokens(store.state),
               currentParticipantIds: store.state.round.participants,
               onConfirm: ({ participantIds }) => {
-                if (store.state.round.active) {
-                  store.dispatch('ROUND_SET_PARTICIPANTS', { participantIds });
-                } else {
-                  store.dispatch('ROUND_PROGRESSION_START', { participantIds });
-                }
+                store.dispatch('ROUND_SET_PARTICIPANTS', { participantIds });
               }
             });
           }
-        }
-      ];
-
-      if (round.active) {
-        items.push({
+        },
+        {
           label: 'ラウンド進行を終了',
           danger: true,
           onSelect: () => store.dispatch('ROUND_PROGRESSION_END', {})
-        });
-      }
-
-      items.push({
-        label: 'ニックネーム設定',
-        onSelect: () => {
-          const name = prompt('プレイヤー名（点呼での表示名）を入力してください', getNickname());
-          if (name !== null) setNickname(name.trim());
         }
-      });
-
-      showContextMenu(rect.left, rect.bottom + 4, items);
+      ]);
     });
   }
 

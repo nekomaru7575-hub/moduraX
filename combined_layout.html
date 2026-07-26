@@ -1702,12 +1702,12 @@
 
     <div class="board-area">
       <!-- ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 -->
-      <div class="round-panel-bar" id="roundPanelBar">
+      <div class="round-panel-bar" id="roundPanelBar" style="display: none;">
         <span class="round-panel-status" id="roundPanelStatus">ラウンド進行前</span>
         <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
         <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">準備OK</button>
         <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
-        <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了・設定">⋮</button>
+        <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了">⋮</button>
       </div>
       <div class="round-panel-detail" id="roundPanelDetail" style="display: none;"></div>
 

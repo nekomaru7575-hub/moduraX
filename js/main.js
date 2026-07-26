@@ -10,10 +10,10 @@ import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState } from './net-sync.js';
-import { getLocalUserId } from './local-identity.js';
+import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
-import { initRoundPanel } from './round-panel.js';
+import { initRoundPanel, openRoundStartDialog } from './round-panel.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -240,7 +240,7 @@ function openRoomParametersDialog() {
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
     const rect = roomMenuBtn.getBoundingClientRect();
-    showContextMenu(rect.left, rect.bottom + 4, [
+    const items = [
       {
         label: 'ルーム設定',
         onSelect: () => roomSettingsDialog.showModal()
@@ -248,12 +248,33 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'ルーム変数',
         onSelect: openRoomParametersDialog
+      }
+    ];
+
+    // ラウンド進行の常時パネルは邪魔にならないよう進行中(round.active)にだけ表示するため、
+    // 開始のきっかけはこのルームメニューに置く（進行中はパネル自身の⋮メニューから終了する）。
+    if (!store.state.round.active) {
+      items.push({
+        label: 'ラウンド進行を開始',
+        onSelect: openRoundStartDialog
+      });
+    }
+
+    items.push(
+      {
+        label: 'ニックネーム設定',
+        onSelect: () => {
+          const name = prompt('プレイヤー名（ラウンド進行の点呼での表示名）を入力してください', getNickname());
+          if (name !== null) setNickname(name.trim());
+        }
       },
       {
         label: '部屋一覧に戻る',
         onSelect: () => { window.location.href = '/'; }
       }
-    ]);
+    );
+
+    showContextMenu(rect.left, rect.bottom + 4, items);
   });
 }
 

@@ -1,0 +1,172 @@
+// js/room-parameters-dialog.js
+// ルーム変数（room.parameters）専用の一覧編集ダイアログ。
+// ルーム設定（ルーム名・BCDiceシステム等）とは別のメニュー項目から独立して開く。
+
+let dialogEl = null;
+
+function ensureDialog() {
+  if (dialogEl) return dialogEl;
+  dialogEl = document.createElement('dialog');
+  dialogEl.className = 'character-dialog';
+  document.body.appendChild(dialogEl);
+  return dialogEl;
+}
+
+/**
+ * 「編集不可(editable:false)」な変数は値の変更を受け付けず、
+ * 「削除不可(locked:true)」な変数は削除ボタンを出さない（character-dialogの編集ダイアログと同じ規約）。
+ *
+ * @param {{
+ *   parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean}>,
+ *   onConfirm: (result: {
+ *     valueUpdates: Record<string, number>,
+ *     removedParamIds: string[],
+ *     newParameters: {key:string,label:string,value:number}[]
+ *   }) => void
+ * }} options
+ */
+export function showRoomParametersDialog({ parameters, onConfirm }) {
+  const dialog = ensureDialog();
+  dialog.innerHTML = '';
+
+  const form = document.createElement('form');
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'ルーム変数';
+  form.appendChild(heading);
+
+  // --- 既存の変数一覧（値の変更・削除） ---
+  const listEl = document.createElement('div');
+  listEl.className = 'dialog-custom-list';
+  form.appendChild(listEl);
+
+  const existingRows = []; // { paramId, valueInput, editable }
+  const removedParamIds = new Set();
+
+  Object.entries(parameters).forEach(([paramId, param]) => {
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const label = document.createElement('span');
+    label.textContent = param.label;
+    label.className = 'dialog-param-label';
+    label.style.color = '#ccc';
+    label.style.fontSize = '0.85rem';
+    row.appendChild(label);
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.value = param.value;
+    if (param.editable === false) {
+      valueInput.disabled = true;
+    }
+    row.appendChild(valueInput);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.className = 'dialog-remove-row';
+    if (param.locked) {
+      removeBtn.style.visibility = 'hidden';
+      removeBtn.disabled = true;
+    } else {
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        removedParamIds.add(paramId);
+        const idx = existingRows.findIndex(r => r.paramId === paramId);
+        if (idx !== -1) existingRows.splice(idx, 1);
+      });
+    }
+    row.appendChild(removeBtn);
+
+    listEl.appendChild(row);
+    existingRows.push({ paramId, valueInput, editable: param.editable !== false });
+  });
+
+  // --- 新規変数の追加 ---
+  const newListEl = document.createElement('div');
+  newListEl.className = 'dialog-custom-list';
+  form.appendChild(newListEl);
+
+  const newRows = [];
+
+  function addNewRow() {
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.placeholder = '変数名（例: 現在シーン）';
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.value = 0;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.className = 'dialog-remove-row';
+    removeBtn.addEventListener('click', () => {
+      row.remove();
+      const idx = newRows.findIndex(r => r.rowEl === row);
+      if (idx !== -1) newRows.splice(idx, 1);
+    });
+
+    row.appendChild(labelInput);
+    row.appendChild(valueInput);
+    row.appendChild(removeBtn);
+    newListEl.appendChild(row);
+
+    newRows.push({ labelInput, valueInput, rowEl: row });
+  }
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.textContent = '+ ルーム変数を追加';
+  addBtn.className = 'dialog-add-row-btn';
+  addBtn.addEventListener('click', addNewRow);
+  form.appendChild(addBtn);
+
+  // --- ボタン行 ---
+  const btnRow = document.createElement('div');
+  btnRow.className = 'dialog-button-row';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.addEventListener('click', () => dialog.close());
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'submit';
+  confirmBtn.textContent = '適用';
+  confirmBtn.className = 'dialog-confirm-btn';
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(confirmBtn);
+  form.appendChild(btnRow);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const valueUpdates = {};
+    existingRows.forEach(({ paramId, valueInput, editable }) => {
+      if (editable) {
+        valueUpdates[paramId] = Number(valueInput.value) || 0;
+      }
+    });
+
+    const newParameters = newRows
+      .map(row => ({
+        key: row.labelInput.value.trim(),
+        label: row.labelInput.value.trim(),
+        value: Number(row.valueInput.value) || 0
+      }))
+      .filter(p => p.key !== '');
+
+    dialog.close();
+    onConfirm({ valueUpdates, removedParamIds: Array.from(removedParamIds), newParameters });
+  });
+
+  dialog.appendChild(form);
+  dialog.showModal();
+}

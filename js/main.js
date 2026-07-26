@@ -12,6 +12,7 @@ import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState } from './net-sync.js';
 import { getLocalUserId } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
+import { showRoomParametersDialog } from './room-parameters-dialog.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -175,7 +176,6 @@ const characterList = document.getElementById('characterList');
 
 // ...(既存のDOM取得の並びに追加)
 const roomPluginSelect = document.getElementById('roomPluginSelect');
-const roomParameterList = document.getElementById('roomParameterList');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 const roomNameInput = document.getElementById('roomNameInput');
@@ -213,6 +213,28 @@ if (backyardPanelArea && backyardPanelCollapseBtn && backyardPanelExpandBtn) {
   });
 }
 
+// ルーム変数ダイアログを開き、結果（値の変更／削除／新規追加）を差分でdispatchする。
+// ルーム設定（部屋名・BCDiceシステム等）とは独立したメニュー項目から呼ぶ。
+function openRoomParametersDialog() {
+  showRoomParametersDialog({
+    parameters: store.state.room.parameters,
+    onConfirm: ({ valueUpdates, removedParamIds, newParameters }) => {
+      Object.entries(valueUpdates).forEach(([paramId, value]) => {
+        const current = store.state.room.parameters[paramId];
+        if (current && current.value !== value) {
+          store.dispatch('SET_ROOM_PARAMETER', { paramId, value });
+        }
+      });
+      removedParamIds.forEach(paramId => {
+        store.dispatch('REMOVE_ROOM_PARAMETER', { paramId });
+      });
+      newParameters.forEach(({ key, label, value }) => {
+        store.dispatch('ADD_ROOM_PARAMETER', { key, label, value });
+      });
+    }
+  });
+}
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
@@ -221,6 +243,10 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'ルーム設定',
         onSelect: () => roomSettingsDialog.showModal()
+      },
+      {
+        label: 'ルーム変数',
+        onSelect: openRoomParametersDialog
       },
       {
         label: '部屋一覧に戻る',
@@ -679,19 +705,6 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   if (roomNameLabel) {
     roomNameLabel.textContent = nextValue ? `— ${nextValue}` : '';
   }
-});
-
-// ルーム変数の表示（STATE_CHANGEDで更新）
-EventBus.subscribe('STATE_CHANGED', (state) => {
-  if (!roomParameterList) return;
-  roomParameterList.innerHTML = '';
-
-  Object.values(state.room.parameters).forEach(param => {
-    const row = document.createElement('div');
-    row.className = 'character-param-row';
-    row.innerHTML = `<span>${param.label}</span><span>${param.value}</span>`;
-    roomParameterList.appendChild(row);
-  });
 });
 
 // キャラクター一覧の描画（登録・削除の両方に反応）。

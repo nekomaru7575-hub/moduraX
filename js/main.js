@@ -344,17 +344,32 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
 // {パラメータ名}を、参照キャラクターの該当パラメータの実効値（基礎値＋バフ/デバフ合計）に
 // 置換する。ダイスロールに直接影響させるため、基礎値ではなく実効値を使う。
-// 該当パラメータが見つからない場合は{パラメータ名}のまま残す。
+// 参照キャラクターに同名パラメータが無い場合はルーム変数を探して代わりに使う
+// （キャラクターの変数がルーム変数より優先される）。どちらにも見つからない場合は
+// {パラメータ名}のまま残す。
 function substituteCharacterParameters(text, character) {
-  if (!character) return text;
   return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
     const name = rawName.trim();
-    const entry = Object.entries(character.parameters || {}).find(
+
+    if (character) {
+      const entry = Object.entries(character.parameters || {}).find(
+        ([, p]) => p.label === name || p.key === name
+      );
+      if (entry) {
+        const [paramId] = entry;
+        return String(getEffectiveParameterValue(character, paramId));
+      }
+    }
+
+    const roomEntry = Object.entries(store.state.room.parameters || {}).find(
       ([, p]) => p.label === name || p.key === name
     );
-    if (!entry) return match;
-    const [paramId] = entry;
-    return String(getEffectiveParameterValue(character, paramId));
+    if (roomEntry) {
+      const [, param] = roomEntry;
+      return String(param.value);
+    }
+
+    return match;
   });
 }
 

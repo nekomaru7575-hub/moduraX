@@ -113,10 +113,10 @@ function parseFinalNumber(resultText) {
   return match ? Number(match[0]) : null;
 }
 
-function logToMain(dispatch, resultText) {
+function logToMain(dispatch, resultText, token) {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: 'main',
-    entry: { system: 'コンボ', resultText }
+    entry: { system: 'コンボ', character: token?.name || '', characterId: token?.id || null, resultText }
   });
 }
 
@@ -182,7 +182,7 @@ export function runComboActivate({
   const effectNamesText = selectedEffects.map(e => e.name).join(' + ');
   logToMain(dispatch, effectNamesText
     ? `コンボ発動: ${combo.name}\n${effectNamesText}`
-    : `コンボ発動: ${combo.name}`);
+    : `コンボ発動: ${combo.name}`, token);
 }
 
 /**
@@ -221,7 +221,7 @@ export async function runComboCheck({
     }
 
     const floorText = criticalValue !== rawCriticalValue ? `\nクリティカル値下限（${criticalFloor}）を適用` : '';
-    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}`);
+    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}`, token);
 
     const achievement = parseFinalNumber(resultText);
     if (achievement !== null) {
@@ -263,7 +263,7 @@ export async function runComboDamage({
     const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
 
     const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
-    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`);
+    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`, token);
 
     if (corruptionGain) {
       const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;

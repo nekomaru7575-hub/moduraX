@@ -902,8 +902,8 @@ function splitForSpace(string) {
 }
 
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
-// color: 発言キャラクターの文字色設定（未設定ならキャラ名は既定の緑、発言テキストは白のまま）。
-// キャラ名・発言テキストの両方に同じ色を適用する。
+// color: 発言キャラクターの文字色設定（未設定なら既定の緑）。キャラ名にのみ適用し、
+// 発言テキスト自体は常に既定色（白）のまま変えない。
 function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
@@ -918,7 +918,7 @@ function buildLogHtml({ system = "", character = "", comment = "", resultText, d
 
   return `
     ${headerHtml}
-    <span class="log-result-text" style="color: ${color || '#fff'};">${resultHtml}</span><br>
+    <span class="log-result-text" style="color: #fff;">${resultHtml}</span><br>
     ${detail}`;
 }
 

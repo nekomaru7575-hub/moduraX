@@ -116,7 +116,7 @@ function parseFinalNumber(resultText) {
 function logToMain(dispatch, resultText, token) {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: 'main',
-    entry: { system: 'コンボ', character: token?.name || '', characterId: token?.id || null, resultText }
+    entry: { system: 'コンボ', character: token?.name || '', characterId: token?.id || null, color: token?.textColor || null, resultText }
   });
 }
 

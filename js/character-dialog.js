@@ -215,6 +215,23 @@ function buildSizeInput(initialSize) {
   return { element: group, getSize: () => Math.max(1, Math.round(Number(input.value) || 1)) };
 }
 
+// チャット欄でのキャラ名・発言テキストの色。作成/更新どちらのダイアログからも使う。
+function buildTextColorInput(initialColor) {
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group';
+
+  const label = document.createElement('label');
+  label.textContent = '文字色（キャラ一覧の名前・チャットのキャラ名/発言に反映）';
+  group.appendChild(label);
+
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = initialColor || '#ffffff';
+  group.appendChild(input);
+
+  return { element: group, getColor: () => input.value };
+}
+
 // カスタムパラメータ（ユーザーが自由に名前を付けて追加する変数）の入力値を、
 // 数値として解釈できればNumberに、できなければ文字列のまま返す。空欄は0扱い（旧来の
 // Number(x)||0と同じ挙動）。HP等の組み込み・プラグイン由来パラメータは対象外（常に数値）。
@@ -238,7 +255,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -279,6 +296,10 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   // --- サイズ ---
   const sizeInput = buildSizeInput(1);
   mainColumn.appendChild(sizeInput.element);
+
+  // --- 文字色 ---
+  const textColorInput = buildTextColorInput(null);
+  mainColumn.appendChild(textColorInput.element);
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
@@ -391,7 +412,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), parameterOverrides, customParameters });
   });
 
   dialog.appendChild(form);
@@ -413,10 +434,9 @@ function ensureEditDialog() {
  * 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。
  * 「編集不可(editable:false)」なパラメータは表示のみ、
  * 「削除不可(locked:true)」なパラメータは削除ボタンを出さない。
- * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
+ *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, textColor?: string | null, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
  *   getComponents?: () => Record<string, any>,
@@ -425,6 +445,7 @@ function ensureEditDialog() {
  *     image: string | null,
  *     imageCrop: {zoom:number,posX:number,posY:number} | null,
  *     size: number,
+ *     textColor: string,
  *     parameterValues: Record<string, number|string>,
  *     removedParamIds: string[],
  *     newCustomParameters: {key:string,label:string,value:number|string}[]
@@ -473,6 +494,10 @@ export function showCharacterEditDialog({
   // --- サイズ ---
   const sizeInput = buildSizeInput(character.size || 1);
   mainColumn.appendChild(sizeInput.element);
+
+  // --- 文字色 ---
+  const textColorInput = buildTextColorInput(character.textColor);
+  mainColumn.appendChild(textColorInput.element);
 
   // --- 既存パラメータ一覧（値の変更・削除） ---
   const paramListLabel = document.createElement('label');
@@ -649,6 +674,7 @@ export function showCharacterEditDialog({
       image: imagePicker.getImage(),
       imageCrop: imagePicker.getCrop(),
       size: sizeInput.getSize(),
+      textColor: textColorInput.getColor(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters

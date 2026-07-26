@@ -301,14 +301,14 @@ if (importStateBtn && importStateInput) {
 }
 
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, tabId = activeTabId }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
 
   try {
     if (rawInput.includes('\n')) {
-      applyLog({ system, character: characterName, characterId, resultText: rawInput }, tabId);
+      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
       commandInput.value = "";
       return;
     }
@@ -319,7 +319,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
 
     if (!isDiceCommand) {
-      applyLog({ system, character: characterName, characterId, resultText: rawInput }, tabId);
+      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
       commandInput.value = "";
       return;
     }
@@ -330,7 +330,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, character: characterName, characterId, comment, resultText, diceDetail }, tabId);
+    applyLog({ system, character: characterName, characterId, color: characterColor, comment, resultText, diceDetail }, tabId);
     commandInput.value = "";
 
   } catch (error) {
@@ -424,7 +424,9 @@ function tryHandleParameterCommand(rawInput, character) {
 
   store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
   applyLog({
-    system: character.name,
+    character: character.name,
+    characterId: character.id,
+    color: character.textColor,
     resultText: `${param.label}: ${before} → ${after}`
   });
 
@@ -494,7 +496,9 @@ function tryHandleBuffCommand(rawInput, character) {
   const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
   const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
   applyLog({
-    system: targetCharacter.name,
+    character: targetCharacter.name,
+    characterId: targetCharacter.id,
+    color: targetCharacter.textColor,
     resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）`
   });
 
@@ -569,6 +573,7 @@ function sendPaletteText(text) {
     rawInput: substitutedInput,
     characterName: selectedCharacter?.name,
     characterId: selectedCharacter?.id,
+    characterColor: selectedCharacter?.textColor,
     tabId: activeTabId
   });
 }
@@ -618,6 +623,7 @@ if (sendBtn) {
       rawInput: rawInput,
       characterName: selectedCharacter?.name,
       characterId: selectedCharacter?.id,
+      characterColor: selectedCharacter?.textColor,
       tabId: activeTabId
     });
   });
@@ -776,6 +782,9 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const nameSpan = document.createElement('span');
     nameSpan.className = 'character-avatar-name';
     nameSpan.textContent = tokenData.name;
+    if (tokenData.textColor) {
+      nameSpan.style.color = tokenData.textColor;
+    }
 
     avatarColumn.appendChild(avatar);
     avatarColumn.appendChild(nameSpan);
@@ -861,6 +870,9 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     const nameSpan = document.createElement('span');
     nameSpan.className = 'character-avatar-name';
     nameSpan.textContent = tokenData.name;
+    if (tokenData.textColor) {
+      nameSpan.style.color = tokenData.textColor;
+    }
 
     avatarColumn.appendChild(avatar);
     avatarColumn.appendChild(nameSpan);
@@ -890,10 +902,12 @@ function splitForSpace(string) {
 }
 
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
-function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "" }, { hideSystem = false } = {}) {
+// color: 発言キャラクターの文字色設定（未設定ならキャラ名は既定の緑、発言テキストは白のまま）。
+// キャラ名・発言テキストの両方に同じ色を適用する。
+function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
-  const systemTag = hideSystem ? '' : `<strong style="color: #007acc;">[${system}]</strong>`;
-  const characterTag = character ? `<span style="color: #4caf50;">${character}</span>` : '';
+  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
+  const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
   const commentTag = comment ? `<span style="color: #aaa;">(${comment})</span>` : '';
   const resultHtml = String(resultText).replace(/\n/g, '<br>');
 
@@ -904,7 +918,7 @@ function buildLogHtml({ system = "", character = "", comment = "", resultText, d
 
   return `
     ${headerHtml}
-    <span class="log-result-text" style="color: #fff;">${resultHtml}</span><br>
+    <span class="log-result-text" style="color: ${color || '#fff'};">${resultHtml}</span><br>
     ${detail}`;
 }
 

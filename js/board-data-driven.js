@@ -257,7 +257,7 @@ function bindTokenDrag(element, board) {
             getEffectiveParameterValue,
             generateBuffId,
             rollBCDice,
-            onConfirm: ({ name, image, imageCrop, size, parameterValues, removedParamIds, newCustomParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, textColor, parameterValues, removedParamIds, newCustomParameters }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -277,6 +277,10 @@ function bindTokenDrag(element, board) {
 
               if (size !== (latest.size || 1)) {
                 store.dispatch('SET_CHARACTER_SIZE', { id: tokenId, size });
+              }
+
+              if (textColor !== (latest.textColor || null)) {
+                store.dispatch('SET_CHARACTER_TEXT_COLOR', { id: tokenId, textColor });
               }
 
               Object.entries(parameterValues).forEach(([paramId, value]) => {
@@ -663,13 +667,14 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, imageCrop, size, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, textColor, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
                 image,
                 imageCrop,
                 size,
+                textColor,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,

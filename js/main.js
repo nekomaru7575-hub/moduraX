@@ -380,17 +380,42 @@ function substituteCharacterParameters(text, character, depth = 0) {
   });
 }
 
-// [演算子(+/-/=)][パラメータ名]([数値]) でパラメータを直接変更するコマンド。例: +侵蝕率(10)
+// [演算子(+/-/=)][パラメータ名]([数値] または [nDx形式のダイス]) でパラメータを直接変更する
+// コマンド。例: +侵蝕率(10)　=HP(2D6)
 // editable:falseのパラメータは変更不可。
-const PARAMETER_COMMAND_PATTERN = /^([+\-=])(.+?)\(([+-]?\d+(?:\.\d+)?)\)$/;
+const PARAMETER_COMMAND_PATTERN = /^([+\-=])(.+?)\(([+-]?\d+(?:\.\d+)?|\d+[Dd]\d+)\)$/;
+const DICE_AMOUNT_PATTERN = /^\d+[Dd]\d+$/;
+
+// BCDiceの結果テキストは "(コマンド) ＞ 内訳 ＞ 合計" の形。最後の「＞」より後ろの
+// 数値だけを読み取る（dx3-combo-box.jsのparseFinalNumberと同じ考え方）。
+function parseFinalDiceNumber(resultText) {
+  const parts = String(resultText).split('＞').map(s => s.trim()).filter(Boolean);
+  const last = parts[parts.length - 1];
+  if (!last) return null;
+  const match = last.match(/-?\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+function applyParameterChange({ character, paramId, param, operator, before, amount, diceResultText }) {
+  const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+
+  store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+  applyLog({
+    character: character.name,
+    characterId: character.id,
+    color: character.textColor,
+    resultText: diceResultText
+      ? `${param.label}: ${before} → ${after}\n${diceResultText}`
+      : `${param.label}: ${before} → ${after}`
+  });
+}
 
 function tryHandleParameterCommand(rawInput, character) {
   const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
   if (!match) return false;
 
-  const [, operator, rawName, rawNumber] = match;
+  const [, operator, rawName, rawAmount] = match;
   const name = rawName.trim();
-  const amount = Number(rawNumber);
 
   if (!character) {
     alert('パラメータを変更するキャラクターを選択してください。');
@@ -420,15 +445,27 @@ function tryHandleParameterCommand(rawInput, character) {
     return true;
   }
 
-  const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+  if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
+    // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
+    // （combo.jdm等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
+    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText }) => {
+      if (!success) {
+        alert(`ダイスロールに失敗しました: ${resultText}`);
+        return;
+      }
+      const amount = parseFinalDiceNumber(resultText);
+      if (amount === null) {
+        alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
+        return;
+      }
+      applyParameterChange({ character, paramId, param, operator, before, amount, diceResultText: resultText });
+    }).catch(error => {
+      alert(`ダイスロールでエラーが発生しました: ${error.message}`);
+    });
+    return true;
+  }
 
-  store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
-  applyLog({
-    character: character.name,
-    characterId: character.id,
-    color: character.textColor,
-    resultText: `${param.label}: ${before} → ${after}`
-  });
+  applyParameterChange({ character, paramId, param, operator, before, amount: Number(rawAmount) });
 
   return true;
 }

@@ -108,7 +108,14 @@ async function getOrLoadRoom(roomId) {
   try {
     const raw = await readFile(roomFilePath(roomId), 'utf-8');
     const savedState = JSON.parse(raw);
-    const entry = { store: new ImmutableStore(savedState), clients: new Set(), saveTimer: null };
+    // savedStateを直接コンストラクタへ渡すと、この機能より前に保存された部屋データに
+    // 無い新しいトップレベルキー（round等）がundefinedのまま残り、そのキーを前提とする
+    // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
+    // 経由で同じ補完を受けるが、ここだけそれを素通りしていた）。hydrate()を通して
+    // クライアントの再接続時と同じ後方互換の穴埋めを適用してから使う。
+    const store = new ImmutableStore(createInitialGameState());
+    store.hydrate(savedState);
+    const entry = { store, clients: new Set(), saveTimer: null };
     rooms.set(roomId, entry);
     return entry;
   } catch (error) {

@@ -380,10 +380,13 @@ function substituteCharacterParameters(text, character, depth = 0) {
   });
 }
 
-// [演算子(+/-/=)][パラメータ名]([数値] または [nDx形式のダイス]) でパラメータを直接変更する
-// コマンド。例: +侵蝕率(10)　=HP(2D6)
+// [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([数値] または [nDx形式のダイス]) で
+// パラメータを直接変更するコマンド。例: +侵蝕率(10)　=HP(2D6)　+攻撃力,-防御力(1D6)
+// カンマ区切りで複数パラメータを指定でき、それぞれに個別の演算子（+/-/=）を付けられる。
+// カッコ内の値（数値 or ダイスロール結果）は1回だけ算出し、全パラメータへ共通で適用する。
 // editable:falseのパラメータは変更不可。
-const PARAMETER_COMMAND_PATTERN = /^([+\-=])(.+?)\(([+-]?\d+(?:\.\d+)?|\d+[Dd]\d+)\)$/;
+const PARAMETER_COMMAND_PATTERN = /^([+\-=].+?)\(([+-]?\d+(?:\.\d+)?|\d+[Dd]\d+)\)$/;
+const PARAMETER_TARGET_PATTERN = /^([+\-=])(.+)$/;
 const DICE_AMOUNT_PATTERN = /^\d+[Dd]\d+$/;
 
 // BCDiceの結果テキストは "(コマンド) ＞ 内訳 ＞ 合計" の形。最後の「＞」より後ろの
@@ -396,17 +399,32 @@ function parseFinalDiceNumber(resultText) {
   return match ? Number(match[0]) : null;
 }
 
-function applyParameterChange({ character, paramId, param, operator, before, amount, diceResultText }) {
-  const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+// "+HP,-MP" のようなカンマ区切りの指定を { operator, name } の配列に分解する。
+// いずれかのトークンが演算子から始まっていない場合はnullを返す（呼び出し側で書式エラー扱い）。
+function parseParameterTargets(rawTargets) {
+  const targets = rawTargets.split(',').map(token => {
+    const m = token.match(PARAMETER_TARGET_PATTERN);
+    return m ? { operator: m[1], name: m[2].trim() } : null;
+  });
+  return targets.some(t => !t) ? null : targets;
+}
 
-  store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+// 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
+// 1件のログにまとめて記録する。
+function applyParameterChanges({ character, targets, amount, diceResultText }) {
+  const changeLines = targets.map(({ operator, paramId, param, before }) => {
+    const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+    store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+    return `${param.label}: ${before} → ${after}`;
+  });
+
   applyLog({
     character: character.name,
     characterId: character.id,
     color: character.textColor,
     resultText: diceResultText
-      ? `${param.label}: ${before} → ${after}\n${diceResultText}`
-      : `${param.label}: ${before} → ${after}`
+      ? `${changeLines.join('\n')}\n${diceResultText}`
+      : changeLines.join('\n')
   });
 }
 
@@ -414,35 +432,44 @@ function tryHandleParameterCommand(rawInput, character) {
   const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
   if (!match) return false;
 
-  const [, operator, rawName, rawAmount] = match;
-  const name = rawName.trim();
+  const [, rawTargets, rawAmount] = match;
 
   if (!character) {
     alert('パラメータを変更するキャラクターを選択してください。');
     return true;
   }
 
-  const entry = Object.entries(character.parameters || {}).find(
-    ([, p]) => p.label === name || p.key === name
-  );
-
-  if (!entry) {
-    alert(`パラメータ「${name}」が見つかりません。`);
+  const parsedTargets = parseParameterTargets(rawTargets);
+  if (!parsedTargets) {
+    alert(`パラメータ指定の書式が正しくありません: ${rawTargets}`);
     return true;
   }
 
-  const [paramId, param] = entry;
-  if (param.editable === false) {
-    alert(`パラメータ「${name}」は変更できません。`);
-    return true;
-  }
+  // 名前解決・妥当性チェックは先にすべて行い、1つでも無効なら何も変更しない（部分適用を防ぐ）。
+  const resolvedTargets = [];
+  for (const { operator, name } of parsedTargets) {
+    const entry = Object.entries(character.parameters || {}).find(
+      ([, p]) => p.label === name || p.key === name
+    );
+    if (!entry) {
+      alert(`パラメータ「${name}」が見つかりません。`);
+      return true;
+    }
 
-  const before = param.value;
+    const [paramId, param] = entry;
+    if (param.editable === false) {
+      alert(`パラメータ「${name}」は変更できません。`);
+      return true;
+    }
 
-  // 文字列値のカスタム変数は+/-による加減算ができない（=による上書きのみ許可）。
-  if (operator !== '=' && typeof before !== 'number') {
-    alert(`パラメータ「${name}」は数値ではないため、+/-では変更できません。`);
-    return true;
+    const before = param.value;
+    // 文字列値のカスタム変数は+/-による加減算ができない（=による上書きのみ許可）。
+    if (operator !== '=' && typeof before !== 'number') {
+      alert(`パラメータ「${name}」は数値ではないため、+/-では変更できません。`);
+      return true;
+    }
+
+    resolvedTargets.push({ operator, paramId, param, before });
   }
 
   if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
@@ -458,14 +485,14 @@ function tryHandleParameterCommand(rawInput, character) {
         alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
         return;
       }
-      applyParameterChange({ character, paramId, param, operator, before, amount, diceResultText: resultText });
+      applyParameterChanges({ character, targets: resolvedTargets, amount, diceResultText: resultText });
     }).catch(error => {
       alert(`ダイスロールでエラーが発生しました: ${error.message}`);
     });
     return true;
   }
 
-  applyParameterChange({ character, paramId, param, operator, before, amount: Number(rawAmount) });
+  applyParameterChanges({ character, targets: resolvedTargets, amount: Number(rawAmount) });
 
   return true;
 }

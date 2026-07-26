@@ -761,6 +761,12 @@
       user-select: none;
     }
 
+    .round-panel-nickname {
+      color: #999;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
     .round-panel-ready-list {
       display: flex;
       flex-wrap: wrap;
@@ -797,6 +803,12 @@
       color: #fff;
       font-weight: bold;
       border-color: #007acc;
+    }
+
+    .round-panel-btn.active {
+      background-color: #2e7d32;
+      color: #fff;
+      border-color: #2e7d32;
     }
 
     .round-panel-detail {
@@ -1705,7 +1717,8 @@
       <div class="round-panel-bar" id="roundPanelBar" style="display: none;">
         <span class="round-panel-status" id="roundPanelStatus">ラウンド進行前</span>
         <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
-        <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">準備OK</button>
+        <span class="round-panel-nickname" id="roundPanelNicknameLabel"></span>
+        <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">割り込みなし</button>
         <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
         <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了">⋮</button>
       </div>

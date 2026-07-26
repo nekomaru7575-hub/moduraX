@@ -52,6 +52,7 @@ export function initRoundPanel() {
   const bar = document.getElementById('roundPanelBar');
   const statusEl = document.getElementById('roundPanelStatus');
   const readyListEl = document.getElementById('roundPanelReadyList');
+  const nicknameLabelEl = document.getElementById('roundPanelNicknameLabel');
   const readyToggleBtn = document.getElementById('roundPanelReadyToggleBtn');
   const actionBtn = document.getElementById('roundPanelActionBtn');
   const menuBtn = document.getElementById('roundPanelMenuBtn');
@@ -74,34 +75,45 @@ export function initRoundPanel() {
       : '';
     statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`;
 
-    // --- 点呼チップ ---
+    // --- 点呼チップ（誰が「割り込みありません」を宣言済みか） ---
+    const showConfirmation = shouldShowConfirmation(round);
     if (readyListEl) {
       readyListEl.innerHTML = '';
-      const showConfirmation = shouldShowConfirmation(round);
       readyListEl.style.display = showConfirmation ? '' : 'none';
       if (showConfirmation) {
         if (round.confirmation.readyEntries.length === 0) {
           const empty = document.createElement('span');
           empty.className = 'round-panel-ready-chip round-panel-ready-chip-empty';
-          empty.textContent = 'まだ準備OKした人はいません';
+          empty.textContent = 'まだ誰も割り込みなしを宣言していません';
           readyListEl.appendChild(empty);
         } else {
           round.confirmation.readyEntries.forEach(entry => {
             const chip = document.createElement('span');
             chip.className = 'round-panel-ready-chip';
-            chip.textContent = entry.nickname || '匿名';
+            chip.textContent = `${entry.nickname || '匿名'}: 割り込みありません`;
             readyListEl.appendChild(chip);
           });
         }
       }
     }
 
-    // --- 準備OKトグル ---
+    // --- 自分のニックネーム表示 ---
+    if (nicknameLabelEl) {
+      nicknameLabelEl.style.display = showConfirmation ? '' : 'none';
+      if (showConfirmation) {
+        const myId = getLocalUserId();
+        nicknameLabelEl.textContent = `あなた: ${getNickname() || `匿名-${myId.slice(0, 4)}`}`;
+      }
+    }
+
+    // --- 「割り込みなし」トグル。押すと「割り込みありません」の宣言が表示され、
+    // もう一度押すと消える（ROUND_SET_READYのreadyEntriesに自分が載っているかで判定） ---
     if (readyToggleBtn) {
       const myId = getLocalUserId();
       const isReady = round.confirmation.readyEntries.some(e => e.userId === myId);
-      readyToggleBtn.textContent = isReady ? '準備解除' : '準備OK';
-      readyToggleBtn.style.display = shouldShowConfirmation(round) ? '' : 'none';
+      readyToggleBtn.textContent = isReady ? '割り込みありません' : '割り込みなし';
+      readyToggleBtn.classList.toggle('active', isReady);
+      readyToggleBtn.style.display = showConfirmation ? '' : 'none';
     }
 
     // --- 主操作ボタン（ソフトゲート：点呼の状態に関わらず常に押せる） ---

@@ -735,8 +735,9 @@ export class ImmutableStore {
             ...round,
             phaseIndex,
             turnIndex,
-            roundNumber,
-            confirmation: { readyEntries: [] } // 次の遷移に向けて点呼をリセット
+            roundNumber
+            // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
+            // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
           chatLogs: {
             ...prevState.chatLogs,

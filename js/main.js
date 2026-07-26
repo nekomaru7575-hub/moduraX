@@ -618,19 +618,21 @@ function sendPaletteText(text) {
     return;
   }
 
-  if (tryHandleBuffCommand(rawInput, selectedCharacter)) {
-    return;
-  }
-
-  if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
-    return;
-  }
-
-  if (tryHandlePluginChatCommand(rawInput, selectedCharacter)) {
-    return;
-  }
-
+  // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
+  // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
   const substitutedInput = substituteCharacterParameters(rawInput, selectedCharacter);
+
+  if (tryHandleBuffCommand(substitutedInput, selectedCharacter)) {
+    return;
+  }
+
+  if (tryHandleParameterCommand(substitutedInput, selectedCharacter)) {
+    return;
+  }
+
+  if (tryHandlePluginChatCommand(substitutedInput, selectedCharacter)) {
+    return;
+  }
 
   EventBus.emit('DICE_ROLL_REQUESTED', {
     system: selectedSystem,
@@ -665,6 +667,10 @@ if (sendBtn) {
       return;
     }
 
+    // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
+    // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
+    rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
+
     if (tryHandleBuffCommand(rawInput, selectedCharacter)) {
       commandInput.value = "";
       return;
@@ -679,8 +685,6 @@ if (sendBtn) {
       commandInput.value = "";
       return;
     }
-
-    rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
 
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,

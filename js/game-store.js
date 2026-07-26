@@ -174,7 +174,7 @@ export class ImmutableStore {
       case 'ADD_CHARACTER': {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
-          imageCrop = null, parameterOverrides = {}, customParameters = [], textColor = null
+          imageCrop = null, parameterOverrides = {}, customParameters = [], textColor = null, visible = true
         } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
@@ -202,6 +202,7 @@ export class ImmutableStore {
           id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
           imageCrop: imageCrop ? Object.freeze({ ...imageCrop }) : null, // コマ画像のトリミング（非破壊）
           textColor, // チャット欄でのキャラ名・発言テキストの色（未設定nullなら既定色）
+          visible: !!visible, // false ならキャラクター一覧に表示しない（盤面上のコマ自体は表示されたまま）
           parameters: finalParameters, // ← 適用後のパラメータをセット
           components: Object.freeze({}),
           buffs: Object.freeze([]), // バフ/デバフ一覧（{id,name,paramId,delta,expirePhase}）
@@ -246,6 +247,20 @@ export class ImmutableStore {
         nextTokensState[id] = Object.freeze({
           ...nextTokensState[id],
           textColor: textColor || null
+        });
+
+        this.#commit(prevState, nextTokensState);
+        return;
+      }
+
+      // キャラクター一覧への表示/非表示（コマ自体は盤面に表示されたまま）
+      case 'SET_CHARACTER_VISIBLE': {
+        const { id, visible } = payload;
+        if (!nextTokensState[id]) return;
+
+        nextTokensState[id] = Object.freeze({
+          ...nextTokensState[id],
+          visible: !!visible
         });
 
         this.#commit(prevState, nextTokensState);

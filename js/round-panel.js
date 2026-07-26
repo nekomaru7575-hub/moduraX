@@ -1,7 +1,7 @@
 // js/round-panel.js
 // ラウンド進行の状態バー。進行中（state.round.active）のときだけ表示し、平常時は
 // 邪魔にならないよう非表示にする。開始のきっかけ（ラウンド進行を開始）はルームメニュー
-// （js/main.jsのroomMenuBtn）側から呼ばれるopenRoundStartDialog()が担う。
+// （js/main.jsのroomMenuBtn）側から呼ばれるstartRoundProgression()が担う。
 // net-sync.jsと同様にinitRoundPanel()をexportし、main.jsの初期化処理から1回だけ呼ぶ。
 // STATE_CHANGEDを自前で購読し、state.round/state.tokensの参照が変わったときだけ再描画する
 // （lastRenderedChatTabsRefと同じ差分チェックパターン）。
@@ -38,18 +38,14 @@ function listBoardTokens(state) {
     .map(t => ({ id: t.id, name: t.name }));
 }
 
-// ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。参加者選択ダイアログを開き、
-// 確定するとROUND_PROGRESSION_STARTをdispatchする（これでround.activeがtrueになり、
-// このパネル自体が表示される）。
-export function openRoundStartDialog() {
-  showRoundSetupDialog({
-    title: 'ラウンド進行の参加者を選択',
-    tokens: listBoardTokens(store.state),
-    currentParticipantIds: [],
-    onConfirm: ({ participantIds }) => {
-      store.dispatch('ROUND_PROGRESSION_START', { participantIds });
-    }
-  });
+// ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。参加者を選ぶステップは省き、
+// 現在盤面にいる（バックヤードに入っていない）visible!==falseのコマをそのまま参加者にする。
+// 手動で参加者を絞りたい場合は開始後、パネルの「⋮」→「参加者を編集」で調整できる。
+export function startRoundProgression() {
+  const participantIds = Object.values(store.state.tokens)
+    .filter(t => !t.inBackyard && t.visible !== false)
+    .map(t => t.id);
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds });
 }
 
 export function initRoundPanel() {

@@ -257,7 +257,7 @@ function bindTokenDrag(element, board) {
             getEffectiveParameterValue,
             generateBuffId,
             rollBCDice,
-            onConfirm: ({ name, image, imageCrop, size, textColor, parameterValues, removedParamIds, newCustomParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterValues, removedParamIds, newCustomParameters }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -281,6 +281,10 @@ function bindTokenDrag(element, board) {
 
               if (textColor !== (latest.textColor || null)) {
                 store.dispatch('SET_CHARACTER_TEXT_COLOR', { id: tokenId, textColor });
+              }
+
+              if (visible !== (latest.visible !== false)) {
+                store.dispatch('SET_CHARACTER_VISIBLE', { id: tokenId, visible });
               }
 
               Object.entries(parameterValues).forEach(([paramId, value]) => {
@@ -667,7 +671,7 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, imageCrop, size, textColor, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
@@ -675,6 +679,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 imageCrop,
                 size,
                 textColor,
+                visible,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,

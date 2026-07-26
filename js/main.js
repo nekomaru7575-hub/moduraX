@@ -13,7 +13,7 @@ import { initNetSync, replaceState } from './net-sync.js';
 import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
-import { initRoundPanel, openRoundStartDialog } from './round-panel.js';
+import { initRoundPanel, startRoundProgression } from './round-panel.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -256,7 +256,7 @@ if (roomMenuBtn && roomSettingsDialog) {
     if (!store.state.round.active) {
       items.push({
         label: 'ラウンド進行を開始',
-        onSelect: openRoundStartDialog
+        onSelect: startRoundProgression
       });
     }
 
@@ -839,7 +839,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
   characterList.innerHTML = "";
 
-  const sortedTokens = Object.values(state.tokens).filter(t => !t.inBackyard).sort((a, b) => {
+  const sortedTokens = Object.values(state.tokens).filter(t => !t.inBackyard && t.visible !== false).sort((a, b) => {
     const initiativeA = a.parameters?.['core:initiative'] ? getEffectiveParameterValue(a, 'core:initiative') : 0;
     const initiativeB = b.parameters?.['core:initiative'] ? getEffectiveParameterValue(b, 'core:initiative') : 0;
     return initiativeB - initiativeA;

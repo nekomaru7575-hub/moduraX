@@ -232,6 +232,29 @@ function buildTextColorInput(initialColor) {
   return { element: group, getColor: () => input.value };
 }
 
+// キャラクター一覧への表示/非表示（falseでも盤面上のコマ自体は表示されたまま）。
+// 作成/更新どちらのダイアログからも使う。
+function buildVisibleCheckbox(initialVisible) {
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group';
+
+  const label = document.createElement('label');
+  label.style.display = 'flex';
+  label.style.alignItems = 'center';
+  label.style.gap = '6px';
+  label.style.cursor = 'pointer';
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = initialVisible !== false;
+
+  label.appendChild(input);
+  label.appendChild(document.createTextNode('キャラクター一覧に表示する'));
+  group.appendChild(label);
+
+  return { element: group, getVisible: () => input.checked };
+}
+
 // カスタムパラメータ（ユーザーが自由に名前を付けて追加する変数）の入力値を、
 // 数値として解釈できればNumberに、できなければ文字列のまま返す。空欄は0扱い（旧来の
 // Number(x)||0と同じ挙動）。HP等の組み込み・プラグイン由来パラメータは対象外（常に数値）。
@@ -255,7 +278,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, visible: boolean, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -300,6 +323,10 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   // --- 文字色 ---
   const textColorInput = buildTextColorInput(null);
   mainColumn.appendChild(textColorInput.element);
+
+  // --- キャラクター一覧への表示 ---
+  const visibleCheckbox = buildVisibleCheckbox(true);
+  mainColumn.appendChild(visibleCheckbox.element);
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
@@ -412,7 +439,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, customParameters });
   });
 
   dialog.appendChild(form);
@@ -436,7 +463,7 @@ function ensureEditDialog() {
  * 「削除不可(locked:true)」なパラメータは削除ボタンを出さない。
  *
  * @param {{
- *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, textColor?: string | null, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
+ *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, textColor?: string | null, visible?: boolean, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
  *   getComponents?: () => Record<string, any>,
@@ -446,6 +473,7 @@ function ensureEditDialog() {
  *     imageCrop: {zoom:number,posX:number,posY:number} | null,
  *     size: number,
  *     textColor: string,
+ *     visible: boolean,
  *     parameterValues: Record<string, number|string>,
  *     removedParamIds: string[],
  *     newCustomParameters: {key:string,label:string,value:number|string}[]
@@ -498,6 +526,10 @@ export function showCharacterEditDialog({
   // --- 文字色 ---
   const textColorInput = buildTextColorInput(character.textColor);
   mainColumn.appendChild(textColorInput.element);
+
+  // --- キャラクター一覧への表示 ---
+  const visibleCheckbox = buildVisibleCheckbox(character.visible);
+  mainColumn.appendChild(visibleCheckbox.element);
 
   // --- 既存パラメータ一覧（値の変更・削除） ---
   const paramListLabel = document.createElement('label');
@@ -675,6 +707,7 @@ export function showCharacterEditDialog({
       imageCrop: imagePicker.getCrop(),
       size: sizeInput.getSize(),
       textColor: textColorInput.getColor(),
+      visible: visibleCheckbox.getVisible(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters

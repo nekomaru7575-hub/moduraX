@@ -2,6 +2,16 @@
 // ルーム変数（room.parameters）専用の一覧編集ダイアログ。
 // ルーム設定（ルーム名・BCDiceシステム等）とは別のメニュー項目から独立して開く。
 
+// ユーザーが自由に名前を付けて追加するルーム変数の入力値を、数値として解釈できれば
+// Numberに、できなければ文字列のまま返す。空欄は0扱い（旧来のNumber(x)||0と同じ挙動）。
+// プラグイン由来のルーム変数（source!=='user'、例: 混沌レベル）は対象外（常に数値）。
+function parseRoomParameterValue(raw) {
+  const trimmed = String(raw).trim();
+  if (trimmed === '') return 0;
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : trimmed;
+}
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -17,11 +27,11 @@ function ensureDialog() {
  * 「削除不可(locked:true)」な変数は削除ボタンを出さない（character-dialogの編集ダイアログと同じ規約）。
  *
  * @param {{
- *   parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean}>,
+ *   parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,source?:string}>,
  *   onConfirm: (result: {
- *     valueUpdates: Record<string, number>,
+ *     valueUpdates: Record<string, number|string>,
  *     removedParamIds: string[],
- *     newParameters: {key:string,label:string,value:number}[]
+ *     newParameters: {key:string,label:string,value:number|string}[]
  *   }) => void
  * }} options
  */
@@ -54,8 +64,12 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
     label.style.fontSize = '0.85rem';
     row.appendChild(label);
 
+    // カスタム変数（source:'user'）のみ文字列値を受け付ける。プラグイン由来の
+    // ルーム変数はバフ加算・ダイス計算の前提上、数値のまま。
+    const isCustom = param.source === 'user';
+
     const valueInput = document.createElement('input');
-    valueInput.type = 'number';
+    valueInput.type = isCustom ? 'text' : 'number';
     valueInput.value = param.value;
     if (param.editable === false) {
       valueInput.disabled = true;
@@ -80,7 +94,7 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
     row.appendChild(removeBtn);
 
     listEl.appendChild(row);
-    existingRows.push({ paramId, valueInput, editable: param.editable !== false });
+    existingRows.push({ paramId, valueInput, editable: param.editable !== false, isCustom });
   });
 
   // --- 新規変数の追加 ---
@@ -99,8 +113,8 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
     labelInput.placeholder = '変数名（例: 現在シーン）';
 
     const valueInput = document.createElement('input');
-    valueInput.type = 'number';
-    valueInput.value = 0;
+    valueInput.type = 'text';
+    valueInput.value = '0';
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -149,9 +163,9 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
     event.preventDefault();
 
     const valueUpdates = {};
-    existingRows.forEach(({ paramId, valueInput, editable }) => {
+    existingRows.forEach(({ paramId, valueInput, editable, isCustom }) => {
       if (editable) {
-        valueUpdates[paramId] = Number(valueInput.value) || 0;
+        valueUpdates[paramId] = isCustom ? parseRoomParameterValue(valueInput.value) : (Number(valueInput.value) || 0);
       }
     });
 
@@ -159,7 +173,7 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: Number(row.valueInput.value) || 0
+        value: parseRoomParameterValue(row.valueInput.value)
       }))
       .filter(p => p.key !== '');
 

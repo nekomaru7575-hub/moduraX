@@ -406,6 +406,13 @@ function tryHandleParameterCommand(rawInput, character) {
   }
 
   const before = param.value;
+
+  // 文字列値のカスタム変数は+/-による加減算ができない（=による上書きのみ許可）。
+  if (operator !== '=' && typeof before !== 'number') {
+    alert(`パラメータ「${name}」は数値ではないため、+/-では変更できません。`);
+    return true;
+  }
+
   const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
 
   store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
@@ -785,7 +792,9 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
         // バフ/デバフがかかっている場合は実効値（基礎値＋合計）を表示し、
         // 差分を括弧書きで添える（例: 68 (+10)）
         const effectiveValue = getEffectiveParameterValue(tokenData, paramId);
-        const buffTotal = effectiveValue - param.value;
+        // 文字列値の変数にはバフ差分の概念がない（getEffectiveParameterValueが
+        // 基礎値をそのまま返すため常に差分ゼロ）。数値どうしの引き算のみ行う。
+        const buffTotal = typeof param.value === 'number' ? effectiveValue - param.value : 0;
 
         const valueSpan = document.createElement('span');
         valueSpan.className = 'character-param-value';

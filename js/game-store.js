@@ -46,6 +46,10 @@ export function getEffectiveParameterValue(token, paramId) {
   const param = token?.parameters?.[paramId];
   if (!param) return undefined;
 
+  // 文字列値のカスタム変数にはバフ加算の意味がない（"abc" + 0 が文字列連結になり
+  // 値が壊れる）ため、数値でない場合は基礎値をそのまま返す。
+  if (typeof param.value !== 'number') return param.value;
+
   const buffTotal = (token.buffs || [])
     .filter(b => b.paramId === paramId)
     .reduce((sum, b) => sum + b.delta, 0);

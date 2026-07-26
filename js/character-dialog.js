@@ -215,25 +215,14 @@ function buildSizeInput(initialSize) {
   return { element: group, getSize: () => Math.max(1, Math.round(Number(input.value) || 1)) };
 }
 
-// 「表示」チェックボックス（visible切り替え用）を生成する共通処理。
-// 既存パラメータ行・新規カスタムパラメータ行のどちらからも使う。
-function buildVisibilityCheckbox(initialChecked = true) {
-  const label = document.createElement('label');
-  label.style.display = 'flex';
-  label.style.alignItems = 'center';
-  label.style.gap = '4px';
-  label.style.color = '#aaa';
-  label.style.fontSize = '0.8rem';
-  label.style.flexShrink = '0';
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.checked = initialChecked;
-
-  label.appendChild(checkbox);
-  label.appendChild(document.createTextNode('表示'));
-
-  return { element: label, checkbox };
+// カスタムパラメータ（ユーザーが自由に名前を付けて追加する変数）の入力値を、
+// 数値として解釈できればNumberに、できなければ文字列のまま返す。空欄は0扱い（旧来の
+// Number(x)||0と同じ挙動）。HP等の組み込み・プラグイン由来パラメータは対象外（常に数値）。
+function parseCustomParameterValue(raw) {
+  const trimmed = String(raw).trim();
+  if (trimmed === '') return 0;
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : trimmed;
 }
 
 let dialogEl = null;
@@ -249,7 +238,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number,visible:boolean}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -323,10 +312,8 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     labelInput.placeholder = 'パラメータ名（例: 正気度）';
 
     const valueInput = document.createElement('input');
-    valueInput.type = 'number';
-    valueInput.value = 0;
-
-    const visibility = buildVisibilityCheckbox(true);
+    valueInput.type = 'text';
+    valueInput.value = '0';
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -340,11 +327,10 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
-    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
+    customRows.push({ labelInput, valueInput, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -400,8 +386,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: Number(row.valueInput.value) || 0,
-        visible: row.visibleCheckbox.checked
+        value: parseCustomParameterValue(row.valueInput.value)
       }))
       .filter(p => p.key !== '');
 
@@ -431,7 +416,7 @@ function ensureEditDialog() {
  * 「表示」チェックボックスでキャラ一覧への表示/非表示(visible)を切り替えられる。
  *
  * @param {{
- *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, parameters: Record<string, {key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
+ *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
  *   onComponentChange?: (componentKey: string, value: any) => void,
  *   getComponents?: () => Record<string, any>,
@@ -440,10 +425,9 @@ function ensureEditDialog() {
  *     image: string | null,
  *     imageCrop: {zoom:number,posX:number,posY:number} | null,
  *     size: number,
- *     parameterValues: Record<string, number>,
+ *     parameterValues: Record<string, number|string>,
  *     removedParamIds: string[],
- *     newCustomParameters: {key:string,label:string,value:number,visible:boolean}[],
- *     visibilityUpdates: Record<string, boolean>
+ *     newCustomParameters: {key:string,label:string,value:number|string}[]
  *   }) => void
  * }} options
  */
@@ -501,7 +485,7 @@ export function showCharacterEditDialog({
   paramListEl.className = 'dialog-custom-list';
   mainColumn.appendChild(paramListEl);
 
-  const existingRows = []; // { paramId, valueInput, editable, visibleCheckbox, initialVisible }
+  const existingRows = []; // { paramId, valueInput, editable, isCustom }
   const removedParamIds = new Set();
 
   // プラグインが専用スペースを持つ場合、そのプラグイン由来のパラメータは
@@ -524,22 +508,21 @@ export function showCharacterEditDialog({
     label.style.color = '#ccc';
     label.style.fontSize = '0.85rem';
 
+    // カスタム変数（source:'user'）のみ文字列値を受け付ける。HP等の組み込み・
+    // プラグイン由来パラメータはバフ加算・ダイス計算の前提上、数値のまま。
+    const isCustom = param.source === 'user';
+
     const valueInput = document.createElement('input');
-    valueInput.type = 'number';
+    valueInput.type = isCustom ? 'text' : 'number';
     valueInput.value = param.value;
     if (param.editable === false) {
       valueInput.disabled = true;
     }
 
-    const initialVisible = param.visible !== false;
-    const visibility = buildVisibilityCheckbox(initialVisible);
-    const visibleCheckbox = visibility.checkbox;
-
     row.appendChild(label);
     row.appendChild(valueInput);
-    row.appendChild(visibility.element);
 
-    // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・表示・削除の
+    // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・削除の
     // 縦位置を全行で揃えるため。無いと行ごとに列の位置がずれてしまう）
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -559,7 +542,7 @@ export function showCharacterEditDialog({
     row.appendChild(removeBtn);
 
     paramListEl.appendChild(row);
-    existingRows.push({ paramId, valueInput, editable: param.editable !== false, visibleCheckbox, initialVisible });
+    existingRows.push({ paramId, valueInput, editable: param.editable !== false, isCustom });
   });
 
   // --- 新規カスタムパラメータの追加 ---
@@ -578,10 +561,8 @@ export function showCharacterEditDialog({
     labelInput.placeholder = 'パラメータ名（例: 正気度）';
 
     const valueInput = document.createElement('input');
-    valueInput.type = 'number';
-    valueInput.value = 0;
-
-    const visibility = buildVisibilityCheckbox(true);
+    valueInput.type = 'text';
+    valueInput.value = '0';
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -595,11 +576,10 @@ export function showCharacterEditDialog({
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
-    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
+    customRows.push({ labelInput, valueInput, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -648,13 +628,9 @@ export function showCharacterEditDialog({
     }
 
     const parameterValues = {};
-    const visibilityUpdates = {};
-    existingRows.forEach(({ paramId, valueInput, editable, visibleCheckbox, initialVisible }) => {
+    existingRows.forEach(({ paramId, valueInput, editable, isCustom }) => {
       if (editable) {
-        parameterValues[paramId] = Number(valueInput.value) || 0;
-      }
-      if (visibleCheckbox.checked !== initialVisible) {
-        visibilityUpdates[paramId] = visibleCheckbox.checked;
+        parameterValues[paramId] = isCustom ? parseCustomParameterValue(valueInput.value) : (Number(valueInput.value) || 0);
       }
     });
     Object.assign(parameterValues, pluginPanel.getValues());
@@ -663,8 +639,7 @@ export function showCharacterEditDialog({
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: Number(row.valueInput.value) || 0,
-        visible: row.visibleCheckbox.checked
+        value: parseCustomParameterValue(row.valueInput.value)
       }))
       .filter(p => p.key !== '');
 
@@ -676,8 +651,7 @@ export function showCharacterEditDialog({
       size: sizeInput.getSize(),
       parameterValues,
       removedParamIds: Array.from(removedParamIds),
-      newCustomParameters,
-      visibilityUpdates
+      newCustomParameters
     });
   });
 

@@ -257,7 +257,7 @@ function bindTokenDrag(element, board) {
             getEffectiveParameterValue,
             generateBuffId,
             rollBCDice,
-            onConfirm: ({ name, image, imageCrop, size, parameterValues, removedParamIds, newCustomParameters, visibilityUpdates }) => {
+            onConfirm: ({ name, image, imageCrop, size, parameterValues, removedParamIds, newCustomParameters }) => {
               const latest = store.state.tokens[tokenId];
               if (!latest) return;
 
@@ -286,16 +286,12 @@ function bindTokenDrag(element, board) {
                 }
               });
 
-              Object.entries(visibilityUpdates || {}).forEach(([paramId, visible]) => {
-                store.dispatch('SET_PARAMETER_VISIBILITY', { characterId: tokenId, paramId, visible });
-              });
-
               removedParamIds.forEach(paramId => {
                 store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
               });
 
-              newCustomParameters.forEach(({ key, label, value, visible }) => {
-                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible });
+              newCustomParameters.forEach(({ key, label, value }) => {
+                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
               });
             }
           });

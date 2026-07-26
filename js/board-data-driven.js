@@ -316,17 +316,6 @@ function bindTokenDrag(element, board) {
         }
       },
       {
-        label: '名前を変更',
-        onSelect: () => {
-          const current = store.state.tokens[tokenId];
-          if (!current) return;
-          const newName = prompt('新しい名前を入力してください', current.name);
-          if (newName && newName.trim() !== '') {
-            store.dispatch('RENAME_CHARACTER', { id: tokenId, name: newName.trim() });
-          }
-        }
-      },
-      {
         label: 'バフ/デバフを付与',
         onSelect: () => {
           const current = store.state.tokens[tokenId];

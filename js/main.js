@@ -347,7 +347,13 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 // 参照キャラクターに同名パラメータが無い場合はルーム変数を探して代わりに使う
 // （キャラクターの変数がルーム変数より優先される）。どちらにも見つからない場合は
 // {パラメータ名}のまま残す。
-function substituteCharacterParameters(text, character) {
+// カスタム変数の値自体に{}が含まれる場合（例: 状態=「{HP}で戦闘中」）も同様に再帰的に
+// 解決する。変数同士が互いを参照する循環参照で無限ループしないよう、再帰の深さに上限を設ける。
+const PARAMETER_REFERENCE_MAX_DEPTH = 10;
+
+function substituteCharacterParameters(text, character, depth = 0) {
+  if (depth > PARAMETER_REFERENCE_MAX_DEPTH) return text;
+
   return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
     const name = rawName.trim();
 
@@ -357,7 +363,8 @@ function substituteCharacterParameters(text, character) {
       );
       if (entry) {
         const [paramId] = entry;
-        return String(getEffectiveParameterValue(character, paramId));
+        const value = String(getEffectiveParameterValue(character, paramId));
+        return substituteCharacterParameters(value, character, depth + 1);
       }
     }
 
@@ -366,7 +373,7 @@ function substituteCharacterParameters(text, character) {
     );
     if (roomEntry) {
       const [, param] = roomEntry;
-      return String(param.value);
+      return substituteCharacterParameters(String(param.value), character, depth + 1);
     }
 
     return match;

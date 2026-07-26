@@ -27,3 +27,15 @@ export function getLocalUserId() {
   cachedId = id;
   return id;
 }
+
+// このブラウザの表示名（ニックネーム）。ラウンド進行の点呼一覧など、誰が操作したかを
+// 人間に分かる形で示したい場面でのみ使う（getLocalUserId同様、認証には使わない）。
+const NICKNAME_KEY = 'mojulaX:localNickname';
+
+export function getNickname() {
+  return localStorage.getItem(NICKNAME_KEY) || '';
+}
+
+export function setNickname(name) {
+  localStorage.setItem(NICKNAME_KEY, name);
+}

@@ -6,7 +6,8 @@
 import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import {
-  buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters
+  buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
+  getRoundPhaseTemplate
 } from './parameters/registry.js';
 
 export { listPlugins };
@@ -36,6 +37,42 @@ export function generateBuffId() {
 
 // バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
 export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ', check: '判定', process: 'プロセス' };
+
+// ラウンド進行（Core機能）の初期状態。未開始（active:false）がデフォルト。
+function createInitialRoundState() {
+  return {
+    active: false,
+    template: null,   // 開始時にスナップショットするフェーズ配列（parameters/registry.jsのgetRoundPhaseTemplate参照）
+    roundNumber: 0,
+    phaseIndex: 0,
+    turnIndex: 0,      // participants内の現在の手番（kind:'perCharacter'のフェーズのみ意味を持つ）
+    participants: [],  // イニシアチブ降順のtokenId配列
+    confirmation: { readyEntries: [] } // 点呼/割り込み確認の「準備OK」一覧。[{userId, nickname}]
+  };
+}
+
+// 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
+// 全トークンから取り除く。EXPIRE_BUFFSと、ラウンド進行のROUND_ADVANCE_PHASE（フェーズ完了時の
+// 自動清掃）の両方から使う共通ロジック。
+function removeExpiredBuffs(tokensState, phase) {
+  const nextTokens = { ...tokensState };
+  const removedNames = [];
+  Object.keys(nextTokens).forEach(tokenId => {
+    const character = nextTokens[tokenId];
+    const buffs = character.buffs || [];
+    const remaining = buffs.filter(b => {
+      if (b.expirePhase === phase) {
+        removedNames.push(`${character.name}:${b.name}`);
+        return false;
+      }
+      return true;
+    });
+    if (remaining.length !== buffs.length) {
+      nextTokens[tokenId] = Object.freeze({ ...character, buffs: Object.freeze(remaining) });
+    }
+  });
+  return { nextTokens, removedNames };
+}
 
 // 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。
 // パラメータが存在しないtokenId/paramIdの組み合わせではundefinedを返す（＝呼び出し側は無視すればよい）。
@@ -100,6 +137,8 @@ export class ImmutableStore {
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
+      // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う
+      round: newState.round || createInitialRoundState(),
       // この機能より前に保存された状態にはroom.bcdiceSystem/nameが無いため、既定値を補う
       room: {
         ...newState.room,
@@ -508,21 +547,7 @@ export class ImmutableStore {
         const { phase } = payload;
         if (!phase) return;
 
-        const removedNames = [];
-        Object.keys(nextTokensState).forEach(tokenId => {
-          const character = nextTokensState[tokenId];
-          const buffs = character.buffs || [];
-          const remaining = buffs.filter(b => {
-            if (b.expirePhase === phase) {
-              removedNames.push(`${character.name}:${b.name}`);
-              return false;
-            }
-            return true;
-          });
-          if (remaining.length !== buffs.length) {
-            nextTokensState[tokenId] = Object.freeze({ ...character, buffs: Object.freeze(remaining) });
-          }
-        });
+        const { nextTokens, removedNames } = removeExpiredBuffs(nextTokensState, phase);
 
         const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
         const logText = removedNames.length > 0
@@ -539,8 +564,211 @@ export class ImmutableStore {
 
         this.#state = this.#createProtectedProxy({
           ...prevState,
-          tokens: Object.freeze(nextTokensState),
+          tokens: Object.freeze(nextTokens),
           chatLogs: Object.freeze(nextChatLogs)
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      // --- ラウンド進行（Core機能）。詳細はcreateInitialRoundState()のコメント・
+      // 実装プラン（C:\Users\necom\.claude\plans\swirling-foraging-lemon.md）参照。
+      // 認証/ロールが無いアプリの方針上、進行操作（開始/進行/終了/参加者変更）は
+      // 接続中の誰でも行える前提でガードしていない。点呼(confirmation)もソフトな
+      // 可視化のみで、進行操作自体をブロックしない。 ---
+
+      case 'ROUND_PROGRESSION_START': {
+        const { participantIds = [] } = payload;
+        if (prevState.round.active) return;
+
+        const template = getRoundPhaseTemplate(activePlugin);
+        const participants = [...participantIds].sort((a, b) => {
+          const tokenA = nextTokensState[a];
+          const tokenB = nextTokensState[b];
+          const initA = tokenA ? (getEffectiveParameterValue(tokenA, 'core:initiative') ?? 0) : 0;
+          const initB = tokenB ? (getEffectiveParameterValue(tokenB, 'core:initiative') ?? 0) : 0;
+          return initB - initA;
+        });
+
+        const firstPhase = template[0];
+        const participantNames = participants.map(id => nextTokensState[id]?.name || id).join('、');
+        const logText = participants.length > 0
+          ? `ラウンド進行を開始しました（参加者: ${participantNames}）。ラウンド1 - ${firstPhase.label}開始。`
+          : `ラウンド進行を開始しました。ラウンド1 - ${firstPhase.label}開始。`;
+
+        const nextRound = {
+          active: true,
+          template,
+          roundNumber: 1,
+          phaseIndex: 0,
+          turnIndex: 0,
+          participants,
+          confirmation: { readyEntries: [] }
+        };
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          round: nextRound,
+          chatLogs: {
+            ...prevState.chatLogs,
+            [MAIN_CHAT_TAB_ID]: Object.freeze([
+              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
+              Object.freeze({ system: 'システム', resultText: logText })
+            ])
+          }
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'ROUND_SET_PARTICIPANTS': {
+        const { participantIds = [] } = payload;
+        const round = prevState.round;
+
+        const participants = [...participantIds].sort((a, b) => {
+          const tokenA = nextTokensState[a];
+          const tokenB = nextTokensState[b];
+          const initA = tokenA ? (getEffectiveParameterValue(tokenA, 'core:initiative') ?? 0) : 0;
+          const initB = tokenB ? (getEffectiveParameterValue(tokenB, 'core:initiative') ?? 0) : 0;
+          return initB - initA;
+        });
+
+        // 手番中のキャラが除外された場合に備え、turnIndexを新しい参加者数の範囲へ収める
+        const nextTurnIndex = participants.length > 0
+          ? Math.min(round.turnIndex, participants.length - 1)
+          : 0;
+
+        const participantNames = participants.map(id => nextTokensState[id]?.name || id).join('、') || '（なし）';
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          round: { ...round, participants, turnIndex: nextTurnIndex },
+          chatLogs: {
+            ...prevState.chatLogs,
+            [MAIN_CHAT_TAB_ID]: Object.freeze([
+              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
+              Object.freeze({ system: 'システム', resultText: `参加者を更新しました（現在: ${participantNames}）。` })
+            ])
+          }
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'ROUND_ADVANCE_PHASE': {
+        const round = prevState.round;
+        if (!round.active) return;
+
+        let tokensForRound = nextTokensState;
+        let phaseIndex = round.phaseIndex;
+        let turnIndex = round.turnIndex;
+        let roundNumber = round.roundNumber;
+        const logParts = [];
+
+        const currentPhase = round.template[phaseIndex];
+        const isLastParticipant = turnIndex >= round.participants.length - 1;
+
+        if (currentPhase.kind === 'perCharacter' && !isLastParticipant) {
+          // 同じフェーズ内で次の参加者へ手番を送る
+          turnIndex += 1;
+          const nextName = nextTokensState[round.participants[turnIndex]]?.name || '？';
+          logParts.push(`${currentPhase.label}: ${nextName}の手番です。`);
+        } else {
+          // 現在のフェーズを完了させ、次のフェーズへ（テンプレート末尾ならラウンドを繰り上げる）
+          if (currentPhase.expirePhaseOnComplete) {
+            const { nextTokens, removedNames } = removeExpiredBuffs(tokensForRound, currentPhase.expirePhaseOnComplete);
+            tokensForRound = nextTokens;
+            const expireLabel = BUFF_PHASE_LABELS[currentPhase.expirePhaseOnComplete] || currentPhase.expirePhaseOnComplete;
+            logParts.push(removedNames.length > 0
+              ? `${expireLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
+              : `${expireLabel}終了。`);
+          }
+
+          let nextPhaseIndex = phaseIndex + 1;
+          if (nextPhaseIndex >= round.template.length) {
+            nextPhaseIndex = 0;
+            roundNumber += 1;
+          }
+          phaseIndex = nextPhaseIndex;
+          turnIndex = 0;
+
+          // 参加者0人でperCharacterフェーズに入ってしまう場合は手番の主がいないので、
+          // もう一段先（同じ規則で完了扱い）へ進める防御処理
+          if (round.template[phaseIndex].kind === 'perCharacter' && round.participants.length === 0) {
+            nextPhaseIndex = phaseIndex + 1;
+            if (nextPhaseIndex >= round.template.length) {
+              nextPhaseIndex = 0;
+              roundNumber += 1;
+            }
+            phaseIndex = nextPhaseIndex;
+          }
+
+          const newPhase = round.template[phaseIndex];
+          const turnLabel = newPhase.kind === 'perCharacter' && round.participants.length > 0
+            ? `（手番: ${nextTokensState[round.participants[0]]?.name || '？'}）`
+            : '';
+          logParts.push(`ラウンド${roundNumber} - ${newPhase.label}開始${turnLabel}。`);
+        }
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          tokens: Object.freeze(tokensForRound),
+          round: {
+            ...round,
+            phaseIndex,
+            turnIndex,
+            roundNumber,
+            confirmation: { readyEntries: [] } // 次の遷移に向けて点呼をリセット
+          },
+          chatLogs: {
+            ...prevState.chatLogs,
+            [MAIN_CHAT_TAB_ID]: Object.freeze([
+              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
+              Object.freeze({ system: 'システム', resultText: logParts.join('\n') })
+            ])
+          }
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      case 'ROUND_PROGRESSION_END': {
+        const round = prevState.round;
+        if (!round.active) return;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          round: createInitialRoundState(),
+          chatLogs: {
+            ...prevState.chatLogs,
+            [MAIN_CHAT_TAB_ID]: Object.freeze([
+              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
+              Object.freeze({ system: 'システム', resultText: `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。` })
+            ])
+          }
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      // 点呼/割り込み確認の「準備OK」一覧を更新する。ソフトな可視化のみで、これ自体は
+      // 進行操作をブロックしない。頻繁に発火しうるためチャットログには残さない。
+      case 'ROUND_SET_READY': {
+        const { userId, nickname, ready } = payload;
+        if (!userId) return;
+        const round = prevState.round;
+
+        const withoutUser = round.confirmation.readyEntries.filter(e => e.userId !== userId);
+        const nextEntries = ready ? [...withoutUser, { userId, nickname: nickname || '' }] : withoutUser;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          round: { ...round, confirmation: { readyEntries: nextEntries } }
         });
 
         EventBus.emit('STATE_CHANGED', this.#state);
@@ -897,7 +1125,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
 
     // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
     chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
-    chatLogs: { [MAIN_CHAT_TAB_ID]: [] }
+    chatLogs: { [MAIN_CHAT_TAB_ID]: [] },
+
+    // ラウンド進行（Core機能）。詳細はcreateInitialRoundState()参照
+    round: createInitialRoundState()
   };
 }
 

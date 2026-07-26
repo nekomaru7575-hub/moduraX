@@ -13,6 +13,7 @@ import { initNetSync, replaceState } from './net-sync.js';
 import { getLocalUserId } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
+import { initRoundPanel } from './round-panel.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -1000,5 +1001,6 @@ function applyLog(entry, tabId = activeTabId) {
 // 初期化処理
 window.addEventListener('DOMContentLoaded', () => {
   initNetSync();
+  initRoundPanel();
   store.init();
 });

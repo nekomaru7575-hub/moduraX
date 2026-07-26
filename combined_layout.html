@@ -742,6 +742,88 @@
       cursor: grab;
     }
 
+    /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
+    .round-panel-bar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+
+    .round-panel-status {
+      color: #e0e0e0;
+      font-size: 0.9rem;
+      font-weight: bold;
+      user-select: none;
+    }
+
+    .round-panel-ready-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .round-panel-ready-chip {
+      background-color: #3a3a3a;
+      color: #ddd;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .round-panel-ready-chip-empty {
+      color: #888;
+    }
+
+    .round-panel-btn {
+      background-color: #444;
+      color: #ddd;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .round-panel-action-btn {
+      background-color: #007acc;
+      color: #fff;
+      font-weight: bold;
+      border-color: #007acc;
+    }
+
+    .round-panel-detail {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      background-color: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+
+    .round-panel-turn-row {
+      background-color: #2a2a2a;
+      color: #ccc;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.8rem;
+    }
+
+    .round-panel-turn-row.active-turn {
+      background-color: #007acc;
+      color: #fff;
+      font-weight: bold;
+    }
+
     /* 盤面下1/4：既存ログのミラー表示エリア */
     .current-chat-bar {
       flex: 1;
@@ -1619,6 +1701,16 @@
       </div>
 
     <div class="board-area">
+      <!-- ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 -->
+      <div class="round-panel-bar" id="roundPanelBar">
+        <span class="round-panel-status" id="roundPanelStatus">ラウンド進行前</span>
+        <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
+        <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">準備OK</button>
+        <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
+        <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了・設定">⋮</button>
+      </div>
+      <div class="round-panel-detail" id="roundPanelDetail" style="display: none;"></div>
+
       <div id="board-viewport">
         <div id="board"></div>
       </div>

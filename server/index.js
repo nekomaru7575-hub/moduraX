@@ -263,7 +263,13 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  rooms.set(id, { store: new ImmutableStore(initialState), clients: new Set(), saveTimer: null });
+  // importedStateがラウンド進行機能より前にエクスポートされたデータだと、roundキーが
+  // 無いままstateを直接コンストラクタへ渡すことになり、後でROUND_*アクションのreducerが
+  // prevState.round.activeへのアクセスで例外を投げてサーバーごと落ちる（getOrLoadRoomで
+  // 修正済みなのと同じ原因）。hydrate()を通して欠けているキーを補ってから使う。
+  const store = new ImmutableStore(createInitialGameState());
+  store.hydrate(initialState);
+  rooms.set(id, { store, clients: new Set(), saveTimer: null });
   sendJson(res, 201, { id });
 }
 
@@ -324,7 +330,15 @@ wss.on('connection', async (ws, req) => {
 
     if (message.type !== 'ACTION') return;
 
-    entry.store.dispatch(message.action, message.payload);
+    // reducer側の想定外の状態（例: 古いエクスポートデータに無いキーへのアクセス等）で
+    // 例外が投げられても、この1メッセージだけを無視する。ここで捕まえないと、wsのmessage
+    // イベント内の未捕捉例外でNodeプロセスごと落ち、同居する他の全部屋も巻き添えで切断される。
+    try {
+      entry.store.dispatch(message.action, message.payload);
+    } catch (error) {
+      console.warn(`[server] ${roomId} でのアクション処理に失敗しました（無視します）:`, message.action, error.message);
+      return;
+    }
     schedulePersistForRoom(roomId, entry);
     broadcastToRoom(entry, ws, { type: 'ACTION', action: message.action, payload: message.payload });
   });

@@ -75,25 +75,15 @@ export function initRoundPanel() {
       : '';
     statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`;
 
-    // --- 点呼チップ（誰が「割り込みありません」を宣言済みか） ---
+    // --- 「割り込みなし：（宣言済みのニックネーム,...）」の一覧表示 ---
     const showConfirmation = shouldShowConfirmation(round);
     if (readyListEl) {
-      readyListEl.innerHTML = '';
       readyListEl.style.display = showConfirmation ? '' : 'none';
       if (showConfirmation) {
-        if (round.confirmation.readyEntries.length === 0) {
-          const empty = document.createElement('span');
-          empty.className = 'round-panel-ready-chip round-panel-ready-chip-empty';
-          empty.textContent = 'まだ誰も割り込みなしを宣言していません';
-          readyListEl.appendChild(empty);
-        } else {
-          round.confirmation.readyEntries.forEach(entry => {
-            const chip = document.createElement('span');
-            chip.className = 'round-panel-ready-chip';
-            chip.textContent = `${entry.nickname || '匿名'}: 割り込みありません`;
-            readyListEl.appendChild(chip);
-          });
-        }
+        const names = round.confirmation.readyEntries.map(entry => entry.nickname || '匿名');
+        readyListEl.textContent = names.length > 0
+          ? `割り込みなし：（${names.join('、')}）`
+          : '割り込みなし：（まだ誰もいません）';
       }
     }
 

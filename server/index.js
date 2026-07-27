@@ -136,11 +136,13 @@ async function getOrLoadRoom(roomId) {
       return entry;
     }
   } catch (error) {
+    // Redis自体に到達できない場合も、ここで即nullを返すと部屋が一時的に消えたように
+    // 見えてしまう。ローカルにキャッシュが残っていればそちらへフォールバックする。
     console.warn(`[server] ${roomId} のRedis読み込みに失敗しました:`, error.message);
-    return null;
   }
 
-  // Redisに無い場合のみ、移行前の環境で使っていたローカルファイルを試す
+  // Redisに無い（またはRedis自体に到達できない）場合のみ、移行前の環境で使っていた
+  // ローカルファイルを試す
   try {
     const raw = await readFile(roomFilePath(roomId), 'utf-8');
     const savedState = JSON.parse(raw);

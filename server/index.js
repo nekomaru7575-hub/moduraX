@@ -1,18 +1,23 @@
 // server/index.js
 // 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを
 // 同じNodeサーバー・同じポートで提供する。複数の部屋（セッション）を1つの
-// サーバーで運用できるよう、部屋ごとに独立したImmutableStore・接続クライアント集合・
-// 永続化ファイルを持つ（server/rooms/room-N.json）。1つのサービスとしてRender等に
-// そのままデプロイできる。
+// サーバーで運用できるよう、部屋ごとに独立したImmutableStore・接続クライアント集合を
+// 持つ。永続化はUpstash Redis（キー room:room-N）で行う。RenderのようなPaaSは
+// ローカルディスクがプロセス再起動のたびに消える（永続ディスク未添付の場合）ため、
+// ファイル保存だとラウンド進行等がきっかけの再起動で部屋データが消えてしまう問題があった。
+// 起動時、まだRedisに無い部屋についてのみ、旧バージョンで使っていたローカルの
+// server/rooms/room-N.json（あれば）から一度だけ移行する。
 //
 // 起動: npm start　（ポートは環境変数PORTで上書き可、既定8081）
 // 部屋数上限は環境変数MAX_ROOMSで上書き可、既定5。
+// 環境変数 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN が必須（Upstashのダッシュボードで発行）。
 
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { Redis } from '@upstash/redis';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
 
 const PORT = Number(process.env.PORT) || 8081;
@@ -22,6 +27,11 @@ const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
 const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 const SAVE_DEBOUNCE_MS = 1000;
+
+const redis = Redis.fromEnv();
+function roomKey(roomId) {
+  return `room:${roomId}`;
+}
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -100,27 +110,48 @@ function roomFilePath(roomId) {
   return path.join(ROOMS_DIR, `${roomId}.json`);
 }
 
-// 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければ
-// ディスクから読み込む。ファイルが無ければ「まだ作られていない空き部屋」としてnullを返す。
+// 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければRedisから
+// 読み込む。Redisにも無ければ、旧バージョンのローカルファイル（server/rooms/room-N.json）
+// が残っていないか確認し、あれば一度だけそれを読み込んでRedisへ移行する。
+// どちらにも無ければ「まだ作られていない空き部屋」としてnullを返す。
 async function getOrLoadRoom(roomId) {
   if (rooms.has(roomId)) return rooms.get(roomId);
 
+  // savedStateを直接コンストラクタへ渡すと、この機能より前に保存された部屋データに
+  // 無い新しいトップレベルキー（round等）がundefinedのまま残り、そのキーを前提とする
+  // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
+  // 経由で同じ補完を受けるが、ここだけそれを素通りしていた）。hydrate()を通して
+  // クライアントの再接続時と同じ後方互換の穴埋めを適用してから使う。
+  function buildEntry(savedState) {
+    const store = new ImmutableStore(createInitialGameState());
+    store.hydrate(savedState);
+    return { store, clients: new Set(), saveTimer: null };
+  }
+
+  try {
+    const savedState = await redis.get(roomKey(roomId));
+    if (savedState) {
+      const entry = buildEntry(savedState);
+      rooms.set(roomId, entry);
+      return entry;
+    }
+  } catch (error) {
+    console.warn(`[server] ${roomId} のRedis読み込みに失敗しました:`, error.message);
+    return null;
+  }
+
+  // Redisに無い場合のみ、移行前の環境で使っていたローカルファイルを試す
   try {
     const raw = await readFile(roomFilePath(roomId), 'utf-8');
     const savedState = JSON.parse(raw);
-    // savedStateを直接コンストラクタへ渡すと、この機能より前に保存された部屋データに
-    // 無い新しいトップレベルキー（round等）がundefinedのまま残り、そのキーを前提とする
-    // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
-    // 経由で同じ補完を受けるが、ここだけそれを素通りしていた）。hydrate()を通して
-    // クライアントの再接続時と同じ後方互換の穴埋めを適用してから使う。
-    const store = new ImmutableStore(createInitialGameState());
-    store.hydrate(savedState);
-    const entry = { store, clients: new Set(), saveTimer: null };
+    const entry = buildEntry(savedState);
     rooms.set(roomId, entry);
+    await redis.set(roomKey(roomId), entry.store.state);
+    console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`);
     return entry;
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      console.warn(`[server] ${roomId} の読み込みに失敗しました:`, error.message);
+      console.warn(`[server] ${roomId} のローカルファイル読み込みに失敗しました:`, error.message);
     }
     return null;
   }
@@ -131,7 +162,7 @@ function schedulePersistForRoom(roomId, entry) {
   entry.saveTimer = setTimeout(async () => {
     entry.saveTimer = null;
     try {
-      await writeFile(roomFilePath(roomId), JSON.stringify(entry.store.state));
+      await redis.set(roomKey(roomId), entry.store.state);
     } catch (error) {
       console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
     }
@@ -255,20 +286,21 @@ async function handleCreateRoom(req, res) {
     initialState = createInitialGameState({ name: trimmedName, activePlugin: safeActivePlugin, bcdiceSystem: safeBcdiceSystem });
   }
 
-  try {
-    await writeFile(roomFilePath(id), JSON.stringify(initialState));
-  } catch (error) {
-    console.warn(`[server] ${id} の作成に失敗しました:`, error.message);
-    sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
-    return;
-  }
-
   // importedStateがラウンド進行機能より前にエクスポートされたデータだと、roundキーが
   // 無いままstateを直接コンストラクタへ渡すことになり、後でROUND_*アクションのreducerが
   // prevState.round.activeへのアクセスで例外を投げてサーバーごと落ちる（getOrLoadRoomで
   // 修正済みなのと同じ原因）。hydrate()を通して欠けているキーを補ってから使う。
   const store = new ImmutableStore(createInitialGameState());
   store.hydrate(initialState);
+
+  try {
+    await redis.set(roomKey(id), store.state);
+  } catch (error) {
+    console.warn(`[server] ${id} の作成に失敗しました:`, error.message);
+    sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
+    return;
+  }
+
   rooms.set(id, { store, clients: new Set(), saveTimer: null });
   sendJson(res, 201, { id });
 }

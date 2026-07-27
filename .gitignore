@@ -12,3 +12,4 @@ server/rooms/
 JSON/
 txt/
 .claude/
+.env

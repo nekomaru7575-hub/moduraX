@@ -6,6 +6,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "ws": "^8.18.0"
   }
 }

@@ -756,17 +756,28 @@
       transition: margin 0.15s ease;
     }
 
-    /* キャラクター一覧／バックヤードパネル（左右に浮かぶオーバーレイ、幅220px）を
-       開いている間、ラウンド進行バーの中身がその下に隠れないよう、開いている側に
-       パネル幅ぶんの余白を空ける。横に置けない分は折り返して縦に伸びてよい。 */
-    #characterPanelArea:not(.collapsed) ~ .board-area .round-panel-bar,
-    #characterPanelArea:not(.collapsed) ~ .board-area .round-panel-detail {
+    /* キャラクター一覧／バックヤードパネル（左右に浮かぶオーバーレイ）を、ラウンド進行
+       バーの中身がその下に隠れないよう常に避ける。展開中は幅220px、折りたたみ中も
+       展開ストリップ（幅28px）が残るので、どちらの状態でもその分の余白を空ける。
+       横に置けない分は折り返して縦に伸びてよい。 */
+    #characterPanelArea ~ .board-area .round-panel-bar,
+    #characterPanelArea ~ .board-area .round-panel-detail {
       margin-left: 220px;
     }
 
-    #backyardPanelArea:not(.collapsed) ~ .board-area .round-panel-bar,
-    #backyardPanelArea:not(.collapsed) ~ .board-area .round-panel-detail {
+    #characterPanelArea.collapsed ~ .board-area .round-panel-bar,
+    #characterPanelArea.collapsed ~ .board-area .round-panel-detail {
+      margin-left: 28px;
+    }
+
+    #backyardPanelArea ~ .board-area .round-panel-bar,
+    #backyardPanelArea ~ .board-area .round-panel-detail {
       margin-right: 220px;
+    }
+
+    #backyardPanelArea.collapsed ~ .board-area .round-panel-bar,
+    #backyardPanelArea.collapsed ~ .board-area .round-panel-detail {
+      margin-right: 28px;
     }
 
     .round-panel-status {
@@ -782,8 +793,10 @@
       white-space: nowrap;
     }
 
+    /* 常に単独の行（2行目）を占有させる。1行目（ステータス・ニックネーム・ボタン）と
+       混在して折り返し位置が不安定にならないようにするため。 */
     .round-panel-ready-list {
-      flex: 1;
+      flex: 1 0 100%;
       color: #ccc;
       font-size: 0.85rem;
     }
@@ -1717,11 +1730,11 @@
       <!-- ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 -->
       <div class="round-panel-bar" id="roundPanelBar" style="display: none;">
         <span class="round-panel-status" id="roundPanelStatus">ラウンド進行前</span>
-        <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
         <span class="round-panel-nickname" id="roundPanelNicknameLabel"></span>
         <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">割り込みなし</button>
         <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
         <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了">⋮</button>
+        <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
       </div>
       <div class="round-panel-detail" id="roundPanelDetail" style="display: none;"></div>
 

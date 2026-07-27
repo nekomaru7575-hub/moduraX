@@ -499,6 +499,13 @@
       font-weight: bold;
     }
 
+    /* 部屋削除など、取り消せない操作のボタン */
+    .dialog-danger-btn {
+      background-color: #a8323f;
+      color: #fff;
+      font-weight: bold;
+    }
+
     /* DX3拡張パネル：侵蝕率/DB/EBをコンパクトに横並び表示 */
     .dx3-compact-row {
       display: flex;
@@ -1694,6 +1701,9 @@
       </div>
       <div class="dialog-button-row" style="margin-top: 16px;">
         <button type="submit" class="dialog-confirm-btn">閉じる</button>
+      </div>
+      <div class="dialog-button-row" style="margin-top: 24px;">
+        <button type="button" id="deleteRoomBtn" class="dialog-danger-btn">部屋を削除</button>
       </div>
     </form>
   </dialog>

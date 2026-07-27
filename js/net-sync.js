@@ -13,6 +13,10 @@ const RECONNECT_DELAY_MS = 2000;
 // （server/index.jsのws.close(4000/4004, ...)と対応させている）。
 const INVALID_ROOM_CLOSE_CODES = new Set([4000, 4004]);
 
+// 部屋が削除されたことを理由に切断された際のcloseコード（server/index.jsと対応）。
+// 削除操作をした本人・他の参加者を問わず、全員がこのコードで切断される。
+const ROOM_DELETED_CLOSE_CODE = 4005;
+
 import { store } from './game-store.js';
 import { EventBus } from './EventBus.js';
 
@@ -53,6 +57,14 @@ function connect() {
   ws.addEventListener('close', (event) => {
     EventBus.emit('NET_STATUS_CHANGED', 'disconnected');
 
+    // 部屋が削除された場合は、途中まで参加していたかに関わらず再接続を試みても
+    // 無駄なので部屋一覧へ案内する。
+    if (event.code === ROOM_DELETED_CLOSE_CODE) {
+      alert('この部屋は削除されました。部屋一覧へ戻ります。');
+      window.location.href = '/';
+      return;
+    }
+
     // 一度もINITを受け取れないまま、不正/未作成の部屋を理由に切断された場合は、
     // 再接続を試みても無駄なので部屋一覧へ案内する。
     if (!hasReceivedInit && INVALID_ROOM_CLOSE_CODES.has(event.code)) {
@@ -81,6 +93,15 @@ export function initNetSync() {
   };
 
   connect();
+}
+
+// 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させた上で
+// （全員の退室が完了してから）実データを消す。結果は各クライアントのws closeイベント
+// （ROOM_DELETED_CLOSE_CODE）で通知される。
+export function requestRoomDeletion() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'DELETE_ROOM' }));
+  }
 }
 
 // ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと

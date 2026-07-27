@@ -9,11 +9,12 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
-import { initNetSync, replaceState } from './net-sync.js';
+import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
 import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
+import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -184,6 +185,7 @@ const roomNameLabel = document.getElementById('roomNameLabel');
 const exportStateBtn = document.getElementById('exportStateBtn');
 const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
+const deleteRoomBtn = document.getElementById('deleteRoomBtn');
 
 // キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
 const characterPanelArea = document.getElementById('characterPanelArea');
@@ -280,20 +282,23 @@ if (roomMenuBtn && roomSettingsDialog) {
 
 // セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
 // 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
+// 部屋削除前の「部屋を保存し削除」からも使うため、関数として切り出してある。
+function exportStateToFile() {
+  const json = JSON.stringify(store.state, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trpg-room-${dateStr}.json`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
 if (exportStateBtn) {
-  exportStateBtn.addEventListener('click', () => {
-    const json = JSON.stringify(store.state, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `trpg-room-${dateStr}.json`;
-    a.click();
-
-    URL.revokeObjectURL(url);
-  });
+  exportStateBtn.addEventListener('click', exportStateToFile);
 }
 
 if (importStateBtn && importStateInput) {
@@ -319,6 +324,22 @@ if (importStateBtn && importStateInput) {
     }
 
     replaceState(state);
+  });
+}
+
+// 部屋の削除。ルーム設定の一番下にある赤いボタンから。押した直後には消さず、
+// 確認ダイアログ（いいえ／はい／部屋を保存し削除）を挟む。実際の削除は
+// サーバー側が全員の退室を確認してから行う（net-sync.jsのrequestRoomDeletion参照）。
+if (deleteRoomBtn) {
+  deleteRoomBtn.addEventListener('click', () => {
+    roomSettingsDialog?.close();
+    showRoomDeleteConfirmDialog({
+      onDelete: () => requestRoomDeletion(),
+      onSaveAndDelete: () => {
+        exportStateToFile();
+        requestRoomDeletion();
+      }
+    });
   });
 }
 

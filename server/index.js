@@ -14,7 +14,7 @@
 
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, access, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Redis } from '@upstash/redis';
@@ -148,8 +148,14 @@ async function getOrLoadRoom(roomId) {
     const savedState = JSON.parse(raw);
     const entry = buildEntry(savedState);
     rooms.set(roomId, entry);
-    await redis.set(roomKey(roomId), entry.store.state);
-    console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`);
+
+    // Redisへの移行はあくまで「ついで」の処理。ここが失敗しても、ディスクからの
+    // 読み込み自体は成功しているので、awaitで待って巻き込み失敗にはしない
+    // （待ってしまうと、Redisが一時的に落ちているだけで部屋が見つからない扱いになる）。
+    redis.set(roomKey(roomId), entry.store.state)
+      .then(() => console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`))
+      .catch((error) => console.warn(`[server] ${roomId} のRedisへの移行に失敗しました:`, error.message));
+
     return entry;
   } catch (error) {
     if (error.code !== 'ENOENT') {
@@ -178,6 +184,18 @@ function broadcastToRoom(entry, sender, message) {
       client.send(outgoing);
     }
   });
+}
+
+// 部屋の実データ（Redis・移行元のローカルファイルが残っていればそれも）を消す。
+// 呼び出し元（ws.on('close')）で、削除待ち状態の部屋の接続者が0人になったことを
+// 確認してから呼ぶこと。
+async function deleteRoomData(roomId) {
+  try {
+    await redis.del(roomKey(roomId));
+  } catch (error) {
+    console.warn(`[server] ${roomId} のRedis削除に失敗しました:`, error.message);
+  }
+  await unlink(roomFilePath(roomId)).catch(() => {});
 }
 
 // 起動時、まだserver/rooms/が無ければ作成する。既存のserver/state.json（本機能より前の
@@ -342,6 +360,12 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
+  // 削除待ち（全員の退室を待っている）部屋には新規接続させない
+  if (entry.pendingDelete) {
+    ws.close(4005, 'room deleted');
+    return;
+  }
+
   entry.clients.add(ws);
   console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
 
@@ -359,6 +383,16 @@ wss.on('connection', async (ws, req) => {
       entry.store.hydrate(message.state);
       schedulePersistForRoom(roomId, entry);
       broadcastToRoom(entry, ws, { type: 'INIT', state: entry.store.state });
+      return;
+    }
+
+    if (message.type === 'DELETE_ROOM') {
+      // 即座には消さない。全クライアント（自分含む）を退室させ、退室が完了して
+      // （clients.size===0）から実データを消す（ws.on('close')側で行う）。
+      entry.pendingDelete = true;
+      Array.from(entry.clients).forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) client.close(4005, 'room deleted');
+      });
       return;
     }
 
@@ -380,6 +414,19 @@ wss.on('connection', async (ws, req) => {
   ws.on('close', () => {
     entry.clients.delete(ws);
     console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
+
+    if (entry.pendingDelete && entry.clients.size === 0) {
+      // デバウンス中の保存がこの後に発火すると、削除したはずのデータがRedisへ
+      // 復活してしまうため、削除前に確実に止めておく
+      if (entry.saveTimer) {
+        clearTimeout(entry.saveTimer);
+        entry.saveTimer = null;
+      }
+      rooms.delete(roomId);
+      deleteRoomData(roomId).then(() => {
+        console.log(`[server] ${roomId} を削除しました`);
+      });
+    }
   });
 });
 

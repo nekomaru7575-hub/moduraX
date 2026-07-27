@@ -8,7 +8,21 @@ export async function rollBCDice(system, command) {
 
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error("サーバーエラー");
+
+    if (!response.ok) {
+      // BCDiceは、見た目はダイスコマンドらしい文字列（例: "aaaa"）でも、その
+      // システムの構文として解釈できない場合、通信自体は成功した上でHTTP 400 +
+      // {ok:false, reason:"unsupported command"}を返す。これは通信障害ではなく
+      // 「コマンドとして認識されなかった」ことを表すため、呼び出し側が区別して
+      // 扱えるようunsupportedフラグを立てて返す。
+      const data = await response.json().catch(() => null);
+      const unsupported = response.status === 400 && data?.ok === false;
+      return {
+        success: false,
+        unsupported,
+        resultText: unsupported ? "コマンドとして認識されませんでした" : "⚠️ 通信に失敗しました"
+      };
+    }
 
     const data = await response.json();
     return {

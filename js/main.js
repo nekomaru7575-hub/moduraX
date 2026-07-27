@@ -346,8 +346,18 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       return;
     }
 
-    const { success, resultText, diceValues } = await rollBCDice(system, command);
-    if (!success) throw new Error(resultText);
+    const { success, unsupported, resultText, diceValues } = await rollBCDice(system, command);
+    if (!success) {
+      if (unsupported) {
+        // 正規表現上はダイスコマンドに見えても、BCDice側がそのシステムの構文として
+        // 認識できなかった場合（例: "aaaa"）。通信エラーではないので、アラートは
+        // 出さずに入力をそのまま平文の発言としてチャットへ送る。
+        applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
+        commandInput.value = "";
+        return;
+      }
+      throw new Error(resultText);
+    }
 
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";

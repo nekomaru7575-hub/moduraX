@@ -102,9 +102,25 @@ export function handlePluginChatCommand(pluginId, rawInput, context) {
 }
 
 /**
+ * シーン/ラウンド/シナリオ終了等のフェーズ終了時、プラグイン固有のcomponents（DX3なら
+ * エフェクトの使用回数等）をリセットする。Coreはcomponentsの中身を解釈しないため、
+ * 「フェーズが終了した」という事実だけをプラグインに渡し、何をリセットするかは
+ * プラグイン側（dx3.jsのresetComponentsOnPhaseEnd等）に委ねる。
+ * @param {string} pluginId
+ * @param {Record<string, any>} components
+ * @param {'scenario'|'scene'|'round'|'check'|'process'} phase
+ * @returns {Record<string, any>} リセット後のcomponents（変化が無ければ同一参照）
+ */
+export function resetPluginComponentsOnPhaseEnd(pluginId, components, phase) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.resetComponentsOnPhaseEnd) return components;
+  return plugin.resetComponentsOnPhaseEnd(components, phase) ?? components;
+}
+
+/**
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
- * @param {string} pluginId 
- * @param {Record<string, any>} parameters 
+ * @param {string} pluginId
+ * @param {Record<string, any>} parameters
  * @returns {Record<string, any>} 計算適用後のパラメータリスト
  */
 export function applyPluginDerivedParameters(pluginId, parameters) {

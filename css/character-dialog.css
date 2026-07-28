@@ -191,14 +191,14 @@
   white-space: nowrap;
 }
 
-.effect-box-combo-mode {
-  width: 60px;
+.effect-box-combo-formula {
+  width: 100px;
   background-color: #3a3a3a;
   color: #fff;
   border: 1px solid #555;
-  padding: 3px 2px;
+  padding: 4px 6px;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .effect-box-combo-input {

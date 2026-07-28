@@ -1,7 +1,8 @@
 import { buildParameters } from './paramFactory.js';
 import { showEffectBox } from './dx3-effect-box.js';
 import { showAbilitySkillBox } from './dx3-ability-box.js';
-import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage } from './dx3-combo-box.js';
+import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage, runEffectUse } from './dx3-combo-box.js';
+import { LIMIT_CATEGORIES } from './dx3-effect-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -273,9 +274,9 @@ function importDX3Effects(json) {
       // 回数制限（シナリオ/シーン/ラウンド）はシート側に構造化フィールドがないため、
       // 初期値は制限なし。ボックスUI側で手入力する。
       limits: {
-        scenario: { current: 0, max: null, ebBonus: false },
-        scene: { current: 0, max: null, ebBonus: false },
-        round: { current: 0, max: null, ebBonus: false }
+        scenario: { current: 0, max: null },
+        scene: { current: 0, max: null },
+        round: { current: 0, max: null }
       }
     });
   }
@@ -324,7 +325,7 @@ function importDX3VariableSkillSlots(json) {
  *   valueOverrides: Record<string, number>,
  *   labelOverrides: Record<string, string>,
  *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>,
- *   components: { effects: Array<{name:string,timing:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null,ebBonus:boolean}>}> }
+ *   components: { effects: Array<{name:string,timing:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null}>}> }
  * } | null}
  */
 function importDX3CharacterJson(json) {
@@ -362,6 +363,10 @@ function importDX3CharacterJson(json) {
 // コンボ名は参照キャラクターのcomponents.combosから完全一致で探す。
 const COMBO_COMMAND_PATTERN = /^combo\.(awk|jdm|dmg)\((.+)\)$/;
 
+// エフェクト単体を自身へ適用するチャットコマンド。コンボを介さず、修正値バフの付与・
+// 使用数+1・上昇侵蝕率の即時反映をまとめて行う（実処理はdx3-combo-box.jsのrunEffectUse）。
+const EFFECT_USE_COMMAND_PATTERN = /^エフェクト使用\((.+)\)$/;
+
 /**
  * DX3プラグイン固有のチャットコマンドを解釈・実行する。
  * @param {string} rawInput
@@ -376,6 +381,30 @@ const COMBO_COMMAND_PATTERN = /^combo\.(awk|jdm|dmg)\((.+)\)$/;
  *   ダイスロール等にフォールバックする。
  */
 function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId, rollBCDice }) {
+  const effectUseMatch = rawInput.match(EFFECT_USE_COMMAND_PATTERN);
+  if (effectUseMatch) {
+    const name = effectUseMatch[1].trim();
+
+    if (!token) {
+      alert('エフェクトを使用する参照キャラクターを選択してください。');
+      return true;
+    }
+
+    const effects = token.components?.effects ?? [];
+    const effect = effects.find(e => e.name === name);
+    if (!effect) {
+      alert(`エフェクト「${name}」が見つかりません。`);
+      return true;
+    }
+
+    const tokenId = token.id;
+    runEffectUse({
+      effect, effects, tokenId, dispatch, getToken: () => token, getEffectiveParameterValue, generateBuffId,
+      onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
+    });
+    return true;
+  }
+
   const match = rawInput.match(COMBO_COMMAND_PATTERN);
   if (!match) return false;
 
@@ -412,6 +441,26 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
   return true;
 }
 
+// シーン/ラウンド/シナリオ終了時、該当カテゴリのエフェクト使用数(current)を0へ戻す。
+// 判定終了/プロセス終了はエフェクトの使用制限カテゴリに存在しないため無変更で返す。
+// 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
+function resetDX3ComponentsOnPhaseEnd(components, phase) {
+  if (!LIMIT_CATEGORIES.includes(phase)) return components;
+
+  const effects = components?.effects;
+  if (!effects || effects.length === 0) return components;
+
+  let changed = false;
+  const nextEffects = effects.map(effect => {
+    const limit = effect.limits?.[phase];
+    if (!limit || (limit.current || 0) === 0) return effect;
+    changed = true;
+    return { ...effect, limits: { ...effect.limits, [phase]: { ...limit, current: 0 } } };
+  });
+
+  return changed ? { ...components, effects: nextEffects } : components;
+}
+
 export const DX3_PLUGIN = {
   id: 'DX3',
   label: 'ダブルクロス (3rd)',
@@ -420,5 +469,6 @@ export const DX3_PLUGIN = {
   computeDerivedParameters: computeDX3DerivedParameters, // 🆕 計算ロジックを登録
   renderCharacterPanel: renderDX3CharacterPanel,
   importCharacterJson: importDX3CharacterJson,
-  handleChatCommand: handleDX3ChatCommand
+  handleChatCommand: handleDX3ChatCommand,
+  resetComponentsOnPhaseEnd: resetDX3ComponentsOnPhaseEnd
 };

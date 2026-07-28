@@ -7,7 +7,7 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
-  getRoundPhaseTemplate
+  getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd
 } from './parameters/registry.js';
 
 export { listPlugins };
@@ -72,6 +72,21 @@ function removeExpiredBuffs(tokensState, phase) {
     }
   });
   return { nextTokens, removedNames };
+}
+
+// removeExpiredBuffsと同じ「フェーズが終了した」タイミングで、プラグイン固有のcomponents
+// （DX3ならエフェクトの使用回数）もリセットする。バフの期限切れとは別関心事のため、
+// Core側はactivePluginへの委譲だけを担い、中身の意味はプラグイン側に委ねる
+// （resetPluginComponentsOnPhaseEnd、js/parameters/registry.js参照）。
+function resetPluginComponentsForPhase(tokensState, activePlugin, phase) {
+  const nextTokens = { ...tokensState };
+  Object.entries(nextTokens).forEach(([id, character]) => {
+    const nextComponents = resetPluginComponentsOnPhaseEnd(activePlugin, character.components, phase);
+    if (nextComponents !== character.components) {
+      nextTokens[id] = Object.freeze({ ...character, components: nextComponents });
+    }
+  });
+  return nextTokens;
 }
 
 // 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。
@@ -598,7 +613,8 @@ export class ImmutableStore {
         const { phase } = payload;
         if (!phase) return;
 
-        const { nextTokens, removedNames } = removeExpiredBuffs(nextTokensState, phase);
+        const { nextTokens: buffExpiredTokens, removedNames } = removeExpiredBuffs(nextTokensState, phase);
+        const nextTokens = resetPluginComponentsForPhase(buffExpiredTokens, activePlugin, phase);
 
         const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
         const logText = removedNames.length > 0
@@ -731,7 +747,7 @@ export class ImmutableStore {
           // 現在のフェーズを完了させ、次のフェーズへ（テンプレート末尾ならラウンドを繰り上げる）
           if (currentPhase.expirePhaseOnComplete) {
             const { nextTokens, removedNames } = removeExpiredBuffs(tokensForRound, currentPhase.expirePhaseOnComplete);
-            tokensForRound = nextTokens;
+            tokensForRound = resetPluginComponentsForPhase(nextTokens, activePlugin, currentPhase.expirePhaseOnComplete);
             const expireLabel = BUFF_PHASE_LABELS[currentPhase.expirePhaseOnComplete] || currentPhase.expirePhaseOnComplete;
             logParts.push(removedNames.length > 0
               ? `${expireLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`

@@ -15,7 +15,8 @@
 // 循環importになってしまう。そのためstore操作・rollBCDiceは、実行系の関数
 // （runComboActivate等）の引数として呼び出し元（js/main.js）から受け取る。
 
-import { COMBO_MOD_FIELDS } from './dx3-effect-box.js';
+import { COMBO_MOD_FIELDS, LIMIT_CATEGORIES } from './dx3-effect-box.js';
+import { resolveComboModFormula } from './dx3-formula.js';
 
 let dialogEl = null;
 
@@ -36,20 +37,28 @@ const COMBO_PARAM_MAP = {
   criticalMod: 'DX3:AcB'
 };
 
-// コンボ時修正1件分の値。「固定値」はそのまま、「係数」は(エフェクトのLv + EB)に掛けた値を返す
-// （例：判定ダイス+レベル×3のような効果テキストに対応するため）。
-function comboModContribution(effect, key, eb) {
+// コンボ時修正1件分の値。修正欄は文字列の式（{Lv}/{パラメータ名}参照＋四則演算）なので、
+// 実際の数値への解決はdx3-formula.jsのresolveComboModFormulaに委ねる。
+function comboModContribution(effect, key, token, getEffectiveParameterValue) {
   const mod = effect.combo?.[key];
-  if (!mod) return 0;
-  const value = mod.value || 0;
-  if (mod.mode === 'coefficient') {
-    return value * ((effect.level || 0) + eb);
-  }
-  return value;
+  return resolveComboModFormula(mod, { effect, token, getEffectiveParameterValue });
 }
 
-function sumComboMod(effects, key, eb) {
-  return effects.reduce((sum, e) => sum + comboModContribution(e, key, eb), 0);
+function sumComboMod(effects, key, token, getEffectiveParameterValue) {
+  return effects.reduce((sum, e) => sum + comboModContribution(e, key, token, getEffectiveParameterValue), 0);
+}
+
+// シナリオ/シーン/ラウンドのいずれかで上限(max)が設定済みかつ、現在値(current)が
+// 既に上限に達しているエフェクトかどうか。使用（コンボ発動・単体使用）前のブロック判定に使う。
+function isEffectAtLimit(effect) {
+  return LIMIT_CATEGORIES.some(category => {
+    const limit = effect.limits?.[category];
+    return limit?.max != null && (limit.current || 0) >= limit.max;
+  });
+}
+
+function buildEffectUseFailureMessage(names) {
+  return `エフェクト（${names.join('、')}）の使用に失敗しました`;
 }
 
 // クリティカル修正を持つエフェクトの「クリティカル値の下限」。複数のエフェクトが下限を
@@ -113,10 +122,10 @@ function parseFinalNumber(resultText) {
   return match ? Number(match[0]) : null;
 }
 
-function logToMain(dispatch, resultText, token) {
+function logToMain(dispatch, resultText, token, system = 'コンボ') {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: 'main',
-    entry: { system: 'コンボ', character: token?.name || '', characterId: token?.id || null, color: token?.textColor || null, resultText }
+    entry: { system, character: token?.name || '', characterId: token?.id || null, color: token?.textColor || null, resultText }
   });
 }
 
@@ -152,26 +161,32 @@ export function runComboActivate({
 
   const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
 
+  // 0. 使用制限チェック：組み込まれたエフェクトのうち1つでも上限に達していたら、
+  //    このコンボは何も適用しない（バフ・使用数・ログいずれも発生させない）。
+  const failedEffects = selectedEffects.filter(isEffectAtLimit);
+  if (failedEffects.length > 0) {
+    alert(buildEffectUseFailureMessage(failedEffects.map(e => e.name)));
+    return;
+  }
+
   // 1. 回数制限のカウント（シナリオ/シーン/ラウンドすべて+1。上限が無いカテゴリも
   //    記録だけはしておく）
   const nextEffects = effects.map(e => {
     if (!combo.effectNames.includes(e.name)) return e;
     const limits = e.limits || {};
-    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null, ebBonus: false }), current: (limits[cat]?.current || 0) + 1 });
+    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null }), current: (limits[cat]?.current || 0) + 1 });
     return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
   });
   onSaveEffects(nextEffects);
 
   // 2. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
   // 上昇侵蝕率はここでは加算しない（runComboDamageで、ダメージロール後に反映する）。
-  // 係数モードの換算に使うEB（DX3:corEB）はここで一度だけ取得する
-  const eb = getEffectiveParameterValue(token, 'DX3:corEB') ?? 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
-    const delta = sumComboMod(selectedEffects, key, eb);
+    const delta = sumComboMod(selectedEffects, key, token, getEffectiveParameterValue);
     if (!delta) return;
     // バフ名はコンボ名ではなく、このパラメータへ実際に修正を与えたエフェクト名（複数なら" + "区切り）にする。
     const contributingNames = selectedEffects
-      .filter(e => comboModContribution(e, key, eb) !== 0)
+      .filter(e => comboModContribution(e, key, token, getEffectiveParameterValue) !== 0)
       .map(e => e.name)
       .join(' + ');
     dispatch('ADD_BUFF', {
@@ -183,6 +198,57 @@ export function runComboActivate({
   logToMain(dispatch, effectNamesText
     ? `コンボ発動: ${combo.name}\n${effectNamesText}`
     : `コンボ発動: ${combo.name}`, token);
+}
+
+/**
+ * コンボを介さず、単体のエフェクトを自身へ適用する（チャットコマンド「エフェクト使用(名前)」、
+ * js/parameters/dx3.jsのhandleDX3ChatCommandから呼び出される）。
+ * runComboActivateと違い、判定・ダメージロールを経ないその場限りの処理のため：
+ * - 修正値バフはexpirePhase:null（手動で外すまで持続）で付与する
+ * - 上昇侵蝕率（effect.encroach）はここで即座にDX3:corruptionへ加算する
+ *   （コンボはダメージロール後に反映するが、単体使用にはダメージロールの概念が無いため）
+ * @param {{effect:object, effects:Array<object>, tokenId:string, dispatch:Function,
+ *   getToken:Function, getEffectiveParameterValue:Function, generateBuffId:Function,
+ *   onSaveEffects:Function}} options
+ */
+export function runEffectUse({
+  effect, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects
+}) {
+  const token = getToken();
+  if (!token) return;
+
+  if (isEffectAtLimit(effect)) {
+    alert(buildEffectUseFailureMessage([effect.name]));
+    return;
+  }
+
+  // 1. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして自身に付与
+  Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
+    const delta = comboModContribution(effect, key, token, getEffectiveParameterValue);
+    if (!delta) return;
+    dispatch('ADD_BUFF', {
+      tokenId, id: generateBuffId(), name: effect.name, paramId, delta, expirePhase: null, tag: null
+    });
+  });
+
+  // 2. 上昇侵蝕率をその場でDX3:corruptionへ加算
+  const corruptionGain = parseEncroachNumber(effect.encroach);
+  if (corruptionGain) {
+    const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
+    dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
+  }
+
+  // 3. 使用回数（シナリオ/シーン/ラウンド）を+1
+  const nextEffects = effects.map(e => {
+    if (e.name !== effect.name) return e;
+    const limits = e.limits || {};
+    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null }), current: (limits[cat]?.current || 0) + 1 });
+    return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
+  });
+  onSaveEffects(nextEffects);
+
+  const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
+  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}`, token, 'エフェクト');
 }
 
 /**

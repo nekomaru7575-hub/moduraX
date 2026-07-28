@@ -12,7 +12,7 @@ function ensureDialog() {
   return dialogEl;
 }
 
-const LIMIT_CATEGORIES = ['scenario', 'scene', 'round'];
+export const LIMIT_CATEGORIES = ['scenario', 'scene', 'round'];
 const LIMIT_CATEGORY_LABELS = {
   scenario: 'シナリオ',
   scene: 'シーン',
@@ -20,7 +20,7 @@ const LIMIT_CATEGORY_LABELS = {
 };
 
 function defaultLimit() {
-  return { current: 0, max: null, ebBonus: false };
+  return { current: 0, max: null };
 }
 
 // エフェクトを「コンボとして使用した場合」の修正値。単体使用時とは別に持つ
@@ -36,10 +36,28 @@ export const COMBO_MOD_FIELDS = [
 ];
 
 /**
+ * コンボ時修正1項目分の値を、常に文字列の式として返す。
+ * 新形式（{formula}）はそのまま、旧形式（{mode,value}）は自動的に式へ変換する
+ * （coefficient→"値*({Lv}+{EB})"、fixed→"値"）。dx3-formula.jsの数式評価でも同じ関数を使い、
+ * 保存済みの旧データをそのまま読める後方互換を1箇所にまとめる。
+ * @param {{formula?:string, mode?:string, value?:number}|null|undefined} mod
+ * @returns {string}
+ */
+export function normalizeComboModFormula(mod) {
+  if (!mod) return '';
+  if (typeof mod.formula === 'string') return mod.formula;
+  if (typeof mod.value === 'number' || mod.mode) {
+    const value = mod.value || 0;
+    return mod.mode === 'coefficient' ? `${value}*({Lv}+{EB})` : String(value);
+  }
+  return '';
+}
+
+/**
  * @param {{
  *   effects: Array<{
  *     name:string, level:number, encroach:string, note:string,
- *     limits: Record<'scenario'|'scene'|'round', { current:number, max:number|null, ebBonus:boolean }>
+ *     limits: Record<'scenario'|'scene'|'round', { current:number, max:number|null }>
  *   }>,
  *   onSave: (effects: Array<object>) => void
  * }} options
@@ -117,7 +135,7 @@ export function showEffectBox({ effects = [], onSave }) {
     noteInput.value = effect?.note ?? '';
     item.appendChild(noteInput);
 
-    // 回数制限：シナリオ/シーン/ラウンドそれぞれ独立に「現在/上限」＋EB補正の有無を持てる
+    // 回数制限：シナリオ/シーン/ラウンドそれぞれ独立に「現在/上限」を持てる
     // （例：シナリオ2回とシーン1回を同時に持つエフェクトに対応するため、排他にしない）
     const limitsWrap = document.createElement('div');
     limitsWrap.className = 'effect-box-limits';
@@ -158,17 +176,8 @@ export function showEffectBox({ effects = [], onSave }) {
       countSuffix.textContent = '回';
       limitRow.appendChild(countSuffix);
 
-      const ebLabel = document.createElement('label');
-      ebLabel.className = 'effect-box-limit-eb';
-      const ebCheckbox = document.createElement('input');
-      ebCheckbox.type = 'checkbox';
-      ebCheckbox.checked = !!limitData.ebBonus;
-      ebLabel.appendChild(ebCheckbox);
-      ebLabel.appendChild(document.createTextNode('EB補正'));
-      limitRow.appendChild(ebLabel);
-
       limitsWrap.appendChild(limitRow);
-      limitControls[category] = { currentInput, maxInput, ebCheckbox };
+      limitControls[category] = { currentInput, maxInput };
     });
 
     item.appendChild(limitsWrap);
@@ -196,26 +205,18 @@ export function showEffectBox({ effects = [], onSave }) {
 
       const savedMod = effect?.combo?.[key];
 
-      // 係数モード：レベル×3のような表記に対応するため、値を「(エフェクトのLv + EB) に
-      // 掛ける係数」として扱う。既定は固定値。
-      const modeSelect = document.createElement('select');
-      modeSelect.className = 'effect-box-combo-mode';
-      [['fixed', '固定値'], ['coefficient', '係数']].forEach(([value, text]) => {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = text;
-        modeSelect.appendChild(opt);
-      });
-      modeSelect.value = savedMod?.mode === 'coefficient' ? 'coefficient' : 'fixed';
-
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.className = 'effect-box-combo-input';
-      input.value = savedMod?.value ?? 0;
+      // 修正値は文字列の式。{Lv}はこのエフェクト自身のレベルへ、{攻撃力}等の任意の
+      // パラメータ名は使用者の実効値へ置換したうえで四則演算として評価する
+      // （dx3-formula.jsのresolveComboModFormula参照）。旧形式{mode,value}の
+      // 保存済みデータもnormalizeComboModFormulaで自動的に式へ変換して表示する。
+      const formulaInput = document.createElement('input');
+      formulaInput.type = 'text';
+      formulaInput.className = 'effect-box-combo-formula';
+      formulaInput.placeholder = '例: 3 / {Lv}*2 / {攻撃力}+1';
+      formulaInput.value = normalizeComboModFormula(savedMod);
 
       field.appendChild(fieldLabel);
-      field.appendChild(modeSelect);
-      field.appendChild(input);
+      field.appendChild(formulaInput);
 
       // クリティカル修正のみ、クリティカル値の下限（このエフェクトが有効な間、修正後の
       // クリティカル値がこれを下回らないようにする値）を追加で持てる。空欄なら下限なし。
@@ -232,7 +233,7 @@ export function showEffectBox({ effects = [], onSave }) {
 
       comboRow.appendChild(field);
 
-      comboControls[key] = { modeSelect, input, floorInput };
+      comboControls[key] = { formulaInput, floorInput };
     });
 
     comboWrap.appendChild(comboRow);
@@ -276,22 +277,18 @@ export function showEffectBox({ effects = [], onSave }) {
       .map(row => {
         const limits = {};
         LIMIT_CATEGORIES.forEach(category => {
-          const { currentInput, maxInput, ebCheckbox } = row.limitControls[category];
+          const { currentInput, maxInput } = row.limitControls[category];
           const rawMax = maxInput.value.trim();
           limits[category] = {
             current: Number(currentInput.value) || 0,
-            max: rawMax === '' ? null : (Number(rawMax) || 0),
-            ebBonus: ebCheckbox.checked
+            max: rawMax === '' ? null : (Number(rawMax) || 0)
           };
         });
 
         const combo = {};
         COMBO_MOD_FIELDS.forEach(({ key }) => {
-          const { modeSelect, input, floorInput } = row.comboControls[key];
-          combo[key] = {
-            mode: modeSelect.value === 'coefficient' ? 'coefficient' : 'fixed',
-            value: Number(input.value) || 0
-          };
+          const { formulaInput, floorInput } = row.comboControls[key];
+          combo[key] = { formula: formulaInput.value.trim() };
           if (floorInput) {
             const rawFloor = floorInput.value.trim();
             combo[key].floor = rawFloor === '' ? null : (Number(rawFloor) || 0);

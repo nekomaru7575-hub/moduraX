@@ -1,0 +1,505 @@
+/* css/character-dialog.css
+   キャラクター作成/更新ダイアログ（js/character-dialog.js）と、そこから開く
+   エフェクト一覧・コンボ一覧・能力/技能値ボックス（js/parameters/dx3-*.js）、
+   DX3拡張パネルの見た目。combined_layout.html（部屋の中）と character-builder.html
+   （部屋を作らないコマ作成ページ）の両方からlinkして使う共有スタイル。
+*/
+
+/* ダイアログ */
+.character-dialog {
+  background-color: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 320px;
+  max-width: 720px;
+}
+
+.dialog-columns {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.dialog-main-column {
+  flex: 1;
+  min-width: 260px;
+}
+
+.dialog-plugin-column {
+  flex: 1;
+  min-width: 220px;
+  padding-left: 20px;
+  border-left: 1px solid #444;
+}
+
+.dialog-plugin-placeholder {
+  color: #777;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* エフェクト等の「ボックス」編集ダイアログ */
+.effect-box-dialog {
+  width: 100%;
+  max-width: 640px;
+}
+
+.effect-box-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.effect-box-item {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.effect-box-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.effect-box-header-row input {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+/* 名前欄は他の固定幅項目（タイミング/Lv/上昇侵蝕率）に押しつぶされないよう、
+   最低幅を確保する。入りきらない場合はheader-row側のflex-wrapで折り返す。 */
+.effect-box-name {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+/* inputは既定でmin-width:autoを持ち、flex-basisを指定しても中身のサイズ分までしか
+   縮まない（結果、隣の.effect-box-nameが押しつぶされる）。min-width:0で明示的に
+   flex-basisどおりの幅まで縮められるようにする。 */
+.effect-box-timing,
+.effect-box-level,
+.effect-box-encroach {
+  min-width: 0;
+}
+
+.effect-box-timing {
+  flex: 0 0 84px;
+}
+
+.effect-box-level {
+  flex: 0 0 56px;
+}
+
+.effect-box-encroach {
+  flex: 0 0 90px;
+}
+
+.effect-box-note {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.effect-box-limits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.effect-box-limit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.effect-box-limit-label {
+  color: #aaa;
+  width: 4em;
+  flex-shrink: 0;
+}
+
+.effect-box-limit-current,
+.effect-box-limit-max {
+  width: 52px;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.effect-box-limit-slash {
+  color: #888;
+}
+
+.effect-box-limit-eb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+/* エフェクトの「コンボ時修正」6項目。回数制限の行と同じ雰囲気で小さくまとめる */
+.effect-box-combo-mods {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #444;
+}
+
+.effect-box-combo-title {
+  color: #aaa;
+  font-size: 0.8rem;
+  margin-bottom: 4px;
+}
+
+.effect-box-combo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.effect-box-combo-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.effect-box-combo-label {
+  color: #999;
+  white-space: nowrap;
+}
+
+.effect-box-combo-mode {
+  width: 60px;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 3px 2px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.effect-box-combo-input {
+  width: 44px;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+/* 能力・技能値の表示ボックス */
+.ability-box-dialog {
+  width: 100%;
+  max-width: 480px;
+}
+
+.ability-box-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.ability-box-group {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.ability-box-ability-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.ability-box-ability-label {
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.ability-box-ability-value {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.ability-box-skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.ability-box-skill {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.ability-box-skill-empty {
+  color: #666;
+}
+
+.character-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.character-dialog h3 {
+  margin-top: 0;
+  color: #fff;
+}
+
+.dialog-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.dialog-form-group label {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.dialog-form-group input {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+/* コマ画像トリミング用の正方形クロッパー。中の画像をドラッグして位置調整、
+   ホイール/スライダーでズームする。コマは常にN×Nの正方形なので枠も正方形。 */
+.image-cropper {
+  width: 160px;
+  height: 160px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #555;
+  background-color: #111;
+  margin-bottom: 8px;
+  cursor: grab;
+  touch-action: none; /* ドラッグ中にスクロール/ジェスチャへ取られないように */
+  position: relative;
+}
+
+.image-cropper:active {
+  cursor: grabbing;
+}
+
+.image-cropper-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-crop-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.image-crop-zoom-row input[type="range"] {
+  flex: 1;
+}
+
+.dialog-custom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.dialog-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* バフ/デバフ一覧の説明テキスト（名前・対象パラメータ・増減値・終了条件をまとめた1行） */
+.buff-row-info {
+  flex: 1;
+  color: #ddd;
+  font-size: 0.9rem;
+}
+
+/* 既存パラメータ一覧のラベル列。幅を固定し、数値入力・表示・削除の縦位置を全行で揃える */
+.dialog-param-label {
+  flex: 0 0 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-custom-row input {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  flex: 1;
+}
+
+/* 数値入力欄はテキスト欄と同じ比率で広げる必要がないため、幅を固定して小さくする（元の約1/5）。
+   min-width:0がないと、input要素のデフォルトの自動最小幅に負けて縮まないため必須 */
+.dialog-custom-row input[type="number"] {
+  flex: 0 0 38px;
+  min-width: 0;
+  width: 38px;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  text-align: right;
+}
+
+.dialog-remove-row {
+  background-color: #444;
+  color: #ddd;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.dialog-add-row-btn {
+  background: none;
+  border: 1px dashed #555;
+  color: #aaa;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.dialog-button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-button-row button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+}
+
+.dialog-confirm-btn {
+  background-color: #007acc;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 部屋削除など、取り消せない操作のボタン */
+.dialog-danger-btn {
+  background-color: #a8323f;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* DX3拡張パネル：侵蝕率/DB/EBをコンパクトに横並び表示 */
+.dx3-compact-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+
+.dx3-compact-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.dx3-compact-field label {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.dx3-compact-field input {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 4px;
+  border-radius: 4px;
+  width: 44px;
+  text-align: center;
+}
+
+.dx3-compact-field .dx3-compact-value {
+  background-color: #333;
+  border: 1px solid #444;
+  padding: 6px 4px;
+  border-radius: 4px;
+  width: 36px;
+  text-align: center;
+  color: #fff;
+}
+
+/* エフェクトによるバフを受け取る汎用レジスタ（AdB/AnB/AcB/DdB/DaB）の表示 */
+.dx3-buff-registers {
+  margin-bottom: 10px;
+}
+
+.dx3-buff-registers-title {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.dx3-buff-register-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 6px;
+}
+
+.dx3-buff-register-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 2px;
+}
+
+.dx3-buff-register-cell .dx3-buff-register-label {
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.dx3-buff-register-cell .dx3-buff-register-value {
+  font-size: 0.9rem;
+  color: #fff;
+  font-weight: bold;
+}

@@ -42,6 +42,20 @@
     font-size: 0.9rem;
   }
 
+  .header-links {
+    margin-bottom: 16px;
+  }
+
+  .header-links a {
+    color: #8ab4f8;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+
+  .header-links a:hover {
+    text-decoration: underline;
+  }
+
   .room-list {
     display: flex;
     flex-direction: column;
@@ -166,6 +180,9 @@
     <div class="app-header">
       <h1>🎲 もじゅらX</h1>
       <span>部屋一覧</span>
+    </div>
+    <div class="header-links">
+      <a href="/character-builder.html">🛠️ コマ作成ツール（外部シート/スナップショットJSONから）</a>
     </div>
 
     <div id="roomList" class="room-list">

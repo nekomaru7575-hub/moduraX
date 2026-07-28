@@ -2,7 +2,7 @@
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
-import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, defaultImageCrop } from './character-dialog.js';
+import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundSizeDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
@@ -11,6 +11,7 @@ import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId } from './local-identity.js';
 import { rollBCDice } from './BCdice.js';
+import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
   getEffectiveParameterValue, BUFF_PHASE_LABELS
@@ -32,53 +33,6 @@ function loadImageDimensions(dataUrl) {
     img.onerror = () => resolve({ width: 1000, height: 1000 });
     img.src = dataUrl;
   });
-}
-
-// JSONテキストをパースする。失敗時はアラートを出してnullを返す（右クリックメニュー・D&D共通）
-function parseCharacterJsonText(text) {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    alert(`JSONの解析に失敗しました: ${error.message}`);
-    return null;
-  }
-}
-
-// コマ丸ごとの保存/復元（バックアップ用途）に使うJSON形式の目印。
-// 外部キャラクターシートツールのJSONや、本アプリの汎用インポート形式（{name, parameters}）とは
-// 区別が必要なため、読み込み時はまずこのマーカーの有無で判定する。
-const TOKEN_SNAPSHOT_FORMAT = 'mojuraX-token-snapshot-v1';
-
-// コマの表示・パラメータ・エフェクト/コンボ等の構成要素・バフをすべて含む完全なスナップショットを作る。
-// 盤面上の配置情報（id/x/y/バックヤード状態）は、読み込み側（既存コマへの上書き、または
-// ドロップ位置での新規作成）が都度決めるものなので含めない。
-function serializeTokenSnapshot(token) {
-  return {
-    __format: TOKEN_SNAPSHOT_FORMAT,
-    name: token.name,
-    color: token.color,
-    image: token.image,
-    imageCrop: token.imageCrop,
-    size: token.size,
-    textColor: token.textColor,
-    visible: token.visible,
-    parameters: token.parameters,
-    components: token.components,
-    buffs: token.buffs
-  };
-}
-
-// JSONデータをファイルとしてダウンロードさせる
-function downloadJSON(filename, data) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
@@ -294,51 +248,7 @@ function bindTokenDrag(element, board) {
             getEffectiveParameterValue,
             generateBuffId,
             rollBCDice,
-            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterValues, removedParamIds, newCustomParameters }) => {
-              const latest = store.state.tokens[tokenId];
-              if (!latest) return;
-
-              if (name !== latest.name) {
-                store.dispatch('RENAME_CHARACTER', { id: tokenId, name });
-              }
-
-              if (image !== (latest.image || null)) {
-                store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
-              }
-
-              // トリミング設定の変更を反映（値が実際に変わったときだけ同期する）
-              const nextCrop = image ? (imageCrop || defaultImageCrop()) : null;
-              if (JSON.stringify(nextCrop) !== JSON.stringify(latest.imageCrop ?? null)) {
-                store.dispatch('SET_CHARACTER_IMAGE_CROP', { id: tokenId, crop: nextCrop });
-              }
-
-              if (size !== (latest.size || 1)) {
-                store.dispatch('SET_CHARACTER_SIZE', { id: tokenId, size });
-              }
-
-              if (textColor !== (latest.textColor || null)) {
-                store.dispatch('SET_CHARACTER_TEXT_COLOR', { id: tokenId, textColor });
-              }
-
-              if (visible !== (latest.visible !== false)) {
-                store.dispatch('SET_CHARACTER_VISIBLE', { id: tokenId, visible });
-              }
-
-              Object.entries(parameterValues).forEach(([paramId, value]) => {
-                const existingParam = latest.parameters[paramId];
-                if (existingParam && existingParam.value !== value) {
-                  store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value });
-                }
-              });
-
-              removedParamIds.forEach(paramId => {
-                store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
-              });
-
-              newCustomParameters.forEach(({ key, label, value }) => {
-                store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
-              });
-            }
+            onConfirm: (result) => applyCharacterEditResult(store, tokenId, result)
           });
         }
       },
@@ -348,7 +258,7 @@ function bindTokenDrag(element, board) {
           const current = store.state.tokens[tokenId];
           if (!current) return;
 
-          downloadJSON(`${current.name || 'character'}.json`, serializeTokenSnapshot(current));
+          downloadJSON(`${current.name || 'character'}.json`, buildTokenSnapshot(current));
         }
       },
       {
@@ -357,10 +267,10 @@ function bindTokenDrag(element, board) {
           const picked = await pickFileAsText({ accept: 'application/json' });
           if (!picked) return;
 
-          const json = parseCharacterJsonText(picked.text);
+          const json = parseJsonText(picked.text);
           if (!json) return;
 
-          if (json.__format === TOKEN_SNAPSHOT_FORMAT) {
+          if (isTokenSnapshot(json)) {
             store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: tokenId, snapshot: json });
             return;
           }
@@ -808,12 +718,12 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     const text = await file.text();
-    const json = parseCharacterJsonText(text);
+    const json = parseJsonText(text);
     if (!json) return;
 
     // コマ丸ごとのスナップショット（本アプリの「コマをJSONで保存」で出力したもの）は
     // 通常のインポート（値の上書きのみ）とは別に、見た目・構成要素を含めて丸ごと復元する。
-    const isSnapshot = json.__format === TOKEN_SNAPSHOT_FORMAT;
+    const isSnapshot = isTokenSnapshot(json);
     const importResult = isSnapshot ? null : resolveCharacterImport(json);
     if (!isSnapshot && !importResult) {
       alert('このJSONを読み込めませんでした。');

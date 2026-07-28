@@ -25,6 +25,65 @@ export function applyImageCropStyle(imgEl, crop) {
   imgEl.style.transform = `scale(${zoom})`;
 }
 
+/**
+ * showCharacterEditDialogのonConfirmが返す結果を、Store（部屋のstore、または
+ * js/character-builder.jsが使う部屋に紐づかない使い捨てのImmutableStoreインスタンス）へ
+ * 反映する。「値が実際に変わった行だけdispatchする」という規約も含めて、部屋の中で
+ * キャラクター更新した時と全く同じ挙動になるようにする（二重実装によるズレを防ぐため、
+ * 呼び出し側はこの関数を使い、個別にdispatchを組み立てない）。
+ * @param {{state: {tokens: Record<string, any>}, dispatch: (action:string, payload:object) => void}} store
+ * @param {string} tokenId
+ * @param {{name:string, image:string|null, imageCrop:object|null, size:number, textColor:string|null,
+ *   visible:boolean, parameterValues:Record<string,number|string>, removedParamIds:string[],
+ *   newCustomParameters:{key:string,label:string,value:number|string}[]}} result
+ */
+export function applyCharacterEditResult(store, tokenId, result) {
+  const { name, image, imageCrop, size, textColor, visible, parameterValues, removedParamIds, newCustomParameters } = result;
+  const latest = store.state.tokens[tokenId];
+  if (!latest) return;
+
+  if (name !== latest.name) {
+    store.dispatch('RENAME_CHARACTER', { id: tokenId, name });
+  }
+
+  if (image !== (latest.image || null)) {
+    store.dispatch('SET_CHARACTER_IMAGE', { id: tokenId, image });
+  }
+
+  // トリミング設定の変更を反映（値が実際に変わったときだけ同期する）
+  const nextCrop = image ? (imageCrop || defaultImageCrop()) : null;
+  if (JSON.stringify(nextCrop) !== JSON.stringify(latest.imageCrop ?? null)) {
+    store.dispatch('SET_CHARACTER_IMAGE_CROP', { id: tokenId, crop: nextCrop });
+  }
+
+  if (size !== (latest.size || 1)) {
+    store.dispatch('SET_CHARACTER_SIZE', { id: tokenId, size });
+  }
+
+  if (textColor !== (latest.textColor || null)) {
+    store.dispatch('SET_CHARACTER_TEXT_COLOR', { id: tokenId, textColor });
+  }
+
+  if (visible !== (latest.visible !== false)) {
+    store.dispatch('SET_CHARACTER_VISIBLE', { id: tokenId, visible });
+  }
+
+  Object.entries(parameterValues).forEach(([paramId, value]) => {
+    const existingParam = latest.parameters[paramId];
+    if (existingParam && existingParam.value !== value) {
+      store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value });
+    }
+  });
+
+  removedParamIds.forEach(paramId => {
+    store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
+  });
+
+  newCustomParameters.forEach(({ key, label, value }) => {
+    store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
+  });
+}
+
 // プラグイン専用スペースを組み立てる。プラグインが専用UI(renderCharacterPanel)を
 // 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。

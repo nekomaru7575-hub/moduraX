@@ -73,6 +73,7 @@ function renderDX3CharacterPanel({
   container.appendChild(title);
 
   const corruptionParam = parameters['DX3:corruption'];
+  const attackParam = parameters['DX3:attackPower']
   const corDBParam = parameters['DX3:corDB'];
   const corEBParam = parameters['DX3:corEB'];
 
@@ -90,6 +91,17 @@ function renderDX3CharacterPanel({
   corruptionField.appendChild(label);
   corruptionField.appendChild(input);
   compactRow.appendChild(corruptionField);
+
+  const attackField = document.createElement(`div`);
+  attackField.className = "dx3-compact-field";
+  const attackLabel = document.createElement(`label`);
+  attackLabel.textContent = attackParam?.label ?? `攻撃力`;
+  const attackInput = document.createElement(`input`);
+  attackInput.type = `number`;
+  attackInput.value = attackParam?.value ?? 0;
+  attackField.appendChild(attackLabel);
+  attackField.appendChild(attackInput);
+  compactRow.appendChild(attackField);
 
   [corDBParam, corEBParam].forEach(param => {
     if (!param) return;
@@ -202,7 +214,8 @@ function renderDX3CharacterPanel({
 
   return {
     getValues: () => ({
-      'DX3:corruption': Number(input.value) || 0
+      'DX3:corruption': Number(input.value) || 0,
+      'DX3:attackPower': Number(attackInput.value) || 0
     })
   };
 }

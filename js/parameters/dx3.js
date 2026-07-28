@@ -7,7 +7,7 @@ export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
     {key : "corDB", label : "DB",value : 0 , editable : false,visible : false},
     {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
-    {key : "attackPower", label : "攻撃力",value : 0},
+    {key : "attackPower", label : "攻撃力",value : 0,editable:true,visible:false},
     // エフェクトによるバフを受け取る汎用レジスタ（コンボに限らず判定/ダメージ全般で使う想定）。
     // コンボ発動時は、選択したエフェクトの「コンボ時修正」（dx3-effect-box.jsのCOMBO_MOD_FIELDS）を
     // ここへバフとして加算する（js/parameters/dx3-combo-box.jsのCOMBO_PARAM_MAP参照）。

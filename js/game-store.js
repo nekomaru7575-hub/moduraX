@@ -387,6 +387,40 @@ export class ImmutableStore {
         return;
       }
 
+      // 「コマをJSONで保存」で出力した完全なスナップショットから、コマを丸ごと復元する。
+      // IMPORT_CHARACTER_DATAが値の上書きのみなのに対し、こちらは見た目（画像・色・サイズ等）や
+      // components・buffsも含めて丸ごと置き換える。位置(x,y)・id・バックヤード状態は
+      // 呼び出し側（既存コマへの上書き、またはドロップ位置での新規作成）の管轄なので触らない。
+      case 'RESTORE_CHARACTER_SNAPSHOT': {
+        const { id, snapshot } = payload;
+        const character = nextTokensState[id];
+        if (!character || !snapshot) return;
+
+        const nextParams = { ...character.parameters };
+        Object.entries(snapshot.parameters || {}).forEach(([paramId, paramDef]) => {
+          nextParams[paramId] = Object.freeze({ ...paramDef });
+        });
+        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
+
+        nextTokensState[id] = Object.freeze({
+          ...character,
+          name: snapshot.name || character.name,
+          color: snapshot.color || character.color,
+          image: snapshot.image ?? null,
+          imageCrop: snapshot.imageCrop ? Object.freeze({ ...snapshot.imageCrop }) : null,
+          size: Math.max(1, Math.round(snapshot.size || character.size || 1)),
+          textColor: snapshot.textColor ?? null,
+          visible: snapshot.visible !== false,
+          parameters: calculatedParams,
+          components: Object.freeze({ ...(snapshot.components || {}) }),
+          buffs: Object.freeze((snapshot.buffs || []).map(buff => Object.freeze({ ...buff })))
+        });
+
+        this.#commit(prevState, nextTokensState);
+        EventBus.emit('CharacterImported', { id });
+        return;
+      }
+
       // ロイス・エフェクト・コンボのような「ボックス」データを丸ごと更新する。
       // Coreはvalueの中身を解釈せず、componentKeyに紐づく値をそのまま置き換える。
       case 'SET_COMPONENT': {

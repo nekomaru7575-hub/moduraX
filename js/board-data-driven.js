@@ -44,6 +44,43 @@ function parseCharacterJsonText(text) {
   }
 }
 
+// コマ丸ごとの保存/復元（バックアップ用途）に使うJSON形式の目印。
+// 外部キャラクターシートツールのJSONや、本アプリの汎用インポート形式（{name, parameters}）とは
+// 区別が必要なため、読み込み時はまずこのマーカーの有無で判定する。
+const TOKEN_SNAPSHOT_FORMAT = 'mojuraX-token-snapshot-v1';
+
+// コマの表示・パラメータ・エフェクト/コンボ等の構成要素・バフをすべて含む完全なスナップショットを作る。
+// 盤面上の配置情報（id/x/y/バックヤード状態）は、読み込み側（既存コマへの上書き、または
+// ドロップ位置での新規作成）が都度決めるものなので含めない。
+function serializeTokenSnapshot(token) {
+  return {
+    __format: TOKEN_SNAPSHOT_FORMAT,
+    name: token.name,
+    color: token.color,
+    image: token.image,
+    imageCrop: token.imageCrop,
+    size: token.size,
+    textColor: token.textColor,
+    visible: token.visible,
+    parameters: token.parameters,
+    components: token.components,
+    buffs: token.buffs
+  };
+}
+
+// JSONデータをファイルとしてダウンロードさせる
+function downloadJSON(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
 // 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
 function resolveCharacterImport(json) {
@@ -306,6 +343,15 @@ function bindTokenDrag(element, board) {
         }
       },
       {
+        label: 'コマをJSONで保存',
+        onSelect: () => {
+          const current = store.state.tokens[tokenId];
+          if (!current) return;
+
+          downloadJSON(`${current.name || 'character'}.json`, serializeTokenSnapshot(current));
+        }
+      },
+      {
         label: 'JSONを読み込む',
         onSelect: async () => {
           const picked = await pickFileAsText({ accept: 'application/json' });
@@ -313,6 +359,11 @@ function bindTokenDrag(element, board) {
 
           const json = parseCharacterJsonText(picked.text);
           if (!json) return;
+
+          if (json.__format === TOKEN_SNAPSHOT_FORMAT) {
+            store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: tokenId, snapshot: json });
+            return;
+          }
 
           const importResult = resolveCharacterImport(json);
           if (!importResult) {
@@ -760,15 +811,22 @@ window.addEventListener('DOMContentLoaded', () => {
     const json = parseCharacterJsonText(text);
     if (!json) return;
 
-    const importResult = resolveCharacterImport(json);
-    if (!importResult) {
+    // コマ丸ごとのスナップショット（本アプリの「コマをJSONで保存」で出力したもの）は
+    // 通常のインポート（値の上書きのみ）とは別に、見た目・構成要素を含めて丸ごと復元する。
+    const isSnapshot = json.__format === TOKEN_SNAPSHOT_FORMAT;
+    const importResult = isSnapshot ? null : resolveCharacterImport(json);
+    if (!isSnapshot && !importResult) {
       alert('このJSONを読み込めませんでした。');
       return;
     }
 
     const droppedTokenEl = event.target.closest('.token');
     if (droppedTokenEl) {
-      dispatchCharacterImport(droppedTokenEl.id, importResult);
+      if (isSnapshot) {
+        store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: droppedTokenEl.id, snapshot: json });
+      } else {
+        dispatchCharacterImport(droppedTokenEl.id, importResult);
+      }
       return;
     }
 
@@ -787,11 +845,16 @@ window.addEventListener('DOMContentLoaded', () => {
     const newId = generateTokenId();
     store.dispatch('ADD_CHARACTER', {
       id: newId,
-      name: importResult.name || '新規キャラクター',
+      name: (isSnapshot ? json.name : importResult.name) || '新規キャラクター',
       x: Math.round(clampedX),
       y: Math.round(clampedY)
     });
-    dispatchCharacterImport(newId, importResult);
+
+    if (isSnapshot) {
+      store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: newId, snapshot: json });
+    } else {
+      dispatchCharacterImport(newId, importResult);
+    }
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {

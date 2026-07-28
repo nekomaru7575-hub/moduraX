@@ -143,7 +143,9 @@ export class ImmutableStore {
       room: {
         ...newState.room,
         name: newState.room?.name || '',
-        bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM
+        bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM,
+        // この機能より前に保存された状態にはroom.originalTablesが無いため、既定値を補う
+        originalTables: newState.room?.originalTables || {}
       }
     };
     this.#state = this.#createProtectedProxy(normalized);
@@ -852,6 +854,28 @@ export class ImmutableStore {
         return;
       }
 
+      // オリジナル表（ユーザー定義のダイス表）を登録する。キーはタイトルなので、既存と
+      // 同じタイトルで登録し直すと上書きになる（誤登録の修正に使える）。
+      case 'ADD_ORIGINAL_TABLE': {
+        const { title, dice, entries } = payload;
+        if (!title || !dice || !entries) return;
+        const room = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...room,
+            originalTables: Object.freeze({
+              ...room.originalTables,
+              [title]: Object.freeze({ title, dice, entries: Object.freeze({ ...entries }) })
+            })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;
@@ -1131,7 +1155,8 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
       boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
       boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
-      bcdiceSystem // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
+      bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
+      originalTables: {} // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
     },
 
     tokens: {},

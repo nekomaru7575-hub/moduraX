@@ -13,6 +13,7 @@ import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
 import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
+import { showOriginalTableDialog } from './original-table-dialog.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 
@@ -238,6 +239,16 @@ function openRoomParametersDialog() {
   });
 }
 
+// オリジナル表作成ダイアログを開き、登録結果をdispatchする。
+// 登録した表はチャットにタイトルを完全一致で入力すると振れる（tryHandleOriginalTableCommand参照）。
+function openOriginalTableDialog() {
+  showOriginalTableDialog({
+    onConfirm: ({ title, dice, entries }) => {
+      store.dispatch('ADD_ORIGINAL_TABLE', { title, dice, entries });
+    }
+  });
+}
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
@@ -250,6 +261,10 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'ルーム変数',
         onSelect: openRoomParametersDialog
+      },
+      {
+        label: 'オリジナル表作成',
+        onSelect: openOriginalTableDialog
       }
     ];
 
@@ -656,6 +671,38 @@ function tryHandlePluginChatCommand(rawInput, character) {
   });
 }
 
+// オリジナル表（room.originalTables）のタイトルと入力が完全一致した場合、そのダイスを
+// 振って出目に対応する結果をチャットへ返す。BCDice自体はオリジナル表の記憶機能を
+// 持たないため、ダイスの解釈だけBCDice APIに任せ（rollBCDice）、出目→結果の対応表は
+// このアプリのルーム状態側で持つ。
+function tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId) {
+  const table = store.state.room.originalTables?.[rawInput.trim()];
+  if (!table) return false;
+
+  rollBCDice(store.state.room.bcdiceSystem, table.dice).then(({ success, resultText }) => {
+    if (!success) {
+      alert(`ダイスロールに失敗しました: ${resultText}`);
+      return;
+    }
+
+    const rolled = parseFinalDiceNumber(resultText);
+    const entryText = rolled !== null ? table.entries[String(rolled)] : undefined;
+
+    applyLog({
+      character: character?.name,
+      characterId: character?.id,
+      color: character?.textColor,
+      resultText: entryText !== undefined
+        ? `${table.title}(${table.dice}) ＞ ${rolled} ＞ ${entryText}`
+        : `${resultText}\n（表「${table.title}」に出目${rolled}に対応する結果がありません）`
+    }, tabId);
+  }).catch(error => {
+    alert(`ダイスロールでエラーが発生しました: ${error.message}`);
+  });
+
+  return true;
+}
+
 // チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
 // パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
 function sendPaletteText(text) {
@@ -684,6 +731,10 @@ function sendPaletteText(text) {
   }
 
   if (tryHandlePluginChatCommand(substitutedInput, selectedCharacter)) {
+    return;
+  }
+
+  if (tryHandleOriginalTableCommand(substitutedInput, selectedCharacter)) {
     return;
   }
 
@@ -735,6 +786,11 @@ if (sendBtn) {
     }
 
     if (tryHandlePluginChatCommand(rawInput, selectedCharacter)) {
+      commandInput.value = "";
+      return;
+    }
+
+    if (tryHandleOriginalTableCommand(rawInput, selectedCharacter)) {
       commandInput.value = "";
       return;
     }

@@ -361,7 +361,7 @@ function importDX3CharacterJson(json) {
 // コンボのチャットコマンド。combo.awk(コンボ名)で発動、combo.chk(コンボ名)で判定、
 // combo.dmg(コンボ名)でダメージロールする（実処理はdx3-combo-box.jsのrunComboActivate等）。
 // コンボ名は参照キャラクターのcomponents.combosから完全一致で探す。
-const COMBO_COMMAND_PATTERN = /^combo\.(awk|jdm|dmg)\((.+)\)$/;
+const COMBO_COMMAND_PATTERN = /^combo\.(awk|chk|dmg)\((.+)\)$/;
 
 // エフェクト単体を自身へ適用するチャットコマンド。コンボを介さず、修正値バフの付与・
 // 使用数+1・上昇侵蝕率の即時反映をまとめて行う（実処理はdx3-combo-box.jsのrunEffectUse）。
@@ -432,7 +432,7 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
       combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
       onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
     });
-  } else if (action === 'jdm') {
+  } else if (action === 'chk') {
     runComboCheck({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
   } else if (action === 'dmg') {
     runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });

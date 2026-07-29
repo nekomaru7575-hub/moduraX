@@ -390,6 +390,29 @@
   cursor: pointer;
 }
 
+/* オリジナル表一覧：行いっぱいのタイトルボタン（クリックで編集画面へ） */
+.dialog-table-name-btn {
+  flex: 1;
+  text-align: left;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dialog-table-name-btn:hover {
+  background-color: #454545;
+}
+
+/* 一覧が空のときの説明行（オリジナル表一覧） */
+.dialog-empty-note {
+  color: #aaa;
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
 .dialog-add-row-btn {
   background: none;
   border: 1px dashed #555;

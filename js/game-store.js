@@ -926,6 +926,24 @@ export class ImmutableStore {
         return;
       }
 
+      // オリジナル表をタイトル指定で削除する（オリジナル表一覧の×ボタンから）。
+      case 'REMOVE_ORIGINAL_TABLE': {
+        const { title } = payload;
+        const room = prevState.room;
+        if (!room.originalTables?.[title]) return;
+
+        const nextTables = { ...room.originalTables };
+        delete nextTables[title];
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({ ...room, originalTables: Object.freeze(nextTables) })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;

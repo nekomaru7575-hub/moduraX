@@ -14,6 +14,7 @@ import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
+import { showOriginalTableListDialog } from './original-table-list-dialog.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 
@@ -239,12 +240,31 @@ function openRoomParametersDialog() {
   });
 }
 
-// オリジナル表作成ダイアログを開き、登録結果をdispatchする。
+// オリジナル表の作成／編集ダイアログを開き、結果をdispatchする。tableを渡すと編集モード。
 // 登録した表はチャットにタイトルを完全一致で入力すると振れる（tryHandleOriginalTableCommand参照）。
-function openOriginalTableDialog() {
+function openOriginalTableEditor(table = null) {
   showOriginalTableDialog({
-    onConfirm: ({ title, dice, entries }) => {
+    table,
+    onConfirm: ({ title, dice, entries, previousTitle }) => {
+      // 表のキーはタイトルなので、編集でタイトルを変えた場合は旧エントリを消さないと二重に残る
+      if (previousTitle && previousTitle !== title) {
+        store.dispatch('REMOVE_ORIGINAL_TABLE', { title: previousTitle });
+      }
       store.dispatch('ADD_ORIGINAL_TABLE', { title, dice, entries });
+      openOriginalTableListDialog();
+    }
+  });
+}
+
+// オリジナル表一覧ダイアログ。追加・編集・削除の後は最新の一覧で開き直す。
+function openOriginalTableListDialog() {
+  showOriginalTableListDialog({
+    tables: store.state.room.originalTables || {},
+    onAdd: () => openOriginalTableEditor(),
+    onSelect: (title) => openOriginalTableEditor(store.state.room.originalTables[title]),
+    onRemove: (title) => {
+      store.dispatch('REMOVE_ORIGINAL_TABLE', { title });
+      openOriginalTableListDialog();
     }
   });
 }
@@ -263,8 +283,8 @@ if (roomMenuBtn && roomSettingsDialog) {
         onSelect: openRoomParametersDialog
       },
       {
-        label: 'オリジナル表作成',
-        onSelect: openOriginalTableDialog
+        label: 'オリジナル表一覧',
+        onSelect: openOriginalTableListDialog
       }
     ];
 

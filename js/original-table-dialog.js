@@ -1,7 +1,8 @@
 // js/original-table-dialog.js
-// オリジナル表（ユーザー定義のダイス表）の作成ダイアログ。
+// オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。
 // 「タイトル」「ダイス」「テーブル（出目:結果を1行ずつ）」を入力して登録する。
 // 登録した表はチャットにタイトルを完全一致で入力すると振れる（main.jsのtryHandleOriginalTableCommand参照）。
+// 開く導線はオリジナル表一覧（original-table-list-dialog.js）。
 
 // テーブル欄のテキスト（1行1エントリ、"出目:結果"）を { 出目: 結果 } の辞書へ変換する。
 // 区切りは半角/全角コロンどちらも許可。コロンが無い行・空行は無視する。
@@ -19,6 +20,11 @@ function parseTableEntries(text) {
   return entries;
 }
 
+// parseTableEntriesの逆変換。既存の表を編集で開くとき、テーブル欄に元の入力形式で戻す。
+function formatTableEntries(entries) {
+  return Object.entries(entries).map(([key, value]) => `${key}:${value}`).join('\n');
+}
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -30,16 +36,22 @@ function ensureDialog() {
 }
 
 /**
- * @param {{ onConfirm: (result: { title: string, dice: string, entries: Record<string,string> }) => void }} options
+ * tableを渡すとその内容を初期表示した編集モードになる。表のキーはタイトルなので、
+ * 編集でタイトルを変えた場合は呼び出し側で旧タイトルの表を消す必要がある（previousTitleを渡す理由）。
+ *
+ * @param {{
+ *   table?: { title: string, dice: string, entries: Record<string,string> } | null,
+ *   onConfirm: (result: { title: string, dice: string, entries: Record<string,string>, previousTitle: string|null }) => void
+ * }} options
  */
-export function showOriginalTableDialog({ onConfirm }) {
+export function showOriginalTableDialog({ table = null, onConfirm }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
   const form = document.createElement('form');
 
   const heading = document.createElement('h3');
-  heading.textContent = 'オリジナル表作成';
+  heading.textContent = table ? 'オリジナル表編集' : 'オリジナル表作成';
   form.appendChild(heading);
 
   const titleGroup = document.createElement('div');
@@ -49,6 +61,7 @@ export function showOriginalTableDialog({ onConfirm }) {
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
   titleInput.placeholder = '例: 飲み物決定表';
+  if (table) titleInput.value = table.title;
   titleGroup.appendChild(titleLabel);
   titleGroup.appendChild(titleInput);
   form.appendChild(titleGroup);
@@ -60,6 +73,7 @@ export function showOriginalTableDialog({ onConfirm }) {
   const diceInput = document.createElement('input');
   diceInput.type = 'text';
   diceInput.placeholder = '1D6';
+  if (table) diceInput.value = table.dice;
   diceGroup.appendChild(diceLabel);
   diceGroup.appendChild(diceInput);
   form.appendChild(diceGroup);
@@ -71,6 +85,7 @@ export function showOriginalTableDialog({ onConfirm }) {
   const tableInput = document.createElement('textarea');
   tableInput.rows = 8;
   tableInput.placeholder = '1:水\n2:緑茶\n3:麦茶\n4:コーラ\n5:オレンジジュース\n6:エナジードリンク';
+  if (table) tableInput.value = formatTableEntries(table.entries);
   tableGroup.appendChild(tableLabel);
   tableGroup.appendChild(tableInput);
   form.appendChild(tableGroup);
@@ -85,7 +100,7 @@ export function showOriginalTableDialog({ onConfirm }) {
 
   const confirmBtn = document.createElement('button');
   confirmBtn.type = 'submit';
-  confirmBtn.textContent = '登録';
+  confirmBtn.textContent = table ? '保存' : '登録';
   confirmBtn.className = 'dialog-confirm-btn';
 
   btnRow.appendChild(cancelBtn);
@@ -113,7 +128,7 @@ export function showOriginalTableDialog({ onConfirm }) {
     }
 
     dialog.close();
-    onConfirm({ title, dice, entries });
+    onConfirm({ title, dice, entries, previousTitle: table ? table.title : null });
   });
 
   dialog.appendChild(form);

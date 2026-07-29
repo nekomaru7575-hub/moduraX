@@ -111,6 +111,10 @@ export function getEffectiveParameterValue(token, paramId) {
 
 const MAIN_CHAT_TAB_ID = 'main';
 
+// 音楽のチャンネル。BGMを流したまま効果音を重ねられるよう2枠に分けてある
+// （js/audio-player.jsが枠ごとに1つずつAudio要素を持つ）。
+export const AUDIO_CHANNELS = ['bgm', 'se'];
+
 export class ImmutableStore {
   #state;
 
@@ -160,7 +164,10 @@ export class ImmutableStore {
         name: newState.room?.name || '',
         bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM,
         // この機能より前に保存された状態にはroom.originalTablesが無いため、既定値を補う
-        originalTables: newState.room?.originalTables || {}
+        originalTables: newState.room?.originalTables || {},
+        // 同上、音楽機能より前に保存された状態には無いため既定値を補う
+        audioTracks: newState.room?.audioTracks || {},
+        audioPlayback: newState.room?.audioPlayback || { bgm: null, se: null }
       }
     };
     this.#state = this.#createProtectedProxy(normalized);
@@ -944,6 +951,90 @@ export class ImmutableStore {
         return;
       }
 
+      // --- 音楽（BGM／効果音） ---
+      // 音源はDataURLのまま状態に入る（背景画像と同じ方式）。ファイルサイズの上限チェックは
+      // 状態へ入れる前にUI側（js/audio-dialog.js）で行う。
+      case 'ADD_AUDIO_TRACK': {
+        const { id, name, dataUrl, channel, loop } = payload;
+        if (!id || !name || !dataUrl) return;
+        const room = prevState.room;
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...room,
+            audioTracks: Object.freeze({
+              ...room.audioTracks,
+              [id]: Object.freeze({
+                id,
+                name,
+                dataUrl,
+                channel: channel === 'se' ? 'se' : 'bgm',
+                loop: Boolean(loop)
+              })
+            })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      // 音源を削除する。再生中のものを消した場合は、そのチャンネルも止めておかないと
+      // 存在しないtrackIdを指したまま残ってしまう。
+      case 'REMOVE_AUDIO_TRACK': {
+        const { id } = payload;
+        const room = prevState.room;
+        if (!room.audioTracks?.[id]) return;
+
+        const nextTracks = { ...room.audioTracks };
+        delete nextTracks[id];
+
+        const playback = room.audioPlayback || { bgm: null, se: null };
+        const nextPlayback = {};
+        AUDIO_CHANNELS.forEach(channel => {
+          nextPlayback[channel] = playback[channel]?.trackId === id
+            ? null
+            : (playback[channel] ? Object.freeze({ ...playback[channel] }) : null);
+        });
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...room,
+            audioTracks: Object.freeze(nextTracks),
+            audioPlayback: Object.freeze(nextPlayback)
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
+      // 指定チャンネルの再生状態を差し替える（trackId: null で停止）。
+      case 'SET_AUDIO_PLAYBACK': {
+        const { channel, trackId, playId } = payload;
+        if (!AUDIO_CHANNELS.includes(channel)) return;
+        const room = prevState.room;
+        if (trackId && !room.audioTracks?.[trackId]) return;
+
+        const playback = room.audioPlayback || { bgm: null, se: null };
+
+        this.#state = this.#createProtectedProxy({
+          ...prevState,
+          room: Object.freeze({
+            ...room,
+            audioPlayback: Object.freeze({
+              ...playback,
+              [channel]: trackId ? Object.freeze({ trackId, playId }) : null
+            })
+          })
+        });
+
+        EventBus.emit('STATE_CHANGED', this.#state);
+        return;
+      }
+
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
         const room = prevState.room;
@@ -1224,7 +1315,15 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
       boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
-      originalTables: {} // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
+      originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
+
+      // 音楽（js/audio-player.js／js/audio-dialog.js）。背景画像と同じくDataURLを状態に持ち、
+      // 全員へ同じ音源が同期される。将来チャットコマンドから名前で呼べるよう、
+      // 1曲差し替えではなく「名前付きで複数登録するライブラリ」の形にしてある。
+      audioTracks: {},   // { [id]: { id, name, dataUrl, channel: 'bgm'|'se', loop: boolean } }
+      // チャンネルごとの再生状態。BGMを流したまま効果音を重ねられるよう2枠に分けてある。
+      // playIdは再生のたびに変わる値で、同じ曲を鳴らし直したことの検知に使う（再生位置は同期しない）。
+      audioPlayback: { bgm: null, se: null } // 各要素 { trackId, playId } | null
     },
 
     tokens: {},

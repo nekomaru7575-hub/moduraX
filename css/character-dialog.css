@@ -422,6 +422,91 @@
   background-color: #454545;
 }
 
+/* --- 音楽ダイアログ --- */
+
+.audio-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.audio-volume-label {
+  color: #ccc;
+  font-size: 0.85rem;
+  flex: 0 0 6.5em;
+}
+
+.audio-volume-row input[type="range"] {
+  flex: 1;
+}
+
+.audio-volume-value {
+  color: #888;
+  font-size: 0.8rem;
+  flex: 0 0 2.5em;
+  text-align: right;
+}
+
+/* チャンネルごとの再生中表示（曲名＋停止ボタン） */
+.audio-playing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: #ddd;
+  font-size: 0.85rem;
+}
+
+.audio-playing-text {
+  flex: 1;
+}
+
+.audio-playing-row button {
+  background-color: #444;
+  color: #ddd;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+/* 一覧の行に添える種別（BGM／効果音）ラベル */
+.audio-track-kind {
+  color: #888;
+  font-size: 0.8rem;
+  flex: 0 0 3.5em;
+  text-align: right;
+}
+
+/* ファイル選択後に出す「曲名・種別」の入力行 */
+.audio-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.audio-add-row input[type="text"],
+.audio-add-row select {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  flex: 1;
+}
+
+.audio-note {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 4px 0 8px;
+}
+
+.audio-note-warn {
+  color: #e0a020;
+}
+
 /* 一覧が空のときの説明行（オリジナル表一覧） */
 .dialog-empty-note {
   color: #aaa;

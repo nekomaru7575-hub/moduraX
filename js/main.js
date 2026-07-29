@@ -17,6 +17,8 @@ import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
+import { showAudioDialog } from './audio-dialog.js';
+import { initAudioPlayer } from './audio-player.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 
@@ -183,6 +185,7 @@ const characterList = document.getElementById('characterList');
 // ...(既存のDOM取得の並びに追加)
 const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
+const audioMenuBtn = document.getElementById('audioMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 const roomNameInput = document.getElementById('roomNameInput');
 const roomNameLabel = document.getElementById('roomNameLabel');
@@ -271,6 +274,38 @@ function openOriginalTableListDialog() {
       openOriginalTableListDialog();
     }
   });
+}
+
+// 音楽ダイアログ（ヘッダーの「♪」）。音源の登録・再生・停止・削除はすべて即時反映のため、
+// 操作のたびに最新状態で開き直す。実際の再生はaudio-player.jsが状態の変化を見て行う。
+function openAudioDialog() {
+  showAudioDialog({
+    tracks: store.state.room.audioTracks || {},
+    playback: store.state.room.audioPlayback || { bgm: null, se: null },
+    onAdd: ({ name, dataUrl, channel, loop }) => {
+      store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, dataUrl, channel, loop });
+      openAudioDialog();
+    },
+    onPlay: (track) => {
+      // playIdを毎回変えることで、同じ効果音を続けて鳴らし直せる（audio-player.js側の再生検知）
+      store.dispatch('SET_AUDIO_PLAYBACK', {
+        channel: track.channel, trackId: track.id, playId: `${Date.now()}`
+      });
+      openAudioDialog();
+    },
+    onStop: (channel) => {
+      store.dispatch('SET_AUDIO_PLAYBACK', { channel, trackId: null, playId: null });
+      openAudioDialog();
+    },
+    onRemove: (trackId) => {
+      store.dispatch('REMOVE_AUDIO_TRACK', { id: trackId });
+      openAudioDialog();
+    }
+  });
+}
+
+if (audioMenuBtn) {
+  audioMenuBtn.addEventListener('click', openAudioDialog);
 }
 
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
@@ -1168,5 +1203,6 @@ function applyLog(entry, tabId = activeTabId) {
 window.addEventListener('DOMContentLoaded', () => {
   initNetSync();
   initRoundPanel();
+  initAudioPlayer();
   store.init();
 });

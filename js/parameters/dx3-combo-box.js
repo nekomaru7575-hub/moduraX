@@ -5,7 +5,7 @@
 //
 // 発動/判定/ダメージの実処理（バフ付与・パラメータ変更・ダイスロール）はこのファイルの
 // runComboActivate/runComboCheck/runComboDamageが担うが、これらはボタンではなく
-// チャットコマンド（combo.awk(コンボ名)/combo.jdm(コンボ名)/combo.dmg(コンボ名)）から
+// チャットコマンド（combo.awk(コンボ名)/combo.chk(コンボ名)/combo.dmg(コンボ名)）から
 // 実行する。コマンドの解釈はjs/parameters/dx3.jsのhandleDX3ChatCommandが行い、
 // js/main.jsのtryHandlePluginChatCommand→js/parameters/registry.jsのhandlePluginChatCommand
 // 経由で呼び出される。このボックス自体はコンボの登録・編集と、チャットパレットに
@@ -130,11 +130,11 @@ function logToMain(dispatch, resultText, token, system = 'コンボ') {
 }
 
 // チャットパレット貼り付け用の3コマンド（発動/判定/ダメージ）を生成する。
-// js/parameters/dx3.js側のhandleDX3ChatCommandが同じ書式（combo.awk/combo.jdm/combo.dmg）で解釈する。
+// js/parameters/dx3.js側のhandleDX3ChatCommandが同じ書式（combo.awk/combo.chk/combo.dmg）で解釈する。
 export function buildComboChatLines(comboName) {
   return [
     `combo.awk(${comboName})`,
-    `combo.jdm(${comboName})`,
+    `combo.chk(${comboName})`,
     `combo.dmg(${comboName})`
   ];
 }
@@ -145,7 +145,7 @@ export function findComboByName(combos, name) {
   return combos.find(c => c.name === name) ?? null;
 }
 
-// --- 発動/判定/ダメージの実処理。チャットコマンド（combo.awk/combo.jdm/combo.dmg、
+// --- 発動/判定/ダメージの実処理。チャットコマンド（combo.awk/combo.chk/combo.dmg、
 // js/parameters/dx3.jsのhandleDX3ChatCommand）から呼び出される。 ---
 
 /**
@@ -366,7 +366,7 @@ export function showComboBox({
   const note = document.createElement('p');
   note.style.color = '#888';
   note.style.fontSize = '0.8rem';
-  note.textContent = '発動/判定/ダメージはチャットコマンド（combo.awk(コンボ名)/combo.jdm(コンボ名)/combo.dmg(コンボ名)）から実行します。「コマンドをコピー」で3つのコマンドをコピーし、チャットパレットの編集欄（複数行貼り付け可）に貼り付けてください。保存済みの内容に対して実行されるため、エフェクトの選択や能力値/技能値を変えたら、先に保存してください。';
+  note.textContent = '発動/判定/ダメージはチャットコマンド（combo.awk(コンボ名)/combo.chk(コンボ名)/combo.dmg(コンボ名)）から実行します。「コマンドをコピー」で3つのコマンドをコピーし、チャットパレットの編集欄（複数行貼り付け可）に貼り付けてください。保存済みの内容に対して実行されるため、エフェクトの選択や能力値/技能値を変えたら、先に保存してください。';
   form.appendChild(note);
 
   const listEl = document.createElement('div');
@@ -540,7 +540,7 @@ export function showComboBox({
     item.appendChild(selectRow);
 
     // 発動/判定/ダメージは実行ボタンではなく、チャットコマンド
-    // （combo.awk/combo.jdm/combo.dmg、js/parameters/dx3.jsのhandleDX3ChatCommandが処理）
+    // （combo.awk/combo.chk/combo.dmg、js/parameters/dx3.jsのhandleDX3ChatCommandが処理）
     // から行う。ここではその3行をクリップボードへコピーし、チャットパレットの編集欄に
     // 貼り付けて使えるようにするだけにする。
     const actionRow = document.createElement('div');

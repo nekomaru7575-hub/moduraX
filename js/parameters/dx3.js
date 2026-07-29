@@ -189,7 +189,7 @@ function renderDX3CharacterPanel({
     container.appendChild(effectBtn);
 
     // コンボ一覧（ボックス）。発動/判定/ダメージの実行はチャットコマンド
-    // （combo.awk/combo.jdm/combo.dmg、js/main.js）から行うため、このボックス自体は
+    // （combo.awk/combo.chk/combo.dmg、js/main.js）から行うため、このボックス自体は
     // コンボの登録・編集とコマンドのコピーのみを担当する。
     const comboBtn = document.createElement('button');
     comboBtn.type = 'button';
@@ -358,7 +358,7 @@ function importDX3CharacterJson(json) {
   };
 }
 
-// コンボのチャットコマンド。combo.awk(コンボ名)で発動、combo.jdm(コンボ名)で判定、
+// コンボのチャットコマンド。combo.awk(コンボ名)で発動、combo.chk(コンボ名)で判定、
 // combo.dmg(コンボ名)でダメージロールする（実処理はdx3-combo-box.jsのrunComboActivate等）。
 // コンボ名は参照キャラクターのcomponents.combosから完全一致で探す。
 const COMBO_COMMAND_PATTERN = /^combo\.(awk|jdm|dmg)\((.+)\)$/;

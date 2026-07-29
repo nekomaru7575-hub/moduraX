@@ -542,7 +542,7 @@ function tryHandleParameterCommand(rawInput, character) {
 
   if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
-    // （combo.jdm等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
+    // （combo.chk等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
     rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
@@ -654,7 +654,7 @@ function tryHandlePhaseEndCommand(rawInput) {
   return true;
 }
 
-// 適用中プラグイン固有のチャットコマンド（DX3のcombo.awk/combo.jdm/combo.dmg等）を試す。
+// 適用中プラグイン固有のチャットコマンド（DX3のcombo.awk/combo.chk/combo.dmg等）を試す。
 // プラグイン未適用、または該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
 // 実処理（判定/ダメージのロール・バフ付与）は各プラグイン側で完結させ、成否のalertや
 // チャットへのログ追記もプラグイン側（DX3ならdx3-combo-box.jsのrunCombo*）が行う。

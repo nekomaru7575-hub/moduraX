@@ -374,7 +374,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const spaceIndex = splitForSpace(rawInput);
     const command = spaceIndex[0];
     const comment = spaceIndex.slice(1).join(" ");
-    const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]:]+$/.test(command);
+    const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]@#,:]+$/.test(command);
 
     if (!isDiceCommand) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);

@@ -38,6 +38,32 @@ export function pickFileAsDataUrl({ accept = 'image/*' } = {}) {
 }
 
 /**
+ * ネイティブのファイル選択ダイアログを開き、選択されたFileをそのまま返す。
+ * サーバーへ生のバイナリを送る用途（音源のアップロード）向けで、DataURL化を挟まないぶん
+ * base64の33%増しとメモリ上の二重持ちを避けられる。キャンセルされた場合はnullを返す。
+ *
+ * @param {{ accept?: string }} options
+ * @returns {Promise<File | null>}
+ */
+export function pickFile({ accept = '*/*' } = {}) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+
+    input.addEventListener('change', () => {
+      const file = input.files?.[0] ?? null;
+      input.remove();
+      resolve(file);
+    });
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+/**
  * ネイティブのファイル選択ダイアログを開き、選択されたファイルをテキストとして読み込む。
  * JSONインポート等、バイナリ変換が不要な用途向け。キャンセルされた場合はnullを返す。
  *

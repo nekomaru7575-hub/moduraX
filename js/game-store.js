@@ -952,11 +952,10 @@ export class ImmutableStore {
       }
 
       // --- 音楽（BGM／効果音） ---
-      // 音源はDataURLのまま状態に入る（背景画像と同じ方式）。ファイルサイズの上限チェックは
-      // 状態へ入れる前にUI側（js/audio-dialog.js）で行う。
+      // 状態に入るのはURLとメタデータだけ。音の実体はR2側にあり、ここには乗らない。
       case 'ADD_AUDIO_TRACK': {
-        const { id, name, dataUrl, channel, loop } = payload;
-        if (!id || !name || !dataUrl) return;
+        const { id, name, url, source, key = null, channel, loop } = payload;
+        if (!id || !name || !url) return;
         const room = prevState.room;
 
         this.#state = this.#createProtectedProxy({
@@ -968,7 +967,9 @@ export class ImmutableStore {
               [id]: Object.freeze({
                 id,
                 name,
-                dataUrl,
+                url,
+                source: source === 'upload' ? 'upload' : 'external',
+                key: source === 'upload' ? key : null,
                 channel: channel === 'se' ? 'se' : 'bgm',
                 loop: Boolean(loop)
               })
@@ -1317,10 +1318,13 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
 
-      // 音楽（js/audio-player.js／js/audio-dialog.js）。背景画像と同じくDataURLを状態に持ち、
-      // 全員へ同じ音源が同期される。将来チャットコマンドから名前で呼べるよう、
-      // 1曲差し替えではなく「名前付きで複数登録するライブラリ」の形にしてある。
-      audioTracks: {},   // { [id]: { id, name, dataUrl, channel: 'bgm'|'se', loop: boolean } }
+      // 音楽（js/audio-player.js／js/audio-dialog.js）。音の実体は状態に入れずURLだけを持つ
+      // （実体を入れると、アクションのたびに状態ごとRedisへ書き直されて帯域を食い潰すため。
+      // 実体はCloudflare R2にあり、アップロードはserver/r2.js経由）。
+      // 将来チャットコマンドから名前で呼べるよう「名前付きで複数登録するライブラリ」の形。
+      // { [id]: { id, name, url, source: 'upload'|'external', key: string|null, channel: 'bgm'|'se', loop: boolean } }
+      // source:'upload' はサーバーがR2に実体を持つ（削除時にkeyで消す）。'external' は外部URL参照。
+      audioTracks: {},
       // チャンネルごとの再生状態。BGMを流したまま効果音を重ねられるよう2枠に分けてある。
       // playIdは再生のたびに変わる値で、同じ曲を鳴らし直したことの検知に使う（再生位置は同期しない）。
       audioPlayback: { bgm: null, se: null } // 各要素 { trackId, playId } | null

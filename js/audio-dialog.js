@@ -2,12 +2,12 @@
 // 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。音源の登録・再生・停止・削除と、
 // 音量調整を行う。実際の再生はjs/audio-player.jsが状態の変化を見て行う。
 
-import { pickFileAsDataUrl } from './file-uploader.js';
+import { pickFile } from './file-uploader.js';
 import { getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy } from './audio-player.js';
 
-// 音源はDataURLのまま部屋の状態に入り、WebSocketで全員へ配られてRedisにも保存される。
-// 大きいファイルを入れると同期・保存が破綻するため、追加時点で弾く。
-const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
+// サーバーが上限を教えてくれるまでの暫定値（server/index.jsのMAX_AUDIO_MBの既定と同じ）。
+// 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
+const DEFAULT_MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 const CHANNEL_LABELS = { bgm: 'BGM', se: '効果音' };
 
@@ -17,13 +17,6 @@ const TRACK_KINDS = [
   { value: 'bgm', label: 'BGM（ループ）', channel: 'bgm', loop: true },
   { value: 'se', label: '効果音（単発）', channel: 'se', loop: false }
 ];
-
-// DataURLの実バイト数の目安（base64部分の長さから逆算する）。
-function estimateDataUrlBytes(dataUrl) {
-  const base64 = String(dataUrl).split(',')[1] || '';
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  return Math.floor(base64.length * 3 / 4) - padding;
-}
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -46,7 +39,53 @@ function ensureDialog() {
   return dialogEl;
 }
 
-// 音源1件分の入力（曲名・種別）。ファイル選択の後に続けて聞く。
+// 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
+function currentRoomId() {
+  return new URLSearchParams(location.search).get('room') || '';
+}
+
+// サーバーにR2の設定があるか（＝アップロードが使えるか）と、サーバーが許すファイルサイズ。
+// 開くたびに問い合わせても仕方ないので一度取ったら保持する。
+// 取得できるまではアップロードを有効として扱い、失敗したら実行時に弾かれる。
+let uploadCapability = null;
+
+// アップロード前のサイズ判定はサーバーの上限に合わせる。ここが食い違うと、サーバー側で
+// 弾かれた際にブラウザには理由が届かず（応答前に接続を切るため）通信失敗にしか見えない。
+function currentMaxBytes() {
+  return uploadCapability?.maxBytes || DEFAULT_MAX_AUDIO_BYTES;
+}
+
+function fetchUploadCapability(onResolved) {
+  if (uploadCapability) {
+    onResolved(uploadCapability);
+    return;
+  }
+  fetch('/api/audio')
+    .then(r => r.json())
+    .then(body => {
+      uploadCapability = body;
+      onResolved(body);
+    })
+    .catch(() => { /* 取得できなければ従来どおり（実行時に判明する） */ });
+}
+
+// 選んだファイルをサーバー経由でR2へ上げ、再生用の公開URLを受け取る。
+// ブラウザからR2を直接叩かないので、R2側のCORS設定は不要。
+async function uploadAudioFile(file) {
+  const response = await fetch(`/api/audio?room=${encodeURIComponent(currentRoomId())}`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'audio/mpeg' },
+    body: file
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || `アップロードに失敗しました (${response.status})`);
+  }
+  return body; // { key, url }
+}
+
+// 音源1件分の入力（曲名・種別）。ファイル選択／URL入力の後に続けて聞く。
 function buildAddRow(defaultName, onSubmit) {
   const wrap = document.createElement('div');
   wrap.className = 'audio-add-row';
@@ -188,10 +227,7 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     listEl.appendChild(empty);
   }
 
-  let totalBytes = 0;
   trackList.forEach(track => {
-    totalBytes += estimateDataUrlBytes(track.dataUrl);
-
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
 
@@ -221,14 +257,6 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     listEl.appendChild(row);
   });
 
-  // 音源は部屋の状態ごと全員へ配られるため、増えすぎに気づけるよう合計サイズを出しておく
-  if (trackList.length > 0) {
-    const totalNote = document.createElement('p');
-    totalNote.className = 'audio-note';
-    totalNote.textContent = `登録済み ${trackList.length}件 / 合計 ${formatBytes(totalBytes)}`;
-    container.appendChild(totalNote);
-  }
-
   // --- 追加 ---
   const addArea = document.createElement('div');
   container.appendChild(addArea);
@@ -238,21 +266,70 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
   addBtn.textContent = '+ 音楽ファイルを追加';
   addBtn.className = 'dialog-add-row-btn';
   addBtn.addEventListener('click', async () => {
-    const picked = await pickFileAsDataUrl({ accept: 'audio/*' });
-    if (!picked) return;
+    const file = await pickFile({ accept: 'audio/*' });
+    if (!file) return;
 
-    if (picked.file.size > MAX_AUDIO_BYTES) {
-      alert(`ファイルが大きすぎます（${formatBytes(picked.file.size)}）。\n`
-        + `音源は部屋のデータとして全員へ共有されるため、${formatBytes(MAX_AUDIO_BYTES)}までにしてください。`);
+    if (file.size > currentMaxBytes()) {
+      alert(`ファイルが大きすぎます（${formatBytes(file.size)}）。\n${formatBytes(currentMaxBytes())}までにしてください。`);
+      return;
+    }
+
+    // 数MBの転送で無反応に見えないよう、待っている間はボタンを止めて状態を出す
+    addArea.innerHTML = '';
+    addBtn.disabled = true;
+    addBtn.textContent = 'アップロード中…';
+
+    try {
+      const { url, key } = await uploadAudioFile(file);
+      addArea.appendChild(buildAddRow(stripExtension(file.name), ({ name, kind }) => {
+        onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop });
+      }));
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      addBtn.disabled = false;
+      addBtn.textContent = '+ 音楽ファイルを追加';
+    }
+  });
+  container.appendChild(addBtn);
+
+  // R2が未設定のサーバーではアップロードできないので、押す前に分かるようにしておく
+  // （URLでの追加は設定に関係なく使える）。
+  fetchUploadCapability(({ uploadEnabled }) => {
+    if (uploadEnabled) return;
+    addBtn.disabled = true;
+    addBtn.textContent = '音楽ファイルのアップロードは利用できません';
+    addBtn.title = 'サーバーに音源の保存先が設定されていません。「URLで追加」をご利用ください。';
+  });
+
+  // 容量を使いたくないとき用に、他所に置いた音源を参照する経路も用意する
+  const addUrlBtn = document.createElement('button');
+  addUrlBtn.type = 'button';
+  addUrlBtn.textContent = '+ URLで追加';
+  addUrlBtn.className = 'dialog-add-row-btn';
+  addUrlBtn.addEventListener('click', () => {
+    const url = prompt('音源のURLを入力してください（共有ページではなく、ファイル本体のURL）');
+    if (url === null) return;
+
+    const trimmed = url.trim();
+    // 本番(https)ページからhttpの音源を読むと混在コンテンツで無言で失敗するため、httpsを必須にする。
+    // ページ自体がhttpのローカル開発時だけはhttpも通す（その場合は混在コンテンツにならない）。
+    const isAllowed = trimmed.startsWith('https://')
+      || (location.protocol === 'http:' && trimmed.startsWith('http://'));
+    if (!isAllowed) {
+      alert('https:// で始まるURLを指定してください。\n'
+        + '共有ページのURLではなく、ファイル本体を直接指すURLが必要です。');
       return;
     }
 
     addArea.innerHTML = '';
-    addArea.appendChild(buildAddRow(stripExtension(picked.file.name), ({ name, kind }) => {
-      onAdd({ name, dataUrl: picked.dataUrl, channel: kind.channel, loop: kind.loop });
+    // ファイル名らしき最後のパス要素を曲名の初期値にする
+    const defaultName = stripExtension(decodeURIComponent(trimmed.split('/').pop() || '').split('?')[0]);
+    addArea.appendChild(buildAddRow(defaultName, ({ name, kind }) => {
+      onAdd({ name, url: trimmed, source: 'external', key: null, channel: kind.channel, loop: kind.loop });
     }));
   });
-  container.appendChild(addBtn);
+  container.appendChild(addUrlBtn);
 
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';

@@ -282,8 +282,8 @@ function openAudioDialog() {
   showAudioDialog({
     tracks: store.state.room.audioTracks || {},
     playback: store.state.room.audioPlayback || { bgm: null, se: null },
-    onAdd: ({ name, dataUrl, channel, loop }) => {
-      store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, dataUrl, channel, loop });
+    onAdd: ({ name, url, source, key, channel, loop }) => {
+      store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, url, source, key, channel, loop });
       openAudioDialog();
     },
     onPlay: (track) => {

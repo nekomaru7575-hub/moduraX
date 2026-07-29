@@ -58,7 +58,8 @@ function applyChannel(channel, entry, tracks) {
   if (!track) return;
 
   state.appliedPlayId = entry.playId;
-  audio.src = track.dataUrl;
+  // dataUrlへのフォールバックは、URL参照へ移行する前に登録された部屋のデータを鳴らすため
+  audio.src = track.url || track.dataUrl;
   audio.loop = Boolean(track.loop);
   audio.volume = getChannelVolume(channel);
   audio.currentTime = 0;

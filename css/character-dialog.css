@@ -148,6 +148,11 @@
   border-radius: 4px;
 }
 
+/* 上限欄は{EB}等の式を書けるため、現在値より横に長くとる */
+.effect-box-limit-max {
+  width: 156px;
+}
+
 .effect-box-limit-slash {
   color: #888;
 }

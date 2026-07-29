@@ -164,11 +164,13 @@ export function showEffectBox({ effects = [], onSave }) {
       slash.textContent = '/';
       limitRow.appendChild(slash);
 
+      // 上限は「EB回まで」のようなエフェクトがあるため、数値ではなく式を書けるようにしてある
+      // （解決はコンボ時修正と同じdx3-formula.jsのresolveComboModFormula。判定はdx3-combo-box.js）。
       const maxInput = document.createElement('input');
-      maxInput.type = 'number';
+      maxInput.type = 'text';
       maxInput.className = 'effect-box-limit-max';
-      maxInput.min = '0';
       maxInput.placeholder = '無制限';
+      maxInput.title = '空欄で無制限。数値のほか {EB} / {Lv} などの式も使える（例: {EB}, 1+{Lv}）';
       maxInput.value = limitData.max ?? '';
       limitRow.appendChild(maxInput);
 
@@ -281,7 +283,8 @@ export function showEffectBox({ effects = [], onSave }) {
           const rawMax = maxInput.value.trim();
           limits[category] = {
             current: Number(currentInput.value) || 0,
-            max: rawMax === '' ? null : (Number(rawMax) || 0)
+            // 式のまま保存し、使用時に解決する（数値へ丸めると{EB}等が失われるため）
+            max: rawMax === '' ? null : rawMax
           };
         });
 

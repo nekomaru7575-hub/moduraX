@@ -50,10 +50,18 @@ function sumComboMod(effects, key, token, getEffectiveParameterValue) {
 
 // シナリオ/シーン/ラウンドのいずれかで上限(max)が設定済みかつ、現在値(current)が
 // 既に上限に達しているエフェクトかどうか。使用（コンボ発動・単体使用）前のブロック判定に使う。
-function isEffectAtLimit(effect) {
+// 上限は「EB回まで」のようなエフェクトのため{EB}等を含む式が入りうるので、コンボ時修正と同じ
+// resolveComboModFormulaで使用者のパラメータへ解決してから比較する。数値だけの旧データも
+// String()を通せば同じ経路で評価できる（'3' → 3）。
+function isEffectAtLimit(effect, token, getEffectiveParameterValue) {
   return LIMIT_CATEGORIES.some(category => {
     const limit = effect.limits?.[category];
-    return limit?.max != null && (limit.current || 0) >= limit.max;
+    if (limit?.max == null || limit.max === '') return false; // 無制限
+    const max = resolveComboModFormula(
+      { formula: String(limit.max) },
+      { effect, token, getEffectiveParameterValue }
+    );
+    return (limit.current || 0) >= max;
   });
 }
 
@@ -163,7 +171,7 @@ export function runComboActivate({
 
   // 0. 使用制限チェック：組み込まれたエフェクトのうち1つでも上限に達していたら、
   //    このコンボは何も適用しない（バフ・使用数・ログいずれも発生させない）。
-  const failedEffects = selectedEffects.filter(isEffectAtLimit);
+  const failedEffects = selectedEffects.filter(e => isEffectAtLimit(e, token, getEffectiveParameterValue));
   if (failedEffects.length > 0) {
     alert(buildEffectUseFailureMessage(failedEffects.map(e => e.name)));
     return;
@@ -217,7 +225,7 @@ export function runEffectUse({
   const token = getToken();
   if (!token) return;
 
-  if (isEffectAtLimit(effect)) {
+  if (isEffectAtLimit(effect, token, getEffectiveParameterValue)) {
     alert(buildEffectUseFailureMessage([effect.name]));
     return;
   }

@@ -86,6 +86,8 @@ async function uploadAudioFile(file) {
 }
 
 // 音源1件分の入力（曲名・種別）。ファイル選択／URL入力の後に続けて聞く。
+// onSubmitは非同期でもよい（アップロードはここを押してから走る）。待っている間は
+// ボタンを止める。二重に押せると同じファイルを2回上げてしまい、片方が孤児になるため。
 function buildAddRow(defaultName, onSubmit) {
   const wrap = document.createElement('div');
   wrap.className = 'audio-add-row';
@@ -107,13 +109,23 @@ function buildAddRow(defaultName, onSubmit) {
   okBtn.type = 'button';
   okBtn.textContent = '登録';
   okBtn.className = 'dialog-confirm-btn';
-  okBtn.addEventListener('click', () => {
+  okBtn.addEventListener('click', async () => {
     const name = nameInput.value.trim();
     if (!name) {
       alert('曲名を入力してください。');
       return;
     }
-    onSubmit({ name, kind: TRACK_KINDS.find(k => k.value === kindSelect.value) });
+
+    okBtn.disabled = true;
+    okBtn.textContent = '登録中…';
+    try {
+      await onSubmit({ name, kind: TRACK_KINDS.find(k => k.value === kindSelect.value) });
+    } catch (error) {
+      // 失敗したら押し直せるように戻す（成功時はダイアログごと開き直されるので戻す必要はない）
+      alert(error.message);
+      okBtn.disabled = false;
+      okBtn.textContent = '登録';
+    }
   });
 
   wrap.appendChild(nameInput);
@@ -274,22 +286,14 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
       return;
     }
 
-    // 数MBの転送で無反応に見えないよう、待っている間はボタンを止めて状態を出す
+    // アップロードは「登録」を押してから走らせる。先に上げてしまうと、曲名を入れずに
+    // ダイアログを閉じた場合にR2へ置いたきり状態から参照されない孤児が残るため
+    // （部屋を削除しても消える対象にならない）。
     addArea.innerHTML = '';
-    addBtn.disabled = true;
-    addBtn.textContent = 'アップロード中…';
-
-    try {
+    addArea.appendChild(buildAddRow(stripExtension(file.name), async ({ name, kind }) => {
       const { url, key } = await uploadAudioFile(file);
-      addArea.appendChild(buildAddRow(stripExtension(file.name), ({ name, kind }) => {
-        onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop });
-      }));
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      addBtn.disabled = false;
-      addBtn.textContent = '+ 音楽ファイルを追加';
-    }
+      onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop });
+    }));
   });
   container.appendChild(addBtn);
 

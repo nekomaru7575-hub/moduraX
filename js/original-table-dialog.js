@@ -26,6 +26,7 @@ function formatTableEntries(entries) {
 }
 
 let dialogEl = null;
+let escHandler = null; // dialogElは使い回しなので、前回のEscハンドラを外すために保持する
 
 function ensureDialog() {
   if (dialogEl) return dialogEl;
@@ -39,14 +40,39 @@ function ensureDialog() {
  * tableを渡すとその内容を初期表示した編集モードになる。表のキーはタイトルなので、
  * 編集でタイトルを変えた場合は呼び出し側で旧タイトルの表を消す必要がある（previousTitleを渡す理由）。
  *
+ * onCancelは「一覧へ戻す」用。この画面は一覧（original-table-list-dialog.js）が自分を閉じてから
+ * 開くため、キャンセルで何も指定しないと一覧ごと閉じたように見えてしまう。
+ *
  * @param {{
  *   table?: { title: string, dice: string, entries: Record<string,string> } | null,
- *   onConfirm: (result: { title: string, dice: string, entries: Record<string,string>, previousTitle: string|null }) => void
+ *   onConfirm: (result: { title: string, dice: string, entries: Record<string,string>, previousTitle: string|null }) => void,
+ *   onCancel?: (() => void) | null
  * }} options
  */
-export function showOriginalTableDialog({ table = null, onConfirm }) {
+export function showOriginalTableDialog({ table = null, onConfirm, onCancel = null }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
+
+  // 閉じ方（キャンセル／Esc／確定）に関わらず、後続処理は一度だけ走らせる
+  let settled = false;
+
+  function closeWithCancel() {
+    if (settled) return;
+    settled = true;
+    dialog.close();
+    if (onCancel) onCancel();
+  }
+
+  // Escで閉じたときも一覧へ戻したい。<dialog>のcloseイベントは環境によって発火しない
+  // （このアプリの動作環境でも発火しなかった）ため、keydownで自前に処理する。
+  // dialogElは使い回しのシングルトンなので、前回分を必ず外してから登録する。
+  if (escHandler) dialog.removeEventListener('keydown', escHandler);
+  escHandler = (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    closeWithCancel();
+  };
+  dialog.addEventListener('keydown', escHandler);
 
   const form = document.createElement('form');
 
@@ -96,7 +122,7 @@ export function showOriginalTableDialog({ table = null, onConfirm }) {
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
+  cancelBtn.addEventListener('click', closeWithCancel);
 
   const confirmBtn = document.createElement('button');
   confirmBtn.type = 'submit';
@@ -127,6 +153,7 @@ export function showOriginalTableDialog({ table = null, onConfirm }) {
       return;
     }
 
+    settled = true;
     dialog.close();
     onConfirm({ title, dice, entries, previousTitle: table ? table.title : null });
   });

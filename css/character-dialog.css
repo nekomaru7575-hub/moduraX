@@ -390,6 +390,17 @@
   cursor: pointer;
 }
 
+/* チェックボックス付きの行（ログ保存のタブ選択）。行全体をlabelにして名前部分でも切り替えられる */
+.dialog-check-row {
+  cursor: pointer;
+  color: #ddd;
+}
+
+.dialog-check-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
 /* オリジナル表一覧：行いっぱいのタイトルボタン（クリックで編集画面へ） */
 .dialog-table-name-btn {
   flex: 1;

@@ -15,6 +15,8 @@ import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
+import { showLogExportDialog } from './log-export-dialog.js';
+import { buildLogExportHtml } from './log-export.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 
@@ -252,7 +254,9 @@ function openOriginalTableEditor(table = null) {
       }
       store.dispatch('ADD_ORIGINAL_TABLE', { title, dice, entries });
       openOriginalTableListDialog();
-    }
+    },
+    // 一覧は自分を閉じてからこの画面を開くので、キャンセル時は一覧へ戻す
+    onCancel: () => openOriginalTableListDialog()
   });
 }
 
@@ -285,6 +289,10 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'オリジナル表一覧',
         onSelect: openOriginalTableListDialog
+      },
+      {
+        label: 'ログを保存',
+        onSelect: openLogExportDialog
       }
     ];
 
@@ -315,21 +323,48 @@ if (roomMenuBtn && roomSettingsDialog) {
   });
 }
 
+// 生成したデータをファイルとしてダウンロードさせる（セッションデータのJSON保存と
+// ログのHTML保存で共通）。
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
 // セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
 // 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
 // 部屋削除前の「部屋を保存し削除」からも使うため、関数として切り出してある。
 function exportStateToFile() {
   const json = JSON.stringify(store.state, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
   const dateStr = new Date().toISOString().slice(0, 10);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `trpg-room-${dateStr}.json`;
-  a.click();
 
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([json], { type: 'application/json' }), `trpg-room-${dateStr}.json`);
+}
+
+// チャットログのHTML保存。復元用のJSONとは別に、後から読み返せる読み物として書き出す。
+// 保存するタブをダイアログで選ばせ、選ばれたぶんを1つのHTMLにまとめる。
+function openLogExportDialog() {
+  showLogExportDialog({
+    tabs: store.state.chatTabs,
+    onConfirm: (tabIds) => {
+      const html = buildLogExportHtml({
+        roomName: store.state.room.name,
+        tabs: store.state.chatTabs.filter(tab => tabIds.includes(tab.id)),
+        chatLogs: store.state.chatLogs
+      });
+
+      // 部屋名がそのままファイル名に入るため、ファイル名に使えない文字は落とす
+      const safeName = String(store.state.room.name || 'room').replace(/[\\/:*?"<>|]/g, '_');
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      downloadBlob(new Blob([html], { type: 'text/html' }), `trpg-log-${safeName}-${dateStr}.html`);
+    }
+  });
 }
 
 if (exportStateBtn) {

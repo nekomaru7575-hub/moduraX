@@ -1,7 +1,7 @@
 // BCdice.js の中身をこれに丸ごと差し替えてみてください
 export async function rollBCDice(system, command) {
   // ⭕ 確実に稼働している別の公開サーバーの住所です
-  const baseUrl = "https://bcdice.trpg.net";
+  const baseUrl = "https://bcdice.onlinesession.app";
 
   // URLに余計なスペースや古い文字が混ざらないよう、安全に組み立てます
   const url = `${baseUrl}/v2/game_system/${system}/roll?command=${encodeURIComponent(command)}`;

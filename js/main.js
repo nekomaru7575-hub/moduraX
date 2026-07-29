@@ -375,14 +375,17 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const command = spaceIndex[0];
     const comment = spaceIndex.slice(1).join(" ");
     const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]@#,:]+$/.test(command);
+    const isStartsChoice = /^choice/i.test(command);
 
-    if (!isDiceCommand) {
+    if (!isDiceCommand && !isStartsChoice) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
       commandInput.value = "";
       return;
     }
 
-    const { success, unsupported, resultText, diceValues } = await rollBCDice(system, command);
+    const toCommand = isStartsChoice ? `${command} ${comment}` : command;
+
+    const { success, unsupported, resultText, diceValues } = await rollBCDice(system, toCommand);
     if (!success) {
       if (unsupported) {
         // 正規表現上はダイスコマンドに見えても、BCDice側がそのシステムの構文として

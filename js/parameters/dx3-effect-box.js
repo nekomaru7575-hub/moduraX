@@ -2,6 +2,8 @@
 // DX3の「エフェクト」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。
 // 保存すると即座にonSaveへ新しい配列を渡す。Core側はこの配列の中身を解釈しない。
 
+import { analyzeComboModFormula, normalizeComboModFormula, listFormulaNames } from './dx3-formula.js';
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -36,35 +38,44 @@ export const COMBO_MOD_FIELDS = [
 ];
 
 /**
- * コンボ時修正1項目分の値を、常に文字列の式として返す。
- * 新形式（{formula}）はそのまま、旧形式（{mode,value}）は自動的に式へ変換する
- * （coefficient→"値*({Lv}+{EB})"、fixed→"値"）。dx3-formula.jsの数式評価でも同じ関数を使い、
- * 保存済みの旧データをそのまま読める後方互換を1箇所にまとめる。
- * @param {{formula?:string, mode?:string, value?:number}|null|undefined} mod
- * @returns {string}
- */
-export function normalizeComboModFormula(mod) {
-  if (!mod) return '';
-  if (typeof mod.formula === 'string') return mod.formula;
-  if (typeof mod.value === 'number' || mod.mode) {
-    const value = mod.value || 0;
-    return mod.mode === 'coefficient' ? `${value}*({Lv}+{EB})` : String(value);
-  }
-  return '';
-}
-
-/**
  * @param {{
  *   effects: Array<{
  *     name:string, level:number, encroach:string, note:string,
  *     limits: Record<'scenario'|'scene'|'round', { current:number, max:number|null }>
  *   }>,
+ *   parameters?: Record<string, {label?:string, key?:string, value?:number}>,
+ *     コンボ時修正の式に書ける{パラメータ名}を検証・提示するために使う（値の評価はしない）。
  *   onSave: (effects: Array<object>) => void
  * }} options
  */
-export function showEffectBox({ effects = [], onSave }) {
+export function showEffectBox({ effects = [], parameters = {}, onSave }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
+
+  // 式に書ける名前（Lv＋このコマのパラメータのラベル）。入力欄のtitleと注意文で使う。
+  const formulaNamesHint = listFormulaNames(parameters).join('、');
+
+  // 入力中の式について、使用時に0になってしまう理由（未知の名前・読めない書式）を1行で返す。
+  // 問題が無ければnull。値そのものは評価しない（使用者のバフ状況によって変わるため）。
+  function describeFormulaProblem(rawFormula, level) {
+    const { unresolvedNames, invalidSyntax, empty } = analyzeComboModFormula(
+      { formula: rawFormula },
+      {
+        effect: { level },
+        token: { parameters },
+        getEffectiveParameterValue: (token, paramId) => token.parameters[paramId]?.value ?? 0
+      }
+    );
+
+    if (empty) return null;
+    if (unresolvedNames.length > 0) {
+      return `「${unresolvedNames.join('」「')}」は式で使える名前ではありません（使える名前: ${formulaNamesHint}）`;
+    }
+    if (invalidSyntax) {
+      return '式として読めません（数値・+ - * / ・( ) と {名前} だけが使えます）';
+    }
+    return null;
+  }
 
   const form = document.createElement('form');
 
@@ -215,6 +226,7 @@ export function showEffectBox({ effects = [], onSave }) {
       formulaInput.type = 'text';
       formulaInput.className = 'effect-box-combo-formula';
       formulaInput.placeholder = '例: 3 / {Lv}*2 / {攻撃力}+1';
+      formulaInput.title = `使える名前: ${formulaNamesHint}`;
       formulaInput.value = normalizeComboModFormula(savedMod);
 
       field.appendChild(fieldLabel);
@@ -239,6 +251,33 @@ export function showEffectBox({ effects = [], onSave }) {
     });
 
     comboWrap.appendChild(comboRow);
+
+    // 評価できない式は使用時に黙って0として扱われる（＝バフが付かない）ため、入力した時点で
+    // 理由を出す。保存自体はブロックしない（式を後から埋める運用を邪魔しないため）。
+    const comboError = document.createElement('div');
+    comboError.className = 'effect-box-combo-error';
+    comboError.style.display = 'none';
+    comboWrap.appendChild(comboError);
+
+    const validateComboMods = () => {
+      const level = Number(levelInput.value) || 0;
+      const problems = COMBO_MOD_FIELDS
+        .map(({ key, label }) => {
+          const message = describeFormulaProblem(comboControls[key].formulaInput.value, level);
+          return message ? `${label}: ${message}` : null;
+        })
+        .filter(Boolean);
+
+      comboError.textContent = problems.join('\n');
+      comboError.style.display = problems.length > 0 ? '' : 'none';
+    };
+
+    COMBO_MOD_FIELDS.forEach(({ key }) => {
+      comboControls[key].formulaInput.addEventListener('input', validateComboMods);
+    });
+    levelInput.addEventListener('input', validateComboMods);
+    validateComboMods();
+
     item.appendChild(comboWrap);
 
     listEl.appendChild(item);

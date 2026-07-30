@@ -11,7 +11,7 @@ import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
 import { getNickname, setNickname } from './local-identity.js';
-import { handlePluginChatCommand } from './parameters/registry.js';
+import { handlePluginChatCommand, findPluginForChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
@@ -733,20 +733,33 @@ function tryHandlePhaseEndCommand(rawInput) {
 }
 
 // 適用中プラグイン固有のチャットコマンド（DX3のcombo.awk/combo.chk/combo.dmg等）を試す。
-// プラグイン未適用、または該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
+// 該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
 // 実処理（判定/ダメージのロール・バフ付与）は各プラグイン側で完結させ、成否のalertや
 // チャットへのログ追記もプラグイン側（DX3ならdx3-combo-box.jsのrunCombo*）が行う。
 function tryHandlePluginChatCommand(rawInput, character) {
   const activePluginId = store.state.room?.activePlugin ?? null;
-  if (!activePluginId) return false;
 
-  return handlePluginChatCommand(activePluginId, rawInput, {
-    token: character,
-    dispatch: store.dispatch.bind(store),
-    getEffectiveParameterValue,
-    generateBuffId,
-    rollBCDice
-  });
+  if (activePluginId) {
+    const handled = handlePluginChatCommand(activePluginId, rawInput, {
+      token: character,
+      dispatch: store.dispatch.bind(store),
+      getEffectiveParameterValue,
+      generateBuffId,
+      rollBCDice
+    });
+    if (handled) return true;
+  }
+
+  // 適用中プラグインで処理できなかった場合、他プラグインのコマンド構文に見えるなら
+  // 「素通りしてただの発言になる」前に理由を知らせる（Coreは構文を知らないため、
+  // 判定はプラグイン側のlooksLikeOwnChatCommandに委ねる）。
+  const owner = findPluginForChatCommand(rawInput);
+  if (owner && owner.id !== activePluginId) {
+    alert(`このコマンドは「${owner.label}」のものです。この部屋には適用されていないため実行できません。`);
+    return true;
+  }
+
+  return false;
 }
 
 // オリジナル表（room.originalTables）のタイトルと入力が完全一致した場合、そのダイスを

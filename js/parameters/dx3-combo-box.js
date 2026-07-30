@@ -16,7 +16,7 @@
 // （runComboActivate等）の引数として呼び出し元（js/main.js）から受け取る。
 
 import { COMBO_MOD_FIELDS, LIMIT_CATEGORIES } from './dx3-effect-box.js';
-import { resolveComboModFormula } from './dx3-formula.js';
+import { analyzeComboModFormula, resolveComboModFormula } from './dx3-formula.js';
 
 let dialogEl = null;
 
@@ -37,15 +37,81 @@ const COMBO_PARAM_MAP = {
   criticalMod: 'DX3:AcB'
 };
 
-// コンボ時修正1件分の値。修正欄は文字列の式（{Lv}/{パラメータ名}参照＋四則演算）なので、
-// 実際の数値への解決はdx3-formula.jsのresolveComboModFormulaに委ねる。
+// コンボ時修正1件分の解析結果（値＋なぜその値になったか）。修正欄は文字列の式
+// （{Lv}/{パラメータ名}参照＋四則演算）なので、解決はdx3-formula.jsに委ねる。
+function comboModAnalysis(effect, key, token, getEffectiveParameterValue) {
+  return analyzeComboModFormula(effect.combo?.[key], { effect, token, getEffectiveParameterValue });
+}
+
 function comboModContribution(effect, key, token, getEffectiveParameterValue) {
-  const mod = effect.combo?.[key];
-  return resolveComboModFormula(mod, { effect, token, getEffectiveParameterValue });
+  return comboModAnalysis(effect, key, token, getEffectiveParameterValue).value;
 }
 
 function sumComboMod(effects, key, token, getEffectiveParameterValue) {
   return effects.reduce((sum, e) => sum + comboModContribution(e, key, token, getEffectiveParameterValue), 0);
+}
+
+// 式が評価できず0として扱われたコンボ時修正を、ユーザーへ返す1行の説明にする。
+// 「入力したのにバフが付かない」という無反応を避けるため、使用時のログへ添える。
+// 問題が無ければ空配列。
+function collectComboModProblems(effects, token, getEffectiveParameterValue) {
+  const problems = [];
+
+  effects.forEach(effect => {
+    COMBO_MOD_FIELDS.forEach(({ key, label }) => {
+      const { formula, unresolvedNames, invalidSyntax, empty } =
+        comboModAnalysis(effect, key, token, getEffectiveParameterValue);
+      if (empty) return;
+
+      if (unresolvedNames.length > 0) {
+        problems.push(`${effect.name}／${label}「${formula}」: 「${unresolvedNames.join('」「')}」を解決できませんでした`);
+      } else if (invalidSyntax) {
+        problems.push(`${effect.name}／${label}「${formula}」: 式として読めませんでした`);
+      }
+    });
+  });
+
+  return problems;
+}
+
+// 上限式（「EB回まで」等）が評価できなかった場合も、無制限として扱ったことを伝える。
+function collectLimitProblems(effects, token, getEffectiveParameterValue) {
+  const problems = [];
+
+  effects.forEach(effect => {
+    LIMIT_CATEGORIES.forEach(category => {
+      const limit = effect.limits?.[category];
+      if (limit?.max == null || limit.max === '') return;
+
+      const { unresolvedNames, invalidSyntax } = analyzeComboModFormula(
+        { formula: String(limit.max) },
+        { effect, token, getEffectiveParameterValue }
+      );
+      if (unresolvedNames.length === 0 && !invalidSyntax) return;
+
+      problems.push(`${effect.name}／使用制限「${limit.max}」: 式を評価できず、上限なしとして扱いました`);
+    });
+  });
+
+  return problems;
+}
+
+// 修正値の警告と「修正値なし」の注意を、ログ本文へ足す末尾テキストに組み立てる。
+function buildModNoticeText({ effects, token, getEffectiveParameterValue, appliedBuffCount }) {
+  const problems = [
+    ...collectComboModProblems(effects, token, getEffectiveParameterValue),
+    ...collectLimitProblems(effects, token, getEffectiveParameterValue)
+  ];
+
+  const lines = problems.map(problem => `⚠ ${problem}`);
+
+  if (appliedBuffCount === 0) {
+    lines.push(problems.length > 0
+      ? '（このため修正値バフは付与されていません）'
+      : '（コンボ時修正が未設定または0のため、修正値バフはありません）');
+  }
+
+  return lines.length > 0 ? `\n${lines.join('\n')}` : '';
 }
 
 // シナリオ/シーン/ラウンドのいずれかで上限(max)が設定済みかつ、現在値(current)が
@@ -189,6 +255,7 @@ export function runComboActivate({
 
   // 2. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
   // 上昇侵蝕率はここでは加算しない（runComboDamageで、ダメージロール後に反映する）。
+  let appliedBuffCount = 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
     const delta = sumComboMod(selectedEffects, key, token, getEffectiveParameterValue);
     if (!delta) return;
@@ -200,12 +267,19 @@ export function runComboActivate({
     dispatch('ADD_BUFF', {
       tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta, expirePhase: 'process', tag: combo.id
     });
+    appliedBuffCount += 1;
+  });
+
+  // 修正値が0件だった場合や、式を評価できなかった場合はその理由をログへ添える
+  // （黙って何も起きないと「入力したのにバフが付かない」と見えてしまうため）。
+  const notice = buildModNoticeText({
+    effects: selectedEffects, token, getEffectiveParameterValue, appliedBuffCount
   });
 
   const effectNamesText = selectedEffects.map(e => e.name).join(' + ');
   logToMain(dispatch, effectNamesText
-    ? `コンボ発動: ${combo.name}\n${effectNamesText}`
-    : `コンボ発動: ${combo.name}`, token);
+    ? `コンボ発動: ${combo.name}\n${effectNamesText}${notice}`
+    : `コンボ発動: ${combo.name}${notice}`, token);
 }
 
 /**
@@ -231,12 +305,14 @@ export function runEffectUse({
   }
 
   // 1. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして自身に付与
+  let appliedBuffCount = 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
     const delta = comboModContribution(effect, key, token, getEffectiveParameterValue);
     if (!delta) return;
     dispatch('ADD_BUFF', {
       tokenId, id: generateBuffId(), name: effect.name, paramId, delta, expirePhase: null, tag: null
     });
+    appliedBuffCount += 1;
   });
 
   // 2. 上昇侵蝕率をその場でDX3:corruptionへ加算
@@ -256,7 +332,11 @@ export function runEffectUse({
   onSaveEffects(nextEffects);
 
   const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
-  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}`, token, 'エフェクト');
+  // コンボ発動と同じ理由（無反応を避ける）で、修正値が0件・式が評価できない場合を伝える。
+  const notice = buildModNoticeText({
+    effects: [effect], token, getEffectiveParameterValue, appliedBuffCount
+  });
+  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}${notice}`, token, 'エフェクト');
 }
 
 /**

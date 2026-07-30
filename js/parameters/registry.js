@@ -102,6 +102,18 @@ export function handlePluginChatCommand(pluginId, rawInput, context) {
 }
 
 /**
+ * 入力がどのプラグインのコマンド構文に見えるかを返す。判定はプラグイン側（looksLikeOwnChatCommand）に
+ * 委ね、Coreは構文を知らないまま「このコマンドは別のプラグインのものだ」と判断できるようにする。
+ * プラグイン未適用の部屋でプラグインのコマンドを打つと、handlePluginChatCommandが呼ばれずに
+ * 素通りしてただの発言になってしまうため、その理由を出すために使う（js/main.js参照）。
+ * @param {string} rawInput
+ * @returns {{id:string, label:string}|null} 該当プラグインの記述子（無ければnull）
+ */
+export function findPluginForChatCommand(rawInput) {
+  return Object.values(PLUGINS).find(plugin => plugin.looksLikeOwnChatCommand?.(rawInput)) ?? null;
+}
+
+/**
  * シーン/ラウンド/シナリオ終了等のフェーズ終了時、プラグイン固有のcomponents（DX3なら
  * エフェクトの使用回数等）をリセットする。Coreはcomponentsの中身を解釈しないため、
  * 「フェーズが終了した」という事実だけをプラグインに渡し、何をリセットするかは

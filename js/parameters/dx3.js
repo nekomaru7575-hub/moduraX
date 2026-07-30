@@ -180,6 +180,8 @@ function renderDX3CharacterPanel({
     effectBtn.addEventListener('click', () => {
       showEffectBox({
         effects: readEffects(),
+        // コンボ時修正の式に書ける{パラメータ名}の検証・提示に使う
+        parameters,
         onSave: (nextEffects) => {
           onComponentChange('effects', nextEffects);
           updateEffectBtnLabel();
@@ -367,6 +369,14 @@ const COMBO_COMMAND_PATTERN = /^combo\.(awk|chk|dmg)\((.+)\)$/;
 // 使用数+1・上昇侵蝕率の即時反映をまとめて行う（実処理はdx3-combo-box.jsのrunEffectUse）。
 const EFFECT_USE_COMMAND_PATTERN = /^エフェクト使用\((.+)\)$/;
 
+// この入力がDX3のコマンド構文に見えるか（実行できるかは問わない）。プラグインが適用されて
+// いない部屋でDX3のコマンドを打った場合、Core側は構文を知らないため素通りしてただの発言に
+// なってしまう。それを避けて理由を返せるようにするための判定
+// （js/parameters/registry.jsのfindPluginForChatCommand経由でjs/main.jsが使う）。
+function looksLikeDX3ChatCommand(rawInput) {
+  return COMBO_COMMAND_PATTERN.test(rawInput) || EFFECT_USE_COMMAND_PATTERN.test(rawInput);
+}
+
 /**
  * DX3プラグイン固有のチャットコマンドを解釈・実行する。
  * @param {string} rawInput
@@ -470,5 +480,6 @@ export const DX3_PLUGIN = {
   renderCharacterPanel: renderDX3CharacterPanel,
   importCharacterJson: importDX3CharacterJson,
   handleChatCommand: handleDX3ChatCommand,
+  looksLikeOwnChatCommand: looksLikeDX3ChatCommand,
   resetComponentsOnPhaseEnd: resetDX3ComponentsOnPhaseEnd
 };

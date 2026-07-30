@@ -215,6 +215,15 @@
   border-radius: 4px;
 }
 
+/* コンボ時修正の式が評価できないときの注意（使用時に黙って0にならないよう、入力時に出す） */
+.effect-box-combo-error {
+  color: #e58a90;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin-top: 4px;
+  white-space: pre-line;
+}
+
 /* 能力・技能値の表示ボックス */
 .ability-box-dialog {
   width: 100%;

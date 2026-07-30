@@ -182,6 +182,14 @@ function withoutParam(params, paramId, label) {
   return withoutMapEntry(params, paramId);
 }
 
+// 公開先(audience)を正規化する。null（＝全員に公開）か、参加者IDの配列にそろえる。
+// 空配列は「全員に公開」へ丸めない：呼び出し側が配列を渡した以上は限定公開の意図なので、
+// 中身が空でも公開範囲を広げる方向へは倒さない（不具合が情報漏れにならないようにする）。
+function normalizeAudience(audience) {
+  if (!Array.isArray(audience)) return null;
+  return Object.freeze([...new Set(audience.filter(id => typeof id === 'string' && id !== ''))]);
+}
+
 // ユーザー定義パラメータ（source:'user'）1件の定義を作る。コマのパラメータとルーム変数で共通。
 // visibleは「一覧に表示するか」の指定があるコマのパラメータ側だけが持つ（ルーム変数は常に表示）。
 function buildUserParam({ key, label, value, visible }) {
@@ -1059,14 +1067,28 @@ export class ImmutableStore {
       }
 
       // チャットタブを1つ追加する。idは呼び出し側（main.js）がタイムスタンプ等で生成する。
+      // audienceは公開先（null＝全員、配列＝その参加者だけ。js/visibility.js参照）。
       case 'ADD_CHAT_TAB': {
-        const { id, name } = payload;
+        const { id, name, audience = null } = payload;
         if (!id || !name) return;
         if (prevState.chatTabs.some(tab => tab.id === id)) return;
 
         this.#commit(prevState, {
-          chatTabs: [...prevState.chatTabs, Object.freeze({ id, name })],
+          chatTabs: [...prevState.chatTabs, Object.freeze({ id, name, audience: normalizeAudience(audience) })],
           chatLogs: withMapEntry(prevState.chatLogs, id, Object.freeze([]))
+        });
+        return;
+      }
+
+      // 既存タブの公開先を変える（メンバーの追加・削除、限定公開↔全員公開の切り替え）。
+      case 'SET_CHAT_TAB_AUDIENCE': {
+        const { id, audience } = payload;
+        if (!prevState.chatTabs.some(tab => tab.id === id)) return;
+
+        this.#commit(prevState, {
+          chatTabs: prevState.chatTabs.map(tab => (
+            tab.id === id ? Object.freeze({ ...tab, audience: normalizeAudience(audience) }) : tab
+          ))
         });
         return;
       }

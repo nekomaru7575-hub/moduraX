@@ -18,6 +18,8 @@ import {
   activateRoomIdentity, getCurrentParticipantId
 } from './local-identity.js';
 import { showIdentityDialog } from './identity-dialog.js';
+import { showChatTabDialog } from './chat-tab-dialog.js';
+import { canView, isRestricted, describeAudience } from './visibility.js';
 import { handlePluginChatCommand, findPluginForChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
@@ -63,16 +65,31 @@ let lastRenderedLogCount = 0;    // logContainerへ反映済みの件数（差�
 let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mainタブ固定）
 let lastSpokenCharacterId = null; // カレントチャット欄に最後に流れたメッセージの参照キャラクター（立ち絵表示用）
 
+// 自分に見えるチャットタブだけを返す（限定公開タブは宛先に入っている人にだけ見せる）。
+function visibleChatTabs(state) {
+  const myId = getCurrentParticipantId();
+  return state.chatTabs.filter(tab => canView(tab.audience, myId));
+}
+
 function renderChatTabs(state) {
   if (!chatTabsEl) return;
   chatTabsEl.innerHTML = '';
 
-  state.chatTabs.forEach(tab => {
+  visibleChatTabs(state).forEach(tab => {
     const tabBtn = document.createElement('button');
     tabBtn.type = 'button';
     tabBtn.className = 'chat-tab' + (tab.id === activeTabId ? ' active' : '');
-    tabBtn.textContent = tab.name;
+    // 限定公開のタブは、うっかり全体向けの発言を書き込まないよう鍵アイコンで区別する
+    tabBtn.textContent = isRestricted(tab.audience) ? `🔒${tab.name}` : tab.name;
+    tabBtn.title = describeAudience(tab.audience, state.participants);
     tabBtn.addEventListener('click', () => switchChatTab(tab.id));
+    // 公開先の変更は、そのタブが見えている人だけができる（Mainタブは常に全員向け）
+    if (tab.id !== MAIN_TAB_ID) {
+      tabBtn.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        openChatTabAudienceDialog(tab);
+      });
+    }
     chatTabsEl.appendChild(tabBtn);
   });
 
@@ -86,12 +103,34 @@ function renderChatTabs(state) {
 }
 
 function addChatTab() {
-  const name = prompt('新しいチャットタブの名前を入力してください');
-  if (!name || !name.trim()) return;
+  showChatTabDialog({
+    participants: store.state.participants || {},
+    myParticipantId: getCurrentParticipantId(),
+    onConfirm: ({ name, audience }) => {
+      const id = `tab-${Date.now()}`;
+      store.dispatch('ADD_CHAT_TAB', { id, name, audience });
+      switchChatTab(id);
+    }
+  });
+}
 
-  const id = `tab-${Date.now()}`;
-  store.dispatch('ADD_CHAT_TAB', { id, name: name.trim() });
-  switchChatTab(id);
+function openChatTabAudienceDialog(tab) {
+  showChatTabDialog({
+    mode: 'edit',
+    name: tab.name,
+    audience: tab.audience ?? null,
+    participants: store.state.participants || {},
+    myParticipantId: getCurrentParticipantId(),
+    onConfirm: ({ audience }) => {
+      store.dispatch('SET_CHAT_TAB_AUDIENCE', { id: tab.id, audience });
+    }
+  });
+}
+
+// 合言葉を変えた等で今見ているタブが見えなくなった場合に、Mainへ戻す。
+function ensureActiveTabVisible(state) {
+  if (visibleChatTabs(state).some(tab => tab.id === activeTabId)) return;
+  switchChatTab(MAIN_TAB_ID);
 }
 
 function switchChatTab(tabId) {
@@ -171,6 +210,8 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   if (state.chatTabs !== lastRenderedChatTabsRef) {
     lastRenderedChatTabsRef = state.chatTabs;
     renderChatTabs(state);
+    // 公開先から外された・タブが消えた場合に、見えないタブを開いたままにしない
+    ensureActiveTabVisible(state);
   }
 
   renderActiveTabLog(state);
@@ -315,6 +356,12 @@ function currentRoomId() {
 
 async function activateAndRegisterIdentity(passphrase, nickname) {
   const identity = await activateRoomIdentity(currentRoomId(), passphrase);
+
+  // 名乗る人が変われば「自分に見えるチャットタブ」も変わるので、状態が変わらない
+  // ケース（ゲストのまま等）も含めて描き直す
+  renderChatTabs(store.state);
+  ensureActiveTabVisible(store.state);
+
   if (!identity) return; // 合言葉なし＝ゲスト参加。参加者一覧には載せない
   store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: nickname ?? getNickname() });
 }
@@ -429,7 +476,8 @@ function exportStateToFile() {
 // 保存するタブをダイアログで選ばせ、選ばれたぶんを1つのHTMLにまとめる。
 function openLogExportDialog() {
   showLogExportDialog({
-    tabs: store.state.chatTabs,
+    // 自分に見えないタブ（限定公開で宛先に入っていないもの）は保存対象に出さない
+    tabs: visibleChatTabs(store.state),
     onConfirm: (tabIds) => {
       const html = buildLogExportHtml({
         roomName: store.state.room.name,

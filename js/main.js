@@ -13,7 +13,11 @@ import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
-import { getNickname, setNickname } from './local-identity.js';
+import {
+  getNickname, setNickname, getStoredPassphrase, setStoredPassphrase,
+  activateRoomIdentity, getCurrentParticipantId
+} from './local-identity.js';
+import { showIdentityDialog } from './identity-dialog.js';
 import { handlePluginChatCommand, findPluginForChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
@@ -302,6 +306,55 @@ if (audioMenuBtn) {
   audioMenuBtn.addEventListener('click', openAudioDialog);
 }
 
+// --- 参加者としての名乗り（合言葉による識別。js/local-identity.js参照） ---
+// 合言葉から導出した公開IDで「この部屋でのこの人」を表す。将来の秘匿機能（コマ/パネルの
+// 一部を特定の人にだけ見せる、特定の人だけのチャットタブ）の宛先指定に使う土台。
+function currentRoomId() {
+  return new URLSearchParams(location.search).get('room') || '';
+}
+
+async function activateAndRegisterIdentity(passphrase, nickname) {
+  const identity = await activateRoomIdentity(currentRoomId(), passphrase);
+  if (!identity) return; // 合言葉なし＝ゲスト参加。参加者一覧には載せない
+  store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: nickname ?? getNickname() });
+}
+
+function openIdentityDialog() {
+  showIdentityDialog({
+    participants: store.state.participants || {},
+    myParticipantId: getCurrentParticipantId(),
+    nickname: getNickname(),
+    passphrase: getStoredPassphrase(currentRoomId()) || '',
+    onSubmit: ({ nickname, passphrase }) => {
+      setNickname(nickname);
+      setStoredPassphrase(currentRoomId(), passphrase);
+      activateAndRegisterIdentity(passphrase, nickname);
+    },
+    onSetGm: (id, isGm) => store.dispatch('SET_PARTICIPANT_GM', { id, isGm }),
+    onRemove: (id) => store.dispatch('REMOVE_PARTICIPANT', { id })
+  });
+}
+
+// 名乗りはサーバーの最新状態を受け取ってから行う（INITより前にdispatchすると、
+// その直後のhydrateで消えてしまうため）。再接続のたびに呼ばれるが、同じIDでの
+// 登録は上書きなので繰り返しても問題ない。
+let hasAskedIdentityThisSession = false;
+EventBus.subscribe('NET_INITIALIZED', () => {
+  const stored = getStoredPassphrase(currentRoomId());
+
+  // この部屋でまだ一度も設定していない場合だけ、入室時に一度だけ聞く
+  // （「合言葉なしで参加」を選んだ場合は空文字が保存され、次からは聞かない）。
+  if (stored === null) {
+    if (!hasAskedIdentityThisSession) {
+      hasAskedIdentityThisSession = true;
+      openIdentityDialog();
+    }
+    return;
+  }
+
+  activateAndRegisterIdentity(stored);
+});
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
@@ -336,11 +389,8 @@ if (roomMenuBtn && roomSettingsDialog) {
 
     items.push(
       {
-        label: 'ニックネーム設定',
-        onSelect: () => {
-          const name = prompt('プレイヤー名（ラウンド進行の点呼での表示名）を入力してください', getNickname());
-          if (name !== null) setNickname(name.trim());
-        }
+        label: '参加者設定',
+        onSelect: openIdentityDialog
       },
       {
         label: '部屋一覧に戻る',

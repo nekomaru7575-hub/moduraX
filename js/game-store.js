@@ -310,6 +310,8 @@ export class ImmutableStore {
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
+      // この機能より前に保存された状態には参加者一覧が無いため、既定値を補う
+      participants: newState.participants || {},
       // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う
       round: newState.round || createInitialRoundState(),
       // この機能より前に保存された状態にはroom.bcdiceSystem/nameが無いため、既定値を補う
@@ -848,6 +850,51 @@ export class ImmutableStore {
         return;
       }
 
+      // --- 参加者（js/local-identity.jsの「合言葉」から導出した公開IDで識別する） ---
+      // 状態に載るのは公開ID・表示名・GMかどうかだけで、合言葉そのものは決して載せない。
+      // 同じ合言葉なら別の端末・ブラウザからでも同じIDになるので、入り直しても同じ参加者になる。
+      case 'REGISTER_PARTICIPANT': {
+        const { id, nickname } = payload;
+        if (!id) return;
+
+        const participants = prevState.participants || {};
+        const existing = participants[id];
+        // まだGMが1人もいなければ、最初に名乗った人をGMにする（部屋を作った本人が
+        // そのまま入室する想定）。以後の付け外しはSET_PARTICIPANT_GMで行う。
+        const hasGm = Object.values(participants).some(p => p.isGm);
+
+        this.#commit(prevState, {
+          participants: withMapEntry(participants, id, Object.freeze({
+            id,
+            nickname: typeof nickname === 'string' ? nickname : (existing?.nickname || ''),
+            isGm: existing ? existing.isGm : !hasGm
+          }))
+        });
+        return;
+      }
+
+      case 'SET_PARTICIPANT_GM': {
+        const { id, isGm } = payload;
+        const participants = prevState.participants || {};
+        const participant = participants[id];
+        if (!participant) return;
+
+        this.#commit(prevState, {
+          participants: withMapEntry(participants, id, Object.freeze({ ...participant, isGm: !!isGm }))
+        });
+        return;
+      }
+
+      // 合言葉の打ち間違いで増えてしまった参加者などを消すための後始末用。
+      case 'REMOVE_PARTICIPANT': {
+        const { id } = payload;
+        const participants = prevState.participants || {};
+        if (!participants[id]) return;
+
+        this.#commit(prevState, { participants: withoutMapEntry(participants, id) });
+        return;
+      }
+
       // オリジナル表（ユーザー定義のダイス表）を登録する。キーはタイトルなので、既存と
       // 同じタイトルで登録し直すと上書きになる（誤登録の修正に使える）。
       case 'ADD_ORIGINAL_TABLE': {
@@ -1110,6 +1157,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
     chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
     chatLogs: { [MAIN_CHAT_TAB_ID]: [] },
+
+    // 参加者一覧（js/local-identity.jsの合言葉から導出した公開IDがキー）。
+    // { [id]: { id, nickname, isGm } }。合言葉そのものは状態に持たない。
+    participants: {},
 
     // ラウンド進行（Core機能）。詳細はcreateInitialRoundState()参照
     round: createInitialRoundState()

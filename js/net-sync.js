@@ -46,6 +46,9 @@ function connect() {
     if (message.type === 'INIT') {
       hasReceivedInit = true;
       store.hydrate(message.state);
+      // サーバーの最新状態を受け取った直後にだけ行いたい処理（参加者としての名乗り等）の
+      // きっかけ。INITより前にdispatchしても、このhydrateで上書きされてしまうため。
+      EventBus.emit('NET_INITIALIZED', message.state);
       return;
     }
 

@@ -111,6 +111,11 @@
       column-gap: 8px;
       font-size: 0.8rem;
       color: #bbb;
+      /* ラベル（日本語）と値（数字）は別のグリッドアイテムなので、line-height:normalのままだと
+         それぞれが自分の実フォント（日本語はフォールバック）の行の高さになり、同じ行の中で
+         ベースラインが3pxほどずれる（行の高さも15px/19pxと不揃いになる）。行の高さを明示して
+         両方のベースラインを揃える。 */
+      line-height: 1.4;
     }
 
     .character-param-label {

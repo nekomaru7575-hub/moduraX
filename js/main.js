@@ -1,6 +1,7 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
+import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
   BUFF_PHASE_LABELS
@@ -27,6 +28,8 @@ import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
 const gameSystemSelect = document.getElementById('gameSystem');
+const gameSystemHelpBtn = document.getElementById('gameSystemHelpBtn');
+const gameSystemHelp = document.getElementById('gameSystemHelp');
 const characterParamSelect = document.getElementById('characterParamSelect');
 const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
@@ -455,7 +458,15 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const spaceIndex = splitForSpace(rawInput);
     const command = spaceIndex[0];
     const comment = spaceIndex.slice(1).join(" ");
-    const isDiceCommand = /^[A-Za-z0-9+\-*/()<>=\[\]@#,:]+$/.test(command);
+    // ダイスコマンドかどうかは、そのシステムのcommand_pattern（BCDiceが公開している
+    // 「このシステムがコマンドとして受け付ける文字列」の正規表現）で判定する。
+    // システム情報を取得できなかった場合のみ、従来の「使われる文字種だけで足切り」へ戻す。
+    const commandPattern = await getCommandPattern(system);
+    const isDiceCommand = commandPattern
+      ? commandPattern.test(command)
+      : /^[A-Za-z0-9+\-*/()<>=\[\]@#,:]+$/.test(command);
+    // choiceは引数がスペース区切りなので、コメント分割後の先頭トークンだけでは
+    // パターンに合わないシステムがある。従来どおり別枠で拾い、引数ごとBCDiceへ渡す。
     const isStartsChoice = /^choice/i.test(command);
 
     if (!isDiceCommand && !isStartsChoice) {
@@ -1051,14 +1062,110 @@ if (gameSystemSelect) {
   });
 }
 
-// ゲームシステム欄：他クライアントでの変更（同期）にも追従させる
-EventBus.subscribe('STATE_CHANGED', (state) => {
-  if (!gameSystemSelect) return;
-  const nextValue = state.room.bcdiceSystem;
+// システム一覧はBCDiceのAPIから取得して選択肢を作る（HTMLに手書きしない）。
+// 取得が終わるまでselectは空なので、埋め終わってから現在のルーム設定を選び直す。
+let gameSystemOptionsReady = false;
+
+// 一覧に無いID（BCDice側から消えた・改名された等）が設定されている部屋でも、
+// 表示が勝手に別システムへずれないよう、そのIDの選択肢を作って選べるようにする。
+function ensureGameSystemOption(systemId) {
+  if (gameSystemSelect.querySelector(`option[value="${CSS.escape(systemId)}"]`)) return;
+  const option = document.createElement('option');
+  option.value = systemId;
+  option.textContent = systemId;
+  gameSystemSelect.appendChild(option);
+}
+
+function syncGameSystemSelect(state) {
+  if (!gameSystemSelect || !gameSystemOptionsReady) return;
+  const nextValue = state?.room?.bcdiceSystem;
+  if (!nextValue) return;
+  ensureGameSystemOption(nextValue);
   if (gameSystemSelect.value !== nextValue) {
     gameSystemSelect.value = nextValue;
   }
+}
+
+if (gameSystemSelect) {
+  fetchGameSystems()
+    .then((systems) => {
+      const fragment = document.createDocumentFragment();
+      systems.forEach(({ id, name }) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = name;
+        fragment.appendChild(option);
+      });
+      gameSystemSelect.appendChild(fragment);
+    })
+    .catch((error) => {
+      // 一覧が取れなくても、現在のシステムでのダイスロール自体は動く。
+      // 選択肢は現在のIDだけになり、その部屋のシステム変更だけができなくなる。
+      console.warn('[main] BCDiceのシステム一覧を取得できませんでした:', error.message);
+    })
+    .finally(() => {
+      gameSystemOptionsReady = true;
+      syncGameSystemSelect(store.state);
+    });
+}
+
+// ゲームシステム欄：他クライアントでの変更（同期）にも追従させる。
+// あわせて、システムが決まった／変わったタイミングでそのシステムの情報
+// （command_pattern・help_message）を取りに行き、以降の判定・ヘルプ表示に備える。
+let lastSeenBcdiceSystem = null;
+EventBus.subscribe('STATE_CHANGED', (state) => {
+  syncGameSystemSelect(state);
+
+  const system = state.room.bcdiceSystem;
+  if (system && system !== lastSeenBcdiceSystem) {
+    lastSeenBcdiceSystem = system;
+    getCommandPattern(system);
+    refreshGameSystemHelpIfOpen();
+  }
 });
+
+// --- ルーム設定の「？」：そのシステムのhelp_messageを読めるようにする ---
+function hideGameSystemHelp() {
+  if (gameSystemHelp) gameSystemHelp.hidden = true;
+}
+
+async function showGameSystemHelp() {
+  if (!gameSystemHelp) return;
+  const system = store.state.room.bcdiceSystem;
+  gameSystemHelp.hidden = false;
+  gameSystemHelp.textContent = '読み込み中...';
+
+  try {
+    const { helpMessage } = await fetchGameSystemInfo(system);
+    // 待っている間に閉じられた／別システムへ切り替わっていたら、古い内容で上書きしない
+    if (gameSystemHelp.hidden || store.state.room.bcdiceSystem !== system) return;
+    gameSystemHelp.textContent = helpMessage || 'このシステムのヘルプは提供されていません。';
+  } catch (error) {
+    if (gameSystemHelp.hidden) return;
+    gameSystemHelp.textContent = `ヘルプを取得できませんでした（${error.message}）`;
+  }
+}
+
+function refreshGameSystemHelpIfOpen() {
+  if (gameSystemHelp && !gameSystemHelp.hidden) showGameSystemHelp();
+}
+
+if (gameSystemHelpBtn && gameSystemHelp) {
+  const helpRow = gameSystemHelpBtn.closest('.game-system-row');
+  // マウスオーバーで表示。クリック/フォーカスでも開くのは、mouseenterが来ない
+  // タッチ環境とキーボード操作のため（clickで閉じないのは、focus→clickの順で
+  // イベントが来るため開いた直後に閉じてしまうのを避ける）。
+  gameSystemHelpBtn.addEventListener('mouseenter', showGameSystemHelp);
+  gameSystemHelpBtn.addEventListener('focus', showGameSystemHelp);
+  gameSystemHelpBtn.addEventListener('click', showGameSystemHelp);
+  // ヘルプ本文は長くスクロールして読むので、ボタンから離れただけでは閉じず、
+  // 選択欄とヘルプを含む行から出たときに閉じる。
+  helpRow?.addEventListener('mouseleave', hideGameSystemHelp);
+  helpRow?.addEventListener('focusout', (event) => {
+    if (!helpRow.contains(event.relatedTarget)) hideGameSystemHelp();
+  });
+  roomSettingsDialog?.addEventListener('close', hideGameSystemHelp);
+}
 
 // 部屋名：複数部屋運用時にどの部屋かを判別しやすくするためのルーム単位の設定。
 // 入力のたびではなく、確定時（change）にのみ同期する。

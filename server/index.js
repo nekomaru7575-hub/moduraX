@@ -456,6 +456,92 @@ async function handleCreateRoom(req, res) {
   sendJson(res, 201, { id });
 }
 
+// --- BCDiceのシステム一覧・システム情報の中継（キャッシュ付き） ---
+// 一覧（約29KB）とシステム情報（command_pattern / help_message）はBCDice側が更新される
+// ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
+// 負荷になる。サーバーで一度取ってRedisへ置き、既定30日を過ぎた後の最初のリクエストの
+// ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
+const BCDICE_BASE_URL = 'https://bcdice.onlinesession.app';
+const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
+// cacheKey -> { fetchedAt, payload }。Redisへの往復すら省くためのプロセス内キャッシュ。
+const bcdiceMemoryCache = new Map();
+
+// キャッシュ（メモリ→Redis）を読み、無いか期限切れなら上流から取り直して両方へ書き戻す。
+// 期限切れでも上流が落ちている場合は古いままのキャッシュを返し、ダイス判定やヘルプ表示が
+// 上流の一時障害で丸ごと使えなくなることを避ける。
+async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
+  const now = Date.now();
+  let cached = bcdiceMemoryCache.get(cacheKey) || null;
+
+  if (!cached) {
+    try {
+      cached = await redis.get(`bcdice:${cacheKey}`);
+      if (cached) bcdiceMemoryCache.set(cacheKey, cached);
+    } catch (error) {
+      console.warn(`[server] BCDiceキャッシュの読み込みに失敗しました (${cacheKey}):`, error.message);
+    }
+  }
+
+  if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
+    return { ...cached.payload, fetchedAt: cached.fetchedAt };
+  }
+
+  try {
+    const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = transform(await response.json());
+    const entry = { fetchedAt: now, payload };
+    bcdiceMemoryCache.set(cacheKey, entry);
+    // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
+    redis.set(`bcdice:${cacheKey}`, entry)
+      .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+    return { ...payload, fetchedAt: now };
+  } catch (error) {
+    if (cached) {
+      console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
+      return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+    }
+    throw error;
+  }
+}
+
+// GET /api/bcdice/game_system：システム一覧（部屋作成フォーム・ルーム設定のselect用）
+async function handleBcdiceSystems(req, res) {
+  try {
+    const data = await loadBcdiceCached('systems', '/v2/game_system', (raw) => ({
+      systems: (raw.game_system || []).map(({ id, name, sort_key }) => ({ id, name, sortKey: sort_key }))
+    }));
+    sendJson(res, 200, data);
+  } catch (error) {
+    console.warn('[server] BCDiceのシステム一覧を取得できませんでした:', error.message);
+    sendJson(res, 502, { error: 'BCDiceのシステム一覧を取得できませんでした。' });
+  }
+}
+
+// システムIDはそのまま上流のURLパスへ埋めるため、BCDiceのIDに実際に使われる文字だけを許可する
+const BCDICE_SYSTEM_ID_PATTERN = /^[A-Za-z0-9_.:-]+$/;
+
+// GET /api/bcdice/game_system/{id}：コマンド判定用のcommand_patternとヘルプ本文
+async function handleBcdiceSystemInfo(req, res, systemId) {
+  if (!BCDICE_SYSTEM_ID_PATTERN.test(systemId)) {
+    sendJson(res, 400, { error: '無効なシステムIDです。' });
+    return;
+  }
+
+  try {
+    const data = await loadBcdiceCached(`info:${systemId}`, `/v2/game_system/${systemId}`, (raw) => ({
+      id: raw.id,
+      name: raw.name,
+      commandPattern: raw.command_pattern,
+      helpMessage: raw.help_message
+    }));
+    sendJson(res, 200, data);
+  } catch (error) {
+    console.warn(`[server] BCDiceのシステム情報を取得できませんでした (${systemId}):`, error.message);
+    sendJson(res, 502, { error: 'BCDiceのシステム情報を取得できませんでした。' });
+  }
+}
+
 await migrateLegacyStateIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
@@ -468,6 +554,17 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/rooms' && req.method === 'POST') {
     await handleCreateRoom(req, res);
+    return;
+  }
+
+  if (url.pathname === '/api/bcdice/game_system' && req.method === 'GET') {
+    await handleBcdiceSystems(req, res);
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/bcdice/game_system/') && req.method === 'GET') {
+    const systemId = decodeURIComponent(url.pathname.slice('/api/bcdice/game_system/'.length));
+    await handleBcdiceSystemInfo(req, res, systemId);
     return;
   }
 

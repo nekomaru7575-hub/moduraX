@@ -324,9 +324,9 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     // ダイアログを閉じた場合にR2へ置いたきり状態から参照されない孤児が残るため
     // （部屋を削除しても消える対象にならない）。
     addArea.innerHTML = '';
-    addArea.appendChild(buildAddRow(stripExtension(file.name), async ({ name, kind }) => {
+    addArea.appendChild(buildAddRow(stripExtension(file.name), async ({ name, kind, phrase }) => {
       const { url, key } = await uploadAudioFile(file);
-      onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop });
+      onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop, phrase });
     }));
   });
   container.appendChild(addBtn);
@@ -363,8 +363,8 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     addArea.innerHTML = '';
     // ファイル名らしき最後のパス要素を曲名の初期値にする
     const defaultName = stripExtension(decodeURIComponent(trimmed.split('/').pop() || '').split('?')[0]);
-    addArea.appendChild(buildAddRow(defaultName, ({ name, kind }) => {
-      onAdd({ name, url: trimmed, source: 'external', key: null, channel: kind.channel, loop: kind.loop });
+    addArea.appendChild(buildAddRow(defaultName, ({ name, kind, phrase }) => {
+      onAdd({ name, url: trimmed, source: 'external', key: null, channel: kind.channel, loop: kind.loop, phrase });
     }));
   });
   container.appendChild(addUrlBtn);

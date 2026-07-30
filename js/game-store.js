@@ -115,6 +115,152 @@ const MAIN_CHAT_TAB_ID = 'main';
 // （js/audio-player.jsが枠ごとに1つずつAudio要素を持つ）。
 export const AUDIO_CHANNELS = ['bgm', 'se'];
 
+// --- dispatch内で繰り返し現れる更新パターンの共通処理 ---
+// case側が「どのスライスをどう変えるか」だけを書けるようにするための道具立て。
+// 凍結（Object.freeze）はここで面倒を見るので、case側は原則freezeを書かない。
+
+// 作業用トークンマップ（dispatch冒頭のnextTokensState）の1コマだけを差し替える。
+// このマップはdispatch内のローカルコピーなので、ここだけは直接書き換える。
+function patchCharacter(tokensState, id, fields) {
+  tokensState[id] = Object.freeze({ ...tokensState[id], ...fields });
+}
+
+// キー付きマップ（panels / room.originalTables / room.audioTracks / parameters等）の1件追加・更新。
+function withMapEntry(map, key, value) {
+  return Object.freeze({ ...map, [key]: value });
+}
+
+// 同じマップからの1件削除。
+function withoutMapEntry(map, key) {
+  const next = { ...map };
+  delete next[key];
+  return Object.freeze(next);
+}
+
+// 指定タブのログへ1件追記した新しいchatLogsを返す。
+function withChatEntry(chatLogs, tabId, entry) {
+  const nextEntries = Object.freeze([...(chatLogs[tabId] || []), Object.freeze({ ...entry })]);
+  return withMapEntry(chatLogs, tabId, nextEntries);
+}
+
+// Mainタブへシステム発言を1件追記する。ラウンド進行・バフ期限切れの通知に使う
+// （EventBus経由の副作用にすると、同期される全クライアントでそれぞれ「受信→追記dispatch→
+// 再送信」が走ってクライアント数だけログが重複するため、1回のdispatchで完結させている）。
+function withSystemLog(chatLogs, text) {
+  return withChatEntry(chatLogs, MAIN_CHAT_TAB_ID, { system: 'システム', resultText: text });
+}
+
+// パラメータマップ（コマのparameters / room.parameters）の1件を差し替える。
+// 存在しないparamIdならnull（＝呼び出し側は何もしない）。
+function withParamFields(params, paramId, fields) {
+  const param = params[paramId];
+  if (!param) return null;
+  return withMapEntry(params, paramId, Object.freeze({ ...param, ...fields }));
+}
+
+// 上記の「手入力による直接編集」版。editable:falseのパラメータは弾く。
+// labelは警告文の主語（'このパラメータ' / 'このルーム変数'）。
+function withEditableParamFields(params, paramId, fields, label) {
+  if (params[paramId]?.editable === false) {
+    console.warn(`[Guard] ${label}は直接編集できません:`, paramId);
+    return null;
+  }
+  return withParamFields(params, paramId, fields);
+}
+
+// パラメータ1件を削除する。locked（削除不可）は弾く。
+function withoutParam(params, paramId, label) {
+  const param = params[paramId];
+  if (!param) return null;
+  if (param.locked) {
+    console.warn(`[Guard] ${label}は削除できません:`, paramId);
+    return null;
+  }
+  return withoutMapEntry(params, paramId);
+}
+
+// ユーザー定義パラメータ（source:'user'）1件の定義を作る。コマのパラメータとルーム変数で共通。
+// visibleは「一覧に表示するか」の指定があるコマのパラメータ側だけが持つ（ルーム変数は常に表示）。
+function buildUserParam({ key, label, value, visible }) {
+  const param = { key, label, value, source: 'user', locked: false, editable: true };
+  if (visible !== undefined) param.visible = visible;
+  return Object.freeze(param);
+}
+
+// ユーザー定義パラメータを1件追加する。同じキーが既にあればnull（＝追加しない）。
+function withNewUserParam(params, def) {
+  const paramId = `user:${def.key}`;
+  if (params[paramId]) return null;
+  return withMapEntry(params, paramId, buildUserParam(def));
+}
+
+// フェーズ（シーン/ラウンド/シナリオ/判定/プロセス）が終了したときの共通処理。
+// 期限切れバフの除去とプラグインcomponentsのリセットは必ずセットで行い、通知文もここで組み立てる。
+// EXPIRE_BUFFSと、ラウンド進行のROUND_ADVANCE_PHASE（フェーズ完了時の自動清掃）が使う。
+function applyPhaseEnd(tokensState, activePlugin, phase) {
+  const { nextTokens, removedNames } = removeExpiredBuffs(tokensState, phase);
+  const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
+  return {
+    tokens: resetPluginComponentsForPhase(nextTokens, activePlugin, phase),
+    logText: removedNames.length > 0
+      ? `${phaseLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
+      : `${phaseLabel}終了。`
+  };
+}
+
+// ラウンド進行の参加者をイニシアチブの実効値の降順に並べる（開始時・参加者変更時で同じ規則）。
+function sortByInitiative(tokensState, participantIds) {
+  return [...participantIds].sort((a, b) => {
+    const tokenA = tokensState[a];
+    const tokenB = tokensState[b];
+    const initA = tokenA ? (getEffectiveParameterValue(tokenA, 'core:initiative') ?? 0) : 0;
+    const initB = tokenB ? (getEffectiveParameterValue(tokenB, 'core:initiative') ?? 0) : 0;
+    return initB - initA;
+  });
+}
+
+// ログ表示用にコマ名を並べる（見つからないidはそのまま出す）。
+function joinTokenNames(tokensState, ids) {
+  return ids.map(id => tokensState[id]?.name || id).join('、');
+}
+
+// コマの「決まった項目だけを差し替える」アクション。payloadから差分オブジェクトを作る規則だけを
+// 持ち、対象の存在確認・凍結・コミットはdispatch側の共通処理に任せる（nullを返すと何もしない）。
+// アクション名はネットワーク同期の識別子（js/net-sync.js・server/index.js）なので、
+// 1アクション=1エントリの対応は保ったまま重複した手続きだけを畳んでいる。
+const CHARACTER_FIELD_PATCHES = {
+  MOVE_TOKEN: ({ x, y }) => ({ x, y }),
+  RENAME_CHARACTER: ({ name }) => (name ? { name } : null),
+  // チャット欄でのキャラ名・発言テキストの色。nullで既定色に戻す。
+  SET_CHARACTER_TEXT_COLOR: ({ textColor }) => ({ textColor: textColor || null }),
+  // キャラクター一覧への表示/非表示（コマ自体は盤面に表示されたまま）
+  SET_CHARACTER_VISIBLE: ({ visible }) => ({ visible: !!visible }),
+  SET_CHARACTER_IMAGE: ({ image }) => ({ image: image || null }),
+  // コマ画像のトリミング（ズーム・表示位置）。中身は{zoom,posX,posY}だがCoreは解釈せず、
+  // そのまま保持・同期する（描画側が解釈する）。
+  SET_CHARACTER_IMAGE_CROP: ({ crop }) => ({ imageCrop: crop ? Object.freeze({ ...crop }) : null }),
+  // コマの大きさ（マス数、N×Nとして扱う）
+  SET_CHARACTER_SIZE: ({ size }) => ({ size: Math.max(1, Math.round(size)) }),
+  // コマを盤面からバックヤード（個人保管場所）へしまう。しまった人のローカルID(ownerId)を
+  // 記録し、参照キャラクター欄・キャラ一覧・盤面描画から除外する（board-data-driven.js／
+  // main.js側がinBackyardを見て判断する）。位置(x,y)はそのまま保持し、盤面に戻したときに
+  // 元の位置へ復元できるようにする。
+  MOVE_TO_BACKYARD: ({ ownerId }) => (ownerId ? { inBackyard: true, backyardOwnerId: ownerId } : null),
+  // バックヤードから盤面へ戻す。位置は保管前の(x,y)をそのまま使う。
+  RESTORE_FROM_BACKYARD: () => ({ inBackyard: false })
+};
+
+// パネルの「決まった項目だけを差し替える」アクション。CHARACTER_FIELD_PATCHESと同じ扱い。
+const PANEL_FIELD_PATCHES = {
+  // 固定中は盤面上でドラッグ移動を受け付けず、その上のドラッグは盤面パンに委ねる
+  // （描画・当たり判定はboard側が解釈する）。
+  SET_PANEL_LOCKED: ({ locked }) => ({ locked: !!locked }),
+  MOVE_PANEL: ({ x, y }) => ({ x, y }),
+  SET_PANEL_SIZE: ({ cols, rows }) => ({ cols: Math.max(1, Math.round(cols)), rows: Math.max(1, Math.round(rows)) }),
+  SET_PANEL_IMAGE: ({ image }) => ({ image: image || null }),
+  SET_PANEL_TEXT: ({ text }) => ({ text: text || '' })
+};
+
 export class ImmutableStore {
   #state;
 
@@ -138,11 +284,16 @@ export class ImmutableStore {
     });
   }
 
-  #commit(prevState, nextTokensState) {
-    this.#state = this.#createProtectedProxy({
-      ...prevState,
-      tokens: Object.freeze(nextTokensState)
+  // 変更したスライス（tokens/room/panels/chatTabs/chatLogs/round）だけを差し替えて次の状態を
+  // 確定し、購読側へ通知する。各スライスの凍結はここで行うので、case側は「どのスライスを
+  // どう変えたか」だけを書けばよい。patchに含めなかったスライスは前の状態のまま引き継がれる。
+  #commit(prevState, patch) {
+    const nextSlices = {};
+    Object.entries(patch).forEach(([slice, value]) => {
+      nextSlices[slice] = Object.freeze(value);
     });
+
+    this.#state = this.#createProtectedProxy({ ...prevState, ...nextSlices });
     EventBus.emit('STATE_CHANGED', this.#state);
   }
 
@@ -178,23 +329,36 @@ export class ImmutableStore {
     const prevState = this.#state;
     const activePlugin = prevState.room?.activePlugin;
 
-    let nextTokensState = { ...prevState.tokens };
+    // コマを触るcaseの作業用コピー。patchCharacterで書き換えてからコミットする。
+    const nextTokensState = { ...prevState.tokens };
+
+    // コマ／パネルの決まった項目を差し替えるだけのアクションは、対象の存在確認・凍結・コミットが
+    // 完全に共通なので、switchの手前でまとめて処理する（差分の作り方だけがテーブル側にある）。
+    const characterFieldPatch = CHARACTER_FIELD_PATCHES[action];
+    if (characterFieldPatch) {
+      const { id } = payload;
+      const fields = nextTokensState[id] ? characterFieldPatch(payload) : null;
+      if (!fields) return;
+
+      patchCharacter(nextTokensState, id, fields);
+      this.#commit(prevState, { tokens: nextTokensState });
+      return;
+    }
+
+    const panelFieldPatch = PANEL_FIELD_PATCHES[action];
+    if (panelFieldPatch) {
+      const { id } = payload;
+      const panel = prevState.panels[id];
+      const fields = panel ? panelFieldPatch(payload) : null;
+      if (!fields) return;
+
+      this.#commit(prevState, {
+        panels: withMapEntry(prevState.panels, id, Object.freeze({ ...panel, ...fields }))
+      });
+      return;
+    }
 
     switch (action) {
-      case 'MOVE_TOKEN': {
-        const { id, x, y } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          x,
-          y
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
       case 'ADD_CHARACTER': {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
@@ -214,9 +378,8 @@ export class ImmutableStore {
           }
         });
 
-        customParameters.forEach(({ key, label, value, visible = true }) => {
-          const paramId = `user:${key}`;
-          parameters[paramId] = Object.freeze({ key, label, value, source: 'user', visible });
+        customParameters.forEach(({ key, label, value, visible: paramVisible = true }) => {
+          parameters[`user:${key}`] = buildUserParam({ key, label, value, visible: paramVisible });
         });
 
         // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
@@ -235,7 +398,7 @@ export class ImmutableStore {
           backyardOwnerId: null // しまった人のローカルID（バックヤード一覧の絞り込みに使う）
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('CharacterCreated', { id });
         return;
       }
@@ -245,123 +408,8 @@ export class ImmutableStore {
         if (!nextTokensState[id]) return;
         delete nextTokensState[id];
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('CharacterDeleted', { id });
-        return;
-      }
-
-      case 'RENAME_CHARACTER': {
-        const { id, name } = payload;
-        if (!nextTokensState[id] || !name) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          name
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // チャット欄でのキャラ名・発言テキストの色を変更する。nullで既定色に戻す。
-      case 'SET_CHARACTER_TEXT_COLOR': {
-        const { id, textColor } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          textColor: textColor || null
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // キャラクター一覧への表示/非表示（コマ自体は盤面に表示されたまま）
-      case 'SET_CHARACTER_VISIBLE': {
-        const { id, visible } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          visible: !!visible
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      case 'SET_CHARACTER_IMAGE': {
-        const { id, image } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          image: image || null
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // コマ画像のトリミング（ズーム・表示位置）を更新する。中身は{zoom,posX,posY}だが
-      // Coreは解釈せず、そのまま保持・同期する（描画側が解釈する）。
-      case 'SET_CHARACTER_IMAGE_CROP': {
-        const { id, crop } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          imageCrop: crop ? Object.freeze({ ...crop }) : null
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // コマの大きさ（マス数、N×Nとして扱う）を変更する
-      case 'SET_CHARACTER_SIZE': {
-        const { id, size } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          size: Math.max(1, Math.round(size))
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // コマを盤面からバックヤード（個人保管場所）へしまう。しまった人のローカルID
-      // (ownerId)を記録し、参照キャラクター欄・キャラ一覧・盤面描画から除外する
-      // （board-data-driven.js/main.js側がinBackyardを見て判断する）。位置(x,y)は
-      // そのまま保持し、盤面に戻したときに元の位置へ復元できるようにする。
-      case 'MOVE_TO_BACKYARD': {
-        const { id, ownerId } = payload;
-        if (!nextTokensState[id] || !ownerId) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          inBackyard: true,
-          backyardOwnerId: ownerId
-        });
-
-        this.#commit(prevState, nextTokensState);
-        return;
-      }
-
-      // バックヤードから盤面へ戻す。位置は保管前の(x,y)をそのまま使う。
-      case 'RESTORE_FROM_BACKYARD': {
-        const { id } = payload;
-        if (!nextTokensState[id]) return;
-
-        nextTokensState[id] = Object.freeze({
-          ...nextTokensState[id],
-          inBackyard: false
-        });
-
-        this.#commit(prevState, nextTokensState);
         return;
       }
 
@@ -397,14 +445,13 @@ export class ImmutableStore {
         // componentKey単位でそのまま置き換えるだけ
         const nextComponents = Object.freeze({ ...character.components, ...components });
 
-        nextTokensState[id] = Object.freeze({
-          ...character,
+        patchCharacter(nextTokensState, id, {
           name: name || character.name,
           parameters: nextParams,
           components: nextComponents
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('CharacterImported', { id });
         return;
       }
@@ -424,8 +471,7 @@ export class ImmutableStore {
         });
         const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
 
-        nextTokensState[id] = Object.freeze({
-          ...character,
+        patchCharacter(nextTokensState, id, {
           name: snapshot.name || character.name,
           color: snapshot.color || character.color,
           image: snapshot.image ?? null,
@@ -438,7 +484,7 @@ export class ImmutableStore {
           buffs: Object.freeze((snapshot.buffs || []).map(buff => Object.freeze({ ...buff })))
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('CharacterImported', { id });
         return;
       }
@@ -450,55 +496,45 @@ export class ImmutableStore {
         const character = nextTokensState[id];
         if (!character || !componentKey) return;
 
-        nextTokensState[id] = Object.freeze({
-          ...character,
-          components: Object.freeze({ ...character.components, [componentKey]: value })
+        patchCharacter(nextTokensState, id, {
+          components: withMapEntry(character.components, componentKey, value)
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
       case 'SET_PARAMETER': {
         const { characterId, paramId, value } = payload;
         const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
+        if (!character) return;
 
-        if (character.parameters[paramId].editable === false) {
-          console.warn('[Guard] このパラメータは直接編集できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...character.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
+        const nextParams = withEditableParamFields(character.parameters, paramId, { value }, 'このパラメータ');
+        if (!nextParams) return;
 
         // プラグインの自動計算を通して新パラメータを取得
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
+        patchCharacter(nextTokensState, characterId, {
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('ParameterChanged', { characterId, paramId, value });
         return;
       }
 
+      // 一覧での表示/非表示だけを切り替える。値を変えないため自動計算は通さず、
+      // 編集不可（editable:false）のパラメータも対象にできる。
       case 'SET_PARAMETER_VISIBILITY': {
         const { characterId, paramId, visible } = payload;
         const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
+        if (!character) return;
 
-        const nextParams = { ...character.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], visible });
+        const nextParams = withParamFields(character.parameters, paramId, { visible });
+        if (!nextParams) return;
 
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: Object.freeze(nextParams)
-        });
+        patchCharacter(nextTokensState, characterId, { parameters: nextParams });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         EventBus.emit('ParameterVisibilityChanged', { characterId, paramId, visible });
         return;
       }
@@ -506,50 +542,34 @@ export class ImmutableStore {
       case 'REMOVE_PARAMETER': {
         const { characterId, paramId } = payload;
         const character = nextTokensState[characterId];
-        if (!character || !character.parameters[paramId]) return;
+        if (!character) return;
 
-        if (character.parameters[paramId].locked) {
-          console.warn('[Guard] このパラメータは削除できません:', paramId);
-          return;
-        }
-
-        const nextParams = { ...character.parameters };
-        delete nextParams[paramId];
+        const nextParams = withoutParam(character.parameters, paramId, 'このパラメータ');
+        if (!nextParams) return;
 
         // 自動計算の再評価
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
+        patchCharacter(nextTokensState, characterId, {
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
       case 'ADD_PARAMETER': {
         const { characterId, key, label, value, visible = true } = payload;
-        if (!key) return;
         const character = nextTokensState[characterId];
-        if (!character) return;
+        if (!key || !character) return;
 
-        const paramId = `user:${key}`;
-        if (character.parameters[paramId]) return;
-
-        const nextParams = {
-          ...character.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true, visible })
-        };
+        const nextParams = withNewUserParam(character.parameters, { key, label, value, visible });
+        if (!nextParams) return;
 
         // 自動計算の適用
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
-        nextTokensState[characterId] = Object.freeze({
-          ...character,
-          parameters: calculatedParams
+        patchCharacter(nextTokensState, characterId, {
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
         });
-        this.#commit(prevState, nextTokensState);
+
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
@@ -570,12 +590,11 @@ export class ImmutableStore {
           tag: tag || null // 発行元をまとめて識別するための任意タグ（例: コンボ発動時のcombo.id）
         });
 
-        nextTokensState[tokenId] = Object.freeze({
-          ...character,
+        patchCharacter(nextTokensState, tokenId, {
           buffs: Object.freeze([...(character.buffs || []), buff])
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
@@ -584,12 +603,11 @@ export class ImmutableStore {
         const character = nextTokensState[tokenId];
         if (!character || !character.buffs) return;
 
-        nextTokensState[tokenId] = Object.freeze({
-          ...character,
+        patchCharacter(nextTokensState, tokenId, {
           buffs: Object.freeze(character.buffs.filter(b => b.id !== id))
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
@@ -601,48 +619,28 @@ export class ImmutableStore {
         const character = nextTokensState[tokenId];
         if (!character || !character.buffs || !tag) return;
 
-        nextTokensState[tokenId] = Object.freeze({
-          ...character,
+        patchCharacter(nextTokensState, tokenId, {
           buffs: Object.freeze(character.buffs.filter(b => b.tag !== tag))
         });
 
-        this.#commit(prevState, nextTokensState);
+        this.#commit(prevState, { tokens: nextTokensState });
         return;
       }
 
       // シーン/ラウンド/シナリオ終了を検知し、該当する終了条件を持つバフ/デバフを全コマから
       // 一括で消す。将来実装予定の「シーン進行」機能から呼ばれる想定で、現状はチャットコマンド
       // （「シーン終了」等）がエスケープハッチとして直接dispatchする。
-      // 結果はMainタブのチャットログへ直接追記する（EventBus経由の副作用にすると、この
-      // アクションが同期される全クライアントでそれぞれ「受信→追記dispatch→再送信」が走り、
-      // クライアント数だけログが重複してしまうため、1回のdispatchで完結させている）。
+      // 結果はMainタブのチャットログへ直接追記する（理由はwithSystemLogのコメント参照）。
       case 'EXPIRE_BUFFS': {
         const { phase } = payload;
         if (!phase) return;
 
-        const { nextTokens: buffExpiredTokens, removedNames } = removeExpiredBuffs(nextTokensState, phase);
-        const nextTokens = resetPluginComponentsForPhase(buffExpiredTokens, activePlugin, phase);
+        const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, phase);
 
-        const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
-        const logText = removedNames.length > 0
-          ? `${phaseLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
-          : `${phaseLabel}終了。`;
-
-        const nextChatLogs = {
-          ...prevState.chatLogs,
-          [MAIN_CHAT_TAB_ID]: Object.freeze([
-            ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
-            Object.freeze({ system: 'システム', resultText: logText })
-          ])
-        };
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokens),
-          chatLogs: Object.freeze(nextChatLogs)
+        this.#commit(prevState, {
+          tokens,
+          chatLogs: withSystemLog(prevState.chatLogs, logText)
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -657,43 +655,26 @@ export class ImmutableStore {
         if (prevState.round.active) return;
 
         const template = getRoundPhaseTemplate(activePlugin);
-        const participants = [...participantIds].sort((a, b) => {
-          const tokenA = nextTokensState[a];
-          const tokenB = nextTokensState[b];
-          const initA = tokenA ? (getEffectiveParameterValue(tokenA, 'core:initiative') ?? 0) : 0;
-          const initB = tokenB ? (getEffectiveParameterValue(tokenB, 'core:initiative') ?? 0) : 0;
-          return initB - initA;
-        });
+        const participants = sortByInitiative(nextTokensState, participantIds);
 
         const firstPhase = template[0];
-        const participantNames = participants.map(id => nextTokensState[id]?.name || id).join('、');
+        const participantNames = joinTokenNames(nextTokensState, participants);
         const logText = participants.length > 0
           ? `ラウンド進行を開始しました（参加者: ${participantNames}）。ラウンド1 - ${firstPhase.label}開始。`
           : `ラウンド進行を開始しました。ラウンド1 - ${firstPhase.label}開始。`;
 
-        const nextRound = {
-          active: true,
-          template,
-          roundNumber: 1,
-          phaseIndex: 0,
-          turnIndex: 0,
-          participants,
-          confirmation: { readyEntries: [] }
-        };
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          round: nextRound,
-          chatLogs: {
-            ...prevState.chatLogs,
-            [MAIN_CHAT_TAB_ID]: Object.freeze([
-              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
-              Object.freeze({ system: 'システム', resultText: logText })
-            ])
-          }
+        this.#commit(prevState, {
+          round: {
+            active: true,
+            template,
+            roundNumber: 1,
+            phaseIndex: 0,
+            turnIndex: 0,
+            participants,
+            confirmation: { readyEntries: [] }
+          },
+          chatLogs: withSystemLog(prevState.chatLogs, logText)
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -701,34 +682,19 @@ export class ImmutableStore {
         const { participantIds = [] } = payload;
         const round = prevState.round;
 
-        const participants = [...participantIds].sort((a, b) => {
-          const tokenA = nextTokensState[a];
-          const tokenB = nextTokensState[b];
-          const initA = tokenA ? (getEffectiveParameterValue(tokenA, 'core:initiative') ?? 0) : 0;
-          const initB = tokenB ? (getEffectiveParameterValue(tokenB, 'core:initiative') ?? 0) : 0;
-          return initB - initA;
-        });
+        const participants = sortByInitiative(nextTokensState, participantIds);
 
         // 手番中のキャラが除外された場合に備え、turnIndexを新しい参加者数の範囲へ収める
         const nextTurnIndex = participants.length > 0
           ? Math.min(round.turnIndex, participants.length - 1)
           : 0;
 
-        const participantNames = participants.map(id => nextTokensState[id]?.name || id).join('、') || '（なし）';
+        const participantNames = joinTokenNames(nextTokensState, participants) || '（なし）';
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
+        this.#commit(prevState, {
           round: { ...round, participants, turnIndex: nextTurnIndex },
-          chatLogs: {
-            ...prevState.chatLogs,
-            [MAIN_CHAT_TAB_ID]: Object.freeze([
-              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
-              Object.freeze({ system: 'システム', resultText: `参加者を更新しました（現在: ${participantNames}）。` })
-            ])
-          }
+          chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`)
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -753,12 +719,9 @@ export class ImmutableStore {
         } else {
           // 現在のフェーズを完了させ、次のフェーズへ（テンプレート末尾ならラウンドを繰り上げる）
           if (currentPhase.expirePhaseOnComplete) {
-            const { nextTokens, removedNames } = removeExpiredBuffs(tokensForRound, currentPhase.expirePhaseOnComplete);
-            tokensForRound = resetPluginComponentsForPhase(nextTokens, activePlugin, currentPhase.expirePhaseOnComplete);
-            const expireLabel = BUFF_PHASE_LABELS[currentPhase.expirePhaseOnComplete] || currentPhase.expirePhaseOnComplete;
-            logParts.push(removedNames.length > 0
-              ? `${expireLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
-              : `${expireLabel}終了。`);
+            const { tokens, logText } = applyPhaseEnd(tokensForRound, activePlugin, currentPhase.expirePhaseOnComplete);
+            tokensForRound = tokens;
+            logParts.push(logText);
           }
 
           let nextPhaseIndex = phaseIndex + 1;
@@ -787,9 +750,8 @@ export class ImmutableStore {
           logParts.push(`ラウンド${roundNumber} - ${newPhase.label}開始${turnLabel}。`);
         }
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(tokensForRound),
+        this.#commit(prevState, {
+          tokens: tokensForRound,
           round: {
             ...round,
             phaseIndex,
@@ -798,16 +760,8 @@ export class ImmutableStore {
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
-          chatLogs: {
-            ...prevState.chatLogs,
-            [MAIN_CHAT_TAB_ID]: Object.freeze([
-              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
-              Object.freeze({ system: 'システム', resultText: logParts.join('\n') })
-            ])
-          }
+          chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'))
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -815,19 +769,10 @@ export class ImmutableStore {
         const round = prevState.round;
         if (!round.active) return;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
+        this.#commit(prevState, {
           round: createInitialRoundState(),
-          chatLogs: {
-            ...prevState.chatLogs,
-            [MAIN_CHAT_TAB_ID]: Object.freeze([
-              ...(prevState.chatLogs[MAIN_CHAT_TAB_ID] || []),
-              Object.freeze({ system: 'システム', resultText: `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。` })
-            ])
-          }
+          chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`)
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -841,12 +786,9 @@ export class ImmutableStore {
         const withoutUser = round.confirmation.readyEntries.filter(e => e.userId !== userId);
         const nextEntries = ready ? [...withoutUser, { userId, nickname: nickname || '' }] : withoutUser;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
+        this.#commit(prevState, {
           round: { ...round, confirmation: { readyEntries: nextEntries } }
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -857,25 +799,20 @@ export class ImmutableStore {
         const prevRoom = prevState.room;
 
         Object.keys(nextTokensState).forEach(id => {
-          const char = nextTokensState[id];
-          const updatedParams = applyPluginDerivedParameters(pluginId, char.parameters);
-          nextTokensState[id] = Object.freeze({
-            ...char,
-            parameters: updatedParams
+          patchCharacter(nextTokensState, id, {
+            parameters: applyPluginDerivedParameters(pluginId, nextTokensState[id].parameters)
           });
         });
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
+        this.#commit(prevState, {
+          room: {
             ...prevRoom,
             activePlugin: pluginId,
             parameters: buildRoomParameters(pluginId)
-          }),
-          tokens: Object.freeze(nextTokensState)
+          },
+          tokens: nextTokensState
         });
 
-        EventBus.emit('STATE_CHANGED', this.#state);
         EventBus.emit('ActivePluginChanged', { pluginId });
         return;
       }
@@ -885,14 +822,8 @@ export class ImmutableStore {
       case 'SET_BCDICE_SYSTEM': {
         const { system } = payload;
         if (!system) return;
-        const room = prevState.room;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({ ...room, bcdiceSystem: system })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { room: { ...prevState.room, bcdiceSystem: system } });
         return;
       }
 
@@ -900,14 +831,8 @@ export class ImmutableStore {
       case 'SET_ROOM_NAME': {
         const { name } = payload;
         if (typeof name !== 'string') return;
-        const room = prevState.room;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({ ...room, name })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { room: { ...prevState.room, name } });
         return;
       }
 
@@ -918,18 +843,11 @@ export class ImmutableStore {
         if (!title || !dice || !entries) return;
         const room = prevState.room;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...room,
-            originalTables: Object.freeze({
-              ...room.originalTables,
-              [title]: Object.freeze({ title, dice, entries: Object.freeze({ ...entries }) })
-            })
-          })
-        });
+        const table = Object.freeze({ title, dice, entries: Object.freeze({ ...entries }) });
 
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, {
+          room: { ...room, originalTables: withMapEntry(room.originalTables, title, table) }
+        });
         return;
       }
 
@@ -939,15 +857,9 @@ export class ImmutableStore {
         const room = prevState.room;
         if (!room.originalTables?.[title]) return;
 
-        const nextTables = { ...room.originalTables };
-        delete nextTables[title];
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({ ...room, originalTables: Object.freeze(nextTables) })
+        this.#commit(prevState, {
+          room: { ...room, originalTables: withoutMapEntry(room.originalTables, title) }
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -958,26 +870,19 @@ export class ImmutableStore {
         if (!id || !name || !url) return;
         const room = prevState.room;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...room,
-            audioTracks: Object.freeze({
-              ...room.audioTracks,
-              [id]: Object.freeze({
-                id,
-                name,
-                url,
-                source: source === 'upload' ? 'upload' : 'external',
-                key: source === 'upload' ? key : null,
-                channel: channel === 'se' ? 'se' : 'bgm',
-                loop: Boolean(loop)
-              })
-            })
-          })
+        const track = Object.freeze({
+          id,
+          name,
+          url,
+          source: source === 'upload' ? 'upload' : 'external',
+          key: source === 'upload' ? key : null,
+          channel: channel === 'se' ? 'se' : 'bgm',
+          loop: Boolean(loop)
         });
 
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, {
+          room: { ...room, audioTracks: withMapEntry(room.audioTracks, id, track) }
+        });
         return;
       }
 
@@ -988,9 +893,6 @@ export class ImmutableStore {
         const room = prevState.room;
         if (!room.audioTracks?.[id]) return;
 
-        const nextTracks = { ...room.audioTracks };
-        delete nextTracks[id];
-
         const playback = room.audioPlayback || { bgm: null, se: null };
         const nextPlayback = {};
         AUDIO_CHANNELS.forEach(channel => {
@@ -999,16 +901,13 @@ export class ImmutableStore {
             : (playback[channel] ? Object.freeze({ ...playback[channel] }) : null);
         });
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
+        this.#commit(prevState, {
+          room: {
             ...room,
-            audioTracks: Object.freeze(nextTracks),
+            audioTracks: withoutMapEntry(room.audioTracks, id),
             audioPlayback: Object.freeze(nextPlayback)
-          })
+          }
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -1020,60 +919,39 @@ export class ImmutableStore {
         if (trackId && !room.audioTracks?.[trackId]) return;
 
         const playback = room.audioPlayback || { bgm: null, se: null };
+        const nextEntry = trackId ? Object.freeze({ trackId, playId }) : null;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...room,
-            audioPlayback: Object.freeze({
-              ...playback,
-              [channel]: trackId ? Object.freeze({ trackId, playId }) : null
-            })
-          })
+        this.#commit(prevState, {
+          room: { ...room, audioPlayback: withMapEntry(playback, channel, nextEntry) }
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
       case 'SET_BACKGROUND_IMAGE': {
         const { imageUrl, boardWidth, boardHeight } = payload;
-        const room = prevState.room;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({
-            ...room,
+        this.#commit(prevState, {
+          room: {
+            ...prevState.room,
             backgroundImage: imageUrl || null,
             boardWidth: imageUrl ? (boardWidth || null) : null,
             boardHeight: imageUrl ? (boardHeight || null) : null
-          })
+          }
         });
 
-        EventBus.emit('STATE_CHANGED', this.#state);
         EventBus.emit('BackgroundImageChanged', { imageUrl });
         return;
       }
 
+      // --- ルーム変数。コマのパラメータと同じ編集規則（editable/locked）を共通ヘルパーで共有する ---
       case 'SET_ROOM_PARAMETER': {
         const { paramId, value } = payload;
         const room = prevState.room;
-        if (!room.parameters[paramId]) return;
 
-        if (room.parameters[paramId].editable === false) {
-          console.warn('[Guard] このルーム変数は直接編集できません:', paramId);
-          return;
-        }
+        const nextParams = withEditableParamFields(room.parameters, paramId, { value }, 'このルーム変数');
+        if (!nextParams) return;
 
-        const nextParams = { ...room.parameters };
-        nextParams[paramId] = Object.freeze({ ...nextParams[paramId], value });
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { room: { ...room, parameters: nextParams } });
         EventBus.emit('RoomParameterChanged', { paramId, value });
         return;
       }
@@ -1082,44 +960,22 @@ export class ImmutableStore {
         const { key, label, value } = payload;
         if (!key) return;
         const room = prevState.room;
-        const paramId = `user:${key}`;
-        if (room.parameters[paramId]) return;
 
-        const nextParams = {
-          ...room.parameters,
-          [paramId]: Object.freeze({ key, label, value, source: 'user', locked: false, editable: true })
-        };
+        const nextParams = withNewUserParam(room.parameters, { key, label, value });
+        if (!nextParams) return;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { room: { ...room, parameters: nextParams } });
         return;
       }
 
       case 'REMOVE_ROOM_PARAMETER': {
         const { paramId } = payload;
         const room = prevState.room;
-        if (!room.parameters[paramId]) return;
 
-        if (room.parameters[paramId].locked) {
-          console.warn('[Guard] このルーム変数は削除できません:', paramId);
-          return;
-        }
+        const nextParams = withoutParam(room.parameters, paramId, 'このルーム変数');
+        if (!nextParams) return;
 
-        const nextParams = { ...room.parameters };
-        delete nextParams[paramId];
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          room: Object.freeze({ ...room, parameters: Object.freeze(nextParams) })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { room: { ...room, parameters: nextParams } });
         return;
       }
 
@@ -1129,14 +985,10 @@ export class ImmutableStore {
         if (!id || !name) return;
         if (prevState.chatTabs.some(tab => tab.id === id)) return;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          chatTabs: Object.freeze([...prevState.chatTabs, Object.freeze({ id, name })]),
-          chatLogs: Object.freeze({ ...prevState.chatLogs, [id]: Object.freeze([]) })
+        this.#commit(prevState, {
+          chatTabs: [...prevState.chatTabs, Object.freeze({ id, name })],
+          chatLogs: withMapEntry(prevState.chatLogs, id, Object.freeze([]))
         });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
         return;
       }
 
@@ -1145,16 +997,7 @@ export class ImmutableStore {
         const { tabId, entry } = payload;
         if (!tabId || !entry || !prevState.chatLogs[tabId]) return;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          chatLogs: Object.freeze({
-            ...prevState.chatLogs,
-            [tabId]: Object.freeze([...prevState.chatLogs[tabId], Object.freeze({ ...entry })])
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { chatLogs: withChatEntry(prevState.chatLogs, tabId, entry) });
         return;
       }
 
@@ -1166,129 +1009,24 @@ export class ImmutableStore {
         if (!id) return;
         if (prevState.panels[id]) return;
 
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({
-              id, image: image || null, text: text || '', x, y,
-              cols: Math.max(1, Math.round(cols)),
-              rows: Math.max(1, Math.round(rows)),
-              locked: !!locked // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
-            })
-          })
+        const panel = Object.freeze({
+          id, image: image || null, text: text || '', x, y,
+          cols: Math.max(1, Math.round(cols)),
+          rows: Math.max(1, Math.round(rows)),
+          locked: !!locked // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
         });
 
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { panels: withMapEntry(prevState.panels, id, panel) });
         return;
       }
 
-      // パネルの固定(locked)を切り替える。固定中はドラッグ移動を受け付けず、
-      // その上のドラッグは盤面パンに委ねる（描画・当たり判定はboard側が解釈する）。
-      case 'SET_PANEL_LOCKED': {
-        const { id, locked } = payload;
-        if (!prevState.panels[id]) return;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({ ...prevState.panels[id], locked: !!locked })
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-
-      case 'MOVE_PANEL': {
-        const { id, x, y } = payload;
-        if (!prevState.panels[id]) return;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({ ...prevState.panels[id], x, y })
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-
-      case 'SET_PANEL_SIZE': {
-        const { id, cols, rows } = payload;
-        if (!prevState.panels[id]) return;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({
-              ...prevState.panels[id],
-              cols: Math.max(1, Math.round(cols)),
-              rows: Math.max(1, Math.round(rows))
-            })
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-
-      case 'SET_PANEL_IMAGE': {
-        const { id, image } = payload;
-        if (!prevState.panels[id]) return;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({ ...prevState.panels[id], image: image || null })
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
-
-      case 'SET_PANEL_TEXT': {
-        const { id, text } = payload;
-        if (!prevState.panels[id]) return;
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze({
-            ...prevState.panels,
-            [id]: Object.freeze({ ...prevState.panels[id], text: text || '' })
-          })
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
-        return;
-      }
+      // パネルの項目変更（固定/移動/サイズ/画像/テキスト）はPANEL_FIELD_PATCHESで共通処理する。
 
       case 'REMOVE_PANEL': {
         const { id } = payload;
         if (!prevState.panels[id]) return;
 
-        const nextPanels = { ...prevState.panels };
-        delete nextPanels[id];
-
-        this.#state = this.#createProtectedProxy({
-          ...prevState,
-          tokens: Object.freeze(nextTokensState),
-          panels: Object.freeze(nextPanels)
-        });
-
-        EventBus.emit('STATE_CHANGED', this.#state);
+        this.#commit(prevState, { panels: withoutMapEntry(prevState.panels, id) });
         return;
       }
 

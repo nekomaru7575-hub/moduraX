@@ -449,6 +449,31 @@
   text-align: right;
 }
 
+/* パラメータ1件の「表示」トグル（キャラ一覧に出すか）。値入力と削除ボタンの間に置くため、
+   幅は中身なりに固定して、行ごとに列の位置がずれないようにする */
+.dialog-visible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  color: #aaa;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* .dialog-custom-row input／.dialog-form-group input の指定（flex:1・背景・枠・余白）は
+   テキスト/数値入力向けで、そのままだとチェックボックスが引き伸ばされて潰れるため打ち消す */
+.dialog-visible-toggle input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  accent-color: #2ecc71;
+}
+
 .dialog-remove-row {
   background-color: #444;
   color: #ddd;

@@ -34,11 +34,15 @@ export function applyImageCropStyle(imgEl, crop) {
  * @param {{state: {tokens: Record<string, any>}, dispatch: (action:string, payload:object) => void}} store
  * @param {string} tokenId
  * @param {{name:string, image:string|null, imageCrop:object|null, size:number, textColor:string|null,
- *   visible:boolean, parameterValues:Record<string,number|string>, removedParamIds:string[],
- *   newCustomParameters:{key:string,label:string,value:number|string}[]}} result
+ *   visible:boolean, parameterValues:Record<string,number|string>, visibilityUpdates:Record<string,boolean>,
+ *   removedParamIds:string[],
+ *   newCustomParameters:{key:string,label:string,value:number|string,visible:boolean}[]}} result
  */
 export function applyCharacterEditResult(store, tokenId, result) {
-  const { name, image, imageCrop, size, textColor, visible, parameterValues, removedParamIds, newCustomParameters } = result;
+  const {
+    name, image, imageCrop, size, textColor, visible,
+    parameterValues, visibilityUpdates = {}, removedParamIds, newCustomParameters
+  } = result;
   const latest = store.state.tokens[tokenId];
   if (!latest) return;
 
@@ -75,12 +79,20 @@ export function applyCharacterEditResult(store, tokenId, result) {
     }
   });
 
+  // キャラ一覧に出すかどうか（値とは独立して切り替えられる）
+  Object.entries(visibilityUpdates).forEach(([paramId, paramVisible]) => {
+    const existingParam = latest.parameters[paramId];
+    if (existingParam && (existingParam.visible !== false) !== paramVisible) {
+      store.dispatch('SET_PARAMETER_VISIBILITY', { characterId: tokenId, paramId, visible: paramVisible });
+    }
+  });
+
   removedParamIds.forEach(paramId => {
     store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
   });
 
-  newCustomParameters.forEach(({ key, label, value }) => {
-    store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value });
+  newCustomParameters.forEach(({ key, label, value, visible: paramVisible }) => {
+    store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible: paramVisible });
   });
 }
 
@@ -314,6 +326,30 @@ function buildVisibleCheckbox(initialVisible) {
   return { element: group, getVisible: () => input.checked };
 }
 
+// パラメータ1件をキャラクター一覧に出すか（param.visible）の切り替え。上のbuildVisibleCheckboxが
+// 「コマそのものを一覧に出すか」なのに対し、こちらは「そのコマのパラメータ1件を出すか」。
+// HP・カスタムパラメータの行から使う（下のcanToggleParameterVisibility参照）。
+function buildParameterVisibilityToggle(initialChecked = true) {
+  const label = document.createElement('label');
+  label.className = 'dialog-visible-toggle';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = initialChecked !== false;
+
+  label.appendChild(checkbox);
+  label.appendChild(document.createTextNode('表示'));
+
+  return { element: label, checkbox };
+}
+
+// 表示/非表示をユーザーが選べるのは、HP（core、locked以外）とカスタムパラメータだけ。
+// イニシアチブ（locked:true）はキャラ一覧に専用のバッジで出しているため対象外、
+// プラグイン由来のパラメータはプラグイン側の表示方針に任せるため対象外。
+function canToggleParameterVisibility(param) {
+  return (param.source === 'core' || param.source === 'user') && !param.locked;
+}
+
 // カスタムパラメータ（ユーザーが自由に名前を付けて追加する変数）の入力値を、
 // 数値として解釈できればNumberに、できなければ文字列のまま返す。空欄は0扱い（旧来の
 // Number(x)||0と同じ挙動）。HP等の組み込み・プラグイン由来パラメータは対象外（常に数値）。
@@ -337,7 +373,7 @@ function ensureDialog() {
 /**
  * @param {{
  *   activePluginId?: string | null,
- *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, visible: boolean, parameterOverrides: Record<string, number>, customParameters: {key:string,label:string,value:number|string}[] }) => void
+ *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, visible: boolean, parameterOverrides: Record<string, number>, parameterVisibility: Record<string, boolean>, customParameters: {key:string,label:string,value:number|string,visible:boolean}[] }) => void
  * }} options
  */
 export function showCharacterDialog({ activePluginId = null, onConfirm }) {
@@ -389,6 +425,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
 
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
+  const defaultVisibleToggles = {}; // key -> checkbox（表示切り替えの対象になるものだけ）
   CORE_DEFAULT_PARAMETERS.forEach(def => {
     const group = document.createElement('div');
     group.className = 'dialog-form-group';
@@ -399,6 +436,13 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     input.value = def.value;
     group.appendChild(label);
     group.appendChild(input);
+
+    if (canToggleParameterVisibility({ source: 'core', locked: def.locked })) {
+      const toggle = buildParameterVisibilityToggle(def.visible !== false);
+      group.appendChild(toggle.element);
+      defaultVisibleToggles[def.key] = toggle.checkbox;
+    }
+
     mainColumn.appendChild(group);
     defaultInputs[def.key] = input;
   });
@@ -422,6 +466,9 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     valueInput.type = 'text';
     valueInput.value = '0';
 
+    // 新規カスタムパラメータは常にsource:'user'になるため、表示切り替えは必ず付く
+    const visibility = buildParameterVisibilityToggle(true);
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -434,10 +481,11 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
+    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, rowEl: row });
+    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -489,16 +537,23 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     });
     Object.assign(parameterOverrides, pluginPanel.getValues());
 
+    // 値の上書き（parameterOverrides）とは別に、キャラ一覧へ出すかどうかだけを渡す
+    const parameterVisibility = {};
+    Object.entries(defaultVisibleToggles).forEach(([key, checkbox]) => {
+      parameterVisibility[`core:${key}`] = checkbox.checked;
+    });
+
     const customParameters = customRows
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: parseCustomParameterValue(row.valueInput.value)
+        value: parseCustomParameterValue(row.valueInput.value),
+        visible: row.visibleCheckbox.checked
       }))
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, parameterVisibility, customParameters });
   });
 
   dialog.appendChild(form);
@@ -520,6 +575,8 @@ function ensureEditDialog() {
  * 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。
  * 「編集不可(editable:false)」なパラメータは表示のみ、
  * 「削除不可(locked:true)」なパラメータは削除ボタンを出さない。
+ * HP・カスタムパラメータの行には「表示」チェックボックスが付き、
+ * キャラクター一覧に出すかどうか(param.visible)を値とは独立して切り替えられる。
  *
  * @param {{
  *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, textColor?: string | null, visible?: boolean, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
@@ -534,8 +591,9 @@ function ensureEditDialog() {
  *     textColor: string,
  *     visible: boolean,
  *     parameterValues: Record<string, number|string>,
+ *     visibilityUpdates: Record<string, boolean>,
  *     removedParamIds: string[],
- *     newCustomParameters: {key:string,label:string,value:number|string}[]
+ *     newCustomParameters: {key:string,label:string,value:number|string,visible:boolean}[]
  *   }) => void
  * }} options
  */
@@ -601,7 +659,7 @@ export function showCharacterEditDialog({
   paramListEl.className = 'dialog-custom-list';
   mainColumn.appendChild(paramListEl);
 
-  const existingRows = []; // { paramId, valueInput, editable, isCustom }
+  const existingRows = []; // { paramId, valueInput, editable, isCustom, visibleCheckbox, initialVisible }
   const removedParamIds = new Set();
 
   // プラグインが専用スペースを持つ場合、そのプラグイン由来のパラメータは
@@ -638,6 +696,13 @@ export function showCharacterEditDialog({
     row.appendChild(label);
     row.appendChild(valueInput);
 
+    // キャラ一覧に出すかの切り替え（HP・カスタムパラメータのみ）
+    const initialVisible = param.visible !== false;
+    const visibility = canToggleParameterVisibility(param)
+      ? buildParameterVisibilityToggle(initialVisible)
+      : null;
+    if (visibility) row.appendChild(visibility.element);
+
     // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・削除の
     // 縦位置を全行で揃えるため。無いと行ごとに列の位置がずれてしまう）
     const removeBtn = document.createElement('button');
@@ -658,7 +723,10 @@ export function showCharacterEditDialog({
     row.appendChild(removeBtn);
 
     paramListEl.appendChild(row);
-    existingRows.push({ paramId, valueInput, editable: param.editable !== false, isCustom });
+    existingRows.push({
+      paramId, valueInput, editable: param.editable !== false, isCustom,
+      visibleCheckbox: visibility?.checkbox ?? null, initialVisible
+    });
   });
 
   // --- 新規カスタムパラメータの追加 ---
@@ -680,6 +748,9 @@ export function showCharacterEditDialog({
     valueInput.type = 'text';
     valueInput.value = '0';
 
+    // 新規カスタムパラメータは常にsource:'user'になるため、表示切り替えは必ず付く
+    const visibility = buildParameterVisibilityToggle(true);
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -692,10 +763,11 @@ export function showCharacterEditDialog({
 
     row.appendChild(labelInput);
     row.appendChild(valueInput);
+    row.appendChild(visibility.element);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, rowEl: row });
+    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -744,9 +816,13 @@ export function showCharacterEditDialog({
     }
 
     const parameterValues = {};
-    existingRows.forEach(({ paramId, valueInput, editable, isCustom }) => {
+    const visibilityUpdates = {};
+    existingRows.forEach(({ paramId, valueInput, editable, isCustom, visibleCheckbox: paramVisibleCheckbox }) => {
       if (editable) {
         parameterValues[paramId] = isCustom ? parseCustomParameterValue(valueInput.value) : (Number(valueInput.value) || 0);
+      }
+      if (paramVisibleCheckbox) {
+        visibilityUpdates[paramId] = paramVisibleCheckbox.checked;
       }
     });
     Object.assign(parameterValues, pluginPanel.getValues());
@@ -755,7 +831,8 @@ export function showCharacterEditDialog({
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
-        value: parseCustomParameterValue(row.valueInput.value)
+        value: parseCustomParameterValue(row.valueInput.value),
+        visible: row.visibleCheckbox.checked
       }))
       .filter(p => p.key !== '');
 
@@ -768,6 +845,7 @@ export function showCharacterEditDialog({
       textColor: textColorInput.getColor(),
       visible: visibleCheckbox.getVisible(),
       parameterValues,
+      visibilityUpdates,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters
     });

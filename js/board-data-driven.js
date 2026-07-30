@@ -644,7 +644,7 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, customParameters }) => {
+            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
@@ -656,6 +656,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
                 parameterOverrides,
+                parameterVisibility,
                 customParameters
               });
             }

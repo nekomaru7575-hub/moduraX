@@ -365,7 +365,8 @@ export class ImmutableStore {
       case 'ADD_CHARACTER': {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
-          imageCrop = null, parameterOverrides = {}, customParameters = [], textColor = null, visible = true
+          imageCrop = null, parameterOverrides = {}, parameterVisibility = {},
+          customParameters = [], textColor = null, visible = true
         } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
@@ -378,6 +379,14 @@ export class ImmutableStore {
         Object.entries(parameterOverrides).forEach(([paramId, value]) => {
           if (parameters[paramId]) {
             parameters[paramId] = Object.freeze({ ...parameters[paramId], value });
+          }
+        });
+
+        // 値とは別に、キャラクター一覧へ出すかどうかだけを作成時に指定する（HP等）。
+        // 未指定なら各パラメータ定義の既定（buildParameters）のまま。
+        Object.entries(parameterVisibility).forEach(([paramId, paramVisible]) => {
+          if (parameters[paramId]) {
+            parameters[paramId] = Object.freeze({ ...parameters[paramId], visible: !!paramVisible });
           }
         });
 

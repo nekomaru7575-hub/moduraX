@@ -19,6 +19,16 @@ export function isRestricted(audience) {
 }
 
 /**
+ * その人がGMか。参加者一覧はjs/game-store.jsのstate.participants。
+ * @param {Record<string, {isGm?: boolean}>} participants
+ * @param {string|null} participantId
+ */
+export function isGm(participants, participantId) {
+  if (!participantId) return false;
+  return !!participants?.[participantId]?.isGm;
+}
+
+/**
  * 自分がそれを見てよいか。
  * @param {string[]|null|undefined} audience 宛先（nullなら全員）
  * @param {string|null} participantId 自分の参加者ID。合言葉未設定（ゲスト）ならnull

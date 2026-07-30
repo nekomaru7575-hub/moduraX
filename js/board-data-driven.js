@@ -12,7 +12,7 @@ import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
-import { canView } from './visibility.js';
+import { canView, isGm } from './visibility.js';
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
@@ -225,10 +225,25 @@ function bindTokenDrag(element, board) {
     event.stopPropagation();
 
     const tokenId = element.id;
+    const token = store.state.tokens[tokenId];
+    if (!token) return;
+
+    const myParticipantId = getCurrentParticipantId();
+    const amGm = isGm(store.state.participants, myParticipantId);
+    const canOperate = canOperateToken(token, myParticipantId, amGm);
+    // 権限が無い項目は消さずに押せない状態で出し、理由をツールチップで示す
+    const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（持ち主とGMだけが操作できます）`;
 
     showContextMenu(event.clientX, event.clientY, [
       {
+        label: `所有者: ${ownerNameOf(token)}`,
+        disabled: true,
+        onSelect: () => {}
+      },
+      {
         label: 'キャラクター更新',
+        disabled: !canOperate,
+        title: denyReason,
         onSelect: () => {
           const current = store.state.tokens[tokenId];
           if (!current) return;
@@ -267,6 +282,8 @@ function bindTokenDrag(element, board) {
       },
       {
         label: 'JSONを読み込む',
+        disabled: !canOperate,
+        title: denyReason,
         onSelect: async () => {
           const picked = await pickFileAsText({ accept: 'application/json' });
           if (!picked) return;
@@ -321,15 +338,37 @@ function bindTokenDrag(element, board) {
           });
         }
       },
+      // 所有権の獲得・放棄。所有者がいないコマは誰でも自分のものにでき、
+      // 自分のコマ（GMなら他人のコマも）は手放して所有者なしに戻せる。
+      ...(!token.ownerId && myParticipantId ? [{
+        label: '自分のコマにする',
+        onSelect: () => {
+          store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: myParticipantId });
+        }
+      }] : []),
+      ...(token.ownerId && (token.ownerId === myParticipantId || amGm) ? [{
+        label: token.ownerId === myParticipantId ? 'コマを手放す' : `${ownerNameOf(token)}から取り上げる`,
+        onSelect: () => {
+          store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: null });
+        }
+      }] : []),
       {
         label: 'バックヤードにしまう',
+        disabled: !canOperate,
+        title: denyReason,
         onSelect: () => {
-          store.dispatch('MOVE_TO_BACKYARD', { id: tokenId, ownerId: getLocalUserId() });
+          // しまうと同時に自分のコマになる（合言葉未設定のゲストは所有者なしのまま、
+          // 従来どおりブラウザ単位の棚に入る）
+          store.dispatch('MOVE_TO_BACKYARD', {
+            id: tokenId, participantId: myParticipantId, localUserId: getLocalUserId()
+          });
         }
       },
       {
         label: '削除',
         danger: true,
+        disabled: !canOperate,
+        title: denyReason,
         onSelect: () => {
           store.dispatch('REMOVE_CHARACTER', { id: tokenId });
         }
@@ -563,13 +602,35 @@ function clampPan(viewport, board) {
   panY = Math.min(maxPanY, Math.max(minPanY, panY));
 }
 
-// バックヤードに入っているコマのうち、自分（このブラウザ）がしまったものだけを返す。
-// 操作権は制限しないので、これはあくまでUI上の絞り込み（他人がしまったコマは一覧に
-// 出さないだけで、盤面へ戻す操作自体を禁止するものではない）。
+// コマの更新・JSON読み込み・削除・バックヤードへの回収ができるか。
+// 所有者がいないコマは誰でも触れる。盤面上の移動だけはこの判定を通さない（誰でも動かせる）。
+function canOperateToken(token, myParticipantId, amGm) {
+  if (!token) return false;
+  if (!token.ownerId) return true;
+  if (amGm) return true;
+  return token.ownerId === myParticipantId;
+}
+
+// 表示用の持ち主の名前。参加者一覧から引けなければ（合言葉を変えた・削除された等）
+// IDのままでは意味が伝わらないので「不明な参加者」と出す。
+function ownerNameOf(token) {
+  if (!token?.ownerId) return 'なし';
+  return store.state.participants?.[token.ownerId]?.nickname || '不明な参加者';
+}
+
+// バックヤードに入っているコマのうち、自分の棚のものだけを返す。
+// 合言葉を設定している人は所有者(ownerId)で判定するので、別の端末から入り直しても
+// 同じ棚が見える。ownerIdを持たないコマ（この機能より前にしまったもの・ゲストがしまった
+// もの）は、従来どおりブラウザ単位のIDで判定する。
 function listMyBackyardTokens() {
-  const myUserId = getLocalUserId();
-  return Object.values(store.state.tokens)
-    .filter(t => t.inBackyard && t.backyardOwnerId === myUserId);
+  const myParticipantId = getCurrentParticipantId();
+  const myLocalUserId = getLocalUserId();
+
+  return Object.values(store.state.tokens).filter(t => {
+    if (!t.inBackyard) return false;
+    if (t.ownerId) return t.ownerId === myParticipantId;
+    return t.backyardOwnerId === myLocalUserId;
+  });
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -678,6 +739,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 visible,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
+                // 登録した人のコマにする（合言葉未設定なら所有者なし＝誰でも触れる）。
+                // NPC等をみんなで触りたい場合は「コマを手放す」で外す。
+                ownerId: getCurrentParticipantId(),
                 parameterOverrides,
                 parameterVisibility,
                 parameterAudience,
@@ -804,7 +868,8 @@ window.addEventListener('DOMContentLoaded', () => {
       id: newId,
       name: (isSnapshot ? json.name : importResult.name) || '新規キャラクター',
       x: Math.round(clampedX),
-      y: Math.round(clampedY)
+      y: Math.round(clampedY),
+      ownerId: getCurrentParticipantId() // 読み込んだ人のコマにする（作成時と同じ扱い）
     });
 
     if (isSnapshot) {

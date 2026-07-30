@@ -891,6 +891,17 @@
       background-color: #3a3a3a;
     }
 
+    /* 権限が無くてできない操作（他人のコマの更新など）。項目自体は残して、
+       できないことと理由（title属性）が分かるようにする */
+    .context-menu-item:disabled {
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    .context-menu-item:disabled:hover {
+      background: none;
+    }
+
     .context-menu-item.danger:hover {
       background-color: #a8323f;
       color: #fff;

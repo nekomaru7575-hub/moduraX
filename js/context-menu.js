@@ -27,7 +27,9 @@ function onEscape(event) {
 /**
  * @param {number} x クライアントX座標
  * @param {number} y クライアントY座標
- * @param {{label: string, onSelect: () => void, danger?: boolean}[]} items
+ * @param {{label: string, onSelect: () => void, danger?: boolean, disabled?: boolean, title?: string}[]} items
+ *   disabled: 押せない項目として出す（項目ごと消すと「なぜ出ないのか」が分からないため、
+ *   権限が無くてできない操作はtitleに理由を入れてこちらで示す）。
  */
 export function showContextMenu(x, y, items) {
   closeContextMenu();
@@ -41,10 +43,16 @@ export function showContextMenu(x, y, items) {
     const btn = document.createElement('button');
     btn.className = 'context-menu-item' + (item.danger ? ' danger' : '');
     btn.textContent = item.label;
-    btn.addEventListener('click', () => {
-      closeContextMenu();
-      item.onSelect();
-    });
+    if (item.title) btn.title = item.title;
+
+    if (item.disabled) {
+      btn.disabled = true;
+    } else {
+      btn.addEventListener('click', () => {
+        closeContextMenu();
+        item.onSelect();
+      });
+    }
     menu.appendChild(btn);
   });
 

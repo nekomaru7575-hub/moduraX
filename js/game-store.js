@@ -258,7 +258,15 @@ const CHARACTER_FIELD_PATCHES = {
   // 記録し、参照キャラクター欄・キャラ一覧・盤面描画から除外する（board-data-driven.js／
   // main.js側がinBackyardを見て判断する）。位置(x,y)はそのまま保持し、盤面に戻したときに
   // 元の位置へ復元できるようにする。
-  MOVE_TO_BACKYARD: ({ ownerId }) => (ownerId ? { inBackyard: true, backyardOwnerId: ownerId } : null),
+  // コマの所有者（参加者ID）。null＝所有者なしで、誰でも更新・回収できる。
+  SET_CHARACTER_OWNER: ({ ownerId }) => ({ ownerId: ownerId || null }),
+  // バックヤードへしまうと同時に、しまった人のコマになる。合言葉を設定している人は
+  // 参加者ID（ownerId）で持つので、別の端末から入り直しても同じ棚が見える。
+  // ゲスト（合言葉なし）は参加者IDを持てないため、従来どおりブラウザ単位のIDで棚を分ける。
+  MOVE_TO_BACKYARD: ({ participantId, localUserId }) => {
+    if (participantId) return { inBackyard: true, ownerId: participantId };
+    return localUserId ? { inBackyard: true, backyardOwnerId: localUserId } : null;
+  },
   // バックヤードから盤面へ戻す。位置は保管前の(x,y)をそのまま使う。
   RESTORE_FROM_BACKYARD: () => ({ inBackyard: false })
 };
@@ -381,7 +389,7 @@ export class ImmutableStore {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
           imageCrop = null, parameterOverrides = {}, parameterVisibility = {}, parameterAudience = {},
-          customParameters = [], textColor = null, visible = true
+          customParameters = [], textColor = null, visible = true, ownerId = null
         } = payload;
         if (!id || !name) return;
         if (nextTokensState[id]) return;
@@ -428,8 +436,13 @@ export class ImmutableStore {
           components: Object.freeze({}),
           buffs: Object.freeze([]), // バフ/デバフ一覧（{id,name,paramId,delta,expirePhase}）
           actions: Object.freeze([]),
+          // このコマの持ち主（参加者ID）。nullなら所有者なしで、誰でも更新・回収できる。
+          // 更新/JSON読み込み/削除/バックヤードへの回収は持ち主とGMだけが行える（盤面上の移動は誰でも可）。
+          ownerId: ownerId || null,
           inBackyard: false, // バックヤード（盤面外の個人保管場所）にしまわれているか
-          backyardOwnerId: null // しまった人のローカルID（バックヤード一覧の絞り込みに使う）
+          // 旧データとゲスト（合言葉なし）用の読み取り専用フィールド。しまった人のブラウザ単位のID。
+          // 合言葉を設定している人の棚はownerIdで判定する（MOVE_TO_BACKYARD参照）。
+          backyardOwnerId: null
         });
 
         this.#commit(prevState, { tokens: nextTokensState });

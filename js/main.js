@@ -10,7 +10,7 @@ import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
-import { getLocalUserId, getNickname, setNickname } from './local-identity.js';
+import { getNickname, setNickname } from './local-identity.js';
 import { handlePluginChatCommand } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
@@ -205,21 +205,6 @@ if (characterPanelArea && characterPanelCollapseBtn && characterPanelExpandBtn) 
   });
   characterPanelExpandBtn.addEventListener('click', () => {
     characterPanelArea.classList.remove('collapsed');
-  });
-}
-
-// バックヤードパネルの折りたたみ（キャラ一覧パネルと同じ、見た目だけのローカル状態）
-const backyardPanelArea = document.getElementById('backyardPanelArea');
-const backyardPanelCollapseBtn = document.getElementById('backyardPanelCollapseBtn');
-const backyardPanelExpandBtn = document.getElementById('backyardPanelExpandBtn');
-const backyardList = document.getElementById('backyardList');
-
-if (backyardPanelArea && backyardPanelCollapseBtn && backyardPanelExpandBtn) {
-  backyardPanelCollapseBtn.addEventListener('click', () => {
-    backyardPanelArea.classList.add('collapsed');
-  });
-  backyardPanelExpandBtn.addEventListener('click', () => {
-    backyardPanelArea.classList.remove('collapsed');
   });
 }
 
@@ -1098,67 +1083,6 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
     item.appendChild(paramList);
     characterList.appendChild(item);
-  });
-});
-
-// バックヤードの描画：自分（このブラウザ）がしまったコマだけを表示する。
-// 操作権は制限しないので、これはあくまでUI上の絞り込み（他人のバックヤードは
-// 単に一覧に出さないだけで、盤面へ戻す操作自体を禁止するものではない）。
-EventBus.subscribe('STATE_CHANGED', (state) => {
-  if (!backyardList) return;
-
-  backyardList.innerHTML = "";
-  const myUserId = getLocalUserId();
-
-  const myBackyardTokens = Object.values(state.tokens)
-    .filter(t => t.inBackyard && t.backyardOwnerId === myUserId);
-
-  if (myBackyardTokens.length === 0) {
-    const placeholder = document.createElement('p');
-    placeholder.style.color = '#888';
-    placeholder.style.fontSize = '0.85rem';
-    placeholder.textContent = 'バックヤードは空です。';
-    backyardList.appendChild(placeholder);
-    return;
-  }
-
-  myBackyardTokens.forEach(tokenData => {
-    const item = document.createElement('div');
-    item.className = 'character-list-item';
-
-    const avatarColumn = document.createElement('div');
-    avatarColumn.className = 'character-avatar-column';
-
-    const avatar = document.createElement('div');
-    avatar.className = 'character-avatar';
-    if (tokenData.image) {
-      avatar.style.backgroundImage = `url('${tokenData.image}')`;
-    } else {
-      avatar.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
-    }
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'character-avatar-name';
-    nameSpan.textContent = tokenData.name;
-    if (tokenData.textColor) {
-      nameSpan.style.color = tokenData.textColor;
-    }
-
-    avatarColumn.appendChild(avatar);
-    avatarColumn.appendChild(nameSpan);
-    item.appendChild(avatarColumn);
-
-    const restoreBtn = document.createElement('button');
-    restoreBtn.type = 'button';
-    restoreBtn.className = 'dialog-add-row-btn';
-    restoreBtn.style.marginBottom = '0';
-    restoreBtn.textContent = '盤面に戻す';
-    restoreBtn.addEventListener('click', () => {
-      store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenData.id });
-    });
-    item.appendChild(restoreBtn);
-
-    backyardList.appendChild(item);
   });
 });
 

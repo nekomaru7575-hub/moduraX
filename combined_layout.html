@@ -213,20 +213,6 @@
       background-color: #3a3a3a;
     }
 
-    /* バックヤードパネル：キャラ一覧パネルと同じ挙動を右側に配置しただけの変種 */
-    .backyard-panel-area {
-      left: auto;
-      right: 0;
-    }
-
-    .backyard-panel-area .character-panel {
-      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.5);
-    }
-
-    .backyard-panel-area .character-panel-expand-strip {
-      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.5);
-    }
-
 /* 盤面＋コントロールのコンテナ。キャラ一覧オーバーレイの基準位置にもなる */
     .main-area {
       position: relative;
@@ -268,9 +254,9 @@
       transition: margin 0.15s ease;
     }
 
-    /* キャラクター一覧／バックヤードパネル（左右に浮かぶオーバーレイ）を、ラウンド進行
-       バーの中身がその下に隠れないよう常に避ける。展開中は幅220px、折りたたみ中も
-       展開ストリップ（幅28px）が残るので、どちらの状態でもその分の余白を空ける。
+    /* キャラクター一覧パネル（左に浮かぶオーバーレイ）を、ラウンド進行バーの中身が
+       その下に隠れないよう常に避ける。展開中は幅220px、折りたたみ中も展開ストリップ
+       （幅28px）が残るので、どちらの状態でもその分の余白を空ける。
        横に置けない分は折り返して縦に伸びてよい。 */
     #characterPanelArea ~ .board-area .round-panel-bar,
     #characterPanelArea ~ .board-area .round-panel-detail {
@@ -280,16 +266,6 @@
     #characterPanelArea.collapsed ~ .board-area .round-panel-bar,
     #characterPanelArea.collapsed ~ .board-area .round-panel-detail {
       margin-left: 28px;
-    }
-
-    #backyardPanelArea ~ .board-area .round-panel-bar,
-    #backyardPanelArea ~ .board-area .round-panel-detail {
-      margin-right: 220px;
-    }
-
-    #backyardPanelArea.collapsed ~ .board-area .round-panel-bar,
-    #backyardPanelArea.collapsed ~ .board-area .round-panel-detail {
-      margin-right: 28px;
     }
 
     .round-panel-status {
@@ -1226,20 +1202,6 @@
           <div id="characterList" style="flex: 1; max-height: none;"></div>
         </div>
         <button type="button" id="characterPanelExpandBtn" class="character-panel-expand-strip" title="展開する">キャラクター一覧</button>
-      </div>
-
-      <!-- バックヤード：盤面からしまったコマの個人保管場所。自分がしまったコマだけが見える
-           （操作権自体は制限しない、UI上の絞り込みのみ）。character-panel-areaと同じ
-           折りたたみ挙動を右側に配置する。 -->
-      <div class="character-panel-area backyard-panel-area" id="backyardPanelArea">
-        <div class="panel character-panel">
-          <div class="character-panel-header">
-            <label>バックヤード</label>
-            <button type="button" id="backyardPanelCollapseBtn" class="character-panel-collapse-btn" title="折りたたむ">▸</button>
-          </div>
-          <div id="backyardList" style="flex: 1; max-height: none;"></div>
-        </div>
-        <button type="button" id="backyardPanelExpandBtn" class="character-panel-expand-strip" title="展開する">バックヤード</button>
       </div>
 
     <div class="board-area">

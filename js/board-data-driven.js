@@ -6,6 +6,7 @@ import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, appl
 import { showBackgroundSizeDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
+import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
@@ -540,6 +541,15 @@ function clampPan(viewport, board) {
   panY = Math.min(maxPanY, Math.max(minPanY, panY));
 }
 
+// バックヤードに入っているコマのうち、自分（このブラウザ）がしまったものだけを返す。
+// 操作権は制限しないので、これはあくまでUI上の絞り込み（他人がしまったコマは一覧に
+// 出さないだけで、盤面へ戻す操作自体を禁止するものではない）。
+function listMyBackyardTokens() {
+  const myUserId = getLocalUserId();
+  return Object.values(store.state.tokens)
+    .filter(t => t.inBackyard && t.backyardOwnerId === myUserId);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
@@ -626,6 +636,8 @@ window.addEventListener('DOMContentLoaded', () => {
       board
     );
 
+    const backyardCount = listMyBackyardTokens().length;
+
     showContextMenu(event.clientX, event.clientY, [
       {
         label: 'キャラクターを追加',
@@ -694,6 +706,16 @@ window.addEventListener('DOMContentLoaded', () => {
             onConfirm: ({ width: boardWidth, height: boardHeight }) => {
               store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl, boardWidth, boardHeight });
             }
+          });
+        }
+      },
+      {
+        // 件数はメニューを開いた時点の状態から数える（0件でも項目自体は出す）
+        label: backyardCount > 0 ? `バックヤード (${backyardCount})` : 'バックヤード',
+        onSelect: () => {
+          showBackyardDialog({
+            getTokens: listMyBackyardTokens,
+            onRestore: (tokenId) => store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenId })
           });
         }
       }

@@ -4,12 +4,15 @@
 
 import { pickFile } from './file-uploader.js';
 import { getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy } from './audio-player.js';
+import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 
 // サーバーが上限を教えてくれるまでの暫定値（server/index.jsのMAX_AUDIO_MBの既定と同じ）。
 // 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
 const DEFAULT_MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
-const CHANNEL_LABELS = { bgm: 'BGM', se: '効果音' };
+// 再生フレーズ：発言の末尾がこの文字列と一致したときに鳴らす（js/audio-phrase.js）。
+const PHRASE_PLACEHOLDER = '再生フレーズ（任意）';
+const PHRASE_HINT = '発言の末尾がこのフレーズと一致すると再生されます（空欄なら鳴りません）';
 
 // 今回のUIでは「BGM（ループ）」「効果音（単発）」の2択で、チャンネルとループ有無をまとめて決める。
 // 状態側はchannelとloopを別に持っているため、将来「ループする効果音」等へ広げられる。
@@ -85,7 +88,7 @@ async function uploadAudioFile(file) {
   return body; // { key, url }
 }
 
-// 音源1件分の入力（曲名・種別）。ファイル選択／URL入力の後に続けて聞く。
+// 音源1件分の入力（曲名・種別・再生フレーズ）。ファイル選択／URL入力の後に続けて聞く。
 // onSubmitは非同期でもよい（アップロードはここを押してから走る）。待っている間は
 // ボタンを止める。二重に押せると同じファイルを2回上げてしまい、片方が孤児になるため。
 function buildAddRow(defaultName, onSubmit) {
@@ -105,6 +108,12 @@ function buildAddRow(defaultName, onSubmit) {
     kindSelect.appendChild(opt);
   });
 
+  const phraseInput = document.createElement('input');
+  phraseInput.type = 'text';
+  phraseInput.className = 'audio-track-phrase';
+  phraseInput.placeholder = PHRASE_PLACEHOLDER;
+  phraseInput.title = PHRASE_HINT;
+
   const okBtn = document.createElement('button');
   okBtn.type = 'button';
   okBtn.textContent = '登録';
@@ -119,7 +128,11 @@ function buildAddRow(defaultName, onSubmit) {
     okBtn.disabled = true;
     okBtn.textContent = '登録中…';
     try {
-      await onSubmit({ name, kind: TRACK_KINDS.find(k => k.value === kindSelect.value) });
+      await onSubmit({
+        name,
+        kind: TRACK_KINDS.find(k => k.value === kindSelect.value),
+        phrase: phraseInput.value.trim()
+      });
     } catch (error) {
       // 失敗したら押し直せるように戻す（成功時はダイアログごと開き直されるので戻す必要はない）
       alert(error.message);
@@ -130,6 +143,7 @@ function buildAddRow(defaultName, onSubmit) {
 
   wrap.appendChild(nameInput);
   wrap.appendChild(kindSelect);
+  wrap.appendChild(phraseInput);
   wrap.appendChild(okBtn);
   return wrap;
 }
@@ -139,15 +153,17 @@ function buildAddRow(defaultName, onSubmit) {
  * 呼び出し側は状態を変えたあとこの関数を呼び直せば、最新の内容で開き直せる。
  *
  * @param {{
- *   tracks: Record<string, {id:string, name:string, dataUrl:string, channel:string, loop:boolean}>,
+ *   tracks: Record<string, {id:string, name:string, url:string, channel:string, loop:boolean, phrase?:string|null}>,
  *   playback: Record<string, {trackId:string, playId:string}|null>,
- *   onAdd: (result: {name:string, dataUrl:string, channel:string, loop:boolean}) => void,
+ *   onAdd: (result: {name:string, url:string, source:string, key:string|null, channel:string, loop:boolean, phrase:string}) => void,
  *   onPlay: (track: object) => void,
  *   onStop: (channel: string) => void,
- *   onRemove: (trackId: string) => void
+ *   onRemove: (trackId: string) => void,
+ *   onPhraseChange: (result: {id: string, phrase: string}) => void
+ *     フレーズの変更だけはダイアログを開き直さない（入力の流れを切らないため）。
  * }} options
  */
-export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRemove }) {
+export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRemove, onPhraseChange }) {
   const dialog = ensureDialog();
   // 操作のたびに開き直す使い方をするため、開いたままのshowModalで例外にならないようにする
   if (dialog.open) dialog.close();
@@ -167,7 +183,7 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
   }
 
   // --- 音量（このブラウザだけの設定） ---
-  Object.entries(CHANNEL_LABELS).forEach(([channel, label]) => {
+  Object.entries(AUDIO_CHANNEL_LABELS).forEach(([channel, label]) => {
     const row = document.createElement('div');
     row.className = 'audio-volume-row';
 
@@ -202,7 +218,7 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
   container.appendChild(volumeNote);
 
   // --- 再生中 ---
-  Object.entries(CHANNEL_LABELS).forEach(([channel, label]) => {
+  Object.entries(AUDIO_CHANNEL_LABELS).forEach(([channel, label]) => {
     const entry = playback?.[channel];
     const track = entry ? tracks[entry.trackId] : null;
 
@@ -230,6 +246,12 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
   listEl.className = 'dialog-custom-list';
   container.appendChild(listEl);
 
+  const phraseNote = document.createElement('p');
+  phraseNote.className = 'audio-note';
+  phraseNote.textContent = '再生フレーズを設定すると、発言の末尾がそのフレーズと一致したときに鳴ります。'
+    + '「演奏停止」と発言すると全て止まります。';
+  container.appendChild(phraseNote);
+
   const trackList = Object.values(tracks);
 
   if (trackList.length === 0) {
@@ -247,14 +269,26 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     playBtn.type = 'button';
     playBtn.className = 'dialog-table-name-btn';
     playBtn.textContent = `▶ ${track.name}`;
-    playBtn.title = `${CHANNEL_LABELS[track.channel] || track.channel} として再生`;
+    playBtn.title = `${AUDIO_CHANNEL_LABELS[track.channel] || track.channel} として再生`;
     playBtn.addEventListener('click', () => onPlay(track));
     row.appendChild(playBtn);
 
     const kindLabel = document.createElement('span');
     kindLabel.className = 'audio-track-kind';
-    kindLabel.textContent = CHANNEL_LABELS[track.channel] || track.channel;
+    kindLabel.textContent = AUDIO_CHANNEL_LABELS[track.channel] || track.channel;
     row.appendChild(kindLabel);
+
+    // 再生フレーズ。フォーカスを外した時（change）にだけ反映する。
+    const phraseInput = document.createElement('input');
+    phraseInput.type = 'text';
+    phraseInput.className = 'audio-track-phrase';
+    phraseInput.placeholder = PHRASE_PLACEHOLDER;
+    phraseInput.title = PHRASE_HINT;
+    phraseInput.value = track.phrase ?? '';
+    phraseInput.addEventListener('change', () => {
+      onPhraseChange({ id: track.id, phrase: phraseInput.value.trim() });
+    });
+    row.appendChild(phraseInput);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';

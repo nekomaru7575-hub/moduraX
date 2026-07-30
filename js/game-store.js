@@ -115,6 +115,9 @@ const MAIN_CHAT_TAB_ID = 'main';
 // （js/audio-player.jsが枠ごとに1つずつAudio要素を持つ）。
 export const AUDIO_CHANNELS = ['bgm', 'se'];
 
+// チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。
+export const AUDIO_CHANNEL_LABELS = { bgm: 'BGM', se: '効果音' };
+
 // --- dispatch内で繰り返し現れる更新パターンの共通処理 ---
 // case側が「どのスライスをどう変えるか」だけを書けるようにするための道具立て。
 // 凍結（Object.freeze）はここで面倒を見るので、case側は原則freezeを書かない。
@@ -866,7 +869,7 @@ export class ImmutableStore {
       // --- 音楽（BGM／効果音） ---
       // 状態に入るのはURLとメタデータだけ。音の実体はR2側にあり、ここには乗らない。
       case 'ADD_AUDIO_TRACK': {
-        const { id, name, url, source, key = null, channel, loop } = payload;
+        const { id, name, url, source, key = null, channel, loop, phrase = null } = payload;
         if (!id || !name || !url) return;
         const room = prevState.room;
 
@@ -877,11 +880,31 @@ export class ImmutableStore {
           source: source === 'upload' ? 'upload' : 'external',
           key: source === 'upload' ? key : null,
           channel: channel === 'se' ? 'se' : 'bgm',
-          loop: Boolean(loop)
+          loop: Boolean(loop),
+          // 発言の末尾がこのフレーズと一致したら鳴らす（js/audio-phrase.js）。空/未設定は鳴らさない。
+          phrase: typeof phrase === 'string' && phrase.trim() !== '' ? phrase.trim() : null
         });
 
         this.#commit(prevState, {
           room: { ...room, audioTracks: withMapEntry(room.audioTracks, id, track) }
+        });
+        return;
+      }
+
+      // 登録済みの音源の再生フレーズだけを変更する（音楽ダイアログの入力欄から）。
+      case 'SET_AUDIO_TRACK_PHRASE': {
+        const { id, phrase } = payload;
+        const room = prevState.room;
+        const track = room.audioTracks?.[id];
+        if (!track) return;
+
+        const nextPhrase = typeof phrase === 'string' && phrase.trim() !== '' ? phrase.trim() : null;
+
+        this.#commit(prevState, {
+          room: {
+            ...room,
+            audioTracks: withMapEntry(room.audioTracks, id, Object.freeze({ ...track, phrase: nextPhrase }))
+          }
         });
         return;
       }
@@ -1060,7 +1083,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // （実体を入れると、アクションのたびに状態ごとRedisへ書き直されて帯域を食い潰すため。
       // 実体はCloudflare R2にあり、アップロードはserver/r2.js経由）。
       // 将来チャットコマンドから名前で呼べるよう「名前付きで複数登録するライブラリ」の形。
-      // { [id]: { id, name, url, source: 'upload'|'external', key: string|null, channel: 'bgm'|'se', loop: boolean } }
+      // { [id]: { id, name, url, source: 'upload'|'external', key: string|null, channel: 'bgm'|'se',
+      //           loop: boolean, phrase: string|null } }
+      // phraseは「発言の末尾がこの文字列と一致したら鳴らす」再生フレーズ（js/audio-phrase.js）。
       // source:'upload' はサーバーがR2に実体を持つ（削除時にkeyで消す）。'external' は外部URL参照。
       audioTracks: {},
       // チャンネルごとの再生状態。BGMを流したまま効果音を重ねられるよう2枠に分けてある。

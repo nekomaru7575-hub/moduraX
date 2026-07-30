@@ -5,6 +5,8 @@ import {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
   BUFF_PHASE_LABELS
 } from './board-data-driven.js';
+import { AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS } from './game-store.js';
+import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
@@ -267,8 +269,8 @@ function openAudioDialog() {
   showAudioDialog({
     tracks: store.state.room.audioTracks || {},
     playback: store.state.room.audioPlayback || { bgm: null, se: null },
-    onAdd: ({ name, url, source, key, channel, loop }) => {
-      store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, url, source, key, channel, loop });
+    onAdd: ({ name, url, source, key, channel, loop, phrase }) => {
+      store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, url, source, key, channel, loop, phrase });
       openAudioDialog();
     },
     onPlay: (track) => {
@@ -285,6 +287,10 @@ function openAudioDialog() {
     onRemove: (trackId) => {
       store.dispatch('REMOVE_AUDIO_TRACK', { id: trackId });
       openAudioDialog();
+    },
+    // フレーズの変更だけは開き直さない（入力欄の表示は既に最新で、開き直すと入力の流れが切れる）
+    onPhraseChange: ({ id, phrase }) => {
+      store.dispatch('SET_AUDIO_TRACK_PHRASE', { id, phrase });
     }
   });
 }
@@ -732,6 +738,52 @@ function tryHandlePhaseEndCommand(rawInput) {
   return true;
 }
 
+// 「演奏停止」で再生中の音楽（BGM・効果音）をすべて止める。フレーズ再生（下のtriggerAudioPhrase）と
+// 対になる操作で、音楽ダイアログを開かずに止められるようにするためのコマンド。
+const AUDIO_STOP_COMMAND = '演奏停止';
+
+function tryHandleAudioStopCommand(rawInput) {
+  if (rawInput.trim() !== AUDIO_STOP_COMMAND) return false;
+
+  const tracks = store.state.room.audioTracks || {};
+  const playback = store.state.room.audioPlayback || {};
+
+  const stopped = AUDIO_CHANNELS
+    .filter(channel => playback[channel])
+    .map(channel => {
+      const name = tracks[playback[channel].trackId]?.name || '不明な音源';
+      store.dispatch('SET_AUDIO_PLAYBACK', { channel, trackId: null, playId: null });
+      return `${AUDIO_CHANNEL_LABELS[channel] || channel}: ${name}`;
+    });
+
+  // 何も鳴っていなかった場合も無反応にはしない（コマンドが効いたことは伝える）
+  applyLog({
+    system: '音楽',
+    resultText: stopped.length > 0
+      ? `♪ 演奏を停止しました（${stopped.join('、')}）`
+      : '♪ 再生中の音楽はありません'
+  });
+  return true;
+}
+
+// 発言の末尾が音源の再生フレーズと一致したら鳴らす。コマンドと違い入力は消費せず、
+// 発言はそのまま流れる（ロールプレイの台詞に音を添えられるようにするため）。
+// 判定とdispatchは送信したクライアントだけが行う。SET_AUDIO_PLAYBACKは同期されるので
+// 全員に届く。受信側でも判定すると人数分のログが重複してしまう（EXPIRE_BUFFSと同じ理由）。
+function triggerAudioPhrase(text) {
+  const track = findTrackByPhraseSuffix(store.state.room.audioTracks || {}, text);
+  if (!track) return;
+
+  // playIdを毎回変えることで、同じ効果音を続けて鳴らし直せる（audio-player.js側の再生検知）
+  store.dispatch('SET_AUDIO_PLAYBACK', {
+    channel: track.channel, trackId: track.id, playId: `${Date.now()}`
+  });
+  applyLog({
+    system: '音楽',
+    resultText: `♪ ${AUDIO_CHANNEL_LABELS[track.channel] || track.channel}: ${track.name}`
+  });
+}
+
 // 適用中プラグイン固有のチャットコマンド（DX3のcombo.awk/combo.chk/combo.dmg等）を試す。
 // 該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
 // 実処理（判定/ダメージのロール・バフ付与）は各プラグイン側で完結させ、成否のalertや
@@ -809,6 +861,10 @@ function sendPaletteText(text) {
     return;
   }
 
+  if (tryHandleAudioStopCommand(rawInput)) {
+    return;
+  }
+
   // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
   const substitutedInput = substituteCharacterParameters(rawInput, selectedCharacter);
@@ -828,6 +884,10 @@ function sendPaletteText(text) {
   if (tryHandleOriginalTableCommand(substitutedInput, selectedCharacter)) {
     return;
   }
+
+  // ここまでコマンドとして解釈されなかった＝発言（ダイスロールを含む）なので、
+  // 末尾が音源の再生フレーズと一致していれば鳴らす（発言自体はそのまま流す）。
+  triggerAudioPhrase(substitutedInput);
 
   EventBus.emit('DICE_ROLL_REQUESTED', {
     system: selectedSystem,
@@ -862,6 +922,11 @@ if (sendBtn) {
       return;
     }
 
+    if (tryHandleAudioStopCommand(rawInput)) {
+      commandInput.value = "";
+      return;
+    }
+
     // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
     // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
     rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
@@ -885,6 +950,10 @@ if (sendBtn) {
       commandInput.value = "";
       return;
     }
+
+    // ここまでコマンドとして解釈されなかった＝発言（ダイスロールを含む）なので、
+    // 末尾が音源の再生フレーズと一致していれば鳴らす（発言自体はそのまま流す）。
+    triggerAudioPhrase(rawInput);
 
     EventBus.emit('DICE_ROLL_REQUESTED', {
       system: selectedSystem,

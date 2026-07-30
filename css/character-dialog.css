@@ -506,6 +506,18 @@
   flex: 1;
 }
 
+/* 再生フレーズの入力欄（音源一覧の各行と、ファイル選択後の追加行の両方で使う） */
+.audio-track-phrase {
+  flex: 0 0 8em;
+  min-width: 0;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
 .audio-note {
   color: #888;
   font-size: 0.8rem;

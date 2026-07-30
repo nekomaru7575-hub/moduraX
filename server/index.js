@@ -33,9 +33,49 @@ const ROOMS_DIR = path.join(__dirname, 'rooms');
 const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 const SAVE_DEBOUNCE_MS = 1000;
 
-const redis = Redis.fromEnv();
+// 部屋データの保存先。Upstashの接続情報があればRedis、無ければローカルファイル
+// （server/rooms/room-N.json）だけで動く「ローカルモード」になる。検証用の起動
+// （server/dev-local.js）は接続情報を渡さないことでこのモードに入り、本番のデータへ
+// 一切触れずに動作確認できる。
+const USE_REDIS = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+const redis = USE_REDIS ? Redis.fromEnv() : null;
+
+// Redis運用へ移る前のローカルファイルを、Redisに無い部屋の代わりとして読むかどうか。
+// 既定はオフ。オンにすると「Redis側で削除した部屋が、古いローカルファイルから勝手に
+// 復活する」ことが起きるため（実際に起きた）、移行が必要なときだけ明示的に有効化する。
+const MIGRATE_LEGACY_ROOM_FILES = process.env.MIGRATE_LEGACY_ROOM_FILES === '1';
+
 function roomKey(roomId) {
   return `room:${roomId}`;
+}
+
+// --- 部屋データの読み書き（保存先の違いをここだけに閉じ込める） ---
+async function readRoomState(roomId) {
+  if (USE_REDIS) return redis.get(roomKey(roomId));
+
+  try {
+    return JSON.parse(await readFile(roomFilePath(roomId), 'utf-8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  }
+}
+
+async function writeRoomState(roomId, state) {
+  if (USE_REDIS) {
+    await redis.set(roomKey(roomId), state);
+    return;
+  }
+  await mkdir(ROOMS_DIR, { recursive: true });
+  await writeFile(roomFilePath(roomId), JSON.stringify(state));
+}
+
+async function deleteRoomState(roomId) {
+  if (USE_REDIS) {
+    await redis.del(roomKey(roomId));
+    return;
+  }
+  await unlink(roomFilePath(roomId)).catch(() => {});
 }
 
 const MIME_TYPES = {
@@ -145,10 +185,11 @@ function roomFilePath(roomId) {
   return path.join(ROOMS_DIR, `${roomId}.json`);
 }
 
-// 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければRedisから
-// 読み込む。Redisにも無ければ、旧バージョンのローカルファイル（server/rooms/room-N.json）
-// が残っていないか確認し、あれば一度だけそれを読み込んでRedisへ移行する。
-// どちらにも無ければ「まだ作られていない空き部屋」としてnullを返す。
+// 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければ保存先
+// （Redis、またはローカルモードならファイル）から読み込む。見つからなければ
+// 「まだ作られていない空き部屋」としてnullを返す。
+// MIGRATE_LEGACY_ROOM_FILES=1 のときだけ、Redisに無い部屋を旧ローカルファイルから
+// 読み込んでRedisへ移行する（既定では行わない。理由は宣言箇所のコメント参照）。
 async function getOrLoadRoom(roomId) {
   if (rooms.has(roomId)) return rooms.get(roomId);
 
@@ -164,20 +205,20 @@ async function getOrLoadRoom(roomId) {
   }
 
   try {
-    const savedState = await redis.get(roomKey(roomId));
+    const savedState = await readRoomState(roomId);
     if (savedState) {
       const entry = buildEntry(savedState);
       rooms.set(roomId, entry);
       return entry;
     }
   } catch (error) {
-    // Redis自体に到達できない場合も、ここで即nullを返すと部屋が一時的に消えたように
-    // 見えてしまう。ローカルにキャッシュが残っていればそちらへフォールバックする。
-    console.warn(`[server] ${roomId} のRedis読み込みに失敗しました:`, error.message);
+    console.warn(`[server] ${roomId} の読み込みに失敗しました:`, error.message);
   }
 
-  // Redisに無い（またはRedis自体に到達できない）場合のみ、移行前の環境で使っていた
-  // ローカルファイルを試す
+  // ここから下は旧ローカルファイルからの移行。既定では行わない（Redis側で消した部屋が
+  // 復活してしまうため）。ローカルモードでは上のreadRoomStateが既にファイルを読んでいる。
+  if (!USE_REDIS || !MIGRATE_LEGACY_ROOM_FILES) return null;
+
   try {
     const raw = await readFile(roomFilePath(roomId), 'utf-8');
     const savedState = JSON.parse(raw);
@@ -205,7 +246,7 @@ function schedulePersistForRoom(roomId, entry) {
   entry.saveTimer = setTimeout(async () => {
     entry.saveTimer = null;
     try {
-      await redis.set(roomKey(roomId), entry.store.state);
+      await writeRoomState(roomId, entry.store.state);
     } catch (error) {
       console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
     }
@@ -238,10 +279,11 @@ async function deleteRoomData(roomId, audioTracks = {}) {
     .catch((error) => console.warn(`[server] ${roomId} の音源削除に失敗しました (${key}):`, error.message))));
 
   try {
-    await redis.del(roomKey(roomId));
+    await deleteRoomState(roomId);
   } catch (error) {
-    console.warn(`[server] ${roomId} のRedis削除に失敗しました:`, error.message);
+    console.warn(`[server] ${roomId} の削除に失敗しました:`, error.message);
   }
+  // Redis運用でも、移行前のローカルファイルが残っていれば一緒に消す
   await unlink(roomFilePath(roomId)).catch(() => {});
 }
 
@@ -445,7 +487,7 @@ async function handleCreateRoom(req, res) {
   store.hydrate(initialState);
 
   try {
-    await redis.set(roomKey(id), store.state);
+    await writeRoomState(id, store.state);
   } catch (error) {
     console.warn(`[server] ${id} の作成に失敗しました:`, error.message);
     sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
@@ -473,7 +515,8 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
   const now = Date.now();
   let cached = bcdiceMemoryCache.get(cacheKey) || null;
 
-  if (!cached) {
+  // ローカルモード（Redis無し）ではプロセス内キャッシュだけで動く
+  if (!cached && USE_REDIS) {
     try {
       cached = await redis.get(`bcdice:${cacheKey}`);
       if (cached) bcdiceMemoryCache.set(cacheKey, cached);
@@ -493,8 +536,10 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     const entry = { fetchedAt: now, payload };
     bcdiceMemoryCache.set(cacheKey, entry);
     // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
-    redis.set(`bcdice:${cacheKey}`, entry)
-      .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+    if (USE_REDIS) {
+      redis.set(`bcdice:${cacheKey}`, entry)
+        .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+    }
     return { ...payload, fetchedAt: now };
   } catch (error) {
     if (cached) {

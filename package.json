@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "dev": "node server/dev-local.js"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

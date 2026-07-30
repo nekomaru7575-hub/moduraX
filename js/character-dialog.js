@@ -471,27 +471,44 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
   mainColumn.appendChild(visibleCheckbox.element);
 
   // --- デフォルトパラメータ（Core層） ---
+  // 「ラベル・値・表示・公開先」を1行に横並びにする（カスタムパラメータの行や、
+  // 更新ダイアログのパラメータ一覧と同じ形。縦積みのdialog-form-groupに入れると
+  // トグルと鍵アイコンが横幅いっぱいに広がってしまう）。
+  const paramListLabel = document.createElement('label');
+  paramListLabel.textContent = 'パラメータ';
+  paramListLabel.style.display = 'block';
+  paramListLabel.style.marginTop = '4px';
+  mainColumn.appendChild(paramListLabel);
+
+  const defaultListEl = document.createElement('div');
+  defaultListEl.className = 'dialog-custom-list';
+  mainColumn.appendChild(defaultListEl);
+
   const defaultInputs = {};
   const defaultVisibleToggles = {}; // key -> checkbox（表示切り替えの対象になるものだけ）
   const defaultAudiences = {};      // key -> string[]|null（公開先。既定は全員＝null）
   CORE_DEFAULT_PARAMETERS.forEach(def => {
-    const group = document.createElement('div');
-    group.className = 'dialog-form-group';
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
     const label = document.createElement('label');
+    label.className = 'dialog-param-label';
     label.textContent = def.label;
+
     const input = document.createElement('input');
     input.type = 'number';
     input.value = def.value;
-    group.appendChild(label);
-    group.appendChild(input);
+
+    row.appendChild(label);
+    row.appendChild(input);
 
     if (canToggleParameterVisibility({ source: 'core', locked: def.locked })) {
       const toggle = buildParameterVisibilityToggle(def.visible !== false);
-      group.appendChild(toggle.element);
+      row.appendChild(toggle.element);
       defaultVisibleToggles[def.key] = toggle.checkbox;
 
       defaultAudiences[def.key] = null;
-      group.appendChild(buildAudienceButton({
+      row.appendChild(buildAudienceButton({
         getLabel: () => def.label,
         getAudience: () => defaultAudiences[def.key],
         setAudience: (audience) => { defaultAudiences[def.key] = audience; },
@@ -500,7 +517,7 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
       }));
     }
 
-    mainColumn.appendChild(group);
+    defaultListEl.appendChild(row);
     defaultInputs[def.key] = input;
   });
 

@@ -357,10 +357,9 @@ function currentRoomId() {
 async function activateAndRegisterIdentity(passphrase, nickname) {
   const identity = await activateRoomIdentity(currentRoomId(), passphrase);
 
-  // 名乗る人が変われば「自分に見えるチャットタブ」も変わるので、状態が変わらない
-  // ケース（ゲストのまま等）も含めて描き直す
-  renderChatTabs(store.state);
-  ensureActiveTabVisible(store.state);
+  // 名乗る人が変われば「自分に見えるもの」も変わる。状態自体は変わらないので
+  // STATE_CHANGEDでは拾えず、専用のイベントで各所に描き直してもらう。
+  EventBus.emit('IDENTITY_CHANGED', identity?.participantId ?? null);
 
   if (!identity) return; // 合言葉なし＝ゲスト参加。参加者一覧には載せない
   store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: nickname ?? getNickname() });
@@ -1286,7 +1285,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 
 // キャラクター一覧の描画（登録・削除の両方に反応）。
 // バックヤードにしまわれているコマは「今、盤面にいない」扱いなので一覧には出さない。
-EventBus.subscribe('STATE_CHANGED', (state) => {
+function renderCharacterList(state) {
   if (!characterList) return;
 
   characterList.innerHTML = "";
@@ -1337,7 +1336,8 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     paramList.className = 'character-param-list';
 
     Object.entries(tokenData.parameters || {})
-      .filter(([, param]) => param.visible !== false)
+      // visible: 一覧に出すかどうか（全員共通）。audience: 誰に見せるか（相手ごと）
+      .filter(([, param]) => param.visible !== false && canView(param.audience, getCurrentParticipantId()))
       .forEach(([paramId, param]) => {
         const paramRow = document.createElement('div');
         paramRow.className = 'character-list-param-row';
@@ -1371,6 +1371,16 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     item.appendChild(paramList);
     characterList.appendChild(item);
   });
+}
+
+EventBus.subscribe('STATE_CHANGED', renderCharacterList);
+
+// 名乗る人が変わると、見えるパラメータ・見えるチャットタブが変わる（状態自体は
+// 変わらないためSTATE_CHANGEDでは拾えない）
+EventBus.subscribe('IDENTITY_CHANGED', () => {
+  renderCharacterList(store.state);
+  renderChatTabs(store.state);
+  ensureActiveTabVisible(store.state);
 });
 
 function truncateLabel(label, maxLength = 4) {

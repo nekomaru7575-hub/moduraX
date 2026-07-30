@@ -10,7 +10,9 @@ import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
-import { getLocalUserId } from './local-identity.js';
+import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
+import { showAudienceDialog } from './audience-picker.js';
+import { canView } from './visibility.js';
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
@@ -234,6 +236,7 @@ function bindTokenDrag(element, board) {
           showCharacterEditDialog({
             character: current,
             activePluginId: store.state.room?.activePlugin ?? null,
+            participants: store.state.participants ?? {},
             onComponentChange: (componentKey, value) => {
               store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
             },
@@ -397,8 +400,10 @@ function applyPanelAppearance(el, panelData) {
     el.style.backgroundImage = '';
   }
 
-  // マウスオーバー時にブラウザ標準のツールチップとして表示する（画像とは独立）
-  if (panelData.text) {
+  // マウスオーバー時にブラウザ標準のツールチップとして表示する（画像とは独立）。
+  // テキストに公開先の指定がある場合、宛先に入っていない人には出さない
+  // （絵は見えるがメモはGMだけが読める、といった使い方のため）。
+  if (panelData.text && canView(panelData.textAudience, getCurrentParticipantId())) {
     el.title = panelData.text;
   } else {
     el.removeAttribute('title');
@@ -488,6 +493,23 @@ function bindPanelDrag(element, board) {
               if (cols !== latest.cols || rows !== latest.rows) {
                 store.dispatch('SET_PANEL_SIZE', { id: panelId, cols, rows });
               }
+            }
+          });
+        }
+      },
+      {
+        label: 'テキストの公開先',
+        onSelect: () => {
+          const current = store.state.panels[panelId];
+          if (!current) return;
+          showAudienceDialog({
+            title: 'パネルのテキストの公開先',
+            description: 'マウスオーバーで出るテキストを誰に見せるかを選びます（画像は常に全員に見えます）。',
+            audience: current.textAudience ?? null,
+            participants: store.state.participants ?? {},
+            myParticipantId: getCurrentParticipantId(),
+            onConfirm: (textAudience) => {
+              store.dispatch('SET_PANEL_TEXT_AUDIENCE', { id: panelId, textAudience });
             }
           });
         }
@@ -644,7 +666,8 @@ window.addEventListener('DOMContentLoaded', () => {
         onSelect: () => {
           showCharacterDialog({
             activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, customParameters }) => {
+            participants: store.state.participants ?? {},
+            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters }) => {
               store.dispatch('ADD_CHARACTER', {
                 id: generateTokenId(),
                 name,
@@ -657,6 +680,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 y: Math.round(clampedY),
                 parameterOverrides,
                 parameterVisibility,
+                parameterAudience,
                 customParameters
               });
             }
@@ -788,6 +812,15 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
       dispatchCharacterImport(newId, importResult);
     }
+  });
+
+  // 名乗る人が変わると「テキストが読めるパネル」も変わるので、見た目を作り直す
+  // （状態自体は変わらないためSTATE_CHANGEDでは拾えない）。
+  EventBus.subscribe('IDENTITY_CHANGED', () => {
+    Object.values(store.state.panels || {}).forEach(panelData => {
+      const el = document.getElementById(panelData.id);
+      if (el) applyPanelAppearance(el, panelData);
+    });
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {

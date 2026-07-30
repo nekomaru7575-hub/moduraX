@@ -5,6 +5,9 @@
 import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
 import { pickFileAsDataUrl } from './file-uploader.js';
 import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
+import { showAudienceDialog } from './audience-picker.js';
+import { canView, isRestricted, describeAudience } from './visibility.js';
+import { getCurrentParticipantId } from './local-identity.js';
 
 // コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
 // これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
@@ -41,7 +44,7 @@ export function applyImageCropStyle(imgEl, crop) {
 export function applyCharacterEditResult(store, tokenId, result) {
   const {
     name, image, imageCrop, size, textColor, visible,
-    parameterValues, visibilityUpdates = {}, removedParamIds, newCustomParameters
+    parameterValues, visibilityUpdates = {}, audienceUpdates = {}, removedParamIds, newCustomParameters
   } = result;
   const latest = store.state.tokens[tokenId];
   if (!latest) return;
@@ -87,12 +90,22 @@ export function applyCharacterEditResult(store, tokenId, result) {
     }
   });
 
+  // 誰に見せるか（値・一覧への表示とは独立して切り替えられる）
+  Object.entries(audienceUpdates).forEach(([paramId, audience]) => {
+    const existingParam = latest.parameters[paramId];
+    if (!existingParam) return;
+    const currentAudience = existingParam.audience ?? null;
+    if (JSON.stringify(currentAudience) !== JSON.stringify(audience)) {
+      store.dispatch('SET_PARAMETER_AUDIENCE', { characterId: tokenId, paramId, audience });
+    }
+  });
+
   removedParamIds.forEach(paramId => {
     store.dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId });
   });
 
-  newCustomParameters.forEach(({ key, label, value, visible: paramVisible }) => {
-    store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible: paramVisible });
+  newCustomParameters.forEach(({ key, label, value, visible: paramVisible, audience: paramAudience }) => {
+    store.dispatch('ADD_PARAMETER', { characterId: tokenId, key, label, value, visible: paramVisible, audience: paramAudience });
   });
 }
 
@@ -343,6 +356,39 @@ function buildParameterVisibilityToggle(initialChecked = true) {
   return { element: label, checkbox };
 }
 
+// パラメータ1件の「公開先」ボタン（🔓＝全員／🔒＝限定）。押すと宛先選択ダイアログを開く。
+// 表示/非表示(visible)が「自分も含めて一覧に出すか」なのに対し、こちらは「誰に見せるか」。
+// 値の保持は呼び出し側（getAudience/setAudience）に任せ、確定時にまとめて反映する。
+function buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'dialog-audience-btn';
+
+  function sync() {
+    const audience = getAudience();
+    button.textContent = isRestricted(audience) ? '🔒' : '🔓';
+    button.title = `${describeAudience(audience, participants)}（クリックで変更）`;
+    button.classList.toggle('restricted', isRestricted(audience));
+  }
+
+  button.addEventListener('click', () => {
+    showAudienceDialog({
+      title: `「${getLabel()}」の公開先`,
+      description: 'このパラメータを誰に見せるかを選びます。キャラクター一覧と更新画面の表示に反映されます。',
+      audience: getAudience(),
+      participants,
+      myParticipantId,
+      onConfirm: (audience) => {
+        setAudience(audience);
+        sync();
+      }
+    });
+  });
+
+  sync();
+  return button;
+}
+
 // 表示/非表示をユーザーが選べるのは、HP（core、locked以外）とカスタムパラメータだけ。
 // イニシアチブ（locked:true）はキャラ一覧に専用のバッジで出しているため対象外、
 // プラグイン由来のパラメータはプラグイン側の表示方針に任せるため対象外。
@@ -376,7 +422,8 @@ function ensureDialog() {
  *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, visible: boolean, parameterOverrides: Record<string, number>, parameterVisibility: Record<string, boolean>, customParameters: {key:string,label:string,value:number|string,visible:boolean}[] }) => void
  * }} options
  */
-export function showCharacterDialog({ activePluginId = null, onConfirm }) {
+export function showCharacterDialog({ activePluginId = null, participants = {}, onConfirm }) {
+  const myParticipantId = getCurrentParticipantId();
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -426,6 +473,7 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
   // --- デフォルトパラメータ（Core層） ---
   const defaultInputs = {};
   const defaultVisibleToggles = {}; // key -> checkbox（表示切り替えの対象になるものだけ）
+  const defaultAudiences = {};      // key -> string[]|null（公開先。既定は全員＝null）
   CORE_DEFAULT_PARAMETERS.forEach(def => {
     const group = document.createElement('div');
     group.className = 'dialog-form-group';
@@ -441,6 +489,15 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       const toggle = buildParameterVisibilityToggle(def.visible !== false);
       group.appendChild(toggle.element);
       defaultVisibleToggles[def.key] = toggle.checkbox;
+
+      defaultAudiences[def.key] = null;
+      group.appendChild(buildAudienceButton({
+        getLabel: () => def.label,
+        getAudience: () => defaultAudiences[def.key],
+        setAudience: (audience) => { defaultAudiences[def.key] = audience; },
+        participants,
+        myParticipantId
+      }));
     }
 
     mainColumn.appendChild(group);
@@ -469,6 +526,16 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     // 新規カスタムパラメータは常にsource:'user'になるため、表示切り替えは必ず付く
     const visibility = buildParameterVisibilityToggle(true);
 
+    // 公開先はこの行の状態として持ち、確定時にまとめて渡す（既定は全員＝null）
+    const rowAudience = { value: null };
+    const audienceBtn = buildAudienceButton({
+      getLabel: () => labelInput.value.trim() || 'このパラメータ',
+      getAudience: () => rowAudience.value,
+      setAudience: (audience) => { rowAudience.value = audience; },
+      participants,
+      myParticipantId
+    });
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -482,10 +549,14 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
     row.appendChild(labelInput);
     row.appendChild(valueInput);
     row.appendChild(visibility.element);
+    row.appendChild(audienceBtn);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
+    customRows.push({
+      labelInput, valueInput, visibleCheckbox: visibility.checkbox,
+      getAudience: () => rowAudience.value, rowEl: row
+    });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -543,17 +614,24 @@ export function showCharacterDialog({ activePluginId = null, onConfirm }) {
       parameterVisibility[`core:${key}`] = checkbox.checked;
     });
 
+    // 公開先を指定したものだけ渡す（未指定＝全員に見せるは既定なので送らない）
+    const parameterAudience = {};
+    Object.entries(defaultAudiences).forEach(([key, audience]) => {
+      if (audience) parameterAudience[`core:${key}`] = audience;
+    });
+
     const customParameters = customRows
       .map(row => ({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
         value: parseCustomParameterValue(row.valueInput.value),
-        visible: row.visibleCheckbox.checked
+        visible: row.visibleCheckbox.checked,
+        audience: row.getAudience()
       }))
       .filter(p => p.key !== '');
 
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, parameterVisibility, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, parameterVisibility, parameterAudience, customParameters });
   });
 
   dialog.appendChild(form);
@@ -598,9 +676,10 @@ function ensureEditDialog() {
  * }} options
  */
 export function showCharacterEditDialog({
-  character, activePluginId = null, onComponentChange, getComponents, onConfirm,
+  character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
   dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
 }) {
+  const myParticipantId = getCurrentParticipantId();
   const dialog = ensureEditDialog();
   dialog.innerHTML = '';
 
@@ -671,6 +750,9 @@ export function showCharacterEditDialog({
     // editable:falseの拡張ステータス（自動計算値・JSON同期専用の値等）は
     // 手入力での編集対象ではないため、更新ダイアログには表示しない
     if (param.editable === false) return;
+    // 自分に公開されていないパラメータは編集対象にも出さない（行が無ければ、
+    // 見えない値を空で上書きするような更新も起きない）
+    if (!canView(param.audience, myParticipantId)) return;
 
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
@@ -696,12 +778,23 @@ export function showCharacterEditDialog({
     row.appendChild(label);
     row.appendChild(valueInput);
 
-    // キャラ一覧に出すかの切り替え（HP・カスタムパラメータのみ）
+    // キャラ一覧に出すかの切り替えと、誰に見せるかの指定（HP・カスタムパラメータのみ）
     const initialVisible = param.visible !== false;
-    const visibility = canToggleParameterVisibility(param)
-      ? buildParameterVisibilityToggle(initialVisible)
-      : null;
+    const canToggle = canToggleParameterVisibility(param);
+    const visibility = canToggle ? buildParameterVisibilityToggle(initialVisible) : null;
     if (visibility) row.appendChild(visibility.element);
+
+    const initialAudience = param.audience ?? null;
+    const rowAudience = { value: initialAudience };
+    if (canToggle) {
+      row.appendChild(buildAudienceButton({
+        getLabel: () => param.label,
+        getAudience: () => rowAudience.value,
+        setAudience: (audience) => { rowAudience.value = audience; },
+        participants,
+        myParticipantId
+      }));
+    }
 
     // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・削除の
     // 縦位置を全行で揃えるため。無いと行ごとに列の位置がずれてしまう）
@@ -725,7 +818,8 @@ export function showCharacterEditDialog({
     paramListEl.appendChild(row);
     existingRows.push({
       paramId, valueInput, editable: param.editable !== false, isCustom,
-      visibleCheckbox: visibility?.checkbox ?? null, initialVisible
+      visibleCheckbox: visibility?.checkbox ?? null, initialVisible,
+      hasAudienceControl: canToggle, getAudience: () => rowAudience.value
     });
   });
 
@@ -751,6 +845,16 @@ export function showCharacterEditDialog({
     // 新規カスタムパラメータは常にsource:'user'になるため、表示切り替えは必ず付く
     const visibility = buildParameterVisibilityToggle(true);
 
+    // 公開先はこの行の状態として持ち、確定時にまとめて渡す（既定は全員＝null）
+    const rowAudience = { value: null };
+    const audienceBtn = buildAudienceButton({
+      getLabel: () => labelInput.value.trim() || 'このパラメータ',
+      getAudience: () => rowAudience.value,
+      setAudience: (audience) => { rowAudience.value = audience; },
+      participants,
+      myParticipantId
+    });
+
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
@@ -764,10 +868,14 @@ export function showCharacterEditDialog({
     row.appendChild(labelInput);
     row.appendChild(valueInput);
     row.appendChild(visibility.element);
+    row.appendChild(audienceBtn);
     row.appendChild(removeBtn);
     customListEl.appendChild(row);
 
-    customRows.push({ labelInput, valueInput, visibleCheckbox: visibility.checkbox, rowEl: row });
+    customRows.push({
+      labelInput, valueInput, visibleCheckbox: visibility.checkbox,
+      getAudience: () => rowAudience.value, rowEl: row
+    });
   }
 
   const addCustomBtn = document.createElement('button');
@@ -817,12 +925,19 @@ export function showCharacterEditDialog({
 
     const parameterValues = {};
     const visibilityUpdates = {};
-    existingRows.forEach(({ paramId, valueInput, editable, isCustom, visibleCheckbox: paramVisibleCheckbox }) => {
+    const audienceUpdates = {};
+    existingRows.forEach(({
+      paramId, valueInput, editable, isCustom,
+      visibleCheckbox: paramVisibleCheckbox, hasAudienceControl, getAudience
+    }) => {
       if (editable) {
         parameterValues[paramId] = isCustom ? parseCustomParameterValue(valueInput.value) : (Number(valueInput.value) || 0);
       }
       if (paramVisibleCheckbox) {
         visibilityUpdates[paramId] = paramVisibleCheckbox.checked;
+      }
+      if (hasAudienceControl) {
+        audienceUpdates[paramId] = getAudience();
       }
     });
     Object.assign(parameterValues, pluginPanel.getValues());
@@ -832,7 +947,8 @@ export function showCharacterEditDialog({
         key: row.labelInput.value.trim(),
         label: row.labelInput.value.trim(),
         value: parseCustomParameterValue(row.valueInput.value),
-        visible: row.visibleCheckbox.checked
+        visible: row.visibleCheckbox.checked,
+        audience: row.getAudience()
       }))
       .filter(p => p.key !== '');
 
@@ -846,6 +962,7 @@ export function showCharacterEditDialog({
       visible: visibleCheckbox.getVisible(),
       parameterValues,
       visibilityUpdates,
+      audienceUpdates,
       removedParamIds: Array.from(removedParamIds),
       newCustomParameters
     });

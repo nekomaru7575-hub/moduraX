@@ -474,6 +474,24 @@
   accent-color: #2ecc71;
 }
 
+/* パラメータ1件の公開先ボタン（🔓＝全員／🔒＝限定）。値入力の伸縮に巻き込まれないよう
+   幅は中身なりに固定する */
+.dialog-audience-btn {
+  flex: 0 0 auto;
+  background-color: #444;
+  color: #ddd;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.dialog-audience-btn.restricted {
+  border-color: #c9a227;
+}
+
 .dialog-remove-row {
   background-color: #444;
   color: #ddd;

@@ -192,9 +192,11 @@ function normalizeAudience(audience) {
 
 // ユーザー定義パラメータ（source:'user'）1件の定義を作る。コマのパラメータとルーム変数で共通。
 // visibleは「一覧に表示するか」の指定があるコマのパラメータ側だけが持つ（ルーム変数は常に表示）。
-function buildUserParam({ key, label, value, visible }) {
+function buildUserParam({ key, label, value, visible, audience }) {
   const param = { key, label, value, source: 'user', locked: false, editable: true };
   if (visible !== undefined) param.visible = visible;
+  // 公開先（null＝全員に見せる）。ルーム変数は常に全員のものなので指定があるときだけ持たせる。
+  if (audience !== undefined) param.audience = normalizeAudience(audience);
   return Object.freeze(param);
 }
 
@@ -269,7 +271,10 @@ const PANEL_FIELD_PATCHES = {
   MOVE_PANEL: ({ x, y }) => ({ x, y }),
   SET_PANEL_SIZE: ({ cols, rows }) => ({ cols: Math.max(1, Math.round(cols)), rows: Math.max(1, Math.round(rows)) }),
   SET_PANEL_IMAGE: ({ image }) => ({ image: image || null }),
-  SET_PANEL_TEXT: ({ text }) => ({ text: text || '' })
+  SET_PANEL_TEXT: ({ text }) => ({ text: text || '' }),
+  // パネルのテキストを誰に見せるか（null＝全員。js/visibility.js参照）。画像は対象外で、
+  // 「絵は見えるがメモはGMだけが読める」という使い方を想定している。
+  SET_PANEL_TEXT_AUDIENCE: ({ textAudience }) => ({ textAudience: normalizeAudience(textAudience) })
 };
 
 export class ImmutableStore {
@@ -375,7 +380,7 @@ export class ImmutableStore {
       case 'ADD_CHARACTER': {
         const {
           id, name, x = 20, y = 20, color = DEFAULT_TOKEN_COLOR, image = null, size = 1,
-          imageCrop = null, parameterOverrides = {}, parameterVisibility = {},
+          imageCrop = null, parameterOverrides = {}, parameterVisibility = {}, parameterAudience = {},
           customParameters = [], textColor = null, visible = true
         } = payload;
         if (!id || !name) return;
@@ -400,8 +405,15 @@ export class ImmutableStore {
           }
         });
 
-        customParameters.forEach(({ key, label, value, visible: paramVisible = true }) => {
-          parameters[`user:${key}`] = buildUserParam({ key, label, value, visible: paramVisible });
+        // 同じく、値とは別に「誰に見せるか」も作成時に指定できる（HP等）
+        Object.entries(parameterAudience).forEach(([paramId, audience]) => {
+          if (parameters[paramId]) {
+            parameters[paramId] = Object.freeze({ ...parameters[paramId], audience: normalizeAudience(audience) });
+          }
+        });
+
+        customParameters.forEach(({ key, label, value, visible: paramVisible = true, audience: paramAudience = null }) => {
+          parameters[`user:${key}`] = buildUserParam({ key, label, value, visible: paramVisible, audience: paramAudience });
         });
 
         // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
@@ -561,6 +573,22 @@ export class ImmutableStore {
         return;
       }
 
+      // パラメータ1件の公開先（誰に見せるか）だけを変える。値は変えないので自動計算は
+      // 通さず、SET_PARAMETER_VISIBILITYと同じ扱いにする。
+      case 'SET_PARAMETER_AUDIENCE': {
+        const { characterId, paramId, audience } = payload;
+        const character = nextTokensState[characterId];
+        if (!character) return;
+
+        const nextParams = withParamFields(character.parameters, paramId, { audience: normalizeAudience(audience) });
+        if (!nextParams) return;
+
+        patchCharacter(nextTokensState, characterId, { parameters: nextParams });
+
+        this.#commit(prevState, { tokens: nextTokensState });
+        return;
+      }
+
       case 'REMOVE_PARAMETER': {
         const { characterId, paramId } = payload;
         const character = nextTokensState[characterId];
@@ -579,11 +607,11 @@ export class ImmutableStore {
       }
 
       case 'ADD_PARAMETER': {
-        const { characterId, key, label, value, visible = true } = payload;
+        const { characterId, key, label, value, visible = true, audience = null } = payload;
         const character = nextTokensState[characterId];
         if (!key || !character) return;
 
-        const nextParams = withNewUserParam(character.parameters, { key, label, value, visible });
+        const nextParams = withNewUserParam(character.parameters, { key, label, value, visible, audience });
         if (!nextParams) return;
 
         // 自動計算の適用
@@ -1106,7 +1134,10 @@ export class ImmutableStore {
       // 位置(x,y)は盤面ローカルのピクセル座標（グリッド吸着済み、盤面外は負値もあり得る）、
       // 大きさ(cols,rows)はマス数。隣接判定などの配置妥当性チェックはUI層(board-data-driven.js)が行う。
       case 'ADD_PANEL': {
-        const { id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false } = payload;
+        const {
+          id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,
+          textAudience = null
+        } = payload;
         if (!id) return;
         if (prevState.panels[id]) return;
 
@@ -1114,7 +1145,9 @@ export class ImmutableStore {
           id, image: image || null, text: text || '', x, y,
           cols: Math.max(1, Math.round(cols)),
           rows: Math.max(1, Math.round(rows)),
-          locked: !!locked // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
+          locked: !!locked, // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
+          // テキスト（マウスオーバーで出るメモ）の公開先。null＝全員に見せる
+          textAudience: normalizeAudience(textAudience)
         });
 
         this.#commit(prevState, { panels: withMapEntry(prevState.panels, id, panel) });

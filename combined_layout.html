@@ -921,6 +921,10 @@
   <dialog id="roomSettingsDialog" class="character-dialog">
     <form method="dialog">
       <h3>ルーム設定</h3>
+      <!-- GM以外には一部の項目を押せない状態で出す（js/main.jsのapplyGmOnlyControls） -->
+      <p id="roomSettingsGmNote" class="audio-note" hidden>
+        システム・プラグインの変更、セッションデータの読み込み、部屋の削除はGMだけが行えます。
+      </p>
       <div class="dialog-form-group">
         <label for="roomNameInput">部屋名</label>
         <input type="text" id="roomNameInput">

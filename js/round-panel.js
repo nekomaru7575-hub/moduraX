@@ -3,8 +3,9 @@
 // 邪魔にならないよう非表示にする。開始のきっかけ（ラウンド進行を開始）はルームメニュー
 // （js/main.jsのroomMenuBtn）側から呼ばれるstartRoundProgression()が担う。
 // net-sync.jsと同様にinitRoundPanel()をexportし、main.jsの初期化処理から1回だけ呼ぶ。
-// STATE_CHANGEDを自前で購読し、state.round/state.tokensの参照が変わったときだけ再描画する
-// （lastRenderedChatTabsRefと同じ差分チェックパターン）。
+// STATE_CHANGEDを自前で購読し、state.round/state.tokens/state.participantsの参照が
+// 変わったときだけ再描画する（lastRenderedChatTabsRefと同じ差分チェックパターン）。
+// participantsも見るのは、GMの付け外しで進行ボタンの可否が変わるため。
 // 点呼(confirmation)はソフトな可視化のみで、進行操作自体はブロックしない。
 
 import { store } from './board-data-driven.js';
@@ -12,9 +13,11 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
+import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
 let lastRenderedRoundRef = null;
 let lastRenderedTokensRef = null;
+let lastRenderedParticipantsRef = null;
 let detailExpanded = false;
 
 function getTokenName(state, tokenId) {
@@ -42,6 +45,9 @@ function listBoardTokens(state) {
 // 現在盤面にいる（バックヤードに入っていない）visible!==falseのコマをそのまま参加者にする。
 // 手動で参加者を絞りたい場合は開始後、パネルの「⋮」→「参加者を編集」で調整できる。
 export function startRoundProgression() {
+  // 呼び出し側（ルームメニュー）でも押せないようにしているが、表示が古い場合の保険
+  if (!canOperateAsGm()) return;
+
   const participantIds = Object.values(store.state.tokens)
     .filter(t => !t.inBackyard && t.visible !== false)
     .map(t => t.id);
@@ -106,11 +112,20 @@ export function initRoundPanel() {
       readyToggleBtn.style.display = showConfirmation ? '' : 'none';
     }
 
-    // --- 主操作ボタン（ソフトゲート：点呼の状態に関わらず常に押せる） ---
+    // --- 主操作ボタン（点呼に対してはソフトゲート：割り込み確認の状態では止めない。
+    // ただし進行そのものはGM限定にする。誰がGMかはjs/room-authority.js参照） ---
     const isLastParticipant = round.turnIndex >= round.participants.length - 1;
     const isLastStepOfPhase = phase?.kind !== 'perCharacter' || isLastParticipant;
     const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
     actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ' : '次へ進む';
+
+    // 「割り込みなし」の宣言はPL各自の意思表示なので、ここでは止めない（全員が押せる）。
+    const canOperate = canOperateAsGm();
+    [actionBtn, menuBtn].forEach(btn => {
+      if (!btn) return;
+      btn.disabled = !canOperate;
+      btn.title = canOperate ? (btn === menuBtn ? '参加者編集・終了' : '') : GM_ONLY_REASON;
+    });
 
     // --- 詳細（手番順）リスト ---
     if (detailEl) {
@@ -147,6 +162,7 @@ export function initRoundPanel() {
   });
 
   actionBtn.addEventListener('click', () => {
+    if (!canOperateAsGm()) return;
     store.dispatch('ROUND_ADVANCE_PHASE', {});
   });
 
@@ -162,6 +178,7 @@ export function initRoundPanel() {
 
   if (menuBtn) {
     menuBtn.addEventListener('click', () => {
+      if (!canOperateAsGm()) return;
       const rect = menuBtn.getBoundingClientRect();
 
       showContextMenu(rect.left, rect.bottom + 4, [
@@ -173,6 +190,7 @@ export function initRoundPanel() {
               tokens: listBoardTokens(store.state),
               currentParticipantIds: store.state.round.participants,
               onConfirm: ({ participantIds }) => {
+                if (!canOperateAsGm()) return;
                 store.dispatch('ROUND_SET_PARTICIPANTS', { participantIds });
               }
             });
@@ -189,9 +207,21 @@ export function initRoundPanel() {
 
   render(store.state);
   EventBus.subscribe('STATE_CHANGED', (state) => {
-    if (state.round === lastRenderedRoundRef && state.tokens === lastRenderedTokensRef) return;
+    if (state.round === lastRenderedRoundRef
+      && state.tokens === lastRenderedTokensRef
+      && state.participants === lastRenderedParticipantsRef) return;
     lastRenderedRoundRef = state.round;
     lastRenderedTokensRef = state.tokens;
+    lastRenderedParticipantsRef = state.participants;
     render(state);
+  });
+
+  // 名乗る人が変わると「進行を操作できるか」が変わる。状態自体は変わらず、上の差分
+  // チェックにも引っかからないため、参照キャッシュを捨てて描き直す。
+  EventBus.subscribe('IDENTITY_CHANGED', () => {
+    lastRenderedRoundRef = null;
+    lastRenderedTokensRef = null;
+    lastRenderedParticipantsRef = null;
+    render(store.state);
   });
 }

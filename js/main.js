@@ -30,6 +30,7 @@ import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
+import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -244,6 +245,31 @@ const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
 const deleteRoomBtn = document.getElementById('deleteRoomBtn');
 
+// --- GM限定の操作（js/room-authority.js参照） ---
+// 部屋そのものを左右する操作は、GMが決まっている部屋ではGMだけができるようにする。
+// 項目を消してしまうと「なぜ出ないのか」が分からないので、押せない状態で残して理由を
+// ツールチップで示す（コマの操作制限・context-menu.jsのdisabledと同じ考え方）。
+
+// ルーム設定ダイアログ内の注記。無効化されている理由をツールチップだけに頼らず出す。
+const gmOnlyNote = document.getElementById('roomSettingsGmNote');
+
+function applyGmOnlyControls() {
+  const allowed = canOperateAsGm();
+
+  [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn].forEach(el => {
+    if (!el) return;
+    el.disabled = !allowed;
+    el.title = allowed ? '' : GM_ONLY_REASON;
+  });
+
+  if (gmOnlyNote) gmOnlyNote.hidden = allowed;
+}
+
+// 誰がGMかは同期される状態（STATE_CHANGED）で変わり、自分が誰かは名乗り直し
+// （IDENTITY_CHANGED。状態自体は変わらないのでSTATE_CHANGEDでは拾えない）で変わる。
+EventBus.subscribe('STATE_CHANGED', applyGmOnlyControls);
+EventBus.subscribe('IDENTITY_CHANGED', applyGmOnlyControls);
+
 // キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
 const characterPanelArea = document.getElementById('characterPanelArea');
 const characterPanelCollapseBtn = document.getElementById('characterPanelCollapseBtn');
@@ -317,6 +343,8 @@ function openAudioDialog() {
   showAudioDialog({
     tracks: store.state.room.audioTracks || {},
     playback: store.state.room.audioPlayback || { bgm: null, se: null },
+    // 音源の追加（アップロード・URL）だけGM限定。再生・停止・削除・音量は全員が触れる。
+    canAddTrack: canOperateAsGm(),
     onAdd: ({ name, url, source, key, channel, loop, phrase }) => {
       store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, url, source, key, channel, loop, phrase });
       openAudioDialog();
@@ -427,9 +455,12 @@ if (roomMenuBtn && roomSettingsDialog) {
     // ラウンド進行の常時パネルは邪魔にならないよう進行中(round.active)にだけ表示するため、
     // 開始のきっかけはこのルームメニューに置く（進行中はパネル自身の⋮メニューから終了する）。
     if (!store.state.round.active) {
+      const allowed = canOperateAsGm();
       items.push({
         label: 'ラウンド進行を開始',
-        onSelect: startRoundProgression
+        onSelect: startRoundProgression,
+        disabled: !allowed,
+        title: allowed ? undefined : GM_ONLY_REASON
       });
     }
 
@@ -499,6 +530,7 @@ if (exportStateBtn) {
 
 if (importStateBtn && importStateInput) {
   importStateBtn.addEventListener('click', () => {
+    if (!canOperateAsGm()) return;
     importStateInput.click();
   });
 
@@ -506,6 +538,8 @@ if (importStateBtn && importStateInput) {
     const file = importStateInput.files?.[0];
     importStateInput.value = ""; // 同じファイルを連続で選び直せるようにリセット
     if (!file) return;
+    // 読み込みは接続中の全員の状態を上書きするため、ここでも権限を確かめ直す
+    if (!canOperateAsGm()) return;
 
     let state;
     try {
@@ -528,6 +562,7 @@ if (importStateBtn && importStateInput) {
 // サーバー側が全員の退室を確認してから行う（net-sync.jsのrequestRoomDeletion参照）。
 if (deleteRoomBtn) {
   deleteRoomBtn.addEventListener('click', () => {
+    if (!canOperateAsGm()) return;
     roomSettingsDialog?.close();
     showRoomDeleteConfirmDialog({
       onDelete: () => requestRoomDeletion(),
@@ -1138,6 +1173,11 @@ if (roomPluginSelect) {
   });
 
   roomPluginSelect.addEventListener('change', () => {
+    // 表示が古い状態で操作された場合の保険（無効化はapplyGmOnlyControls側で行っている）
+    if (!canOperateAsGm()) {
+      roomPluginSelect.value = store.state.room.activePlugin || '';
+      return;
+    }
     store.dispatch('SET_ACTIVE_PLUGIN', { pluginId: roomPluginSelect.value || null });
   });
 }
@@ -1155,6 +1195,11 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 // ルーム単位・全員共通の設定にする（各クライアントがローカルに持つ値ではない）。
 if (gameSystemSelect) {
   gameSystemSelect.addEventListener('change', () => {
+    // 表示が古い状態で操作された場合の保険（無効化はapplyGmOnlyControls側で行っている）
+    if (!canOperateAsGm()) {
+      syncGameSystemSelect(store.state);
+      return;
+    }
     store.dispatch('SET_BCDICE_SYSTEM', { system: gameSystemSelect.value });
   });
 }

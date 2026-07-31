@@ -11,6 +11,9 @@ import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 const DEFAULT_MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 // 再生フレーズ：発言の末尾がこの文字列と一致したときに鳴らす（js/audio-phrase.js）。
+// 音源の追加（アップロード・URL）を止めている理由。ボタンのツールチップと注記に使う。
+const ADD_TRACK_GM_ONLY_NOTE = '音源の追加はGMだけが行えます（再生・停止は全員できます）。';
+
 const PHRASE_PLACEHOLDER = '再生フレーズ（任意）';
 const PHRASE_HINT = '発言の末尾がこのフレーズと一致すると再生されます（空欄なら鳴りません）';
 
@@ -155,6 +158,8 @@ function buildAddRow(defaultName, onSubmit) {
  * @param {{
  *   tracks: Record<string, {id:string, name:string, url:string, channel:string, loop:boolean, phrase?:string|null}>,
  *   playback: Record<string, {trackId:string, playId:string}|null>,
+ *   canAddTrack?: boolean 音源を追加してよいか（GM限定。既定は可）。
+ *     falseなら追加ボタンを押せない状態にして理由を示す。再生・停止・削除は制限しない。
  *   onAdd: (result: {name:string, url:string, source:string, key:string|null, channel:string, loop:boolean, phrase:string}) => void,
  *   onPlay: (track: object) => void,
  *   onStop: (channel: string) => void,
@@ -163,7 +168,9 @@ function buildAddRow(defaultName, onSubmit) {
  *     フレーズの変更だけはダイアログを開き直さない（入力の流れを切らないため）。
  * }} options
  */
-export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRemove, onPhraseChange }) {
+export function showAudioDialog({
+  tracks, playback, canAddTrack = true, onAdd, onPlay, onStop, onRemove, onPhraseChange
+}) {
   const dialog = ensureDialog();
   // 操作のたびに開き直す使い方をするため、開いたままのshowModalで例外にならないようにする
   if (dialog.open) dialog.close();
@@ -332,8 +339,9 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
   container.appendChild(addBtn);
 
   // R2が未設定のサーバーではアップロードできないので、押す前に分かるようにしておく
-  // （URLでの追加は設定に関係なく使える）。
-  fetchUploadCapability(({ uploadEnabled }) => {
+  // （URLでの追加は設定に関係なく使える）。GM以外には既に別の理由で止めているので、
+  // そちらの表示を上書きしないよう問い合わせ自体を行わない。
+  if (canAddTrack) fetchUploadCapability(({ uploadEnabled }) => {
     if (uploadEnabled) return;
     addBtn.disabled = true;
     addBtn.textContent = '音楽ファイルのアップロードは利用できません';
@@ -368,6 +376,20 @@ export function showAudioDialog({ tracks, playback, onAdd, onPlay, onStop, onRem
     }));
   });
   container.appendChild(addUrlBtn);
+
+  // 音源の追加はGM限定（誰がGMかの判定は呼び出し側。js/room-authority.js参照）。
+  // ボタンを消すと「なぜ出ないのか」が分からないので、押せない状態で残して理由を示す。
+  if (!canAddTrack) {
+    [addBtn, addUrlBtn].forEach(btn => {
+      btn.disabled = true;
+      btn.title = ADD_TRACK_GM_ONLY_NOTE;
+    });
+
+    const gmNote = document.createElement('p');
+    gmNote.className = 'audio-note';
+    gmNote.textContent = ADD_TRACK_GM_ONLY_NOTE;
+    container.appendChild(gmNote);
+  }
 
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';

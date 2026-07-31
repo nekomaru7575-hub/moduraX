@@ -13,6 +13,7 @@
 
 import { store } from './game-store.js';
 import { getCurrentParticipantId } from './local-identity.js';
+import { isDeveloperIdentity } from './net-sync.js';
 import { isGm } from './visibility.js';
 
 // 無効化した項目のtitleに入れる共通の理由。文言を1か所に置いて表記を揃える。
@@ -30,6 +31,10 @@ function hasAnyGm(participants) {
  * （所有者のいないコマは誰でも触れる、というjs/board-data-driven.jsの規則と揃えている）。
  */
 export function canOperateAsGm() {
+  // 開発用の合言葉で名乗れている場合はGMと同じ扱い（サーバー側だけが判定できるので、
+  // 名乗りの返事で受け取った結果を見る。server/index.jsのisDeveloperToken参照）
+  if (isDeveloperIdentity()) return true;
+
   const participants = store.state.participants || {};
   if (!hasAnyGm(participants)) return true;
   return isGm(participants, getCurrentParticipantId());

@@ -11,6 +11,8 @@
 // 起動: npm start　（ポートは環境変数PORTで上書き可、既定8081）
 // 部屋数上限は環境変数MAX_ROOMSで上書き可、既定5。
 // 環境変数 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN が必須（Upstashのダッシュボードで発行）。
+// 任意の環境変数 DEVELOPER_PASSPHRASE を設定すると、その合言葉で名乗った人がどの部屋でも
+// GMと同じ操作をできる（開発・後始末用。詳細はisDeveloperTokenの説明を参照）。
 
 import 'dotenv/config';
 import http from 'node:http';
@@ -111,6 +113,30 @@ function equalsSecret(a, b) {
 function verifyIdentity(participantId, authToken) {
   if (!PARTICIPANT_ID_PATTERN.test(participantId) || !AUTH_TOKEN_PATTERN.test(authToken)) return false;
   return equalsSecret(deriveParticipantId(authToken), participantId);
+}
+
+// --- 開発用の合言葉 ---
+// 環境変数DEVELOPER_PASSPHRASEに合言葉を入れておくと、その合言葉で名乗った人は
+// どの部屋でも（GMでなくても、参加者一覧に載っていなくても）GMと同じ操作ができる。
+// 動作確認や、GMがいなくなった部屋・公開先の直し忘れの後始末に使う。
+//
+// 使い方：.envに DEVELOPER_PASSPHRASE=… を書いてサーバーを起動し、あとは普通に
+// 「参加者設定」でその合言葉を入れるだけ。ブラウザ側に特別な操作は要らない。
+//
+// 【扱いの注意】これを知っている人はこのサーバーの全部屋でGMになれる。長く推測しにくい
+// 文字列にして、.env（gitignore対象）の外へ出さないこと。未設定なら機能ごと無効で、
+// 既定値は用意していない（うっかり全サーバー共通の合言葉が通ることを避けるため）。
+const DEVELOPER_PASSPHRASE = (process.env.DEVELOPER_PASSPHRASE || '').trim();
+
+// 名乗りに使われたトークンが開発用の合言葉から作られたものか。
+// ブラウザは部屋ごとに合言葉をハッシュするので（js/local-identity.js）、こちらも
+// 同じ部屋IDで同じ計算をして突き合わせる。
+function isDeveloperToken(roomId, authToken) {
+  if (!DEVELOPER_PASSPHRASE || !AUTH_TOKEN_PATTERN.test(authToken)) return false;
+  const expected = createHash('sha256')
+    .update(`mojulaX:auth:${roomId}:${DEVELOPER_PASSPHRASE}`)
+    .digest('hex');
+  return equalsSecret(expected, authToken);
 }
 
 // --- 旧方式の参加者の後始末 ---
@@ -501,8 +527,9 @@ async function handleAudioUpload(req, res) {
   const participantId = String(req.headers['x-participant-id'] || '');
   const authToken = String(req.headers['x-auth-token'] || '');
   const identified = verifyIdentity(participantId, authToken);
+  const developer = identified && isDeveloperToken(roomId, authToken);
 
-  if (!canOperateAsGm(entry.store.state, identified ? participantId : null)) {
+  if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
     sendJson(res, 403, { error: '音源の追加はGMだけが行えます' });
     return;
   }
@@ -818,8 +845,15 @@ wss.on('connection', async (ws, req) => {
   // この接続が名乗り、本人確認まで通った参加者ID。合言葉なし（ゲスト）ならnullのまま。
   // IDENTIFYメッセージを受け取るまでは誰でもないものとして扱う。
   let verifiedParticipantId = null;
+  // 開発用の合言葉での名乗りか（isDeveloperToken参照）。GMでなくてもGMと同じ操作ができる。
+  let isDeveloper = false;
 
   ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
+
+  // 部屋を左右する操作をしてよいか。開発用の合言葉はGMの有無に関わらず通す。
+  function mayOperateAsGm() {
+    return isDeveloper || canOperateAsGm(entry.store.state, verifiedParticipantId);
+  }
 
   // GM限定の操作を断ったとき、その接続の表示だけを正しい状態へ戻す。ブラウザ側は
   // 送信前に自分の画面へ先に反映しているため、断っただけでは送り手の画面がずれたまま
@@ -848,8 +882,18 @@ wss.on('connection', async (ws, req) => {
 
       if (verifyIdentity(participantId, authToken)) {
         verifiedParticipantId = participantId;
+        isDeveloper = isDeveloperToken(roomId, authToken);
+        if (isDeveloper) {
+          console.log(`[server] ${roomId}: 開発用の合言葉で名乗りました（GMと同じ操作を許可します）`);
+        }
+        // 開発用かどうかはブラウザ側の画面（押せる／押せない）にも反映させる。
+        // これを伝えないと、サーバーは通すのに画面では止まったままになる。
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'IDENTITY_ACCEPTED', developer: isDeveloper }));
+        }
       } else {
         verifiedParticipantId = null;
+        isDeveloper = false;
         console.warn(`[server] ${roomId}: 参加者の本人確認に失敗しました (${participantId.slice(0, 8)}…)`);
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'IDENTITY_REJECTED' }));
@@ -860,7 +904,7 @@ wss.on('connection', async (ws, req) => {
 
     if (message.type === 'REPLACE_STATE') {
       // 接続中の全員の状態を丸ごと置き換えるため、部屋の削除と同じくGM限定にする
-      if (!canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+      if (!mayOperateAsGm()) {
         rejectAndResync('REPLACE_STATE');
         return;
       }
@@ -871,7 +915,7 @@ wss.on('connection', async (ws, req) => {
     }
 
     if (message.type === 'DELETE_ROOM') {
-      if (!canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+      if (!mayOperateAsGm()) {
         // 送り手の画面では何も起きていないので、状態を戻す必要はない
         console.warn(`[server] ${roomId}: GM以外からの部屋削除の要求を拒否しました`);
         return;
@@ -898,8 +942,7 @@ wss.on('connection', async (ws, req) => {
       }
     }
 
-    if (GM_ONLY_ACTIONS.has(message.action)
-      && !canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+    if (GM_ONLY_ACTIONS.has(message.action) && !mayOperateAsGm()) {
       rejectAndResync(message.action);
       return;
     }

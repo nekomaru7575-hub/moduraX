@@ -15,6 +15,7 @@
 // import文は巻き上げられて先に実行されてしまうため、本体の読み込みは動的importで行う。
 
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,11 +40,30 @@ cleared.forEach(key => { delete process.env[key]; });
 // 本番と同じ既定ポート(8081)だと、どちらを開いているのか分からなくなるのでずらす
 process.env.PORT = process.env.PORT || '8082';
 
+// 開発用の合言葉（DEVELOPER_PASSPHRASE）だけは.envから拾う。上でdotenvを止めているのは
+// 本番の接続情報を読ませないためで、この値は保存先とは無関係だから安全に持ち込める。
+// これが無いと、検証時だけ開発者として名乗れず動作を確かめられない。
+if (!process.env.DEVELOPER_PASSPHRASE) {
+  try {
+    const envText = readFileSync(path.join(__dirname, '..', '.env'), 'utf-8');
+    const line = envText.split(/\r?\n/).find(l => /^\s*DEVELOPER_PASSPHRASE\s*=/.test(l));
+    if (line) {
+      const value = line.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+      if (value) process.env.DEVELOPER_PASSPHRASE = value;
+    }
+  } catch {
+    // .envが無ければ何もしない（開発用の合言葉なしで起動する）
+  }
+}
+
 console.log('[dev-local] 検証モードで起動します：本番のRedis/R2には接続しません');
 console.log('[dev-local] 部屋データの読み書きは server/rooms/room-N.json（gitignore対象）だけです');
 if (cleared.length > 0) {
   console.log(`[dev-local] 環境から落とした接続情報: ${cleared.join(', ')}`);
 }
 console.log('[dev-local] 音源のアップロードはR2未設定のため無効です（URLでの追加は使えます）');
+if (process.env.DEVELOPER_PASSPHRASE) {
+  console.log('[dev-local] 開発用の合言葉が有効です（参加者設定でその合言葉を入れるとGMと同じ操作ができます）');
+}
 
 await import('./index.js');

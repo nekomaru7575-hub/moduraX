@@ -26,6 +26,14 @@ const localDispatch = store.dispatch.bind(store);
 
 let ws = null;
 
+// 開発用の合言葉で名乗れているか。サーバーだけが判定できる値なので、名乗りの結果
+// （IDENTITY_ACCEPTED）で受け取って持っておく。接続ごとに名乗り直すため、切れたら忘れる。
+let developerIdentity = false;
+
+export function isDeveloperIdentity() {
+  return developerIdentity;
+}
+
 function connect() {
   EventBus.emit('NET_STATUS_CHANGED', 'connecting');
   ws = new WebSocket(WS_URL);
@@ -60,9 +68,21 @@ function connect() {
       return;
     }
 
-    // 名乗った合言葉が、その参加者IDに対して以前登録されたものと違った場合。
+    // 名乗りが通った。developerが立っていれば開発用の合言葉での名乗りで、GMでなくても
+    // GMと同じ操作ができる（server/index.jsのisDeveloperToken）。画面の「押せる／押せない」に
+    // 反映させるため、IDENTITY_CHANGEDで各所に描き直してもらう。
+    if (message.type === 'IDENTITY_ACCEPTED') {
+      developerIdentity = !!message.developer;
+      if (developerIdentity) console.info('[net-sync] 開発用の合言葉で名乗りました');
+      // 購読側は誰が名乗っているかを自分で取り直すため、ここでは値を渡さない
+      EventBus.emit('IDENTITY_CHANGED');
+      return;
+    }
+
+    // 名乗った合言葉と参加者IDが対応していなかった場合。
     // 閲覧はできるが、GM限定の操作はゲスト同様に断られる。
     if (message.type === 'IDENTITY_REJECTED') {
+      developerIdentity = false;
       console.warn('[net-sync] 参加者の本人確認に通りませんでした（合言葉をご確認ください）');
       EventBus.emit('IDENTITY_REJECTED');
       return;
@@ -75,6 +95,8 @@ function connect() {
 
   ws.addEventListener('close', (event) => {
     EventBus.emit('NET_STATUS_CHANGED', 'disconnected');
+    // 名乗りは接続ごと。切れた時点で開発用の権限も一旦落とす（再接続時に名乗り直す）
+    developerIdentity = false;
 
     // 部屋が削除された場合は、途中まで参加していたかに関わらず再接続を試みても
     // 無駄なので部屋一覧へ案内する。
@@ -120,6 +142,8 @@ export function initNetSync() {
 // 接続が切れると忘れられるので、再接続のたびに送り直す必要がある
 // （js/main.jsがNET_INITIALIZEDのたびに名乗り直すため、その経路で送られる）。
 export function sendIdentify(participantId, authToken) {
+  // 名乗り直しの結果が返るまでは、前の名乗りで得た権限を持ち越さない
+  developerIdentity = false;
   if (!participantId || !authToken) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'IDENTIFY', participantId, authToken }));

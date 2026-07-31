@@ -3,6 +3,7 @@
 // 音量調整を行う。実際の再生はjs/audio-player.jsが状態の変化を見て行う。
 
 import { pickFile } from './file-uploader.js';
+import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
 import { getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy } from './audio-player.js';
 import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 
@@ -77,10 +78,22 @@ function fetchUploadCapability(onResolved) {
 
 // 選んだファイルをサーバー経由でR2へ上げ、再生用の公開URLを受け取る。
 // ブラウザからR2を直接叩かないので、R2側のCORS設定は不要。
+//
+// サーバーはアップロードをGM限定にしているため、WebSocketでの名乗りと同じ2つの値を
+// ヘッダに載せる（server/index.jsのhandleAudioUpload）。合言葉由来のトークンなので、
+// ログに残りうるクエリ文字列ではなくヘッダで送る。
 async function uploadAudioFile(file) {
+  const headers = { 'Content-Type': file.type || 'audio/mpeg' };
+  const participantId = getCurrentParticipantId();
+  const authToken = getCurrentAuthToken();
+  if (participantId && authToken) {
+    headers['X-Participant-Id'] = participantId;
+    headers['X-Auth-Token'] = authToken;
+  }
+
   const response = await fetch(`/api/audio?room=${encodeURIComponent(currentRoomId())}`, {
     method: 'POST',
-    headers: { 'Content-Type': file.type || 'audio/mpeg' },
+    headers,
     body: file
   });
 

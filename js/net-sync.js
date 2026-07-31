@@ -52,6 +52,22 @@ function connect() {
       return;
     }
 
+    // GM限定の操作をサーバーに断られたときの差し戻し。送信前に自分の画面へ先に反映して
+    // いるため、これを受けて正しい状態へ戻す。INITと違い、名乗り直し等の初期化
+    // （NET_INITIALIZED）は起こさない。
+    if (message.type === 'RESYNC') {
+      store.hydrate(message.state);
+      return;
+    }
+
+    // 名乗った合言葉が、その参加者IDに対して以前登録されたものと違った場合。
+    // 閲覧はできるが、GM限定の操作はゲスト同様に断られる。
+    if (message.type === 'IDENTITY_REJECTED') {
+      console.warn('[net-sync] 参加者の本人確認に通りませんでした（合言葉をご確認ください）');
+      EventBus.emit('IDENTITY_REJECTED');
+      return;
+    }
+
     if (message.type === 'ACTION') {
       localDispatch(message.action, message.payload);
     }
@@ -96,6 +112,18 @@ export function initNetSync() {
   };
 
   connect();
+}
+
+// この接続での名乗りをサーバーへ伝える。合言葉から導出した公開ID（participantId）と、
+// 状態には決して載せない本人確認用の値（authToken）を送る。サーバーはこの2つを突き合わせて
+// 「そのIDを名乗ってよいか」を判断し、GM限定の操作の可否に使う（server/index.jsのverifyIdentity）。
+// 接続が切れると忘れられるので、再接続のたびに送り直す必要がある
+// （js/main.jsがNET_INITIALIZEDのたびに名乗り直すため、その経路で送られる）。
+export function sendIdentify(participantId, authToken) {
+  if (!participantId || !authToken) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'IDENTIFY', participantId, authToken }));
+  }
 }
 
 // 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させた上で

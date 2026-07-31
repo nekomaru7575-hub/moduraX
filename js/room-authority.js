@@ -7,10 +7,9 @@
 //   getCurrentParticipantId()   … 今この画面で名乗っている自分（js/local-identity.js）
 // js/visibility.jsは状態を直接見ない純粋関数の置き場なので、storeを見るこちらは別モジュールにする。
 //
-// 【重要】ここで行うのは画面側の歯止めだけで、サーバーは今のところ本人確認をしていない。
-// WSやHTTPを直接叩けば同じ操作は通ってしまうため、これは「うっかり触らない」ための仕組みで
-// あって、触ろうとする相手を止めるものではない。止めるには接続時にauthToken
-// （js/local-identity.js参照）を検証してサーバー側で弾く作りが要る。
+// ここで行うのは画面側の見せ方（押せる／押せない）だけで、実際の可否はサーバーも同じ規則で
+// 判定して弾く（server/index.jsのcanOperateAsGm・GM_ONLY_ACTIONS）。両者の規則がずれると
+// 「画面では押せるのにサーバーに断られる」ことになるため、変えるときは必ず両方を揃えること。
 
 import { store } from './game-store.js';
 import { getCurrentParticipantId } from './local-identity.js';

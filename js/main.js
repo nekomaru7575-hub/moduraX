@@ -12,7 +12,7 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
-import { initNetSync, replaceState, requestRoomDeletion } from './net-sync.js';
+import { initNetSync, replaceState, requestRoomDeletion, sendIdentify } from './net-sync.js';
 import {
   getNickname, setNickname, getStoredPassphrase, setStoredPassphrase,
   activateRoomIdentity, getCurrentParticipantId
@@ -390,6 +390,10 @@ async function activateAndRegisterIdentity(passphrase, nickname) {
   EventBus.emit('IDENTITY_CHANGED', identity?.participantId ?? null);
 
   if (!identity) return; // 合言葉なし＝ゲスト参加。参加者一覧には載せない
+
+  // 参加者としての登録より先に名乗る。サーバーは本人確認が通ったID本人からの
+  // REGISTER_PARTICIPANTしか受け付けない（server/index.js参照）。
+  sendIdentify(identity.participantId, identity.authToken);
   store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: nickname ?? getNickname() });
 }
 

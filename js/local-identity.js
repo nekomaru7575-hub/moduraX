@@ -45,10 +45,19 @@ export function setNickname(name) {
 // 決定的に導出するので、別の端末・ブラウザからでも同じ合言葉なら同じ参加者になる。
 //
 // 導出するのは2つ：
+//   authToken     … 状態には決して載せない本人確認用の値。合言葉を知っている人だけが作れる
 //   participantId … 状態に載る公開ID。秘匿データの宛先指定（audience）に使う
-//   authToken     … 状態には決して載せない本人確認用の値。将来サーバー側で
-//                   「この公開IDを名乗ってよいか」を検証するために使う（現状は未使用）
-// 用途ごとに別の文字列を混ぜてハッシュするので、公開IDからauthTokenは逆算できない。
+//
+// 【この順序が肝】participantIdはauthTokenをハッシュして作る。こうすると、合言葉を知らない
+// サーバーでも「authTokenをハッシュしたらこのparticipantIdになるか」を計算するだけで、
+// 名乗りが本物かを確かめられる（server/index.jsのverifyIdentity）。逆向き——公開IDから
+// authTokenを求める——はハッシュの一方向性により計算できないので、状態を読める人が
+// 他人になりすますことはできない。
+//
+// 以前は2つを合言葉から別々に導出していた。その形だとサーバーは両者の対応を検算できず、
+// 「初めて見た組み合わせを信じる」より他になかったため、公開IDが状態から読める以上、
+// 本人が入り直すより先に他人のIDを別のトークンで登録して乗っ取れてしまっていた。
+//
 // 合言葉そのものはこのブラウザのlocalStorageから出ない。
 const PASSPHRASE_KEY_PREFIX = 'mojulaX:roomPassphrase:';
 
@@ -79,6 +88,15 @@ async function sha256Hex(text) {
     .join('');
 }
 
+// 公開IDをauthTokenから導出する規則。サーバーも同じ計算で名乗りを検算するため、
+// 変えるときは必ずserver/index.jsのderiveParticipantIdも揃えること。
+// 公開IDは状態の中に何度も現れるので、短くしても衝突が問題にならない長さに切り詰める。
+export const PARTICIPANT_ID_LENGTH = 32;
+
+export async function deriveParticipantId(authToken) {
+  return (await sha256Hex(`mojulaX:pid:${authToken}`)).slice(0, PARTICIPANT_ID_LENGTH);
+}
+
 /**
  * 合言葉から、その部屋での参加者IDと本人確認用トークンを導出する。
  * @param {string} roomId 部屋ID（部屋が違えば同じ合言葉でも別IDになる）
@@ -89,13 +107,10 @@ export async function deriveRoomIdentity(roomId, passphrase) {
   const trimmed = (passphrase || '').trim();
   if (!trimmed || !isPassphraseIdentityAvailable()) return null;
 
-  const [participantId, authToken] = await Promise.all([
-    sha256Hex(`mojulaX:id:${roomId}:${trimmed}`),
-    sha256Hex(`mojulaX:auth:${roomId}:${trimmed}`)
-  ]);
+  const authToken = await sha256Hex(`mojulaX:auth:${roomId}:${trimmed}`);
+  const participantId = await deriveParticipantId(authToken);
 
-  // 公開IDは状態の中に何度も現れるので、短くしても衝突が問題にならない長さに切り詰める
-  return { participantId: participantId.slice(0, 32), authToken };
+  return { participantId, authToken };
 }
 
 // 今この画面で名乗っている参加者。秘匿データの表示判定など、あちこちから参照するため
@@ -115,8 +130,8 @@ export function getCurrentParticipantId() {
   return currentIdentity?.participantId ?? null;
 }
 
-// 将来サーバー側で「この公開IDを名乗ってよいか」を検証する際に、WSの接続時にだけ送る値。
-// 状態や画面には絶対に出さないこと。
+// サーバーが「この公開IDを名乗ってよいか」を検証するための値。WSの接続時（IDENTIFY）と
+// 音源アップロードのヘッダにだけ送る。状態や画面には絶対に出さないこと。
 export function getCurrentAuthToken() {
   return currentIdentity?.authToken ?? null;
 }

@@ -19,7 +19,7 @@ import { readFile, writeFile, mkdir, access, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Redis } from '@upstash/redis';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
 import { isR2Configured, putAudioObject, deleteAudioObject, publicUrlFor } from './r2.js';
 
@@ -77,6 +77,124 @@ async function deleteRoomState(roomId) {
   }
   await unlink(roomFilePath(roomId)).catch(() => {});
 }
+
+// --- 参加者の本人確認 ---
+// ブラウザは合言葉から2つの値を導出する（js/local-identity.js参照）。
+//   authToken     … 状態には決して載らない、合言葉を知っている人だけが作れる値
+//   participantId … 状態に載る公開ID。authTokenをハッシュしたもの
+// サーバーは合言葉を知らないが、participantIdがauthTokenから作られているので、
+// 同じ計算をして一致するかを見るだけで名乗りが本物かを確かめられる。覚えておくものは
+// 何も無く（対応表も初回登録も不要）、状態から公開IDを読めても、そこからauthTokenは
+// 逆算できないため他人になりすませない。
+const PARTICIPANT_ID_PATTERN = /^[0-9a-f]{32}$/;
+const AUTH_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+const PARTICIPANT_ID_LENGTH = 32;
+
+// js/local-identity.jsのderiveParticipantIdと同じ規則。片方だけ変えると全員の名乗りが
+// 通らなくなるので、変えるときは必ず両方を揃えること。
+function deriveParticipantId(authToken) {
+  return createHash('sha256').update(`mojulaX:pid:${authToken}`).digest('hex').slice(0, PARTICIPANT_ID_LENGTH);
+}
+
+// 突き合わせは長さが同じ16進文字列同士なので、比較時間から中身が漏れないようにする
+function equalsSecret(a, b) {
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * そのparticipantIdを名乗ってよいか（authTokenと対応しているか）を判定する。
+ * @returns {boolean} 名乗ってよければtrue
+ */
+function verifyIdentity(participantId, authToken) {
+  if (!PARTICIPANT_ID_PATTERN.test(participantId) || !AUTH_TOKEN_PATTERN.test(authToken)) return false;
+  return equalsSecret(deriveParticipantId(authToken), participantId);
+}
+
+// --- 旧方式の参加者の後始末 ---
+// 以前はparticipantIdとauthTokenを合言葉から別々に導出しており、両者の対応をサーバーが
+// 検算できなかった。そのため旧方式で登録された参加者IDは「本人が名乗った」ことを確かめる
+// 手立てが無く、GMのまま残すと誰でもそのIDを騙ってGM権限を得られてしまう。
+// 部屋ごとに一度だけ、旧方式の参加者からGMの印を外す（名前と持ち主表示は残す）。
+// GMが1人もいない部屋では最初に名乗った人がGMになる規則（game-store.jsの
+// REGISTER_PARTICIPANT）が働くので、新方式で名乗り直した人がGMを引き継げる。
+const CURRENT_AUTH_VERSION = 2;
+
+function authMetaKey(roomId) {
+  return `roomAuth:${roomId}`;
+}
+
+function authMetaFilePath(roomId) {
+  return path.join(ROOMS_DIR, `${roomId}.auth.json`);
+}
+
+async function readAuthMeta(roomId) {
+  if (USE_REDIS) return (await redis.get(authMetaKey(roomId))) || {};
+
+  try {
+    return JSON.parse(await readFile(authMetaFilePath(roomId), 'utf-8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return {};
+  }
+}
+
+async function writeAuthMeta(roomId, meta) {
+  if (USE_REDIS) {
+    await redis.set(authMetaKey(roomId), meta);
+    return;
+  }
+  await mkdir(ROOMS_DIR, { recursive: true });
+  await writeFile(authMetaFilePath(roomId), JSON.stringify(meta));
+}
+
+async function deleteAuthMeta(roomId) {
+  if (USE_REDIS) {
+    await redis.del(authMetaKey(roomId));
+  }
+  await unlink(authMetaFilePath(roomId)).catch(() => {});
+}
+
+// 旧方式で付いていたGMの印を外す。既に処理済みの部屋、GMがいない部屋では何もしない。
+function clearLegacyGmFlags(roomId, store) {
+  const participants = store.state.participants || {};
+  const legacyGmIds = Object.values(participants).filter(p => p.isGm).map(p => p.id);
+  if (legacyGmIds.length === 0) return false;
+
+  legacyGmIds.forEach(id => store.dispatch('SET_PARTICIPANT_GM', { id, isGm: false }));
+  console.log(`[server] ${roomId}: 旧方式の参加者${legacyGmIds.length}人からGMの印を外しました`
+    + '（合言葉を入れて名乗り直した最初の人がGMになります）');
+  return true;
+}
+
+// 部屋そのものを左右する操作をしてよいか。判定の規則はブラウザ側のjs/room-authority.jsと
+// 同じにしてある（GMが1人も決まっていない部屋では全員可）。片方だけ変えると、画面では
+// 押せるのにサーバーに弾かれる（またはその逆）状態になるので、必ず両方を揃えること。
+function canOperateAsGm(state, participantId) {
+  const participants = state.participants || {};
+  const hasGm = Object.values(participants).some(p => p.isGm);
+  if (!hasGm) return true;
+  return !!(participantId && participants[participantId]?.isGm);
+}
+
+// GMだけが行えるアクション。js/main.js・js/round-panel.js・js/audio-dialog.jsで
+// 画面上も止めているが、こちらは直接WebSocketを叩かれた場合の歯止め。
+// ROUND_SET_READY（割り込みなしの宣言）はPL各自の意思表示なので含めない。
+const GM_ONLY_ACTIONS = new Set([
+  'SET_BCDICE_SYSTEM',
+  'SET_ACTIVE_PLUGIN',
+  'ADD_AUDIO_TRACK',
+  'ROUND_PROGRESSION_START',
+  'ROUND_ADVANCE_PHASE',
+  'ROUND_SET_PARTICIPANTS',
+  'ROUND_PROGRESSION_END',
+  // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
+  // 上の操作を通せてしまい、他の制限がすべて無意味になる。
+  'SET_PARTICIPANT_GM',
+  'REMOVE_PARTICIPANT'
+]);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -198,16 +316,37 @@ async function getOrLoadRoom(roomId) {
   // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
   // 経由で同じ補完を受けるが、ここだけそれを素通りしていた）。hydrate()を通して
   // クライアントの再接続時と同じ後方互換の穴埋めを適用してから使う。
-  function buildEntry(savedState) {
+  // 旧方式の参加者の後始末（clearLegacyGmFlags参照）は部屋ごとに一度だけ行う。
+  // 済んだかどうかは同期される状態とは別のところに控える（状態に混ぜると、ユーザーが
+  // 書き出した古いファイルを読み込み直したときに一緒に巻き戻ってしまうため）。
+  async function buildEntry(savedState) {
     const store = new ImmutableStore(createInitialGameState());
     store.hydrate(savedState);
+
+    let meta = {};
+    try {
+      meta = await readAuthMeta(roomId);
+    } catch (error) {
+      console.warn(`[server] ${roomId} の認証情報の読み込みに失敗しました:`, error.message);
+    }
+
+    if (meta.version !== CURRENT_AUTH_VERSION) {
+      const changed = clearLegacyGmFlags(roomId, store);
+      await writeAuthMeta(roomId, { version: CURRENT_AUTH_VERSION })
+        .catch((error) => console.warn(`[server] ${roomId} の認証情報の保存に失敗しました:`, error.message));
+      if (changed) {
+        await writeRoomState(roomId, store.state)
+          .catch((error) => console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message));
+      }
+    }
+
     return { store, clients: new Set(), saveTimer: null };
   }
 
   try {
     const savedState = await readRoomState(roomId);
     if (savedState) {
-      const entry = buildEntry(savedState);
+      const entry = await buildEntry(savedState);
       rooms.set(roomId, entry);
       return entry;
     }
@@ -222,7 +361,7 @@ async function getOrLoadRoom(roomId) {
   try {
     const raw = await readFile(roomFilePath(roomId), 'utf-8');
     const savedState = JSON.parse(raw);
-    const entry = buildEntry(savedState);
+    const entry = await buildEntry(savedState);
     rooms.set(roomId, entry);
 
     // Redisへの移行はあくまで「ついで」の処理。ここが失敗しても、ディスクからの
@@ -283,6 +422,14 @@ async function deleteRoomData(roomId, audioTracks = {}) {
   } catch (error) {
     console.warn(`[server] ${roomId} の削除に失敗しました:`, error.message);
   }
+
+  // 認証まわりの控えも一緒に消す（部屋が空けば、次に同じ番号で作られる部屋には
+  // 旧方式の参加者はいないため、処理済みの印を残す意味が無い）
+  try {
+    await deleteAuthMeta(roomId);
+  } catch (error) {
+    console.warn(`[server] ${roomId} の認証情報の削除に失敗しました:`, error.message);
+  }
   // Redis運用でも、移行前のローカルファイルが残っていれば一緒に消す
   await unlink(roomFilePath(roomId)).catch(() => {});
 }
@@ -333,15 +480,30 @@ const AUDIO_EXTENSIONS = {
 
 // POST /api/audio?room=room-N：音源をR2へ置き、再生用の公開URLを返す。
 //
-// 【注意】このアプリには認証機構が無いため、このエンドポイントも誰でも叩ける。
-// URLを知る第三者にバケットを埋められる余地があるので、歯止めとして
-// 「実在する部屋ID」「audio/*のみ」「サイズ上限」の3点は必ず通すこと。
+// 誰でも叩けるエンドポイントなので、「実在する部屋ID」「audio/*のみ」「サイズ上限」に加えて
+// 「その部屋のGMであること」を必ず通すこと。名乗りはWebSocketと同じ値をヘッダで受け取る
+// （合言葉由来のトークンなので、ログに残りうるクエリ文字列には載せない）。
 async function handleAudioUpload(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const roomId = url.searchParams.get('room');
 
   if (!isValidRoomId(roomId)) {
     sendJson(res, 400, { error: '部屋IDが不正です' });
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  const participantId = String(req.headers['x-participant-id'] || '');
+  const authToken = String(req.headers['x-auth-token'] || '');
+  const identified = verifyIdentity(participantId, authToken);
+
+  if (!canOperateAsGm(entry.store.state, identified ? participantId : null)) {
+    sendJson(res, 403, { error: '音源の追加はGMだけが行えます' });
     return;
   }
 
@@ -653,7 +815,22 @@ wss.on('connection', async (ws, req) => {
   entry.clients.add(ws);
   console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
 
+  // この接続が名乗り、本人確認まで通った参加者ID。合言葉なし（ゲスト）ならnullのまま。
+  // IDENTIFYメッセージを受け取るまでは誰でもないものとして扱う。
+  let verifiedParticipantId = null;
+
   ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
+
+  // GM限定の操作を断ったとき、その接続の表示だけを正しい状態へ戻す。ブラウザ側は
+  // 送信前に自分の画面へ先に反映しているため、断っただけでは送り手の画面がずれたまま
+  // になる。INITではなく専用の型にしているのは、INITだと再接続時と同じ初期化処理
+  // （名乗り直し等）まで走ってしまうため。
+  function rejectAndResync(what) {
+    console.warn(`[server] ${roomId}: GM限定の操作を拒否しました (${what})`);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'RESYNC', state: entry.store.state }));
+    }
+  }
 
   ws.on('message', (data) => {
     let message;
@@ -663,7 +840,30 @@ wss.on('connection', async (ws, req) => {
       return;
     }
 
+    // 名乗り。合言葉から導出した公開IDと本人確認用トークンを突き合わせる（verifyIdentity参照）。
+    // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
+    if (message.type === 'IDENTIFY') {
+      const participantId = String(message.participantId || '');
+      const authToken = String(message.authToken || '');
+
+      if (verifyIdentity(participantId, authToken)) {
+        verifiedParticipantId = participantId;
+      } else {
+        verifiedParticipantId = null;
+        console.warn(`[server] ${roomId}: 参加者の本人確認に失敗しました (${participantId.slice(0, 8)}…)`);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'IDENTITY_REJECTED' }));
+        }
+      }
+      return;
+    }
+
     if (message.type === 'REPLACE_STATE') {
+      // 接続中の全員の状態を丸ごと置き換えるため、部屋の削除と同じくGM限定にする
+      if (!canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+        rejectAndResync('REPLACE_STATE');
+        return;
+      }
       entry.store.hydrate(message.state);
       schedulePersistForRoom(roomId, entry);
       broadcastToRoom(entry, ws, { type: 'INIT', state: entry.store.state });
@@ -671,6 +871,11 @@ wss.on('connection', async (ws, req) => {
     }
 
     if (message.type === 'DELETE_ROOM') {
+      if (!canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+        // 送り手の画面では何も起きていないので、状態を戻す必要はない
+        console.warn(`[server] ${roomId}: GM以外からの部屋削除の要求を拒否しました`);
+        return;
+      }
       // 即座には消さない。全クライアント（自分含む）を退室させ、退室が完了して
       // （clients.size===0）から実データを消す（ws.on('close')側で行う）。
       entry.pendingDelete = true;
@@ -681,6 +886,23 @@ wss.on('connection', async (ws, req) => {
     }
 
     if (message.type !== 'ACTION') return;
+
+    // 参加者としての登録は、本人確認が通ったID本人からのものだけ受け付ける。ここが空いて
+    // いると、他人の名前を書き換えられるほか、まだ誰もGMでない部屋で他人のIDを先に登録して
+    // 「最初に名乗った人がGM」の規則を横取りできてしまう（game-store.jsのREGISTER_PARTICIPANT）。
+    // 断っても状態は戻さない（戻すとRESYNC→再登録→再び拒否、と往復し続けるため）。
+    if (message.action === 'REGISTER_PARTICIPANT') {
+      if (!verifiedParticipantId || message.payload?.id !== verifiedParticipantId) {
+        console.warn(`[server] ${roomId}: 本人確認できていない参加者登録を拒否しました`);
+        return;
+      }
+    }
+
+    if (GM_ONLY_ACTIONS.has(message.action)
+      && !canOperateAsGm(entry.store.state, verifiedParticipantId)) {
+      rejectAndResync(message.action);
+      return;
+    }
 
     // reducer側の想定外の状態（例: 古いエクスポートデータに無いキーへのアクセス等）で
     // 例外が投げられても、この1メッセージだけを無視する。ここで捕まえないと、wsのmessage

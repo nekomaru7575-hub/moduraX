@@ -118,6 +118,11 @@ export const AUDIO_CHANNELS = ['bgm', 'se'];
 // チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。
 export const AUDIO_CHANNEL_LABELS = { bgm: 'BGM', se: '効果音' };
 
+// シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。
+// nullは「BGMを変えない」なので、1つのフィールドで3通り（変えない/止める/この曲）を表す。
+// 音源のidは必ず 'audio-' で始まる（js/main.jsの採番）ため、実在の曲と衝突しない。
+export const SCENE_BGM_STOP = 'stop';
+
 // --- dispatch内で繰り返し現れる更新パターンの共通処理 ---
 // case側が「どのスライスをどう変えるか」だけを書けるようにするための道具立て。
 // 凍結（Object.freeze）はここで面倒を見るので、case側は原則freezeを書かない。
@@ -138,6 +143,14 @@ function withoutMapEntry(map, key) {
   const next = { ...map };
   delete next[key];
   return Object.freeze(next);
+}
+
+// パネルのマップを入れ子まで凍らせて写し取る（シーンの保存・適用で使う）。
+// 通信やhydrate（JSON復元）を経た値は凍っていないので、状態へ入れる前にここを通す。
+function freezePanelMap(panels) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(panels || {}).map(([id, panel]) => [id, Object.freeze({ ...panel })])
+  ));
 }
 
 // 指定タブのログへ1件追記した新しいchatLogsを返す。
@@ -344,7 +357,9 @@ export class ImmutableStore {
         originalTables: newState.room?.originalTables || {},
         // 同上、音楽機能より前に保存された状態には無いため既定値を補う
         audioTracks: newState.room?.audioTracks || {},
-        audioPlayback: newState.room?.audioPlayback || { bgm: null, se: null }
+        audioPlayback: newState.room?.audioPlayback || { bgm: null, se: null },
+        // この機能より前に保存された状態にはroom.scenesが無いため、既定値を補う
+        scenes: newState.room?.scenes || {}
       }
     };
     this.#state = this.#createProtectedProxy(normalized);
@@ -971,6 +986,122 @@ export class ImmutableStore {
         return;
       }
 
+      // --- シーン（js/scene-list-dialog.js） ---
+      // GMが場面ごとに盤面の見た目（背景・盤面サイズ・パネル）を保存し、1クリックで
+      // 切り替えるための機能。すべてGM限定で、server/index.jsのGM_ONLY_ACTIONSにも
+      // 同じ4つを入れてある（片方だけ変えると画面とサーバーの判断がずれる）。
+
+      // 「今の盤面をシーンとして保存」。同じidで呼べば上書き保存になる
+      // （ADD_ORIGINAL_TABLEと同じ「キー重複＝上書き」の規則）。
+      //
+      // 盤面の中身をprevStateから読まずpayloadで受け取るのは、保存の瞬間に他の人が
+      // パネルを動かしていると、各クライアントが自分のローカル状態を写してしまい、
+      // 端末ごとに違うスナップショットが焼き付くため。普通のアクションなら後続の差分で
+      // 収束するが、シーンは保存された記録としてずれたまま恒久的に残ってしまう。
+      case 'SAVE_SCENE': {
+        const { id, name, text = '', bgmTrackId = null, background = {}, panels = {} } = payload;
+        if (!id || !name) return;
+        const room = prevState.room;
+
+        const scene = Object.freeze({
+          id,
+          name,
+          text: text || '',
+          bgmTrackId: bgmTrackId || null,
+          backgroundImage: background.imageUrl || null,
+          backgroundImageKey: background.imageKey || null,
+          boardWidth: background.boardWidth || null,
+          boardHeight: background.boardHeight || null,
+          panels: freezePanelMap(panels)
+        });
+
+        this.#commit(prevState, {
+          room: { ...room, scenes: withMapEntry(room.scenes || {}, id, scene) }
+        });
+        return;
+      }
+
+      // シーンの名前・本文・BGMだけを更新する（盤面は写し直さない）。
+      // そのシーンへ遷移していない状態でも描写を書き足せるようにするために要る。
+      case 'UPDATE_SCENE_META': {
+        const { id, name, text = '', bgmTrackId = null } = payload;
+        const room = prevState.room;
+        const scene = room.scenes?.[id];
+        if (!scene || !name) return;
+
+        this.#commit(prevState, {
+          room: {
+            ...room,
+            scenes: withMapEntry(room.scenes, id, Object.freeze({
+              ...scene, name, text: text || '', bgmTrackId: bgmTrackId || null
+            }))
+          }
+        });
+        return;
+      }
+
+      // シーンを削除する。R2上の背景画像には触らない（同じ画像を他のシーンや現在の盤面が
+      // 参照していることがあるため。掃除は部屋の削除時にまとめて行う。server/index.js参照）。
+      case 'REMOVE_SCENE': {
+        const { id } = payload;
+        const room = prevState.room;
+        if (!room.scenes?.[id]) return;
+
+        this.#commit(prevState, {
+          room: { ...room, scenes: withoutMapEntry(room.scenes, id) }
+        });
+        return;
+      }
+
+      // シーンへ遷移する。背景・盤面サイズ・パネル・BGM・シーン終了時のバフ消滅を
+      // 1回のdispatchでまとめて反映する。分けて投げると、他クライアントに「新しいパネル＋
+      // 古い背景」という中間状態が見えるうえ、途中に他の人の操作が割り込むと片方だけ
+      // 適用された状態がそのまま残ってしまう（サーバーのGM判定もアクション単位のため、
+      // 分けるとその分だけ穴が増える）。
+      //
+      // コマ・チャット・参加者・ラウンド進行には触れない（バフの消滅だけはコマに及ぶ）。
+      // playIdは呼び出し側が採番する。ここでDate.now()を呼ぶと、各クライアントとサーバーが
+      // 同じアクションを再実行したときに値がずれ、js/audio-player.jsの再生検知が壊れる。
+      case 'APPLY_SCENE': {
+        const { id, playId } = payload;
+        const room = prevState.room;
+        const scene = room.scenes?.[id];
+        if (!scene) return;
+
+        // BGM: null=変えない / SCENE_BGM_STOP=止める / id指定=その曲。
+        // 既に同じ曲が鳴っているときはplayIdを据え置く（変えると頭出しに戻ってしまう）。
+        // 参照先の音源が削除されていた場合は「変えない」に倒す。
+        const playback = room.audioPlayback || { bgm: null, se: null };
+        let nextBgm = playback.bgm;
+        if (scene.bgmTrackId === SCENE_BGM_STOP) {
+          nextBgm = null;
+        } else if (scene.bgmTrackId && room.audioTracks?.[scene.bgmTrackId]
+          && playback.bgm?.trackId !== scene.bgmTrackId) {
+          nextBgm = Object.freeze({ trackId: scene.bgmTrackId, playId });
+        }
+
+        // 前のシーンが終わったので、終了条件が「シーン」のバフ/デバフを消す（EXPIRE_BUFFSと同じ処理）
+        const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, 'scene');
+
+        this.#commit(prevState, {
+          room: {
+            ...room,
+            backgroundImage: scene.backgroundImage || null,
+            backgroundImageKey: scene.backgroundImageKey || null,
+            boardWidth: scene.boardWidth || null,
+            boardHeight: scene.boardHeight || null,
+            audioPlayback: withMapEntry(playback, 'bgm', nextBgm)
+          },
+          panels: freezePanelMap(scene.panels),
+          tokens,
+          chatLogs: withSystemLog(
+            withSystemLog(prevState.chatLogs, logText),
+            `シーン「${scene.name}」を開始しました。`
+          )
+        });
+        return;
+      }
+
       // --- 音楽（BGM／効果音） ---
       // 状態に入るのはURLとメタデータだけ。音の実体はR2側にあり、ここには乗らない。
       case 'ADD_AUDIO_TRACK': {
@@ -1055,13 +1186,16 @@ export class ImmutableStore {
         return;
       }
 
+      // imageKeyはR2に実体がある場合のキー（部屋削除時の掃除に使う）。外部URLや、
+      // R2へ移行する前に保存されたデータURLの背景ではnullのまま。
       case 'SET_BACKGROUND_IMAGE': {
-        const { imageUrl, boardWidth, boardHeight } = payload;
+        const { imageUrl, imageKey = null, boardWidth, boardHeight } = payload;
 
         this.#commit(prevState, {
           room: {
             ...prevState.room,
             backgroundImage: imageUrl || null,
+            backgroundImageKey: imageUrl ? (imageKey || null) : null,
             boardWidth: imageUrl ? (boardWidth || null) : null,
             boardHeight: imageUrl ? (boardHeight || null) : null
           }
@@ -1198,6 +1332,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       activePlugin,        // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
       parameters: {},        // ルーム変数（後述）
       backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
+      // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
+      // データURLではnull。音源のtrack.keyと同じ役割。
+      backgroundImageKey: null,
       boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
       boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
@@ -1214,7 +1351,15 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       audioTracks: {},
       // チャンネルごとの再生状態。BGMを流したまま効果音を重ねられるよう2枠に分けてある。
       // playIdは再生のたびに変わる値で、同じ曲を鳴らし直したことの検知に使う（再生位置は同期しない）。
-      audioPlayback: { bgm: null, se: null } // 各要素 { trackId, playId } | null
+      audioPlayback: { bgm: null, se: null }, // 各要素 { trackId, playId } | null
+
+      // シーン（js/scene-list-dialog.js）。GMが場面ごとに盤面の見た目を保存しておき、
+      // 1クリックで切り替えるための入れ物。保存するのは背景・盤面サイズ・パネルだけで、
+      // コマ・チャット・参加者・ラウンド進行には触れない。
+      // { [id]: { id, name, text, bgmTrackId, backgroundImage, backgroundImageKey,
+      //           boardWidth, boardHeight, panels } }
+      // bgmTrackId は null=BGMを変えない / SCENE_BGM_STOP=止める / audioTracksのid=その曲。
+      scenes: {}
     },
 
     tokens: {},

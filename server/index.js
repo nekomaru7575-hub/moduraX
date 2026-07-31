@@ -23,7 +23,7 @@ import path from 'node:path';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
-import { isR2Configured, putAudioObject, deleteAudioObject, publicUrlFor } from './r2.js';
+import { isR2Configured, putObject, deleteObject, publicUrlFor } from './r2.js';
 
 const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
@@ -216,6 +216,11 @@ const GM_ONLY_ACTIONS = new Set([
   'ROUND_ADVANCE_PHASE',
   'ROUND_SET_PARTICIPANTS',
   'ROUND_PROGRESSION_END',
+  // シーン（js/scene-list-dialog.js）。作成・遷移・編集・削除はすべてGM限定。
+  'SAVE_SCENE',
+  'UPDATE_SCENE_META',
+  'APPLY_SCENE',
+  'REMOVE_SCENE',
   // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
   // 上の操作を通せてしまい、他の制限がすべて無意味になる。
   'SET_PARTICIPANT_GM',
@@ -432,16 +437,35 @@ function pickOwnedAudioKey(track) {
   return track && track.source === 'upload' && track.key ? track.key : null;
 }
 
+// 消してよいキーか。キーは状態の中にあり、状態はWebSocket経由でクライアントが書けるので、
+// 細工したキーで他の部屋のオブジェクトまで消される経路を塞いでおく。
+function isOwnKeyOfRoom(roomId, key) {
+  return typeof key === 'string' && key.startsWith(`rooms/${roomId}/`);
+}
+
 // 部屋の実データ（Redis・移行元のローカルファイルが残っていればそれも）を消す。
 // 呼び出し元（ws.on('close')）で、削除待ち状態の部屋の接続者が0人になったことを
 // 確認してから呼ぶこと。
-// audioTracksは削除前の状態から受け取る（Redisを消した後では辿れなくなるため）。
-async function deleteRoomData(roomId, audioTracks = {}) {
+// stateは削除前のものを受け取る（Redisを消した後では辿れなくなるため）。
+//
+// 画像（背景）はシーンの削除・上書き保存では消さず、部屋が消えるときだけまとめて消す。
+// 同じ画像を現在の盤面と複数のシーンが同時に参照しうるため、個別に消そうとすると
+// 「まだ使っているシーンの背景が404になる」という最悪の壊れ方をする。孤児が残るほうが
+// 明確に安全で、部屋の寿命で必ず回収されるので無限には増えない。
+async function deleteRoomData(roomId, state = {}) {
+  const room = state.room || {};
+
   // R2のList APIを実装せずに済むよう、状態に残っているキーだけを対象にする。
   // ここで漏れたものは孤児として残るが、部屋データの削除自体は止めない。
-  const keys = Object.values(audioTracks).map(pickOwnedAudioKey).filter(Boolean);
-  await Promise.all(keys.map(key => deleteAudioObject(key)
-    .catch((error) => console.warn(`[server] ${roomId} の音源削除に失敗しました (${key}):`, error.message))));
+  const keys = [
+    ...Object.values(room.audioTracks || {}).map(pickOwnedAudioKey),
+    room.backgroundImageKey,
+    ...Object.values(room.scenes || {}).map(scene => scene.backgroundImageKey)
+  ].filter(key => key && isOwnKeyOfRoom(roomId, key));
+
+  // 同じ画像を複数のシーンが指していることがあるので重複を落としてから消す
+  await Promise.all([...new Set(keys)].map(key => deleteObject(key)
+    .catch((error) => console.warn(`[server] ${roomId} のファイル削除に失敗しました (${key}):`, error.message))));
 
   try {
     await deleteRoomState(roomId);
@@ -504,12 +528,34 @@ const AUDIO_EXTENSIONS = {
   'audio/flac': 'flac'
 };
 
-// POST /api/audio?room=room-N：音源をR2へ置き、再生用の公開URLを返す。
+// 画像（シーンの背景・盤面の背景）の受け入れ形式。
+// SVGは入れないこと。R2の公開ドメインからそのまま配信されるため、SVGを許すと
+// そのオリジン上で任意のスクリプトを置けてしまう（保存型XSS）。
+const IMAGE_EXTENSIONS = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp'
+};
+
+// 画像1枚の上限。背景画像は盤面いっぱいに引き伸ばす用途なので音源ほど大きくない。
+const MAX_IMAGE_BYTES = (Number(process.env.MAX_IMAGE_MB) || 8) * 1024 * 1024;
+
+// POST /api/audio・POST /api/image の共通処理。ファイルをR2へ置き、公開URLを返す。
 //
-// 誰でも叩けるエンドポイントなので、「実在する部屋ID」「audio/*のみ」「サイズ上限」に加えて
-// 「その部屋のGMであること」を必ず通すこと。名乗りはWebSocketと同じ値をヘッダで受け取る
-// （合言葉由来のトークンなので、ログに残りうるクエリ文字列には載せない）。
-async function handleAudioUpload(req, res) {
+// 誰でも叩けるエンドポイントなので、「実在する部屋ID」「許可した形式のみ」「サイズ上限」に
+// 加えて「その部屋のGMであること」を必ず通すこと。名乗りはWebSocketと同じ値をヘッダで
+// 受け取る（合言葉由来のトークンなので、ログに残りうるクエリ文字列には載せない）。
+//
+// 音源と画像で別々に書くと、片方だけ認証やサイズ判定が緩む事故が起きやすいので1本にまとめる。
+// fallbackExtension: 表に無い種類も受け入れて、この拡張子で保存する（音源はこちら。
+// audio/x-m4aのようにブラウザ次第で名前が揺れるため、prefixが合っていれば通す）。
+// nullなら表に載っている種類だけを受け入れる（画像はこちら。image/svg+xmlのような
+// 危険な形式を確実に閉め出すため、prefix判定だけで通してはいけない）。
+async function handleMediaUpload(req, res, {
+  typePrefix, extensions, fallbackExtension = null, maxBytes,
+  forbiddenMessage, unavailableMessage, wrongTypeMessage, label
+}) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const roomId = url.searchParams.get('room');
 
@@ -530,26 +576,30 @@ async function handleAudioUpload(req, res) {
   const developer = identified && isDeveloperToken(roomId, authToken);
 
   if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
-    sendJson(res, 403, { error: '音源の追加はGMだけが行えます' });
+    sendJson(res, 403, { error: forbiddenMessage });
+    return;
+  }
+
+  // 形式の判定はR2の設定有無より先に行う。おかしなリクエストはサーバーの都合に関わらず
+  // おかしいので、そちらを先に返したほうが理由が分かりやすく、R2の無い検証環境でも
+  // この判定（SVGを弾けているか等）を確かめられる。
+  const contentType = String(req.headers['content-type'] || '').split(';')[0].trim();
+  const ext = extensions[contentType] || fallbackExtension;
+  if (!contentType.startsWith(typePrefix) || !ext) {
+    sendJson(res, 415, { error: wrongTypeMessage });
     return;
   }
 
   if (!isR2Configured()) {
-    sendJson(res, 503, { error: 'このサーバーでは音源のアップロードが設定されていません。URLでの追加をご利用ください。' });
+    sendJson(res, 503, { error: unavailableMessage });
     return;
   }
 
-  const contentType = String(req.headers['content-type'] || '').split(';')[0].trim();
-  if (!contentType.startsWith('audio/')) {
-    sendJson(res, 415, { error: '音声ファイルを指定してください' });
-    return;
-  }
-
-  const tooLargeMessage = `ファイルが大きすぎます（上限 ${Math.floor(MAX_AUDIO_BYTES / 1024 / 1024)}MB）`;
+  const tooLargeMessage = `ファイルが大きすぎます（上限 ${Math.floor(maxBytes / 1024 / 1024)}MB）`;
 
   // 送信途中のクライアントに対して応答を返しつつ接続を切るため、ブラウザ側では
   // 413の本文ではなく通信エラーとして見えることがある（これは避けられない）。
-  // そのためUI側はGET /api/audioで上限を取得し、アップロード前に自分で弾いている
+  // そのためUI側はGETで上限を取得し、アップロード前に自分で弾いている
   // （js/audio-dialog.jsのcurrentMaxBytes）。こちらは直接APIを叩かれた場合の歯止め。
   function rejectTooLarge() {
     res.on('finish', () => req.destroy());
@@ -558,14 +608,14 @@ async function handleAudioUpload(req, res) {
 
   // Content-Lengthで分かる場合はボディを一切読まずに断る（これが通常の経路）
   const declaredLength = Number(req.headers['content-length']);
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_AUDIO_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     rejectTooLarge();
     return;
   }
 
   let body;
   try {
-    body = await readBinaryBody(req, MAX_AUDIO_BYTES);
+    body = await readBinaryBody(req, maxBytes);
   } catch (error) {
     if (error.code === 'TOO_LARGE') {
       // Content-Lengthが無い（チャンク送信等）場合の保険
@@ -576,18 +626,48 @@ async function handleAudioUpload(req, res) {
     return;
   }
 
-  const ext = AUDIO_EXTENSIONS[contentType] || 'bin';
   const key = `rooms/${roomId}/${randomUUID()}.${ext}`;
 
   try {
-    await putAudioObject(key, body, contentType);
+    await putObject(key, body, contentType);
   } catch (error) {
-    console.warn(`[server] ${roomId} の音源アップロードに失敗しました:`, error.message);
+    console.warn(`[server] ${roomId} の${label}アップロードに失敗しました:`, error.message);
     sendJson(res, 502, { error: 'アップロードに失敗しました' });
     return;
   }
 
   sendJson(res, 200, { key, url: publicUrlFor(key) });
+}
+
+// POST /api/audio?room=room-N：音源をR2へ置き、再生用の公開URLを返す。
+function handleAudioUpload(req, res) {
+  return handleMediaUpload(req, res, {
+    typePrefix: 'audio/',
+    extensions: AUDIO_EXTENSIONS,
+    // 表に無い音声形式も従来どおり受け入れる（拡張子は分からないのでbin。再生時は
+    // ブラウザが中身を見て判断するため、キーの見た目が変わるだけで支障はない）
+    fallbackExtension: 'bin',
+    maxBytes: MAX_AUDIO_BYTES,
+    label: '音源',
+    forbiddenMessage: '音源の追加はGMだけが行えます',
+    unavailableMessage: 'このサーバーでは音源のアップロードが設定されていません。URLでの追加をご利用ください。',
+    wrongTypeMessage: '音声ファイルを指定してください'
+  });
+}
+
+// POST /api/image?room=room-N：背景画像をR2へ置き、表示用の公開URLを返す。
+// 状態にはこのURLだけを載せる（データURLのまま持つと、シーンの数だけ画像が
+// 部屋データに積み上がり、アクションのたびにRedisへ書き直されるため）。
+function handleImageUpload(req, res) {
+  return handleMediaUpload(req, res, {
+    typePrefix: 'image/',
+    extensions: IMAGE_EXTENSIONS,
+    maxBytes: MAX_IMAGE_BYTES,
+    label: '画像',
+    forbiddenMessage: '背景画像の変更はGMだけが行えます',
+    unavailableMessage: 'このサーバーでは画像のアップロードが設定されていません。',
+    wrongTypeMessage: '画像ファイル（PNG・JPEG・GIF・WebP）を指定してください'
+  });
 }
 
 // GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
@@ -813,6 +893,17 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/image' && req.method === 'POST') {
+    await handleImageUpload(req, res);
+    return;
+  }
+
+  // 画像アップロードが使えるか（使えない環境ではブラウザ側がデータURLへ退避する）
+  if (url.pathname === '/api/image' && req.method === 'GET') {
+    sendJson(res, 200, { uploadEnabled: isR2Configured(), maxBytes: MAX_IMAGE_BYTES });
+    return;
+  }
+
   await serveStaticFile(req, res);
 });
 
@@ -965,8 +1056,9 @@ wss.on('connection', async (ws, req) => {
 
     // 実体の削除は状態の更新を待たせる必要がないため、awaitせず投げっぱなしにする
     // （失敗しても再生には影響せず、残るのは孤児オブジェクトだけ）。
-    if (removedAudioKey) {
-      deleteAudioObject(removedAudioKey)
+    // キーは状態経由でクライアントが書ける値なので、自分の部屋のものだけを消す
+    if (removedAudioKey && isOwnKeyOfRoom(roomId, removedAudioKey)) {
+      deleteObject(removedAudioKey)
         .catch((error) => console.warn(`[server] 音源の削除に失敗しました (${removedAudioKey}):`, error.message));
     }
     schedulePersistForRoom(roomId, entry);
@@ -984,10 +1076,10 @@ wss.on('connection', async (ws, req) => {
         clearTimeout(entry.saveTimer);
         entry.saveTimer = null;
       }
-      // 音源の実体を消すためのキーは、状態を捨てる前に読んでおく
-      const audioTracks = entry.store.state.room?.audioTracks || {};
+      // 音源・画像の実体を消すためのキーは状態の中にあるので、捨てる前に読んでおく
+      const finalState = entry.store.state;
       rooms.delete(roomId);
-      deleteRoomData(roomId, audioTracks).then(() => {
+      deleteRoomData(roomId, finalState).then(() => {
         console.log(`[server] ${roomId} を削除しました`);
       });
     }

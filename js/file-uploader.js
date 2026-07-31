@@ -38,6 +38,23 @@ export function pickFileAsDataUrl({ accept = 'image/*' } = {}) {
 }
 
 /**
+ * 既に手元にあるFileをDataURLへ読み込む。
+ * 「まずアップロードを試し、使えなければDataURLへ退避する」ように、選択と読み込みを
+ * 分けたい場面で使う（js/board-data-driven.jsの背景画像）。
+ *
+ * @param {File} file
+ * @returns {Promise<string>}
+ */
+export function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
  * ネイティブのファイル選択ダイアログを開き、選択されたFileをそのまま返す。
  * サーバーへ生のバイナリを送る用途（音源のアップロード）向けで、DataURL化を挟まないぶん
  * base64の33%増しとメモリ上の二重持ちを避けられる。キャンセルされた場合はnullを返す。

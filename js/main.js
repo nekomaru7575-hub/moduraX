@@ -24,6 +24,8 @@ import { handlePluginChatCommand, findPluginForChatCommand } from './parameters/
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
+import { showSceneListDialog } from './scene-list-dialog.js';
+import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
@@ -337,6 +339,71 @@ function openOriginalTableListDialog() {
   });
 }
 
+// --- シーン（GM限定。js/scene-list-dialog.js参照） ---
+// 盤面の見た目（背景・盤面サイズ・パネル）を場面ごとに保存し、1クリックで切り替える。
+
+// 今の盤面をシーンへ写し取るための値。reducer側でprevStateから読まずここで集めるのは、
+// 保存の瞬間に他の人がパネルを動かしていると、各クライアントが自分のローカル状態を写して
+// 端末ごとに違う内容が焼き付いてしまうため（game-store.jsのSAVE_SCENE参照）。
+function currentBoardSnapshot() {
+  const room = store.state.room;
+  return {
+    background: {
+      imageUrl: room.backgroundImage,
+      imageKey: room.backgroundImageKey,
+      boardWidth: room.boardWidth,
+      boardHeight: room.boardHeight
+    },
+    panels: store.state.panels || {}
+  };
+}
+
+// シーンの作成／編集ダイアログ。sceneを渡すと編集モード。
+function openSceneEditor(scene = null) {
+  showSceneDialog({
+    scene,
+    // 遷移時に差し替えるのはBGM枠なので、選択肢もBGMチャンネルの音源だけにする
+    tracks: Object.values(store.state.room.audioTracks || {}).filter(track => track.channel === 'bgm'),
+    onConfirm: ({ name, text, bgmTrackId }) => {
+      if (scene) {
+        // 編集では盤面を写し直さない（本文だけ直したいことのほうが多いため）
+        store.dispatch('UPDATE_SCENE_META', { id: scene.id, name, text, bgmTrackId });
+      } else {
+        // idの採番は呼び出し側で行う。reducerでDate.now()を呼ぶと、各クライアントが
+        // 同じアクションを再実行したときに別々の値になってしまう。
+        store.dispatch('SAVE_SCENE', {
+          id: `scene-${Date.now()}`, name, text, bgmTrackId, ...currentBoardSnapshot()
+        });
+      }
+      openSceneListDialog();
+    },
+    // 「この盤面で保存し直す」。同じidで保存＝上書き。
+    onOverwriteBoard: ({ name, text, bgmTrackId }) => {
+      store.dispatch('SAVE_SCENE', { id: scene.id, name, text, bgmTrackId, ...currentBoardSnapshot() });
+      openSceneListDialog();
+    },
+    // 一覧は自分を閉じてからこの画面を開くので、キャンセル時は一覧へ戻す
+    onCancel: () => openSceneListDialog()
+  });
+}
+
+// シーン一覧ダイアログ。作成・削除の後は最新の一覧で開き直す。
+function openSceneListDialog() {
+  showSceneListDialog({
+    scenes: store.state.room.scenes || {},
+    onApply: (id) => {
+      // playIdは再生し直しの検知に使う値なので、ここで採番して全員に同じものを配る
+      store.dispatch('APPLY_SCENE', { id, playId: `${Date.now()}` });
+    },
+    onEdit: (id) => openSceneEditor(store.state.room.scenes[id]),
+    onCreate: () => openSceneEditor(),
+    onRemove: (id) => {
+      store.dispatch('REMOVE_SCENE', { id });
+      openSceneListDialog();
+    }
+  });
+}
+
 // 音楽ダイアログ（ヘッダーの「♪」）。音源の登録・再生・停止・削除はすべて即時反映のため、
 // 操作のたびに最新状態で開き直す。実際の再生はaudio-player.jsが状態の変化を見て行う。
 function openAudioDialog() {
@@ -455,6 +522,18 @@ if (roomMenuBtn && roomSettingsDialog) {
         onSelect: openLogExportDialog
       }
     ];
+
+    // シーンの作成・遷移・編集・削除はGM限定（サーバー側もserver/index.jsの
+    // GM_ONLY_ACTIONSで同じ4つを弾く）。項目自体は残して理由を示す。
+    {
+      const allowed = canOperateAsGm();
+      items.push({
+        label: 'シーン一覧',
+        onSelect: openSceneListDialog,
+        disabled: !allowed,
+        title: allowed ? undefined : GM_ONLY_REASON
+      });
+    }
 
     // ラウンド進行の常時パネルは邪魔にならないよう進行中(round.active)にだけ表示するため、
     // 開始のきっかけはこのルームメニューに置く（進行中はパネル自身の⋮メニューから終了する）。

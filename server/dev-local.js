@@ -62,6 +62,7 @@ if (cleared.length > 0) {
   console.log(`[dev-local] 環境から落とした接続情報: ${cleared.join(', ')}`);
 }
 console.log('[dev-local] 音源のアップロードはR2未設定のため無効です（URLでの追加は使えます）');
+console.log('[dev-local] 背景画像のアップロードも無効です（従来どおりデータURLとして保存されます）');
 if (process.env.DEVELOPER_PASSPHRASE) {
   console.log('[dev-local] 開発用の合言葉が有効です（参加者設定でその合言葉を入れるとGMと同じ操作ができます）');
 }

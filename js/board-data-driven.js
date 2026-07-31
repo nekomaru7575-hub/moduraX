@@ -8,7 +8,8 @@ import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
-import { pickFileAsDataUrl, pickFileAsText } from './file-uploader.js';
+import { pickFile, pickFileAsText, readFileAsDataUrl } from './file-uploader.js';
+import { isImageUploadAvailable, uploadImageFile } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
@@ -28,13 +29,14 @@ const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
 
-// data URLの画像を読み込み、実際の縦横ピクセル数を取得する（背景サイズダイアログの初期値用）
-function loadImageDimensions(dataUrl) {
+// 画像を読み込み、実際の縦横ピクセル数を取得する（背景サイズダイアログの初期値用）。
+// R2の公開URLでもデータURLでも同じように扱える。
+function loadImageDimensions(imageSrc) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
     img.onerror = () => resolve({ width: 1000, height: 1000 });
-    img.src = dataUrl;
+    img.src = imageSrc;
   });
 }
 
@@ -783,17 +785,36 @@ window.addEventListener('DOMContentLoaded', () => {
       {
         label: '背景画像を変更',
         onSelect: async () => {
-          const picked = await pickFileAsDataUrl({ accept: 'image/*' });
-          if (!picked) return;
+          const file = await pickFile({ accept: 'image/*' });
+          if (!file) return;
 
-          const { width, height } = await loadImageDimensions(picked.dataUrl);
+          // 通常はR2へ上げてURLだけを状態に載せる（シーンが背景を持つため、データURLの
+          // ままだと部屋データが画像の枚数分だけ膨らむ。js/image-upload.js参照）。
+          // R2が未設定の環境（server/dev-local.js）では従来どおりデータURLへ退避する。
+          // 描画側は文字列をurl()に入れるだけなので、どちらでも同じように表示できる
+          // （移行前に保存されたデータURLの背景がそのまま出せるのもこのため）。
+          let imageUrl = null;
+          let imageKey = null;
+
+          if (await isImageUploadAvailable()) {
+            try {
+              ({ url: imageUrl, key: imageKey } = await uploadImageFile(file));
+            } catch (error) {
+              alert(`背景画像のアップロードに失敗しました：${error.message}`);
+              return;
+            }
+          } else {
+            imageUrl = await readFileAsDataUrl(file);
+          }
+
+          const { width, height } = await loadImageDimensions(imageUrl);
 
           showBackgroundSizeDialog({
             naturalWidth: width,
             naturalHeight: height,
             gridSize: GRID_SIZE,
             onConfirm: ({ width: boardWidth, height: boardHeight }) => {
-              store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl: picked.dataUrl, boardWidth, boardHeight });
+              store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl, imageKey, boardWidth, boardHeight });
             }
           });
         }

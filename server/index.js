@@ -23,7 +23,7 @@ import path from 'node:path';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
-import { isR2Configured, putObject, deleteObject, publicUrlFor } from './r2.js';
+import { isR2Configured, putObject, deleteObject, deleteObjectsByPrefix, publicUrlFor } from './r2.js';
 
 const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
@@ -437,35 +437,40 @@ function pickOwnedAudioKey(track) {
   return track && track.source === 'upload' && track.key ? track.key : null;
 }
 
+// その部屋が持ち物として置いたファイルの置き場所（R2上のフォルダに相当する接頭辞）。
+// 末尾のスラッシュは必須。これが無いと rooms/room-1 が rooms/room-10 にも一致してしまう。
+function roomObjectPrefix(roomId) {
+  return `rooms/${roomId}/`;
+}
+
 // 消してよいキーか。キーは状態の中にあり、状態はWebSocket経由でクライアントが書けるので、
 // 細工したキーで他の部屋のオブジェクトまで消される経路を塞いでおく。
 function isOwnKeyOfRoom(roomId, key) {
-  return typeof key === 'string' && key.startsWith(`rooms/${roomId}/`);
+  return typeof key === 'string' && key.startsWith(roomObjectPrefix(roomId));
 }
 
 // 部屋の実データ（Redis・移行元のローカルファイルが残っていればそれも）を消す。
 // 呼び出し元（ws.on('close')）で、削除待ち状態の部屋の接続者が0人になったことを
 // 確認してから呼ぶこと。
-// stateは削除前のものを受け取る（Redisを消した後では辿れなくなるため）。
 //
-// 画像（背景）はシーンの削除・上書き保存では消さず、部屋が消えるときだけまとめて消す。
-// 同じ画像を現在の盤面と複数のシーンが同時に参照しうるため、個別に消そうとすると
-// 「まだ使っているシーンの背景が404になる」という最悪の壊れ方をする。孤児が残るほうが
-// 明確に安全で、部屋の寿命で必ず回収されるので無限には増えない。
-async function deleteRoomData(roomId, state = {}) {
-  const room = state.room || {};
-
-  // R2のList APIを実装せずに済むよう、状態に残っているキーだけを対象にする。
-  // ここで漏れたものは孤児として残るが、部屋データの削除自体は止めない。
-  const keys = [
-    ...Object.values(room.audioTracks || {}).map(pickOwnedAudioKey),
-    room.backgroundImageKey,
-    ...Object.values(room.scenes || {}).map(scene => scene.backgroundImageKey)
-  ].filter(key => key && isOwnKeyOfRoom(roomId, key));
-
-  // 同じ画像を複数のシーンが指していることがあるので重複を落としてから消す
-  await Promise.all([...new Set(keys)].map(key => deleteObject(key)
-    .catch((error) => console.warn(`[server] ${roomId} のファイル削除に失敗しました (${key}):`, error.message))));
+// R2上のファイルは、状態から辿れるキーではなく接頭辞（rooms/room-N/）でまとめて消す。
+// 状態から集める方式だと、差し替えられて参照されなくなった古い背景のように「もう状態に
+// 載っていないが実体は残っている」ものを回収できず、孤児として残り続けていた。
+//
+// なお、シーンの削除や上書き保存では個々のファイルを消さない。同じ画像を現在の盤面と
+// 複数のシーンが同時に参照しうるため、個別に消すと「まだ使っているシーンの背景が404に
+// なる」という最悪の壊れ方をする。掃除はこの部屋の削除時にまとめて行う。
+async function deleteRoomData(roomId) {
+  if (isR2Configured()) {
+    try {
+      const { deleted, failed } = await deleteObjectsByPrefix(roomObjectPrefix(roomId));
+      console.log(`[server] ${roomId} のファイルを${deleted}件削除しました`
+        + (failed > 0 ? `（${failed}件は失敗）` : ''));
+    } catch (error) {
+      // 一覧が取れなくても部屋データの削除自体は止めない（残るのは孤児だけ）
+      console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
+    }
+  }
 
   try {
     await deleteRoomState(roomId);
@@ -626,7 +631,8 @@ async function handleMediaUpload(req, res, {
     return;
   }
 
-  const key = `rooms/${roomId}/${randomUUID()}.${ext}`;
+  // 部屋の削除時に接頭辞でまとめて消せるよう、必ず部屋のフォルダの下に置く
+  const key = `${roomObjectPrefix(roomId)}${randomUUID()}.${ext}`;
 
   try {
     await putObject(key, body, contentType);
@@ -1076,10 +1082,9 @@ wss.on('connection', async (ws, req) => {
         clearTimeout(entry.saveTimer);
         entry.saveTimer = null;
       }
-      // 音源・画像の実体を消すためのキーは状態の中にあるので、捨てる前に読んでおく
-      const finalState = entry.store.state;
       rooms.delete(roomId);
-      deleteRoomData(roomId, finalState).then(() => {
+      // R2上のファイルは接頭辞でまとめて消すので、状態を渡す必要はない
+      deleteRoomData(roomId).then(() => {
         console.log(`[server] ${roomId} を削除しました`);
       });
     }

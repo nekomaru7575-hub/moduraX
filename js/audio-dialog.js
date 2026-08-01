@@ -13,8 +13,9 @@ import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 // 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
 const DEFAULT_MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
-// 音源の追加（アップロード・URL）を止めている理由。ボタンのツールチップと注記に使う。
-const ADD_TRACK_GM_ONLY_NOTE = '音源の追加はGMだけが行えます（再生は全員できます）。';
+// 音源の追加（アップロード・URL）と削除を止めている理由。ボタンのツールチップと注記に使う。
+// 削除も止めるのは、再生中の音源を消せば止まってしまい、停止をGM限定にした意味が無くなるため。
+const TRACK_GM_ONLY_NOTE = '音源の追加と削除はGMだけが行えます（再生は全員できます）。';
 
 // 停止を止めている理由。再生中の音は全員で聴いているものなので、勝手に止められないようにし、
 // 「自分は聴きたくない」場合の逃げ道としてミュートを案内する。
@@ -177,8 +178,8 @@ function buildAddRow(defaultName, onSubmit) {
  * @param {{
  *   tracks: Record<string, {id:string, name:string, url:string, channel:string, loop:boolean, phrase?:string|null}>,
  *   playback: Record<string, {trackId:string, playId:string}|null>,
- *   canAddTrack?: boolean 音源を追加してよいか（GM限定。既定は可）。
- *     falseなら追加ボタンを押せない状態にして理由を示す。再生・削除は制限しない。
+ *   canAddTrack?: boolean 音源を追加・削除してよいか（GM限定。既定は可）。
+ *     falseなら追加・削除のボタンを押せない状態にして理由を示す。再生は制限しない。
  *   canStop?: boolean 再生中の音楽を止めてよいか（GM限定。既定は可）。
  *     falseなら停止ボタンを押せない状態にして、代わりにミュートを案内する。
  *   onAdd: (result: {name:string, url:string, source:string, key:string|null, channel:string, loop:boolean, phrase:string}) => void,
@@ -352,10 +353,13 @@ export function showAudioDialog({
     });
     row.appendChild(phraseInput);
 
+    // 削除も追加と同じくGM限定（消せば再生も止まるため、停止の制限の抜け道になる）。
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
     removeBtn.className = 'dialog-remove-row';
+    removeBtn.disabled = !canAddTrack;
+    if (!canAddTrack) removeBtn.title = TRACK_GM_ONLY_NOTE;
     removeBtn.addEventListener('click', () => {
       if (!confirm(`音源「${track.name}」を削除しますか？`)) return;
       onRemove(track.id);
@@ -437,12 +441,12 @@ export function showAudioDialog({
   if (!canAddTrack) {
     [addBtn, addUrlBtn].forEach(btn => {
       btn.disabled = true;
-      btn.title = ADD_TRACK_GM_ONLY_NOTE;
+      btn.title = TRACK_GM_ONLY_NOTE;
     });
 
     const gmNote = document.createElement('p');
     gmNote.className = 'audio-note';
-    gmNote.textContent = ADD_TRACK_GM_ONLY_NOTE;
+    gmNote.textContent = TRACK_GM_ONLY_NOTE;
     container.appendChild(gmNote);
   }
 

@@ -220,6 +220,9 @@ const GM_ONLY_ACTIONS = new Set([
   // 音楽の停止（再生は全員が行える。game-store.jsのSET_AUDIO_PLAYBACK／STOP_AUDIO_PLAYBACK）。
   // 聴きたくない人は自分の環境だけミュートする（js/audio-player.js）。
   'STOP_AUDIO_PLAYBACK',
+  // 音源の削除。再生中のものを消すとそのチャンネルも止まるので、開けておくと
+  // 上のSTOP_AUDIO_PLAYBACKを止めた意味が無くなる。
+  'REMOVE_AUDIO_TRACK',
   'ROUND_PROGRESSION_START',
   'ROUND_ADVANCE_PHASE',
   'ROUND_SET_PARTICIPANTS',

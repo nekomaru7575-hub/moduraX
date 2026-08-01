@@ -411,7 +411,7 @@ function openAudioDialog() {
   showAudioDialog({
     tracks: store.state.room.audioTracks || {},
     playback: store.state.room.audioPlayback || { bgm: null, se: null },
-    // 音源の追加（アップロード・URL）と停止はGM限定。再生・削除・音量・ミュートは全員が触れる
+    // 音源の追加（アップロード・URL）・削除・停止はGM限定。再生・音量・ミュートは全員が触れる
     // （みんなで聴いている音を他人が止められないようにするため。聴きたくない人はミュート）。
     canAddTrack: canOperateAsGm(),
     canStop: canOperateAsGm(),

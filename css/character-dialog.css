@@ -752,3 +752,123 @@
   color: #fff;
   font-weight: bold;
 }
+
+/* サイコロ・フィクション共通：特技表ボックス（js/parameters/saikoro-fiction/skill-table-box.js）。
+   シノビガミ・インセイン等で共用するため、システム名ではなく sf- プレフィックスで揃える。 */
+.sf-skill-table-dialog {
+  width: 100%;
+  max-width: 860px;
+}
+
+.sf-skill-table-modes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sf-skill-table-mode-btn {
+  background-color: #3a3a3a;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+
+.sf-skill-table-mode-btn.is-active {
+  background-color: #4a6ea8;
+  border-color: #6f95cf;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 列は［出目ラベル］＋［ギャップ／分野］×N。列定義はJS側でgrid-template-columnsを組み立てる */
+.sf-skill-table-grid {
+  display: grid;
+  gap: 2px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.sf-skill-table-corner {
+  background-color: transparent;
+}
+
+.sf-skill-table-header {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #ddd;
+  padding: 2px 0;
+}
+
+.sf-skill-table-roll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #999;
+  padding: 0 6px 0 2px;
+}
+
+.sf-skill-cell {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #ccc;
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 4px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-skill-cell.is-acquired {
+  background-color: #4a6ea8;
+  border-color: #6f95cf;
+  color: #fff;
+  font-weight: bold;
+}
+
+.sf-skill-cell.is-clickable {
+  cursor: pointer;
+}
+
+.sf-skill-cell.is-clickable:hover {
+  border-color: #9ec1f0;
+}
+
+/* ギャップ：分野の間の細い縦帯。全行をまたぐ1本の要素として描く */
+.sf-skill-gap {
+  background-color: #2f2f2f;
+  border: 1px dashed #555;
+  border-radius: 3px;
+}
+
+.sf-skill-gap.is-filled {
+  background-color: #e0e0e0;
+  border-style: solid;
+  border-color: #fff;
+}
+
+.sf-skill-gap.is-clickable {
+  cursor: pointer;
+}
+
+.sf-skill-gap.is-clickable:hover {
+  border-color: #9ec1f0;
+}
+
+.sf-skill-table-note {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 8px;
+}
+
+.sf-skill-table-status {
+  min-height: 1.4em;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #e0e0e0;
+}

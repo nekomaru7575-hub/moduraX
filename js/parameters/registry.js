@@ -2,10 +2,12 @@
 // プラグイン記述子の一覧。Coreはこの中身を解釈せず、ただの対応表として扱う。
 
 import { DX3_PLUGIN } from './dx3.js';
+import { SHINOBIGAMI_PLUGIN } from './shinobigami.js';
 // import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
 
 const PLUGINS = {
   DX3: DX3_PLUGIN,
+  SHINOBIGAMI: SHINOBIGAMI_PLUGIN,
   // GCREST: GCREST_PLUGIN,
 };
 

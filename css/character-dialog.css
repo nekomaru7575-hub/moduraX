@@ -782,6 +782,54 @@
   font-weight: bold;
 }
 
+/* 判定オプション（ダイス数・スペシャル値など）。判定モードのときだけ表示する。
+   保存はされず、ダイアログを開き直すと既定値に戻る。 */
+.sf-skill-table-check-options {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sf-skill-table-check-options-title {
+  align-self: center;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.sf-skill-table-check-option {
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-skill-table-check-option span {
+  font-size: 0.75rem;
+  color: #aaa;
+  margin-bottom: 3px;
+}
+
+.sf-skill-table-check-option input {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 2px;
+  width: 52px;
+  text-align: center;
+}
+
+.sf-skill-table-check-reset {
+  align-self: center;
+  background-color: #3a3a3a;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 /* 列は［出目ラベル］＋［ギャップ／分野］×N。列定義はJS側でgrid-template-columnsを組み立てる */
 .sf-skill-table-grid {
   display: grid;

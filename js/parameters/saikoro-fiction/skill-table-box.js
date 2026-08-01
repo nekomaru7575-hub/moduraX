@@ -4,9 +4,10 @@
 // dx3-effect-box.js と同じ規約で、モジュールスコープに<dialog>を1つ持ち回す。
 
 import {
-  makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck
+  makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
+  createCheckOptions, normalizeCheckOptions
 } from './skill-table.js';
-import { describeSkillCheck, buildSkillCheckCommand } from './skill-check.js';
+import { describeSkillCheck, buildSkillCheckCommand, buildCheckCommand } from './skill-check.js';
 
 let dialogEl = null;
 
@@ -25,7 +26,9 @@ function ensureDialog() {
  *   title?: string,
  *   editable?: boolean,          特技の取得・ギャップの塗りつぶしを編集できるか
  *   onSave?: (state) => void,    トグルするたびに即座に呼ばれる（保存ボタンは無い）
- *   onCheck?: (cellId) => void   判定モードでセルがクリックされた時。未指定なら判定モードを出さない
+ *   onCheck?: (cellId, checkOptions) => void
+ *     判定モードでセルがクリックされた時。未指定なら判定モードを出さない。
+ *     checkOptionsは「判定オプション」欄で指定された値（ダイアログ内だけの状態で保存はしない）。
  * }} options
  */
 export function showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck }) {
@@ -46,6 +49,11 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     render();
   };
 
+  // 判定オプション（ダイス数・スペシャル値等）はこのダイアログの中だけの状態で、
+  // componentsには保存しない。開き直すたびに既定値へ戻る。
+  let checkOptions = createCheckOptions(spec);
+  let hoveredCellId = null;
+
   const form = document.createElement('form');
   form.method = 'dialog';
 
@@ -62,11 +70,61 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       button.type = 'button';
       button.className = 'sf-skill-table-mode-btn';
       button.textContent = label;
-      button.addEventListener('click', () => { mode = value; render(); });
+      button.addEventListener('click', () => { mode = value; hoveredCellId = null; render(); });
       modeButtons[value] = button;
       modeRow.appendChild(button);
     });
     form.appendChild(modeRow);
+  }
+
+  // 判定オプション。spec.check.options をそのまま数値入力欄にするだけで、
+  // 項目の意味（ダイス数なのかスペシャル値なのか）はここでは解釈しない。
+  const optionRow = document.createElement('div');
+  optionRow.className = 'sf-skill-table-check-options';
+  if (canCheck && spec.check.options.length > 0) {
+    const optionLabel = document.createElement('span');
+    optionLabel.className = 'sf-skill-table-check-options-title';
+    optionLabel.textContent = '判定オプション';
+    optionRow.appendChild(optionLabel);
+
+    const inputs = [];
+    spec.check.options.forEach(option => {
+      const field = document.createElement('label');
+      field.className = 'sf-skill-table-check-option';
+      field.title = `${option.label}（${option.min}〜${option.max}、既定${option.default}）`;
+
+      const caption = document.createElement('span');
+      caption.textContent = option.label;
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = String(option.min);
+      input.max = String(option.max);
+      input.value = String(option.default);
+      input.addEventListener('input', () => {
+        // 入力途中の空欄・範囲外はnormalizeが既定値/上下限へ丸めるので、ここでは弾かない
+        checkOptions = normalizeCheckOptions(spec, { ...checkOptions, [option.key]: input.value });
+        refreshStatus();
+      });
+
+      field.appendChild(caption);
+      field.appendChild(input);
+      optionRow.appendChild(field);
+      inputs.push({ option, input });
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'sf-skill-table-check-reset';
+    resetBtn.textContent = '既定に戻す';
+    resetBtn.addEventListener('click', () => {
+      checkOptions = createCheckOptions(spec);
+      inputs.forEach(({ option, input }) => { input.value = String(option.default); });
+      refreshStatus();
+    });
+    optionRow.appendChild(resetBtn);
+
+    form.appendChild(optionRow);
   }
 
   const grid = document.createElement('div');
@@ -125,7 +183,22 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     status.textContent = text;
   }
 
-  function defaultStatus() {
+  // カーソルが乗っているマスがあればその判定内容、無ければモードごとの操作説明を出す。
+  // オプションを変えた時もここを呼び直して、投げるコマンドの表示を追従させる。
+  function refreshStatus() {
+    if (mode === 'check' && hoveredCellId) {
+      const resolution = resolveSkillCheck(spec, current, hoveredCellId);
+      if (resolution) {
+        const heading = describeSkillCheck(resolution);
+        // 代用できる特技が無い＝振れないので、コマンドは出さない
+        const command = resolution.usedCell
+          ? ` → ${buildCheckCommand(spec, resolution.targetNumber, checkOptions)}`
+          : '';
+        setStatus(`${heading}${command}`);
+        return;
+      }
+    }
+
     if (mode === 'edit') {
       setStatus(spec.gapFillable
         ? 'マスをクリックで取得／解除、ギャップ（細い縦帯）をクリックで塗りつぶし。変更は即座に保存されます。'
@@ -133,12 +206,6 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     } else {
       setStatus('判定したい特技のマスをクリックしてください（カーソルを乗せると目標値が出ます）。');
     }
-  }
-
-  function previewStatus(cellId) {
-    const resolution = resolveSkillCheck(spec, current, cellId);
-    if (!resolution) return;
-    setStatus(describeSkillCheck(resolution));
   }
 
   function render() {
@@ -209,11 +276,11 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
           cell.addEventListener('click', () => commit(toggleAcquired(current, cellId)));
         } else if (mode === 'check' && canCheck) {
           cell.classList.add('is-clickable');
-          cell.addEventListener('mouseenter', () => previewStatus(cellId));
-          cell.addEventListener('mouseleave', defaultStatus);
+          cell.addEventListener('mouseenter', () => { hoveredCellId = cellId; refreshStatus(); });
+          cell.addEventListener('mouseleave', () => { hoveredCellId = null; refreshStatus(); });
           cell.addEventListener('click', () => {
             dialog.close();
-            onCheck(cellId);
+            onCheck(cellId, checkOptions);
           });
         }
 
@@ -221,7 +288,10 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       });
     });
 
-    defaultStatus();
+    // 判定オプションは判定モードのときだけ意味を持つ
+    optionRow.style.display = (mode === 'check' && optionRow.childElementCount > 0) ? '' : 'none';
+
+    refreshStatus();
   }
 
   render();

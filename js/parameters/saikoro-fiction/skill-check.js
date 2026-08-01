@@ -7,7 +7,7 @@
 // 自分のシステムID（'Shinobigami' 等）を渡す。DX3が rollBCDice('DoubleCross', …) と
 // 指定しているのと同じ考え方（js/parameters/dx3-combo-box.js 参照）。
 
-import { resolveSkillCheck } from './skill-table.js';
+import { resolveSkillCheck, normalizeCheckOptions } from './skill-table.js';
 
 // 特技判定(隠形術) / 特技判定(忍術:7) の形。分野と出目でも指定できるようにしているのは、
 // 特技名を後から修正しても書き換えずに済むようにするため。
@@ -27,6 +27,19 @@ export function describeSkillCheck(resolution) {
   if (!usedCell) return `《${targetCell.name}》判定（特技を1つも取得していません）`;
   if (owned) return `《${targetCell.name}》判定（目標値${targetNumber}）`;
   return `《${targetCell.name}》判定（《${usedCell.name}》で代用・距離${distance}・目標値${targetNumber}）`;
+}
+
+/**
+ * 実際にBCDiceへ投げるコマンド文字列。組み立てはシステム固有なのでspec.checkに委ねる。
+ * @param {object} spec
+ * @param {number} targetNumber
+ * @param {object} [checkOptions] 未指定・不正な項目はspec側の既定値へ丸められる
+ */
+export function buildCheckCommand(spec, targetNumber, checkOptions) {
+  return spec.check.buildCommand({
+    options: normalizeCheckOptions(spec, checkOptions),
+    targetNumber
+  });
 }
 
 // DX3の logToMain（js/parameters/dx3-combo-box.js）と同型。プラグインからチャットへ
@@ -54,11 +67,13 @@ function logToMain(dispatch, resultText, token, system) {
  *   dispatch: (action:string, payload:object) => void,
  *   rollBCDice: (system:string, command:string) => Promise<{success:boolean, resultText:string}>,
  *   bcdiceSystem: string,
+ *   checkOptions?: object,      判定オプション（省略時はspecの既定値）
  *   systemLabel?: string        チャットログの「システム」欄に出す名前
  * }} options
  */
 export async function runSkillCheck({
-  spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, systemLabel = '特技判定'
+  spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem,
+  checkOptions, systemLabel = '特技判定'
 }) {
   const resolution = resolveSkillCheck(spec, state, targetCellId);
   if (!resolution) {
@@ -75,9 +90,12 @@ export async function runSkillCheck({
   }
 
   const heading = describeSkillCheck(resolution);
+  // スペシャル/ファンブルの判定はBCDice側がコマンド（シノビガミならSG）の中で行い、
+  // 結果テキストに含めて返してくれるので、こちらはコマンドを組み立てるだけでよい。
+  const command = buildCheckCommand(spec, resolution.targetNumber, checkOptions);
 
   try {
-    const { success, resultText } = await rollBCDice(bcdiceSystem, `2D6>=${resolution.targetNumber}`);
+    const { success, resultText } = await rollBCDice(bcdiceSystem, command);
     if (!success) {
       alert(`特技判定に失敗しました: ${resultText}`);
       return;

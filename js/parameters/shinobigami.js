@@ -18,6 +18,27 @@ const SKILL_TABLE_COMPONENT_KEY = 'skillTable';
 // 部屋のBCDiceシステム（room.bcdiceSystem）とは別軸。特技判定は常にこのシステムで振る。
 const SHINOBIGAMI_BCDICE_SYSTEM = 'ShinobiGami';
 
+// BCDiceのシノビガミ行為判定コマンド `nSG@s#f>=x` に渡す値。目標値(x)だけは特技表の
+// 距離計算から決まるのでここには無い。
+//   n: ダイス数（省略時2。1以下はBCDiceがunsupportedを返すので下限2）
+//   s: スペシャル値（省略時12。13にすればスペシャルは出ない）
+//   f: ファンブル値（省略時2。0にすればファンブルは出ない）
+const SHINOBIGAMI_CHECK_OPTIONS = [
+  { key: 'diceCount', label: 'ダイス数', default: 2, min: 2, max: 10 },
+  { key: 'specialValue', label: 'スペシャル値', default: 12, min: 2, max: 13 },
+  { key: 'fumbleValue', label: 'ファンブル値', default: 2, min: 0, max: 12 }
+];
+
+// 既定値と同じ項目は書かず最短形にする（`SG>=7` / `3SG@11#3>=7` など、いずれもBCDiceの
+// ドキュメントにある書式）。BCDiceは結果テキスト側で `(SG@12#2>=7)` と展開して返すため、
+// 省略しても卓からは実際に使われた値が見える。
+function buildShinobigamiCheckCommand({ options, targetNumber }) {
+  const dice = options.diceCount === 2 ? '' : String(options.diceCount);
+  const special = options.specialValue === 12 ? '' : `@${options.specialValue}`;
+  const fumble = options.fumbleValue === 2 ? '' : `#${options.fumbleValue}`;
+  return `${dice}SG${special}${fumble}>=${targetNumber}`;
+}
+
 const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
   id: 'shinobigami',
   columns: SHINOBIGAMI_COLUMNS,
@@ -25,7 +46,11 @@ const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
   cells: SHINOBIGAMI_SKILL_CELLS,
   cyclic: true,       // 妖術の右隣は器術（表の左右は繋がっている）
   gapFillable: true,  // ギャップは塗りつぶすことができる
-  baseTarget: 5       // 2D6 >= 5 + 距離
+  baseTarget: 5,      // 2D6 >= 5 + 距離
+  check: {
+    options: SHINOBIGAMI_CHECK_OPTIONS,
+    buildCommand: buildShinobigamiCheckCommand
+  }
 });
 
 // components から特技表の状態を取り出す。古いコマは components 自体を持たないので必ずこれを通す。
@@ -82,7 +107,9 @@ function renderShinobigamiCharacterPanel({
         onComponentChange(SKILL_TABLE_COMPONENT_KEY, nextState);
         updateLabel();
       },
-      onCheck: (cellId) => {
+      // checkOptionsは表ボックスの「判定オプション」欄で指定された値。保存はされないので、
+      // 次にボックスを開くと既定値に戻る。
+      onCheck: (cellId, checkOptions) => {
         runSkillCheck({
           spec: SHINOBIGAMI_SKILL_TABLE,
           state: readSkillTableState(readComponents()),
@@ -90,7 +117,8 @@ function renderShinobigamiCharacterPanel({
           token: getToken ? getToken() : null,
           dispatch,
           rollBCDice,
-          bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM
+          bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM,
+          checkOptions
         });
       }
     });
@@ -110,6 +138,8 @@ function looksLikeShinobigamiChatCommand(rawInput) {
 /**
  * 特技判定(隠形術) / 特技判定(忍術:7) を実行する。
  * 表UIの判定モードと同じ runSkillCheck に集約している。
+ * 判定オプションは表ボックスの中だけの指定なので、コマンド経由の判定は常に既定値
+ * （2ダイス・スペシャル値12・ファンブル値2＝`SG>=目標値`）で振られる。
  */
 function handleShinobigamiChatCommand(rawInput, { token, dispatch, rollBCDice }) {
   const match = rawInput.match(SKILL_CHECK_COMMAND_PATTERN);

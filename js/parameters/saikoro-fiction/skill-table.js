@@ -17,6 +17,12 @@
 // （ギャップを塗りつぶすと遠回りの方が安くなり得るため）。
 // 目標値は baseTarget（シノビガミなら5）＋ 距離。
 
+// checkを持たないspec向けのフォールバック。オプションは無く、素の2D6で目標値を判定する。
+const DEFAULT_CHECK = {
+  options: [],
+  buildCommand: ({ targetNumber }) => `2D6>=${targetNumber}`
+};
+
 /**
  * @param {{
  *   id: string,
@@ -25,7 +31,14 @@
  *   cells: string[][],         cells[列index][行index] = 特技名
  *   cyclic?: boolean,          左端と右端が繋がるか（既定: true）
  *   gapFillable?: boolean,     ギャップを塗りつぶせるか（既定: true）
- *   baseTarget?: number        目標値の基準（既定: 5）
+ *   baseTarget?: number,       目標値の基準（既定: 5）
+ *   check?: {
+ *     options: {key:string, label:string, default:number, min:number, max:number}[],
+ *       判定のたびに指定できる項目（シノビガミならダイス数・スペシャル値・ファンブル値）。
+ *       UIはこの配列から数値入力欄を並べるだけなので、項目の意味は解釈しない。
+ *     buildCommand: ({options, targetNumber}) => string
+ *       BCDiceへ投げるコマンド文字列。システム固有（シノビガミならSG）なのでプラグインが持つ。
+ *   }
  * }} definition
  */
 export function createSkillTableSpec(definition) {
@@ -36,7 +49,8 @@ export function createSkillTableSpec(definition) {
     cells,
     cyclic = true,
     gapFillable = true,
-    baseTarget = 5
+    baseTarget = 5,
+    check = DEFAULT_CHECK
   } = definition;
 
   if (!Array.isArray(columns) || columns.length === 0) {
@@ -74,10 +88,40 @@ export function createSkillTableSpec(definition) {
   });
 
   return Object.freeze({
-    id, columns, rows, cells, cyclic, gapFillable, baseTarget,
+    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check,
     gapCount: columns.length,
     cellIndex, nameIndex, columnIndex
   });
+}
+
+// ---------------------------------------------------------------------------
+// 判定オプション（ダイス数・スペシャル値など。判定のたびに指定するもので、保存はしない）
+// ---------------------------------------------------------------------------
+
+/** 各オプションの既定値を集めたオブジェクト */
+export function createCheckOptions(spec) {
+  const options = {};
+  spec.check.options.forEach(option => { options[option.key] = option.default; });
+  return options;
+}
+
+/**
+ * 入力欄が空・非数値・範囲外でもコマンドが壊れないように、整数化してmin/maxへ丸める。
+ * 未指定の項目は既定値で埋める。
+ */
+export function normalizeCheckOptions(spec, raw) {
+  const options = {};
+  spec.check.options.forEach(option => {
+    // 入力欄を消した瞬間は空文字が来る。Number('')は0になってしまい、そのままだと
+    // 下限へ張り付いてしまうので、空欄は「未指定」として既定値に戻す。
+    const source = raw?.[option.key];
+    const blank = source === undefined || source === null || String(source).trim() === '';
+    const value = blank ? NaN : Math.round(Number(source));
+    options[option.key] = Number.isFinite(value)
+      ? Math.min(Math.max(value, option.min), option.max)
+      : option.default;
+  });
+  return options;
 }
 
 /** 列index・行indexからセルIDを組み立てる */

@@ -112,8 +112,7 @@ export function showIdentityDialog({
     const note = document.createElement('p');
     note.className = 'audio-note';
     note.textContent = '表示名が「この部屋でのあなた」を決めます。同じ名前で入れば、'
-      + '別の端末やブラウザから入り直しても同じ参加者として扱われます。'
-      + '逆に名前を変えると別の参加者になり、名前を知っている人は誰でもあなたとして名乗れます。';
+      + '別の端末やブラウザから入り直しても同じ参加者として扱われます。';
     form.appendChild(note);
 
     const nicknameInput = document.createElement('input');

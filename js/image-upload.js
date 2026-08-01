@@ -44,6 +44,68 @@ export function imageUploadMaxBytes() {
 }
 
 /**
+ * JSONから取り込んだ画像を、この部屋の持ち物にする。
+ *
+ * 取り込んだデータには他所で作られた画像が混ざっている。
+ *   ・データURL … この機能より前のエクスポート、コマ作成ツールの出力
+ *   ・別の部屋のR2 URL … コマを部屋をまたいで持ち込んだ場合
+ * 前者は状態に居座って重く、後者は元の部屋を削除したときフォルダごと消えて404になる
+ * （部屋の削除は参照元を調べずに消すため）。取り込みの時点でこの部屋へ移しておく。
+ *
+ * 自分のR2でない外部URLには触らない（他所の持ち物を勝手に複製しない）。
+ * 変換できない場合は元の値をそのまま返す（画像が使えなくなるよりはマシなため）。
+ *
+ * @param {string|null|undefined} image
+ * @param {'background'|'token'|'panel'} purpose
+ * @returns {Promise<string|null|undefined>}
+ */
+export async function adoptImageIntoRoom(image, purpose) {
+  const roomId = currentRoomId();
+  if (!image || typeof image !== 'string' || !roomId) return image;
+  if (!await isImageUploadAvailable()) return image;
+
+  const base = uploadCapability?.publicBaseUrl;
+
+  if (image.startsWith('data:')) {
+    try {
+      const blob = await (await fetch(image)).blob();
+      const file = new File([blob], 'imported', { type: blob.type || 'image/png' });
+      const { url } = await uploadImageFile(file, purpose);
+      return url;
+    } catch (error) {
+      console.warn('[image-upload] 取り込んだ画像を保存できませんでした:', error.message);
+      return image;
+    }
+  }
+
+  // 自分のR2の画像か。違えば外部URLなので触らない
+  if (!base || !image.startsWith(`${base}/`)) return image;
+  // 既にこの部屋のフォルダにあるならそのまま
+  if (image.startsWith(`${base}/rooms/${roomId}/`)) return image;
+
+  try {
+    const query = `room=${encodeURIComponent(roomId)}&purpose=${encodeURIComponent(purpose)}`;
+    const headers = { 'Content-Type': 'application/json' };
+    const participantId = getCurrentParticipantId();
+    const authToken = getCurrentAuthToken();
+    if (participantId && authToken) {
+      headers['X-Participant-Id'] = participantId;
+      headers['X-Auth-Token'] = authToken;
+    }
+
+    const response = await fetch(`/api/image/copy?${query}`, {
+      method: 'POST', headers, body: JSON.stringify({ sourceUrl: image })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `複製に失敗しました (${response.status})`);
+    return body.url;
+  } catch (error) {
+    console.warn('[image-upload] 他の部屋の画像を複製できませんでした:', error.message);
+    return image;
+  }
+}
+
+/**
  * 画像をアップロードして公開URLとキーを受け取る。
  * @param {File} file
  * @param {'background'|'token'|'panel'} purpose 用途。サーバーが要求する権限が変わる

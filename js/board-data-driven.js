@@ -9,7 +9,7 @@ import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsText } from './file-uploader.js';
-import { pickAndUploadImage } from './image-upload.js';
+import { pickAndUploadImage, adoptImageIntoRoom } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
@@ -47,6 +47,13 @@ function resolveCharacterImport(json) {
   return (activePluginId && pluginHasCharacterImport(activePluginId))
     ? importCharacterJsonForPlugin(activePluginId, json)
     : importCharacterJsonGeneric(json);
+}
+
+// コマのスナップショットに入っている画像を、この部屋の持ち物にしてから返す。
+// JSONにはデータURLや別の部屋のURLが入っていることがあるため（js/image-upload.js参照）。
+async function adoptSnapshotImage(snapshot) {
+  if (!snapshot?.image) return snapshot;
+  return { ...snapshot, image: await adoptImageIntoRoom(snapshot.image, 'token') };
 }
 
 function dispatchCharacterImport(id, importResult) {
@@ -294,7 +301,9 @@ function bindTokenDrag(element, board) {
           if (!json) return;
 
           if (isTokenSnapshot(json)) {
-            store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: tokenId, snapshot: json });
+            store.dispatch('RESTORE_CHARACTER_SNAPSHOT', {
+              id: tokenId, snapshot: await adoptSnapshotImage(json)
+            });
             return;
           }
 
@@ -846,10 +855,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // スナップショットの画像はこの部屋の持ち物にしてから使う（adoptSnapshotImage参照）
+    const snapshot = isSnapshot ? await adoptSnapshotImage(json) : null;
+
     const droppedTokenEl = event.target.closest('.token');
     if (droppedTokenEl) {
       if (isSnapshot) {
-        store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: droppedTokenEl.id, snapshot: json });
+        store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: droppedTokenEl.id, snapshot });
       } else {
         dispatchCharacterImport(droppedTokenEl.id, importResult);
       }
@@ -878,7 +890,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     if (isSnapshot) {
-      store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: newId, snapshot: json });
+      store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: newId, snapshot });
     } else {
       dispatchCharacterImport(newId, importResult);
     }

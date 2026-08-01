@@ -47,9 +47,24 @@ function objectUrl(key) {
   return `https://${ACCOUNT_ID}.r2.cloudflarestorage.com/${BUCKET}/${key}`;
 }
 
+// 公開URLの土台（末尾のスラッシュは落とす）。「このURLは自分のR2のものか」を
+// 判定する側でも使うため、組み立てと判定で同じ値を見るようにここに1つだけ置く。
+export function publicBaseUrl() {
+  return String(PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+}
+
 // 再生時にブラウザが直接叩く公開URL。末尾のスラッシュ有無を吸収しておく。
 export function publicUrlFor(key) {
-  return `${String(PUBLIC_BASE_URL).replace(/\/+$/, '')}/${key}`;
+  return `${publicBaseUrl()}/${key}`;
+}
+
+// 公開URLから、このバケット内のキーを取り出す。自分のR2のURLでなければnull。
+// 取り込んだデータの画像URLを「自分の部屋へ入れ直すべきか」判断するのに使う。
+export function keyFromPublicUrl(url) {
+  const base = publicBaseUrl();
+  if (!base || typeof url !== 'string' || !url.startsWith(`${base}/`)) return null;
+  const key = url.slice(base.length + 1).split(/[?#]/)[0];
+  return key || null;
 }
 
 export async function putObject(key, body, contentType) {
@@ -62,6 +77,22 @@ export async function putObject(key, body, contentType) {
   if (!response.ok) {
     throw new Error(`R2へのアップロードに失敗しました (${response.status})`);
   }
+}
+
+// 既にバケットにあるオブジェクトの中身を読む（取り込んだデータの画像を、その部屋の
+// フォルダへ複製するときに使う）。公開URLではなく署名付きで直接取りに行くので、
+// 公開ドメイン側の設定やキャッシュに左右されない。
+export async function getObject(key) {
+  const response = await getClient().fetch(objectUrl(key), { method: 'GET' });
+
+  if (!response.ok) {
+    throw new Error(`R2からの取得に失敗しました (${response.status})`);
+  }
+
+  return {
+    body: Buffer.from(await response.arrayBuffer()),
+    contentType: response.headers.get('content-type') || 'application/octet-stream'
+  };
 }
 
 export async function deleteObject(key) {

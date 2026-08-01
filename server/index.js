@@ -23,7 +23,10 @@ import path from 'node:path';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
-import { isR2Configured, putObject, deleteObject, deleteObjectsByPrefix, publicUrlFor } from './r2.js';
+import {
+  isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
+  publicUrlFor, publicBaseUrl, keyFromPublicUrl
+} from './r2.js';
 
 const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
@@ -667,6 +670,119 @@ function handleAudioUpload(req, res) {
   });
 }
 
+// --- 取り込んだ画像を、その部屋の持ち物にする ---
+// JSONから読み込んだ状態やコマには、他所で作られた画像が混ざっている。
+//   ・データURL … この機能より前のエクスポート、コマ作成ツールの出力
+//   ・別の部屋のR2 URL … 部屋をまたいでコマや部屋データを持ち込んだ場合
+// どちらもそのまま置くと具合が悪い。データURLは状態に居座って重く、別の部屋のURLは
+// 元の部屋を削除したときフォルダごと消えて画像が404になる（deleteRoomDataは参照元を
+// 調べずに消す）。取り込みの時点でこの部屋のフォルダへ複製し直して自己完結させる。
+//
+// 自分のR2でない外部URLは触らない（他所の持ち物を勝手に複製しない。取り込む先が
+// 消えても影響しない）。
+
+const DATA_URL_PATTERN = /^data:([^;,]+)[^,]*,/;
+
+// データURL（base64のみ。base64でないものはこのアプリが作らない）を実体に戻す。
+function decodeDataUrl(dataUrl) {
+  const match = String(dataUrl).match(DATA_URL_PATTERN);
+  if (!match) return null;
+  const contentType = match[1];
+  if (!IMAGE_EXTENSIONS[contentType]) return null; // 想定外の形式は触らない
+  const base64 = String(dataUrl).slice(match[0].length);
+  try {
+    return { body: Buffer.from(base64, 'base64'), contentType };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 画像1つをこの部屋の持ち物にする。変換が要らなければ元の値をそのまま返す。
+ * @returns {Promise<string>} 置き換え後の画像文字列
+ */
+async function adoptImage(roomId, image) {
+  if (!image || typeof image !== 'string' || !isR2Configured()) return image;
+
+  const prefix = roomObjectPrefix(roomId);
+  let source = null;
+
+  if (image.startsWith('data:')) {
+    source = decodeDataUrl(image);
+  } else {
+    const key = keyFromPublicUrl(image);
+    if (!key) return image;              // 自分のR2ではない外部URL → 触らない
+    if (key.startsWith(prefix)) return image; // 既にこの部屋の持ち物
+    try {
+      source = await getObject(key);
+    } catch (error) {
+      // 元が消えている等。取り込み自体は続ける（画像はURLのまま残り、表示だけ壊れる）
+      console.warn(`[server] ${roomId}: 取り込んだ画像を複製できませんでした (${key}):`, error.message);
+      return image;
+    }
+  }
+
+  if (!source || source.body.length > MAX_IMAGE_BYTES) return image;
+
+  const ext = IMAGE_EXTENSIONS[source.contentType] || 'bin';
+  const newKey = `${prefix}${randomUUID()}.${ext}`;
+  try {
+    await putObject(newKey, source.body, source.contentType);
+  } catch (error) {
+    console.warn(`[server] ${roomId}: 取り込んだ画像を保存できませんでした:`, error.message);
+    return image;
+  }
+  return publicUrlFor(newKey);
+}
+
+/**
+ * 状態に含まれる画像をまとめてこの部屋の持ち物にする（部屋の作成時・全データ読み込み時）。
+ * 同じ画像が何度も出てくる場合は1回だけ複製して使い回す。
+ */
+async function adoptStateImages(roomId, state) {
+  if (!isR2Configured() || !state || typeof state !== 'object') return state;
+
+  const cache = new Map();
+  const adopt = async (image) => {
+    if (!image || typeof image !== 'string') return image;
+    if (!cache.has(image)) cache.set(image, await adoptImage(roomId, image));
+    return cache.get(image);
+  };
+
+  const adoptPanels = async (panels) => {
+    const next = {};
+    for (const [id, panel] of Object.entries(panels || {})) {
+      next[id] = { ...panel, image: await adopt(panel?.image) };
+    }
+    return next;
+  };
+
+  const tokens = {};
+  for (const [id, token] of Object.entries(state.tokens || {})) {
+    tokens[id] = { ...token, image: await adopt(token?.image) };
+  }
+
+  const scenes = {};
+  for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
+    scenes[id] = {
+      ...scene,
+      backgroundImage: await adopt(scene?.backgroundImage),
+      panels: await adoptPanels(scene?.panels)
+    };
+  }
+
+  return {
+    ...state,
+    tokens,
+    panels: await adoptPanels(state.panels),
+    room: {
+      ...(state.room || {}),
+      backgroundImage: await adopt(state.room?.backgroundImage),
+      scenes
+    }
+  };
+}
+
 // 画像の用途ごとに要求する権限。盤面の背景は部屋全体を左右するのでGM限定だが、
 // コマ・パネルの画像は誰でも置ける（ADD_CHARACTER・ADD_PANELがGM限定でないのと揃える）。
 // 知らない用途は塞ぐ側に倒す（増やすときはここに明示的に足す）。
@@ -699,6 +815,76 @@ function handleImageUpload(req, res) {
     unavailableMessage: 'このサーバーでは画像のアップロードが設定されていません。',
     wrongTypeMessage: '画像ファイル（PNG・JPEG・GIF・WebP）を指定してください'
   });
+}
+
+// POST /api/image/copy?room=room-N&purpose=token|panel
+// body: { sourceUrl }
+// 既にR2にある画像を、この部屋のフォルダへ複製する。コマのJSONを別の部屋から持ち込んだ
+// ときに使う（そのままだと元の部屋を消した拍子に画像が404になる。adoptImage参照）。
+//
+// ブラウザから直接R2を読むにはR2側のCORS設定が要るため、サーバーが代わりに読む。
+// 取りに行くURLは自分のR2の公開URLだけに限る（任意のURLを取りに行けると、サーバーを
+// 踏み台にして本来触れない場所へリクエストを飛ばせてしまう）。
+async function handleImageCopy(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const roomId = url.searchParams.get('room');
+  const purpose = IMAGE_PURPOSES[url.searchParams.get('purpose')];
+
+  if (!isValidRoomId(roomId)) {
+    sendJson(res, 400, { error: '部屋IDが不正です' });
+    return;
+  }
+  if (!purpose) {
+    sendJson(res, 400, { error: '画像の用途(purpose)が不正です' });
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  if (purpose.requireGm) {
+    const participantId = String(req.headers['x-participant-id'] || '');
+    const authToken = String(req.headers['x-auth-token'] || '');
+    const identified = verifyIdentity(participantId, authToken);
+    const developer = identified && isDeveloperToken(roomId, authToken);
+    if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
+      sendJson(res, 403, { error: purpose.forbiddenMessage });
+      return;
+    }
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    return;
+  }
+
+  // 複製元の検証はR2の設定有無より先に行う。おかしなリクエストはサーバーの都合に
+  // 関わらずおかしいので、R2の無い検証環境でもこの判定を確かめられるようにしておく。
+  const sourceUrl = String(body.sourceUrl || '');
+  if (!keyFromPublicUrl(sourceUrl)) {
+    sendJson(res, 400, { error: 'この画像は複製できません（このサーバーの画像ではありません）' });
+    return;
+  }
+
+  if (!isR2Configured()) {
+    sendJson(res, 503, { error: 'このサーバーでは画像のアップロードが設定されていません。' });
+    return;
+  }
+
+  const adopted = await adoptImage(roomId, sourceUrl);
+  if (adopted === sourceUrl) {
+    // 元が消えている等で複製できなかった。呼び出し側は元のURLのまま続行する。
+    sendJson(res, 502, { error: '画像の複製に失敗しました' });
+    return;
+  }
+
+  sendJson(res, 200, { url: adopted });
 }
 
 // GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
@@ -784,7 +970,10 @@ async function handleCreateRoom(req, res) {
   // prevState.round.activeへのアクセスで例外を投げてサーバーごと落ちる（getOrLoadRoomで
   // 修正済みなのと同じ原因）。hydrate()を通して欠けているキーを補ってから使う。
   const store = new ImmutableStore(createInitialGameState());
-  store.hydrate(initialState);
+  // 取り込んだデータに混ざっている画像（データURL・他の部屋のURL）を、この部屋の
+  // 持ち物へ複製し直す（adoptStateImages参照）。部屋はまだ誰にも配っていないので、
+  // ここで直しておけば以後は普通の画像として扱える。
+  store.hydrate(await adoptStateImages(id, initialState));
 
   try {
     await writeRoomState(id, store.state);
@@ -929,9 +1118,19 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  // 画像アップロードが使えるか（使えない環境ではブラウザ側がデータURLへ退避する）
+  if (url.pathname === '/api/image/copy' && req.method === 'POST') {
+    await handleImageCopy(req, res);
+    return;
+  }
+
+  // 画像アップロードが使えるか（使えない環境ではブラウザ側がデータURLへ退避する）。
+  // publicBaseUrlは「この画像は自分の部屋の持ち物か」をブラウザ側が判定するのに使う。
   if (url.pathname === '/api/image' && req.method === 'GET') {
-    sendJson(res, 200, { uploadEnabled: isR2Configured(), maxBytes: MAX_IMAGE_BYTES });
+    sendJson(res, 200, {
+      uploadEnabled: isR2Configured(),
+      maxBytes: MAX_IMAGE_BYTES,
+      publicBaseUrl: isR2Configured() ? publicBaseUrl() : null
+    });
     return;
   }
 
@@ -1030,9 +1229,19 @@ wss.on('connection', async (ws, req) => {
         rejectAndResync('REPLACE_STATE');
         return;
       }
-      entry.store.hydrate(message.state);
-      schedulePersistForRoom(roomId, entry);
-      broadcastToRoom(entry, ws, { type: 'INIT', state: entry.store.state });
+      // 読み込んだファイルに混ざっている画像（データURL・他の部屋のURL）をこの部屋の
+      // 持ち物へ複製し直す（adoptStateImages参照）。複製には時間がかかるので、
+      // その間に届いた他の操作は先に適用され、この置き換えで上書きされる——が、
+      // 全データの読み込みは元々そういう操作なので問題にしない。
+      adoptStateImages(roomId, message.state).then((adopted) => {
+        entry.store.hydrate(adopted);
+        schedulePersistForRoom(roomId, entry);
+        // 送り手にも配る。送り手の画面には複製前（データURL等）が入っているため、
+        // ここで配り直さないと画面とサーバーで画像の持ち方が食い違ったままになる。
+        broadcastToRoom(entry, null, { type: 'INIT', state: entry.store.state });
+      }).catch((error) => {
+        console.warn(`[server] ${roomId}: 読み込んだ状態の取り込みに失敗しました:`, error.message);
+      });
       return;
     }
 

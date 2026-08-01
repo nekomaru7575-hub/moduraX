@@ -1203,18 +1203,39 @@ export class ImmutableStore {
         return;
       }
 
-      // 指定チャンネルの再生状態を差し替える（trackId: null で停止）。
+      // 指定チャンネルで音源を鳴らす。再生は全員が行える（再生フレーズも同じ経路）。
+      // 止めるのは別アクション（STOP_AUDIO_PLAYBACK）。ここでtrackId: nullを受け付けると
+      // 停止をGM限定にした意味が無くなるので、必ず鳴らす音源を伴うこと。
       case 'SET_AUDIO_PLAYBACK': {
         const { channel, trackId, playId } = payload;
         if (!AUDIO_CHANNELS.includes(channel)) return;
         const room = prevState.room;
-        if (trackId && !room.audioTracks?.[trackId]) return;
+        if (!trackId || !room.audioTracks?.[trackId]) return;
 
         const playback = room.audioPlayback || { bgm: null, se: null };
-        const nextEntry = trackId ? Object.freeze({ trackId, playId }) : null;
 
         this.#commit(prevState, {
-          room: { ...room, audioPlayback: withMapEntry(playback, channel, nextEntry) }
+          room: {
+            ...room,
+            audioPlayback: withMapEntry(playback, channel, Object.freeze({ trackId, playId }))
+          }
+        });
+        return;
+      }
+
+      // 指定チャンネルの再生を止める。再生と分けてあるのは、停止だけをGM限定にするため
+      // （server/index.jsのGM_ONLY_ACTIONS。「みんなで聴いている音を他人が止められる」のを
+      // 防ぐためで、自分にだけ聞こえないようにするミュートはjs/audio-player.js側にある）。
+      case 'STOP_AUDIO_PLAYBACK': {
+        const { channel } = payload;
+        if (!AUDIO_CHANNELS.includes(channel)) return;
+
+        const room = prevState.room;
+        const playback = room.audioPlayback || { bgm: null, se: null };
+        if (!playback[channel]) return;
+
+        this.#commit(prevState, {
+          room: { ...room, audioPlayback: withMapEntry(playback, channel, null) }
         });
         return;
       }

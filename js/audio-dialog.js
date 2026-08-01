@@ -4,16 +4,22 @@
 
 import { pickFile } from './file-uploader.js';
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
-import { getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy } from './audio-player.js';
+import {
+  getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy, isMuted, setMuted
+} from './audio-player.js';
 import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 
 // サーバーが上限を教えてくれるまでの暫定値（server/index.jsのMAX_AUDIO_MBの既定と同じ）。
 // 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
 const DEFAULT_MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
-// 再生フレーズ：発言の末尾がこの文字列と一致したときに鳴らす（js/audio-phrase.js）。
 // 音源の追加（アップロード・URL）を止めている理由。ボタンのツールチップと注記に使う。
-const ADD_TRACK_GM_ONLY_NOTE = '音源の追加はGMだけが行えます（再生・停止は全員できます）。';
+const ADD_TRACK_GM_ONLY_NOTE = '音源の追加はGMだけが行えます（再生は全員できます）。';
+
+// 停止を止めている理由。再生中の音は全員で聴いているものなので、勝手に止められないようにし、
+// 「自分は聴きたくない」場合の逃げ道としてミュートを案内する。
+const STOP_GM_ONLY_NOTE = '再生中の音楽を止められるのはGMだけです。'
+  + '自分にだけ聞こえないようにするには「ミュート」をお使いください。';
 
 const PHRASE_PLACEHOLDER = '再生フレーズ（任意）';
 const PHRASE_HINT = '発言の末尾がこのフレーズと一致すると再生されます（空欄なら鳴りません）';
@@ -172,7 +178,9 @@ function buildAddRow(defaultName, onSubmit) {
  *   tracks: Record<string, {id:string, name:string, url:string, channel:string, loop:boolean, phrase?:string|null}>,
  *   playback: Record<string, {trackId:string, playId:string}|null>,
  *   canAddTrack?: boolean 音源を追加してよいか（GM限定。既定は可）。
- *     falseなら追加ボタンを押せない状態にして理由を示す。再生・停止・削除は制限しない。
+ *     falseなら追加ボタンを押せない状態にして理由を示す。再生・削除は制限しない。
+ *   canStop?: boolean 再生中の音楽を止めてよいか（GM限定。既定は可）。
+ *     falseなら停止ボタンを押せない状態にして、代わりにミュートを案内する。
  *   onAdd: (result: {name:string, url:string, source:string, key:string|null, channel:string, loop:boolean, phrase:string}) => void,
  *   onPlay: (track: object) => void,
  *   onStop: (channel: string) => void,
@@ -182,7 +190,8 @@ function buildAddRow(defaultName, onSubmit) {
  * }} options
  */
 export function showAudioDialog({
-  tracks, playback, canAddTrack = true, onAdd, onPlay, onStop, onRemove, onPhraseChange
+  tracks, playback, canAddTrack = true, canStop = true,
+  onAdd, onPlay, onStop, onRemove, onPhraseChange
 }) {
   const dialog = ensureDialog();
   // 操作のたびに開き直す使い方をするため、開いたままのshowModalで例外にならないようにする
@@ -232,9 +241,31 @@ export function showAudioDialog({
     container.appendChild(row);
   });
 
+  // ミュート（このブラウザだけ）。停止と違って部屋の再生状態には触れないので、GMでなくても押せる。
+  const muteRow = document.createElement('div');
+  muteRow.className = 'audio-volume-row';
+
+  const muteLabel = document.createElement('span');
+  muteLabel.className = 'audio-volume-label';
+  muteLabel.textContent = 'ミュート';
+  muteRow.appendChild(muteLabel);
+
+  const muteBtn = document.createElement('button');
+  muteBtn.type = 'button';
+  function renderMuteBtn() {
+    muteBtn.textContent = isMuted() ? '🔇 ミュート中（解除する）' : '🔊 自分だけミュートする';
+  }
+  renderMuteBtn();
+  muteBtn.addEventListener('click', () => {
+    setMuted(!isMuted());
+    renderMuteBtn();
+  });
+  muteRow.appendChild(muteBtn);
+  container.appendChild(muteRow);
+
   const volumeNote = document.createElement('p');
   volumeNote.className = 'audio-note';
-  volumeNote.textContent = '音量はこのブラウザだけの設定です（他の参加者には影響しません）。';
+  volumeNote.textContent = '音量とミュートはこのブラウザだけの設定です（他の参加者には影響しません）。';
   container.appendChild(volumeNote);
 
   // --- 再生中 ---
@@ -251,15 +282,26 @@ export function showAudioDialog({
     row.appendChild(text);
 
     if (track) {
+      // 停止はGM限定。ボタンを消すと「なぜ出ないのか」が分からないので、
+      // 押せない状態で残して理由（とミュートという代わりの手段）を示す。
       const stopBtn = document.createElement('button');
       stopBtn.type = 'button';
       stopBtn.textContent = '停止';
+      stopBtn.disabled = !canStop;
+      if (!canStop) stopBtn.title = STOP_GM_ONLY_NOTE;
       stopBtn.addEventListener('click', () => onStop(channel));
       row.appendChild(stopBtn);
     }
 
     container.appendChild(row);
   });
+
+  if (!canStop) {
+    const stopNote = document.createElement('p');
+    stopNote.className = 'audio-note';
+    stopNote.textContent = STOP_GM_ONLY_NOTE;
+    container.appendChild(stopNote);
+  }
 
   // --- 音源一覧 ---
   const listEl = document.createElement('div');
@@ -269,7 +311,7 @@ export function showAudioDialog({
   const phraseNote = document.createElement('p');
   phraseNote.className = 'audio-note';
   phraseNote.textContent = '再生フレーズを設定すると、発言の末尾がそのフレーズと一致したときに鳴ります。'
-    + '「演奏停止」と発言すると全て止まります。';
+    + (canStop ? '「演奏停止」と発言すると全て止まります。' : '');
   container.appendChild(phraseNote);
 
   const trackList = Object.values(tracks);

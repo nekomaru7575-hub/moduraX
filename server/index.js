@@ -217,6 +217,9 @@ const GM_ONLY_ACTIONS = new Set([
   'SET_BCDICE_SYSTEM',
   'SET_ACTIVE_PLUGIN',
   'ADD_AUDIO_TRACK',
+  // 音楽の停止（再生は全員が行える。game-store.jsのSET_AUDIO_PLAYBACK／STOP_AUDIO_PLAYBACK）。
+  // 聴きたくない人は自分の環境だけミュートする（js/audio-player.js）。
+  'STOP_AUDIO_PLAYBACK',
   'ROUND_PROGRESSION_START',
   'ROUND_ADVANCE_PHASE',
   'ROUND_SET_PARTICIPANTS',

@@ -411,8 +411,10 @@ function openAudioDialog() {
   showAudioDialog({
     tracks: store.state.room.audioTracks || {},
     playback: store.state.room.audioPlayback || { bgm: null, se: null },
-    // 音源の追加（アップロード・URL）だけGM限定。再生・停止・削除・音量は全員が触れる。
+    // 音源の追加（アップロード・URL）と停止はGM限定。再生・削除・音量・ミュートは全員が触れる
+    // （みんなで聴いている音を他人が止められないようにするため。聴きたくない人はミュート）。
     canAddTrack: canOperateAsGm(),
+    canStop: canOperateAsGm(),
     onAdd: ({ name, url, source, key, channel, loop, phrase }) => {
       store.dispatch('ADD_AUDIO_TRACK', { id: `audio-${Date.now()}`, name, url, source, key, channel, loop, phrase });
       openAudioDialog();
@@ -425,7 +427,7 @@ function openAudioDialog() {
       openAudioDialog();
     },
     onStop: (channel) => {
-      store.dispatch('SET_AUDIO_PLAYBACK', { channel, trackId: null, playId: null });
+      store.dispatch('STOP_AUDIO_PLAYBACK', { channel });
       openAudioDialog();
     },
     onRemove: (trackId) => {
@@ -980,6 +982,17 @@ const AUDIO_STOP_COMMAND = '演奏停止';
 function tryHandleAudioStopCommand(rawInput) {
   if (rawInput.trim() !== AUDIO_STOP_COMMAND) return false;
 
+  // 停止はボタンと同じくGM限定（サーバー側もSTOP_AUDIO_PLAYBACKを弾く）。ここで止めないと、
+  // 画面上は止まったように見えて他の参加者には鳴り続ける、という食い違いになる。
+  if (!canOperateAsGm()) {
+    applyLog({
+      system: '音楽',
+      resultText: '♪ 再生中の音楽を止められるのはGMだけです'
+        + '（自分にだけ聞こえないようにするには、音楽ダイアログの「ミュート」をお使いください）'
+    });
+    return true;
+  }
+
   const tracks = store.state.room.audioTracks || {};
   const playback = store.state.room.audioPlayback || {};
 
@@ -987,7 +1000,7 @@ function tryHandleAudioStopCommand(rawInput) {
     .filter(channel => playback[channel])
     .map(channel => {
       const name = tracks[playback[channel].trackId]?.name || '不明な音源';
-      store.dispatch('SET_AUDIO_PLAYBACK', { channel, trackId: null, playId: null });
+      store.dispatch('STOP_AUDIO_PLAYBACK', { channel });
       return `${AUDIO_CHANNEL_LABELS[channel] || channel}: ${name}`;
     });
 

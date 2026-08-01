@@ -14,6 +14,11 @@ import { AUDIO_CHANNELS } from './game-store.js';
 const VOLUME_KEY_PREFIX = 'mojulaX:audioVolume:';
 const DEFAULT_VOLUME = 0.5;
 
+// ミュートも同じくこのブラウザだけの設定。再生の停止（STOP_AUDIO_PLAYBACK）はGM限定なので、
+// 「今は聴きたくない」人はこちらで自分の環境だけ黙らせる。音量0と違って、元の音量を
+// 覚えたまま切り替えられるようにするため別の設定として持つ。
+const MUTED_KEY = 'mojulaX:audioMuted';
+
 // チャンネルごとのAudio要素と、最後に適用した再生状態（playId）
 const channels = {};
 
@@ -30,6 +35,19 @@ export function setChannelVolume(channel, value) {
   const clamped = Math.min(1, Math.max(0, Number(value) || 0));
   localStorage.setItem(VOLUME_KEY_PREFIX + channel, String(clamped));
   if (channels[channel]) channels[channel].audio.volume = clamped;
+}
+
+export function isMuted() {
+  return localStorage.getItem(MUTED_KEY) === '1';
+}
+
+// ミュート中でも再生自体は続いている（音が出ないだけ）。解除した時点の続きから聞こえるのは、
+// 部屋のみんなと同じところを聴くという意味では自然な振る舞いなのでそのままにしている。
+export function setMuted(muted) {
+  localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
+  AUDIO_CHANNELS.forEach(channel => {
+    if (channels[channel]) channels[channel].audio.muted = !!muted;
+  });
 }
 
 // ページを一度もクリックしていない状態ではブラウザがplay()を拒否する。
@@ -62,6 +80,7 @@ function applyChannel(channel, entry, tracks) {
   audio.src = track.url || track.dataUrl;
   audio.loop = Boolean(track.loop);
   audio.volume = getChannelVolume(channel);
+  audio.muted = isMuted();
   audio.currentTime = 0;
 
   const played = audio.play();
@@ -77,6 +96,7 @@ export function initAudioPlayer() {
   AUDIO_CHANNELS.forEach(channel => {
     const audio = new Audio();
     audio.volume = getChannelVolume(channel);
+    audio.muted = isMuted();
     channels[channel] = { audio, appliedPlayId: null };
   });
 

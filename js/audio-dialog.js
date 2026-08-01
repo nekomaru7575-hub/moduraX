@@ -80,7 +80,7 @@ function fetchUploadCapability(onResolved) {
 // ブラウザからR2を直接叩かないので、R2側のCORS設定は不要。
 //
 // サーバーはアップロードをGM限定にしているため、WebSocketでの名乗りと同じ2つの値を
-// ヘッダに載せる（server/index.jsのhandleAudioUpload）。合言葉由来のトークンなので、
+// ヘッダに載せる（server/index.jsのhandleAudioUpload）。名乗り用のトークンなので、
 // ログに残りうるクエリ文字列ではなくヘッダで送る。
 async function uploadAudioFile(file) {
   const headers = { 'Content-Type': file.type || 'audio/mpeg' };

@@ -368,7 +368,7 @@ function bindTokenDrag(element, board) {
         disabled: !canOperate,
         title: denyReason,
         onSelect: () => {
-          // しまうと同時に自分のコマになる（合言葉未設定のゲストは所有者なしのまま、
+          // しまうと同時に自分のコマになる（表示名未設定のゲストは所有者なしのまま、
           // 従来どおりブラウザ単位の棚に入る）
           store.dispatch('MOVE_TO_BACKYARD', {
             id: tokenId, participantId: myParticipantId, localUserId: getLocalUserId()
@@ -622,7 +622,7 @@ function canOperateToken(token, myParticipantId, amGm) {
   return token.ownerId === myParticipantId;
 }
 
-// 表示用の持ち主の名前。参加者一覧から引けなければ（合言葉を変えた・削除された等）
+// 表示用の持ち主の名前。参加者一覧から引けなければ（表示名を変えた・削除された等）
 // IDのままでは意味が伝わらないので「不明な参加者」と出す。
 function ownerNameOf(token) {
   if (!token?.ownerId) return 'なし';
@@ -630,7 +630,7 @@ function ownerNameOf(token) {
 }
 
 // バックヤードに入っているコマのうち、自分の棚のものだけを返す。
-// 合言葉を設定している人は所有者(ownerId)で判定するので、別の端末から入り直しても
+// 表示名を設定している人は所有者(ownerId)で判定するので、別の端末から入り直しても
 // 同じ棚が見える。ownerIdを持たないコマ（この機能より前にしまったもの・ゲストがしまった
 // もの）は、従来どおりブラウザ単位のIDで判定する。
 function listMyBackyardTokens() {
@@ -750,7 +750,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 visible,
                 x: Math.round(clampedX),
                 y: Math.round(clampedY),
-                // 登録した人のコマにする（合言葉未設定なら所有者なし＝誰でも触れる）。
+                // 登録した人のコマにする（表示名未設定なら所有者なし＝誰でも触れる）。
                 // NPC等をみんなで触りたい場合は「コマを手放す」で外す。
                 ownerId: getCurrentParticipantId(),
                 parameterOverrides,

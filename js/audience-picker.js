@@ -25,7 +25,7 @@ export function buildAudiencePicker({
 }) {
   const container = document.createElement('div');
 
-  // 合言葉を設定していない（ゲスト）場合、自分を宛先に指定できないため限定公開は作れない
+  // 表示名を設定していない（ゲスト）場合、自分を宛先に指定できないため限定公開は作れない
   const canRestrict = !!myParticipantId;
 
   const scopeList = document.createElement('div');
@@ -80,9 +80,9 @@ export function buildAudiencePicker({
   const note = document.createElement('p');
   note.className = 'audio-note';
   if (!canRestrict) {
-    note.textContent = '公開先を絞るには、ルームメニューの「参加者設定」で合言葉を設定してください。';
+    note.textContent = '公開先を絞るには、ルームメニューの「参加者設定」で表示名を設定してください。';
   } else if (memberChecks.length <= 1) {
-    note.textContent = '他の参加者がまだ合言葉を設定していません。相手が「参加者設定」で名乗ると、ここに出てきます。';
+    note.textContent = '他の参加者がまだ名乗っていません。相手が「参加者設定」で表示名を入れると、ここに出てきます。';
   } else {
     note.textContent = 'GMにも見せる場合は、GMにもチェックを入れてください（自動では含まれません）。'
       + 'なお現段階の公開先の指定は表示上の制限で、データそのものは全員の画面に配られています。';

@@ -31,7 +31,7 @@ export function isGm(participants, participantId) {
 /**
  * 自分がそれを見てよいか。
  * @param {string[]|null|undefined} audience 宛先（nullなら全員）
- * @param {string|null} participantId 自分の参加者ID。合言葉未設定（ゲスト）ならnull
+ * @param {string|null} participantId 自分の参加者ID。表示名未設定（ゲスト）ならnull
  */
 export function canView(audience, participantId) {
   if (!isRestricted(audience)) return true;

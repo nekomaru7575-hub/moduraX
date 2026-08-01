@@ -304,9 +304,9 @@ const CHARACTER_FIELD_PATCHES = {
   // 元の位置へ復元できるようにする。
   // コマの所有者（参加者ID）。null＝所有者なしで、誰でも更新・回収できる。
   SET_CHARACTER_OWNER: ({ ownerId }) => ({ ownerId: ownerId || null }),
-  // バックヤードへしまうと同時に、しまった人のコマになる。合言葉を設定している人は
+  // バックヤードへしまうと同時に、しまった人のコマになる。表示名を設定している人は
   // 参加者ID（ownerId）で持つので、別の端末から入り直しても同じ棚が見える。
-  // ゲスト（合言葉なし）は参加者IDを持てないため、従来どおりブラウザ単位のIDで棚を分ける。
+  // ゲスト（表示名なし）は参加者IDを持てないため、従来どおりブラウザ単位のIDで棚を分ける。
   MOVE_TO_BACKYARD: ({ participantId, localUserId }) => {
     if (participantId) return { inBackyard: true, ownerId: participantId };
     return localUserId ? { inBackyard: true, backyardOwnerId: localUserId } : null;
@@ -486,8 +486,8 @@ export class ImmutableStore {
           // 更新/JSON読み込み/削除/バックヤードへの回収は持ち主とGMだけが行える（盤面上の移動は誰でも可）。
           ownerId: ownerId || null,
           inBackyard: false, // バックヤード（盤面外の個人保管場所）にしまわれているか
-          // 旧データとゲスト（合言葉なし）用の読み取り専用フィールド。しまった人のブラウザ単位のID。
-          // 合言葉を設定している人の棚はownerIdで判定する（MOVE_TO_BACKYARD参照）。
+          // 旧データとゲスト（表示名なし）用の読み取り専用フィールド。しまった人のブラウザ単位のID。
+          // 表示名を設定している人の棚はownerIdで判定する（MOVE_TO_BACKYARD参照）。
           backyardOwnerId: null
         });
 
@@ -946,9 +946,9 @@ export class ImmutableStore {
         return;
       }
 
-      // --- 参加者（js/local-identity.jsの「合言葉」から導出した公開IDで識別する） ---
-      // 状態に載るのは公開ID・表示名・GMかどうかだけで、合言葉そのものは決して載せない。
-      // 同じ合言葉なら別の端末・ブラウザからでも同じIDになるので、入り直しても同じ参加者になる。
+      // --- 参加者（js/local-identity.jsの「表示名」から導出した公開IDで識別する） ---
+      // 状態に載るのは公開ID・表示名・GMかどうかだけ。
+      // 同じ表示名なら別の端末・ブラウザからでも同じIDになるので、入り直しても同じ参加者になる。
       case 'REGISTER_PARTICIPANT': {
         const { id, nickname } = payload;
         if (!id) return;
@@ -981,7 +981,7 @@ export class ImmutableStore {
         return;
       }
 
-      // 合言葉の打ち間違いで増えてしまった参加者などを消すための後始末用。
+      // 表示名の打ち間違いで増えてしまった参加者などを消すための後始末用。
       case 'REMOVE_PARTICIPANT': {
         const { id } = payload;
         const participants = prevState.participants || {};
@@ -1404,8 +1404,8 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
     chatLogs: { [MAIN_CHAT_TAB_ID]: [] },
 
-    // 参加者一覧（js/local-identity.jsの合言葉から導出した公開IDがキー）。
-    // { [id]: { id, nickname, isGm } }。合言葉そのものは状態に持たない。
+    // 参加者一覧（js/local-identity.jsの表示名から導出した公開IDがキー）。
+    // { [id]: { id, nickname, isGm } }。
     participants: {},
 
     // ラウンド進行（Core機能）。詳細はcreateInitialRoundState()参照

@@ -14,7 +14,8 @@ import { renderChatPalette } from './chat-palette.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState, requestRoomDeletion, sendIdentify } from './net-sync.js';
 import {
-  getNickname, setNickname, getStoredPassphrase, setStoredPassphrase,
+  getNickname, normalizeRoomName, getStoredRoomName, setStoredRoomName,
+  getStoredDevPassphrase, setStoredDevPassphrase,
   activateRoomIdentity, getCurrentParticipantId
 } from './local-identity.js';
 import { showIdentityDialog } from './identity-dialog.js';
@@ -130,7 +131,7 @@ function openChatTabAudienceDialog(tab) {
   });
 }
 
-// 合言葉を変えた等で今見ているタブが見えなくなった場合に、Mainへ戻す。
+// 表示名を変えた等で今見ているタブが見えなくなった場合に、Mainへ戻す。
 function ensureActiveTabVisible(state) {
   if (visibleChatTabs(state).some(tab => tab.id === activeTabId)) return;
   switchChatTab(MAIN_TAB_ID);
@@ -442,38 +443,42 @@ if (audioMenuBtn) {
   audioMenuBtn.addEventListener('click', openAudioDialog);
 }
 
-// --- 参加者としての名乗り（合言葉による識別。js/local-identity.js参照） ---
-// 合言葉から導出した公開IDで「この部屋でのこの人」を表す。将来の秘匿機能（コマ/パネルの
-// 一部を特定の人にだけ見せる、特定の人だけのチャットタブ）の宛先指定に使う土台。
+// --- 参加者としての名乗り（表示名による識別。js/local-identity.js参照） ---
+// 表示名から導出した公開IDで「この部屋でのこの人」を表す。秘匿機能（コマ/パネルの一部を
+// 特定の人にだけ見せる、特定の人だけのチャットタブ）の宛先指定に使う土台。
 function currentRoomId() {
   return new URLSearchParams(location.search).get('room') || '';
 }
 
-async function activateAndRegisterIdentity(passphrase, nickname) {
-  const identity = await activateRoomIdentity(currentRoomId(), passphrase);
+// 名乗りの種は表示名。ただし開発用の合言葉を入れているときだけはそちらを種にする
+// （表示名を種にすると合言葉が参加者一覧に晒されるため。server/index.jsのisDeveloperToken参照）。
+async function activateAndRegisterIdentity(name, devPassphrase) {
+  const identity = await activateRoomIdentity(currentRoomId(), devPassphrase || name);
 
   // 名乗る人が変われば「自分に見えるもの」も変わる。状態自体は変わらないので
   // STATE_CHANGEDでは拾えず、専用のイベントで各所に描き直してもらう。
   EventBus.emit('IDENTITY_CHANGED', identity?.participantId ?? null);
 
-  if (!identity) return; // 合言葉なし＝ゲスト参加。参加者一覧には載せない
+  if (!identity) return; // 名前なし＝ゲスト参加。参加者一覧には載せない
 
-  // 参加者としての登録より先に名乗る。サーバーは本人確認が通ったID本人からの
+  // 参加者としての登録より先に名乗る。サーバーは名乗りが通ったID本人からの
   // REGISTER_PARTICIPANTしか受け付けない（server/index.js参照）。
   sendIdentify(identity.participantId, identity.authToken);
-  store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: nickname ?? getNickname() });
+  store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: name });
 }
 
 function openIdentityDialog() {
   showIdentityDialog({
     participants: store.state.participants || {},
     myParticipantId: getCurrentParticipantId(),
-    nickname: getNickname(),
-    passphrase: getStoredPassphrase(currentRoomId()) || '',
-    onSubmit: ({ nickname, passphrase }) => {
-      setNickname(nickname);
-      setStoredPassphrase(currentRoomId(), passphrase);
-      activateAndRegisterIdentity(passphrase, nickname);
+    // この部屋でまだ名乗っていなければ、前に使った名前を初期値として見せる
+    nickname: getStoredRoomName(currentRoomId()) ?? getNickname(),
+    devPassphrase: getStoredDevPassphrase(currentRoomId()),
+    onSubmit: ({ nickname, devPassphrase }) => {
+      const name = normalizeRoomName(nickname);
+      setStoredRoomName(currentRoomId(), name);
+      setStoredDevPassphrase(currentRoomId(), devPassphrase);
+      activateAndRegisterIdentity(name, devPassphrase);
     },
     onSetGm: (id, isGm) => store.dispatch('SET_PARTICIPANT_GM', { id, isGm }),
     onRemove: (id) => store.dispatch('REMOVE_PARTICIPANT', { id })
@@ -485,11 +490,11 @@ function openIdentityDialog() {
 // 登録は上書きなので繰り返しても問題ない。
 let hasAskedIdentityThisSession = false;
 EventBus.subscribe('NET_INITIALIZED', () => {
-  const stored = getStoredPassphrase(currentRoomId());
+  const storedName = getStoredRoomName(currentRoomId());
 
   // この部屋でまだ一度も設定していない場合だけ、入室時に一度だけ聞く
-  // （「合言葉なしで参加」を選んだ場合は空文字が保存され、次からは聞かない）。
-  if (stored === null) {
+  // （名前を空欄のまま決定した場合は空文字が保存され、次からは聞かない）。
+  if (storedName === null) {
     if (!hasAskedIdentityThisSession) {
       hasAskedIdentityThisSession = true;
       openIdentityDialog();
@@ -497,7 +502,7 @@ EventBus.subscribe('NET_INITIALIZED', () => {
     return;
   }
 
-  activateAndRegisterIdentity(stored);
+  activateAndRegisterIdentity(storedName, getStoredDevPassphrase(currentRoomId()));
 });
 
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く

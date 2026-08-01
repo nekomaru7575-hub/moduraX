@@ -1,9 +1,9 @@
 // js/identity-dialog.js
-// 参加者設定ダイアログ。表示名と「合言葉」を入力して、この部屋での自分を名乗る。
-// 合言葉から参加者ID（公開）と本人確認用トークンを導出する仕組みはjs/local-identity.js側。
+// 参加者設定ダイアログ。表示名を入力して、この部屋での自分を名乗る。表示名がそのまま
+// 「この部屋でのこの人」を決める種を兼ねる（導出の仕組みと割り切りはjs/local-identity.js側）。
 // dumbな部品：値の保存・storeへの反映はすべて呼び出し側のコールバックに任せる。
 
-import { isPassphraseIdentityAvailable } from './local-identity.js';
+import { isRoomIdentityAvailable } from './local-identity.js';
 
 let dialogEl = null;
 
@@ -89,14 +89,14 @@ function buildParticipantList({ participants, myParticipantId, amGm, onSetGm, on
  *   participants: Record<string, {id:string, nickname:string, isGm:boolean}>,
  *   myParticipantId: string | null,
  *   nickname: string,
- *   passphrase: string,
- *   onSubmit: (result: {nickname: string, passphrase: string}) => void,
+ *   devPassphrase: string,
+ *   onSubmit: (result: {nickname: string, devPassphrase: string}) => void,
  *   onSetGm: (id: string, isGm: boolean) => void,
  *   onRemove: (id: string) => void
  * }} options
  */
 export function showIdentityDialog({
-  participants, myParticipantId, nickname, passphrase, onSubmit, onSetGm, onRemove
+  participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove
 }) {
   const dialog = ensureDialog();
 
@@ -111,30 +111,48 @@ export function showIdentityDialog({
 
     const note = document.createElement('p');
     note.className = 'audio-note';
-    note.textContent = '合言葉は「この部屋でのあなた」を決めるものです。同じ合言葉なら、'
+    note.textContent = '表示名が「この部屋でのあなた」を決めます。同じ名前で入れば、'
       + '別の端末やブラウザから入り直しても同じ参加者として扱われます。'
-      + '合言葉自体はこのブラウザの中だけに保存され、他の参加者には見えません。';
+      + '逆に名前を変えると別の参加者になり、名前を知っている人は誰でもあなたとして名乗れます。';
     form.appendChild(note);
 
     const nicknameInput = document.createElement('input');
     nicknameInput.type = 'text';
     nicknameInput.value = nickname || '';
-    nicknameInput.placeholder = '例: たろう';
+    nicknameInput.placeholder = '空欄ならゲストとして参加';
+    nicknameInput.disabled = !isRoomIdentityAvailable();
     form.appendChild(buildFormGroup('表示名（他の参加者にも見えます）', nicknameInput));
 
-    const passphraseInput = document.createElement('input');
-    passphraseInput.type = 'password';
-    passphraseInput.value = passphrase || '';
-    passphraseInput.placeholder = '空欄ならゲストとして参加';
-    passphraseInput.disabled = !isPassphraseIdentityAvailable();
-    form.appendChild(buildFormGroup('合言葉（自分だけが知っている言葉）', passphraseInput));
-
-    if (!isPassphraseIdentityAvailable()) {
+    if (!isRoomIdentityAvailable()) {
       const warn = document.createElement('p');
       warn.className = 'audio-note audio-note-warn';
-      warn.textContent = 'この接続では合言葉での識別が使えません（https、またはlocalhostでのみ利用できます）。';
+      warn.textContent = 'この接続では参加者としての識別が使えません（https、またはlocalhostでのみ利用できます）。';
       form.appendChild(warn);
     }
+
+    // 開発用の合言葉（server/index.jsのDEVELOPER_PASSPHRASE）。ここに入れた場合だけは
+    // こちらが名乗りの種になり、合言葉が表示名として一覧に出てしまうのを避けられる。
+    // 普段は使わないので折りたたんでおく。
+    const devDetails = document.createElement('details');
+    const devSummary = document.createElement('summary');
+    devSummary.textContent = '開発用の合言葉';
+    devDetails.appendChild(devSummary);
+
+    const devInput = document.createElement('input');
+    devInput.type = 'password';
+    devInput.value = devPassphrase || '';
+    devInput.placeholder = '通常は空欄のまま';
+    devInput.disabled = !isRoomIdentityAvailable();
+    devDetails.appendChild(buildFormGroup('合言葉（サーバーに設定されている場合のみ）', devInput));
+
+    const devNote = document.createElement('p');
+    devNote.className = 'audio-note';
+    devNote.textContent = '入れるとGMと同じ操作ができます。表示名は上の欄のものが使われ、'
+      + '合言葉自体はこのブラウザの中だけに保存されます。';
+    devDetails.appendChild(devNote);
+
+    if (devPassphrase) devDetails.open = true;
+    form.appendChild(devDetails);
 
     const amGm = !!(myParticipantId && participants?.[myParticipantId]?.isGm);
 
@@ -175,7 +193,7 @@ export function showIdentityDialog({
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       dialog.close();
-      onSubmit({ nickname: nicknameInput.value.trim(), passphrase: passphraseInput.value.trim() });
+      onSubmit({ nickname: nicknameInput.value.trim(), devPassphrase: devInput.value.trim() });
     });
 
     dialog.appendChild(form);

@@ -40,44 +40,67 @@ export function setNickname(name) {
   localStorage.setItem(NICKNAME_KEY, name);
 }
 
-// --- 部屋ごとの「合言葉」による参加者識別 ---
-// 上のローカルIDが「このブラウザ」を指すのに対し、こちらは「この人」を指す。合言葉から
-// 決定的に導出するので、別の端末・ブラウザからでも同じ合言葉なら同じ参加者になる。
+// --- 部屋ごとの「表示名」による参加者識別 ---
+// 上のローカルIDが「このブラウザ」を指すのに対し、こちらは「この人」を指す。表示名から
+// 決定的に導出するので、別の端末・ブラウザからでも同じ名前を入れれば同じ参加者になる。
 //
 // 導出するのは2つ：
-//   authToken     … 状態には決して載せない本人確認用の値。合言葉を知っている人だけが作れる
+//   authToken     … 状態には載せない値。WSの名乗りとアップロードのヘッダにだけ送る
 //   participantId … 状態に載る公開ID。秘匿データの宛先指定（audience）に使う
 //
-// 【この順序が肝】participantIdはauthTokenをハッシュして作る。こうすると、合言葉を知らない
-// サーバーでも「authTokenをハッシュしたらこのparticipantIdになるか」を計算するだけで、
-// 名乗りが本物かを確かめられる（server/index.jsのverifyIdentity）。逆向き——公開IDから
-// authTokenを求める——はハッシュの一方向性により計算できないので、状態を読める人が
-// 他人になりすますことはできない。
+// participantIdはauthTokenをハッシュして作る。この順序のおかげで、種を知らないサーバーでも
+// 「authTokenをハッシュしたらこのparticipantIdになるか」を計算するだけで、名乗りの辻褄が
+// 合っているかを確かめられる（server/index.jsのverifyIdentity）。
 //
-// 以前は2つを合言葉から別々に導出していた。その形だとサーバーは両者の対応を検算できず、
-// 「初めて見た組み合わせを信じる」より他になかったため、公開IDが状態から読める以上、
-// 本人が入り直すより先に他人のIDを別のトークンで登録して乗っ取れてしまっていた。
-//
-// 合言葉そのものはこのブラウザのlocalStorageから出ない。
-const PASSPHRASE_KEY_PREFIX = 'mojulaX:roomPassphrase:';
+// 【承知の上での割り切り】以前の種は秘密の「合言葉」で、公開IDから逆算できないため他人には
+// なりすませなかった。今の種は全員に見える表示名なので、名前を知っている人は誰でもその人
+// （GMを含む）として名乗れるし、その人宛の秘匿データも読める。入力欄を1つにする代わりに
+// なりすまし耐性を捨てた設計であることを忘れないこと。秘匿は「うっかり見えない」ための
+// 仕切りであって、守りではない。
+const ROOM_NAME_KEY_PREFIX = 'mojulaX:roomName:';
 
-function passphraseKey(roomId) {
-  return `${PASSPHRASE_KEY_PREFIX}${roomId}`;
+// 開発用の合言葉（server/index.jsのDEVELOPER_PASSPHRASE）を入れた場合だけは、名乗りの種を
+// そちらに差し替える。表示名をそのまま種にすると、合言葉が参加者一覧に晒されてしまうため。
+const DEV_PASSPHRASE_KEY_PREFIX = 'mojulaX:roomDevPassphrase:';
+
+function roomNameKey(roomId) {
+  return `${ROOM_NAME_KEY_PREFIX}${roomId}`;
 }
 
-// 未設定（一度も聞いていない）ならnull、「合言葉なしで参加」を選んだ場合は空文字を返す。
-export function getStoredPassphrase(roomId) {
-  return localStorage.getItem(passphraseKey(roomId));
+function devPassphraseKey(roomId) {
+  return `${DEV_PASSPHRASE_KEY_PREFIX}${roomId}`;
 }
 
-export function setStoredPassphrase(roomId, passphrase) {
-  localStorage.setItem(passphraseKey(roomId), passphrase);
+// 名前は種でもあるので、全角・半角などの表記ゆれで別人になってしまう。保存と導出の両方で
+// 同じ正規化を通す（表示名としても正規化後のものを使い、見た目と中身をずらさない）。
+export function normalizeRoomName(name) {
+  return (name || '').normalize('NFKC').trim();
+}
+
+// 未設定（一度も聞いていない）ならnull、「名前なしで参加」を選んだ場合は空文字を返す。
+export function getStoredRoomName(roomId) {
+  return localStorage.getItem(roomNameKey(roomId));
+}
+
+export function setStoredRoomName(roomId, name) {
+  localStorage.setItem(roomNameKey(roomId), name);
+  // 次に別の部屋へ入るときの既定値。点呼一覧（js/round-panel.js）もこちらを見る。
+  if (name) setNickname(name);
+}
+
+export function getStoredDevPassphrase(roomId) {
+  return localStorage.getItem(devPassphraseKey(roomId)) || '';
+}
+
+export function setStoredDevPassphrase(roomId, passphrase) {
+  if (passphrase) localStorage.setItem(devPassphraseKey(roomId), passphrase);
+  else localStorage.removeItem(devPassphraseKey(roomId));
 }
 
 // 導出にはWeb Crypto（SHA-256）を使う。httpsまたはlocalhostでのみ利用できるため、
-// それ以外の環境では合言葉での識別自体を諦める（弱いハッシュで代用すると、将来
-// サーバー側の検証を入れたときに本人確認の強度が黙って下がるため）。
-export function isPassphraseIdentityAvailable() {
+// それ以外の環境では参加者としての識別自体を諦める（弱いハッシュで代用すると、
+// サーバー側の検証と食い違って名乗りが黙って通らなくなるため）。
+export function isRoomIdentityAvailable() {
   return typeof crypto !== 'undefined' && !!crypto.subtle;
 }
 
@@ -98,14 +121,15 @@ export async function deriveParticipantId(authToken) {
 }
 
 /**
- * 合言葉から、その部屋での参加者IDと本人確認用トークンを導出する。
- * @param {string} roomId 部屋ID（部屋が違えば同じ合言葉でも別IDになる）
- * @param {string} passphrase 合言葉。空ならnull（＝ゲスト参加）を返す
+ * 種（通常は表示名、開発用の合言葉を入れているときはそちら）から、その部屋での
+ * 参加者IDと名乗り用トークンを導出する。
+ * @param {string} roomId 部屋ID（部屋が違えば同じ種でも別IDになる）
+ * @param {string} seed 種。空ならnull（＝ゲスト参加）を返す
  * @returns {Promise<{participantId: string, authToken: string}|null>}
  */
-export async function deriveRoomIdentity(roomId, passphrase) {
-  const trimmed = (passphrase || '').trim();
-  if (!trimmed || !isPassphraseIdentityAvailable()) return null;
+export async function deriveRoomIdentity(roomId, seed) {
+  const trimmed = (seed || '').trim();
+  if (!trimmed || !isRoomIdentityAvailable()) return null;
 
   const authToken = await sha256Hex(`mojulaX:auth:${roomId}:${trimmed}`);
   const participantId = await deriveParticipantId(authToken);
@@ -114,15 +138,15 @@ export async function deriveRoomIdentity(roomId, passphrase) {
 }
 
 // 今この画面で名乗っている参加者。秘匿データの表示判定など、あちこちから参照するため
-// ここに1つだけ持つ（合言葉未設定＝ゲストの場合はnullのまま）。
+// ここに1つだけ持つ（名前未設定＝ゲストの場合はnullのまま）。
 let currentIdentity = null;
 
 /**
- * 合言葉から識別情報を導出して、この画面の「自分」として設定する。
+ * 種から識別情報を導出して、この画面の「自分」として設定する。
  * @returns {Promise<{participantId: string, authToken: string}|null>} ゲスト参加ならnull
  */
-export async function activateRoomIdentity(roomId, passphrase) {
-  currentIdentity = await deriveRoomIdentity(roomId, passphrase);
+export async function activateRoomIdentity(roomId, seed) {
+  currentIdentity = await deriveRoomIdentity(roomId, seed);
   return currentIdentity;
 }
 

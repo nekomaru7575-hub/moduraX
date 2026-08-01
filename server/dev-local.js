@@ -64,7 +64,8 @@ if (cleared.length > 0) {
 console.log('[dev-local] 音源のアップロードはR2未設定のため無効です（URLでの追加は使えます）');
 console.log('[dev-local] 背景画像のアップロードも無効です（従来どおりデータURLとして保存されます）');
 if (process.env.DEVELOPER_PASSPHRASE) {
-  console.log('[dev-local] 開発用の合言葉が有効です（参加者設定でその合言葉を入れるとGMと同じ操作ができます）');
+  console.log('[dev-local] 開発用の合言葉が有効です'
+    + '（参加者設定の「開発用の合言葉」に入れるとGMと同じ操作ができます）');
 }
 
 await import('./index.js');

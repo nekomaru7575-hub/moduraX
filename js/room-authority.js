@@ -19,7 +19,7 @@ import { isGm } from './visibility.js';
 // 無効化した項目のtitleに入れる共通の理由。文言を1か所に置いて表記を揃える。
 export const GM_ONLY_REASON = 'GMだけが操作できます';
 
-// GMが1人でもいるか。全員がゲスト（合言葉なし）の部屋ではGMが存在しないため、
+// GMが1人でもいるか。全員がゲスト（表示名なし）の部屋ではGMが存在しないため、
 // この判定が無いと「誰も部屋を消せない・ラウンドを始められない」状態になる。
 function hasAnyGm(participants) {
   return Object.values(participants || {}).some(p => p.isGm);

@@ -79,11 +79,11 @@ function connect() {
       return;
     }
 
-    // 名乗った合言葉と参加者IDが対応していなかった場合。
+    // 名乗りのトークンと参加者IDが対応していなかった場合。
     // 閲覧はできるが、GM限定の操作はゲスト同様に断られる。
     if (message.type === 'IDENTITY_REJECTED') {
       developerIdentity = false;
-      console.warn('[net-sync] 参加者の本人確認に通りませんでした（合言葉をご確認ください）');
+      console.warn('[net-sync] 参加者の名乗りが通りませんでした');
       EventBus.emit('IDENTITY_REJECTED');
       return;
     }
@@ -136,8 +136,8 @@ export function initNetSync() {
   connect();
 }
 
-// この接続での名乗りをサーバーへ伝える。合言葉から導出した公開ID（participantId）と、
-// 状態には決して載せない本人確認用の値（authToken）を送る。サーバーはこの2つを突き合わせて
+// この接続での名乗りをサーバーへ伝える。表示名から導出した公開ID（participantId）と、
+// 状態には載せない名乗り用の値（authToken）を送る。サーバーはこの2つを突き合わせて
 // 「そのIDを名乗ってよいか」を判断し、GM限定の操作の可否に使う（server/index.jsのverifyIdentity）。
 // 接続が切れると忘れられるので、再接続のたびに送り直す必要がある
 // （js/main.jsがNET_INITIALIZEDのたびに名乗り直すため、その経路で送られる）。

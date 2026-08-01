@@ -83,14 +83,14 @@ async function deleteRoomState(roomId) {
   await unlink(roomFilePath(roomId)).catch(() => {});
 }
 
-// --- 参加者の本人確認 ---
-// ブラウザは合言葉から2つの値を導出する（js/local-identity.js参照）。
-//   authToken     … 状態には決して載らない、合言葉を知っている人だけが作れる値
+// --- 参加者の名乗りの検証 ---
+// ブラウザは表示名から2つの値を導出する（js/local-identity.js参照）。
+//   authToken     … 状態には載らない値。名乗りとアップロードのヘッダにだけ載る
 //   participantId … 状態に載る公開ID。authTokenをハッシュしたもの
-// サーバーは合言葉を知らないが、participantIdがauthTokenから作られているので、
-// 同じ計算をして一致するかを見るだけで名乗りが本物かを確かめられる。覚えておくものは
-// 何も無く（対応表も初回登録も不要）、状態から公開IDを読めても、そこからauthTokenは
-// 逆算できないため他人になりすませない。
+// サーバーは種を知らないが、participantIdがauthTokenから作られているので、同じ計算をして
+// 一致するかを見るだけで名乗りの辻褄を確かめられる（対応表も初回登録も覚えなくてよい）。
+// ただし種は全員に見える表示名なので、これは「なりすまし防止」ではなく形式の検算にすぎない
+// （名前を知っていれば誰でも同じ値を作れる。割り切りの経緯はjs/local-identity.jsのコメント）。
 const PARTICIPANT_ID_PATTERN = /^[0-9a-f]{32}$/;
 const AUTH_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const PARTICIPANT_ID_LENGTH = 32;
@@ -123,8 +123,10 @@ function verifyIdentity(participantId, authToken) {
 // どの部屋でも（GMでなくても、参加者一覧に載っていなくても）GMと同じ操作ができる。
 // 動作確認や、GMがいなくなった部屋・公開先の直し忘れの後始末に使う。
 //
-// 使い方：.envに DEVELOPER_PASSPHRASE=… を書いてサーバーを起動し、あとは普通に
-// 「参加者設定」でその合言葉を入れるだけ。ブラウザ側に特別な操作は要らない。
+// 使い方：.envに DEVELOPER_PASSPHRASE=… を書いてサーバーを起動し、「参加者設定」の
+// 「開発用の合言葉」（折りたたみ）にその合言葉を入れるだけ。
+// 普段の名乗りの種は表示名だが、この欄に入れたときだけ種がこちらに切り替わる。表示名を
+// そのまま種にすると、開発用の合言葉が参加者一覧に晒されてしまうため分けてある。
 //
 // 【扱いの注意】これを知っている人はこのサーバーの全部屋でGMになれる。長く推測しにくい
 // 文字列にして、.env（gitignore対象）の外へ出さないこと。未設定なら機能ごと無効で、
@@ -143,13 +145,13 @@ function isDeveloperToken(roomId, authToken) {
 }
 
 // --- 旧方式の参加者の後始末 ---
-// 以前はparticipantIdとauthTokenを合言葉から別々に導出しており、両者の対応をサーバーが
-// 検算できなかった。そのため旧方式で登録された参加者IDは「本人が名乗った」ことを確かめる
-// 手立てが無く、GMのまま残すと誰でもそのIDを騙ってGM権限を得られてしまう。
-// 部屋ごとに一度だけ、旧方式の参加者からGMの印を外す（名前と持ち主表示は残す）。
-// GMが1人もいない部屋では最初に名乗った人がGMになる規則（game-store.jsの
-// REGISTER_PARTICIPANT）が働くので、新方式で名乗り直した人がGMを引き継げる。
-const CURRENT_AUTH_VERSION = 2;
+// 導出の種を変えるたびに、それ以前に登録された参加者IDは誰も名乗れないものになる。
+// GMの印が付いたまま残ると、その部屋にはもう名乗れないGMが居座り、GMが1人もいない部屋では
+// 最初に名乗った人がGMになる規則（game-store.jsのREGISTER_PARTICIPANT）が働かなくなる。
+// そこで部屋ごとに一度だけ、旧方式の参加者からGMの印を外す（名前と持ち主表示は残す）。
+//   version 2 … participantIdをauthTokenから導出する形に変えたとき
+//   version 3 … 種を「合言葉」から「表示名」に変えたとき（入力欄の一本化）
+const CURRENT_AUTH_VERSION = 3;
 
 function authMetaKey(roomId) {
   return `roomAuth:${roomId}`;
@@ -194,7 +196,7 @@ function clearLegacyGmFlags(roomId, store) {
 
   legacyGmIds.forEach(id => store.dispatch('SET_PARTICIPANT_GM', { id, isGm: false }));
   console.log(`[server] ${roomId}: 旧方式の参加者${legacyGmIds.length}人からGMの印を外しました`
-    + '（合言葉を入れて名乗り直した最初の人がGMになります）');
+    + '（名前を入れて名乗り直した最初の人がGMになります）');
   return true;
 }
 
@@ -552,7 +554,7 @@ const MAX_IMAGE_BYTES = (Number(process.env.MAX_IMAGE_MB) || 8) * 1024 * 1024;
 // POST /api/audio・POST /api/image の共通処理。ファイルをR2へ置き、公開URLを返す。
 //
 // 誰でも叩けるエンドポイントなので、「実在する部屋ID」「許可した形式のみ」「サイズ上限」は
-// 必ず通すこと。名乗りはWebSocketと同じ値をヘッダで受け取る（合言葉由来のトークンなので、
+// 必ず通すこと。名乗りはWebSocketと同じ値をヘッダで受け取る（名乗り用のトークンなので、
 // ログに残りうるクエリ文字列には載せない）。
 //
 // requireGm: GMだけに許すか。部屋全体を左右する操作（音源の追加・盤面の背景）はtrue。
@@ -1163,7 +1165,7 @@ wss.on('connection', async (ws, req) => {
   entry.clients.add(ws);
   console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
 
-  // この接続が名乗り、本人確認まで通った参加者ID。合言葉なし（ゲスト）ならnullのまま。
+  // この接続が名乗り、検証まで通った参加者ID。名乗っていない（ゲスト）ならnullのまま。
   // IDENTIFYメッセージを受け取るまでは誰でもないものとして扱う。
   let verifiedParticipantId = null;
   // 開発用の合言葉での名乗りか（isDeveloperToken参照）。GMでなくてもGMと同じ操作ができる。
@@ -1195,7 +1197,7 @@ wss.on('connection', async (ws, req) => {
       return;
     }
 
-    // 名乗り。合言葉から導出した公開IDと本人確認用トークンを突き合わせる（verifyIdentity参照）。
+    // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
     if (message.type === 'IDENTIFY') {
       const participantId = String(message.participantId || '');

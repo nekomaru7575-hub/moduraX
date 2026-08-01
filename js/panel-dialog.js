@@ -3,7 +3,7 @@
 // 画像とサイズ（幅・高さ、マス単位）を指定する。画像を選ぶと、その実サイズを
 // マス換算した近似値をサイズ欄に自動反映する（あとから手で変更可）。
 
-import { pickFileAsDataUrl } from './file-uploader.js';
+import { pickAndUploadImage } from './image-upload.js';
 
 let dialogEl = null;
 
@@ -72,9 +72,11 @@ export function showPanelDialog({
   pickBtn.className = 'dialog-add-row-btn';
   pickBtn.style.marginBottom = '0';
   pickBtn.addEventListener('click', async () => {
-    const picked = await pickFileAsDataUrl({ accept: 'image/*' });
+    // R2へ上げてURLだけを状態に持つ（データURLのままだと、シーンがパネルを写し取る都合で
+    // シーンの数だけ画像が部屋データに積み上がる。js/image-upload.js参照）
+    const picked = await pickAndUploadImage({ purpose: 'panel' });
     if (!picked) return;
-    currentImage = picked.dataUrl;
+    currentImage = picked.url;
     preview.src = currentImage;
     preview.style.display = 'block';
 

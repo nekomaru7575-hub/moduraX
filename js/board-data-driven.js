@@ -8,8 +8,8 @@ import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
-import { pickFile, pickFileAsText, readFileAsDataUrl } from './file-uploader.js';
-import { isImageUploadAvailable, uploadImageFile } from './image-upload.js';
+import { pickFileAsText } from './file-uploader.js';
+import { pickAndUploadImage } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
@@ -785,28 +785,12 @@ window.addEventListener('DOMContentLoaded', () => {
       {
         label: '背景画像を変更',
         onSelect: async () => {
-          const file = await pickFile({ accept: 'image/*' });
-          if (!file) return;
+          // R2へ上げてURLだけを状態に載せる（使えない環境ではデータURLへ退避。
+          // js/image-upload.jsのpickAndUploadImage参照）
+          const picked = await pickAndUploadImage({ purpose: 'background' });
+          if (!picked) return;
 
-          // 通常はR2へ上げてURLだけを状態に載せる（シーンが背景を持つため、データURLの
-          // ままだと部屋データが画像の枚数分だけ膨らむ。js/image-upload.js参照）。
-          // R2が未設定の環境（server/dev-local.js）では従来どおりデータURLへ退避する。
-          // 描画側は文字列をurl()に入れるだけなので、どちらでも同じように表示できる
-          // （移行前に保存されたデータURLの背景がそのまま出せるのもこのため）。
-          let imageUrl = null;
-          let imageKey = null;
-
-          if (await isImageUploadAvailable()) {
-            try {
-              ({ url: imageUrl, key: imageKey } = await uploadImageFile(file));
-            } catch (error) {
-              alert(`背景画像のアップロードに失敗しました：${error.message}`);
-              return;
-            }
-          } else {
-            imageUrl = await readFileAsDataUrl(file);
-          }
-
+          const { url: imageUrl, key: imageKey } = picked;
           const { width, height } = await loadImageDimensions(imageUrl);
 
           showBackgroundSizeDialog({

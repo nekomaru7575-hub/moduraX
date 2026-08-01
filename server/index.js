@@ -548,9 +548,13 @@ const MAX_IMAGE_BYTES = (Number(process.env.MAX_IMAGE_MB) || 8) * 1024 * 1024;
 
 // POST /api/audio・POST /api/image の共通処理。ファイルをR2へ置き、公開URLを返す。
 //
-// 誰でも叩けるエンドポイントなので、「実在する部屋ID」「許可した形式のみ」「サイズ上限」に
-// 加えて「その部屋のGMであること」を必ず通すこと。名乗りはWebSocketと同じ値をヘッダで
-// 受け取る（合言葉由来のトークンなので、ログに残りうるクエリ文字列には載せない）。
+// 誰でも叩けるエンドポイントなので、「実在する部屋ID」「許可した形式のみ」「サイズ上限」は
+// 必ず通すこと。名乗りはWebSocketと同じ値をヘッダで受け取る（合言葉由来のトークンなので、
+// ログに残りうるクエリ文字列には載せない）。
+//
+// requireGm: GMだけに許すか。部屋全体を左右する操作（音源の追加・盤面の背景）はtrue。
+// コマやパネルの画像はfalse——ADD_CHARACTER・ADD_PANEL自体がGM限定でないので、ここだけ
+// GMを要求するとPLが自分のコマに立ち絵を付けられなくなる（状態への書き込み権限と揃える）。
 //
 // 音源と画像で別々に書くと、片方だけ認証やサイズ判定が緩む事故が起きやすいので1本にまとめる。
 // fallbackExtension: 表に無い種類も受け入れて、この拡張子で保存する（音源はこちら。
@@ -558,7 +562,7 @@ const MAX_IMAGE_BYTES = (Number(process.env.MAX_IMAGE_MB) || 8) * 1024 * 1024;
 // nullなら表に載っている種類だけを受け入れる（画像はこちら。image/svg+xmlのような
 // 危険な形式を確実に閉め出すため、prefix判定だけで通してはいけない）。
 async function handleMediaUpload(req, res, {
-  typePrefix, extensions, fallbackExtension = null, maxBytes,
+  typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true,
   forbiddenMessage, unavailableMessage, wrongTypeMessage, label
 }) {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -575,14 +579,16 @@ async function handleMediaUpload(req, res, {
     return;
   }
 
-  const participantId = String(req.headers['x-participant-id'] || '');
-  const authToken = String(req.headers['x-auth-token'] || '');
-  const identified = verifyIdentity(participantId, authToken);
-  const developer = identified && isDeveloperToken(roomId, authToken);
+  if (requireGm) {
+    const participantId = String(req.headers['x-participant-id'] || '');
+    const authToken = String(req.headers['x-auth-token'] || '');
+    const identified = verifyIdentity(participantId, authToken);
+    const developer = identified && isDeveloperToken(roomId, authToken);
 
-  if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
-    sendJson(res, 403, { error: forbiddenMessage });
-    return;
+    if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
+      sendJson(res, 403, { error: forbiddenMessage });
+      return;
+    }
   }
 
   // 形式の判定はR2の設定有無より先に行う。おかしなリクエストはサーバーの都合に関わらず
@@ -661,16 +667,35 @@ function handleAudioUpload(req, res) {
   });
 }
 
-// POST /api/image?room=room-N：背景画像をR2へ置き、表示用の公開URLを返す。
-// 状態にはこのURLだけを載せる（データURLのまま持つと、シーンの数だけ画像が
-// 部屋データに積み上がり、アクションのたびにRedisへ書き直されるため）。
+// 画像の用途ごとに要求する権限。盤面の背景は部屋全体を左右するのでGM限定だが、
+// コマ・パネルの画像は誰でも置ける（ADD_CHARACTER・ADD_PANELがGM限定でないのと揃える）。
+// 知らない用途は塞ぐ側に倒す（増やすときはここに明示的に足す）。
+const IMAGE_PURPOSES = {
+  background: { requireGm: true, forbiddenMessage: '背景画像の変更はGMだけが行えます' },
+  token: { requireGm: false },
+  panel: { requireGm: false }
+};
+
+// POST /api/image?room=room-N&purpose=background|token|panel
+// 画像をR2へ置き、表示用の公開URLを返す。状態にはこのURLだけを載せる
+// （データURLのまま持つと、コマ・パネル・シーンの数だけ画像が部屋データに積み上がり、
+// アクションのたびに状態ごとRedisへ書き直されるため）。
 function handleImageUpload(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const purpose = IMAGE_PURPOSES[url.searchParams.get('purpose')];
+
+  if (!purpose) {
+    sendJson(res, 400, { error: '画像の用途(purpose)が不正です' });
+    return;
+  }
+
   return handleMediaUpload(req, res, {
     typePrefix: 'image/',
     extensions: IMAGE_EXTENSIONS,
     maxBytes: MAX_IMAGE_BYTES,
+    requireGm: purpose.requireGm,
     label: '画像',
-    forbiddenMessage: '背景画像の変更はGMだけが行えます',
+    forbiddenMessage: purpose.forbiddenMessage,
     unavailableMessage: 'このサーバーでは画像のアップロードが設定されていません。',
     wrongTypeMessage: '画像ファイル（PNG・JPEG・GIF・WebP）を指定してください'
   });

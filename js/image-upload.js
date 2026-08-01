@@ -11,6 +11,7 @@
 // には載せない）。アップロードはGM限定で、判定はサーバー側が行う。
 
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
+import { pickFile, readFileAsDataUrl } from './file-uploader.js';
 
 // 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
 function currentRoomId() {
@@ -45,9 +46,11 @@ export function imageUploadMaxBytes() {
 /**
  * 画像をアップロードして公開URLとキーを受け取る。
  * @param {File} file
+ * @param {'background'|'token'|'panel'} purpose 用途。サーバーが要求する権限が変わる
+ *   （背景はGM限定、コマ・パネルは誰でも。server/index.jsのIMAGE_PURPOSES）
  * @returns {Promise<{ key: string, url: string }>}
  */
-export async function uploadImageFile(file) {
+export async function uploadImageFile(file, purpose) {
   const headers = { 'Content-Type': file.type || 'image/png' };
   const participantId = getCurrentParticipantId();
   const authToken = getCurrentAuthToken();
@@ -56,15 +59,42 @@ export async function uploadImageFile(file) {
     headers['X-Auth-Token'] = authToken;
   }
 
-  const response = await fetch(`/api/image?room=${encodeURIComponent(currentRoomId())}`, {
-    method: 'POST',
-    headers,
-    body: file
-  });
+  const query = `room=${encodeURIComponent(currentRoomId())}&purpose=${encodeURIComponent(purpose)}`;
+  const response = await fetch(`/api/image?${query}`, { method: 'POST', headers, body: file });
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error || `アップロードに失敗しました (${response.status})`);
   }
   return body; // { key, url }
+}
+
+/**
+ * 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。
+ * 画像を扱う画面（コマ・パネル・盤面の背景）が同じ手順を書き写さずに済むようまとめてある。
+ *
+ * R2が使えない環境（server/dev-local.js）や、権限が無くて断られた場合は、従来どおり
+ * データURLへ退避する。表示側はどちらも文字列をそのままsrc/url()に入れるだけなので
+ * 区別せずに扱える（移行前に保存されたデータURLの画像がそのまま出せるのもこのため）。
+ *
+ * @param {{ purpose: 'background'|'token'|'panel' }} options
+ * @returns {Promise<{ url: string, key: string|null } | null>} キャンセルならnull
+ */
+export async function pickAndUploadImage({ purpose }) {
+  const file = await pickFile({ accept: 'image/*' });
+  if (!file) return null;
+
+  // 部屋の外（character-builder.html）では置き場所が決まらないのでデータURLにする。
+  // あちらはJSONを書き出す道具で、取り込んだ先の部屋が保存先を持つため。
+  if (currentRoomId() && await isImageUploadAvailable()) {
+    try {
+      const { url, key } = await uploadImageFile(file, purpose);
+      return { url, key };
+    } catch (error) {
+      // 上げられなかった理由は伝えつつ、画像自体は使えるようにデータURLで続行する
+      console.warn('[image-upload] アップロードに失敗したのでデータURLで続行します:', error.message);
+    }
+  }
+
+  return { url: await readFileAsDataUrl(file), key: null };
 }

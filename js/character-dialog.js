@@ -3,7 +3,7 @@
 // まとめて入力するためのモーダルダイアログ。
 
 import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
-import { pickFileAsDataUrl } from './file-uploader.js';
+import { pickAndUploadImage } from './image-upload.js';
 import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
 import { showAudienceDialog } from './audience-picker.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
@@ -250,9 +250,11 @@ function buildImagePicker(initialImage, initialCrop) {
   pickBtn.className = 'dialog-add-row-btn';
   pickBtn.style.marginBottom = '0';
   pickBtn.addEventListener('click', async () => {
-    const picked = await pickFileAsDataUrl({ accept: 'image/*' });
+    // R2へ上げてURLだけを状態に持つ（立ち絵をデータURLで持つと、その部屋のデータが
+    // 画像ぶん重くなり、操作のたびに丸ごと保存し直される。js/image-upload.js参照）
+    const picked = await pickAndUploadImage({ purpose: 'token' });
     if (!picked) return;
-    currentImage = picked.dataUrl;
+    currentImage = picked.url;
     Object.assign(crop, defaultImageCrop()); // 新しい画像は中央・等倍から始める
     updateVisibility();
   });

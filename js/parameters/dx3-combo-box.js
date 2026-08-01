@@ -108,7 +108,7 @@ function buildModNoticeText({ effects, token, getEffectiveParameterValue, applie
   if (appliedBuffCount === 0) {
     lines.push(problems.length > 0
       ? '（このため修正値バフは付与されていません）'
-      : '（コンボ時修正が未設定または0のため、修正値バフはありません）');
+      : '（修正値バフはありません）');
   }
 
   return lines.length > 0 ? `\n${lines.join('\n')}` : '';

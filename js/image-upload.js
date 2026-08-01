@@ -11,6 +11,7 @@
 // には載せない）。アップロードはGM限定で、判定はサーバー側が行う。
 
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
+import { entryPasswordHeaders } from './room-entry.js';
 import { pickFile, readFileAsDataUrl } from './file-uploader.js';
 
 // 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
@@ -85,7 +86,7 @@ export async function adoptImageIntoRoom(image, purpose) {
 
   try {
     const query = `room=${encodeURIComponent(roomId)}&purpose=${encodeURIComponent(purpose)}`;
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json', ...entryPasswordHeaders(roomId) };
     const participantId = getCurrentParticipantId();
     const authToken = getCurrentAuthToken();
     if (participantId && authToken) {
@@ -113,7 +114,7 @@ export async function adoptImageIntoRoom(image, purpose) {
  * @returns {Promise<{ key: string, url: string }>}
  */
 export async function uploadImageFile(file, purpose) {
-  const headers = { 'Content-Type': file.type || 'image/png' };
+  const headers = { 'Content-Type': file.type || 'image/png', ...entryPasswordHeaders() };
   const participantId = getCurrentParticipantId();
   const authToken = getCurrentAuthToken();
   if (participantId && authToken) {

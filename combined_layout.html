@@ -923,7 +923,7 @@
       <h3>ルーム設定</h3>
       <!-- GM以外には一部の項目を押せない状態で出す（js/main.jsのapplyGmOnlyControls） -->
       <p id="roomSettingsGmNote" class="audio-note" hidden>
-        システム・プラグインの変更、セッションデータの読み込み、部屋の削除はGMだけが行えます。
+        システム・プラグインの変更、入室パスワードの変更、セッションデータの読み込み、部屋の削除はGMだけが行えます。
       </p>
       <div class="dialog-form-group">
         <label for="roomNameInput">部屋名</label>
@@ -943,6 +943,17 @@
         <label for="roomPluginSelect">ルームのプラグイン</label>
         <select id="roomPluginSelect"></select>
       </div>
+      <!-- 入室パスワード。現在の値はサーバーに平文で残っていないため表示できない。
+           空欄で「変更」を押すと解除になる（js/main.jsのapplyEntryPassword） -->
+      <div class="dialog-form-group">
+        <label for="entryPasswordInput">入室パスワード（空欄にして変更すると解除）</label>
+        <div class="dialog-button-row">
+          <input type="password" id="entryPasswordInput" maxlength="64" placeholder="新しいパスワード">
+          <button type="button" id="entryPasswordBtn" class="dialog-confirm-btn">変更</button>
+        </div>
+        <p id="entryPasswordNote" class="audio-note"></p>
+      </div>
+
       <label style="margin-top: 8px; display: block;">セッションデータ</label>
       <div class="dialog-button-row">
         <button type="button" id="exportStateBtn" class="dialog-confirm-btn">ファイルに保存</button>

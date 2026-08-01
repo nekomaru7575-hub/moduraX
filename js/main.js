@@ -16,8 +16,9 @@ import { initNetSync, replaceState, requestRoomDeletion, sendIdentify } from './
 import {
   getNickname, normalizeRoomName, getStoredRoomName, setStoredRoomName,
   getStoredDevPassphrase, setStoredDevPassphrase,
-  activateRoomIdentity, getCurrentParticipantId
+  activateRoomIdentity, getCurrentParticipantId, getCurrentAuthToken
 } from './local-identity.js';
+import { entryPasswordHeaders, setStoredEntryPassword } from './room-entry.js';
 import { showIdentityDialog } from './identity-dialog.js';
 import { showChatTabDialog } from './chat-tab-dialog.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
@@ -247,6 +248,9 @@ const exportStateBtn = document.getElementById('exportStateBtn');
 const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
 const deleteRoomBtn = document.getElementById('deleteRoomBtn');
+const entryPasswordInput = document.getElementById('entryPasswordInput');
+const entryPasswordBtn = document.getElementById('entryPasswordBtn');
+const entryPasswordNote = document.getElementById('entryPasswordNote');
 
 // --- GM限定の操作（js/room-authority.js参照） ---
 // 部屋そのものを左右する操作は、GMが決まっている部屋ではGMだけができるようにする。
@@ -259,7 +263,8 @@ const gmOnlyNote = document.getElementById('roomSettingsGmNote');
 function applyGmOnlyControls() {
   const allowed = canOperateAsGm();
 
-  [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn].forEach(el => {
+  [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn,
+    entryPasswordInput, entryPasswordBtn].forEach(el => {
     if (!el) return;
     el.disabled = !allowed;
     el.title = allowed ? '' : GM_ONLY_REASON;
@@ -1419,6 +1424,54 @@ if (gameSystemHelpBtn && gameSystemHelp) {
 if (roomNameInput) {
   roomNameInput.addEventListener('change', () => {
     store.dispatch('SET_ROOM_NAME', { name: roomNameInput.value });
+  });
+}
+
+// 入室パスワードの変更・解除（GM限定）。パスワードは同期される状態には載らないので、
+// アクションではなくHTTPでサーバーへ直接頼む（server/index.jsのhandleSetEntryPassword）。
+// 現在の値は平文で残っていないため表示できず、常に「新しい値で上書き」の形になる。
+if (entryPasswordBtn && entryPasswordInput) {
+  entryPasswordBtn.addEventListener('click', async () => {
+    const password = entryPasswordInput.value.trim();
+    const roomId = currentRoomId();
+
+    entryPasswordBtn.disabled = true;
+    if (entryPasswordNote) entryPasswordNote.textContent = '変更中…';
+
+    try {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/entry-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...entryPasswordHeaders(roomId),
+          ...(getCurrentParticipantId() && getCurrentAuthToken()
+            ? { 'X-Participant-Id': getCurrentParticipantId(), 'X-Auth-Token': getCurrentAuthToken() }
+            : {})
+        },
+        body: JSON.stringify({ password })
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (entryPasswordNote) entryPasswordNote.textContent = body.error || '変更できませんでした。';
+        return;
+      }
+
+      // 自分は入室したままなので、このブラウザが覚えている値も更新しておく
+      // （更新しないと、次に繋ぎ直したときに自分だけ入れなくなる）。
+      setStoredEntryPassword(roomId, password);
+      entryPasswordInput.value = '';
+      if (entryPasswordNote) {
+        entryPasswordNote.textContent = body.locked
+          ? '入室パスワードを変更しました。次に入る人から新しいパスワードが必要です。'
+          : '入室パスワードを解除しました。誰でも入れる部屋になります。';
+      }
+    } catch (error) {
+      if (entryPasswordNote) entryPasswordNote.textContent = `通信エラー: ${error.message}`;
+    } finally {
+      entryPasswordBtn.disabled = false;
+      applyGmOnlyControls();
+    }
   });
 }
 

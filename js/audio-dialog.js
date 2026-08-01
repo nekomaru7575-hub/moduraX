@@ -4,6 +4,7 @@
 
 import { pickFile } from './file-uploader.js';
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
+import { entryPasswordHeaders } from './room-entry.js';
 import {
   getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy, isMuted, setMuted
 } from './audio-player.js';
@@ -90,7 +91,7 @@ function fetchUploadCapability(onResolved) {
 // ヘッダに載せる（server/index.jsのhandleAudioUpload）。名乗り用のトークンなので、
 // ログに残りうるクエリ文字列ではなくヘッダで送る。
 async function uploadAudioFile(file) {
-  const headers = { 'Content-Type': file.type || 'audio/mpeg' };
+  const headers = { 'Content-Type': file.type || 'audio/mpeg', ...entryPasswordHeaders() };
   const participantId = getCurrentParticipantId();
   const authToken = getCurrentAuthToken();
   if (participantId && authToken) {

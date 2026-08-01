@@ -7,6 +7,7 @@
 
 import { listPlugins } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
+import { setStoredEntryPassword } from './room-entry.js';
 
 const roomListEl = document.getElementById('roomList');
 
@@ -39,9 +40,13 @@ function buildOccupiedCard(room) {
   header.className = 'room-card-header';
 
   const titleBlock = document.createElement('div');
+
+  // 入室パスワードのある部屋には鍵マークを付ける（部屋名やシステムは今までどおり見せる）。
+  // パスワード自体の照合はサーバー側（server/index.jsのWebSocket接続時）。
   const title = document.createElement('div');
   title.className = 'room-card-title';
-  title.textContent = room.name || room.id;
+  title.textContent = (room.locked ? '🔒 ' : '') + (room.name || room.id);
+  if (room.locked) title.title = 'この部屋に入るには入室パスワードが必要です';
   titleBlock.appendChild(title);
 
   const meta = document.createElement('div');
@@ -134,6 +139,18 @@ function buildVacantCard(room) {
 
   form.appendChild(selectRow);
 
+  // 入室パスワード（任意）。空欄なら今までどおり誰でも入れる部屋になる。
+  const passwordGroup = document.createElement('div');
+  const passwordLabel = document.createElement('label');
+  passwordLabel.textContent = '入室パスワード（任意・空欄なら誰でも入れます）';
+  const passwordInput = document.createElement('input');
+  passwordInput.type = 'password';
+  passwordInput.maxLength = 64;
+  passwordInput.placeholder = '参加者に伝える合言葉';
+  passwordGroup.appendChild(passwordLabel);
+  passwordGroup.appendChild(passwordInput);
+  form.appendChild(passwordGroup);
+
   const fileGroup = document.createElement('div');
   const fileLabel = document.createElement('label');
   fileLabel.textContent = '部屋の全データ読み込み（任意・以前保存したファイル）';
@@ -195,6 +212,7 @@ function buildVacantCard(room) {
           name: nameInput.value,
           activePlugin: pluginSelect.value || null,
           bcdiceSystem: bcdiceSelect.value,
+          entryPassword: passwordInput.value,
           importedState
         })
       });
@@ -208,6 +226,9 @@ function buildVacantCard(room) {
         return;
       }
 
+      // 作った本人は続けて入室するので、入力したパスワードをこのブラウザに覚えさせて
+      // おく（覚えさせないと、遷移した直後に自分で入力し直すことになる）。
+      setStoredEntryPassword(room.id, passwordInput.value.trim());
       window.location.href = `/combined_layout.html?room=${encodeURIComponent(room.id)}`;
     } catch (error) {
       errorText.textContent = `通信エラー: ${error.message}`;

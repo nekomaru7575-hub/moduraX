@@ -188,6 +188,75 @@ async function deleteAuthMeta(roomId) {
   await unlink(authMetaFilePath(roomId)).catch(() => {});
 }
 
+// 認証情報は部屋ごとに1つのオブジェクトなので、書き換えるときは必ず読んでから混ぜること。
+// 丸ごと置き換えると、バージョンを上げただけで入室パスワードが消える。
+async function updateAuthMeta(roomId, patch) {
+  let meta = {};
+  try {
+    meta = await readAuthMeta(roomId);
+  } catch (error) {
+    console.warn(`[server] ${roomId} の認証情報の読み込みに失敗しました:`, error.message);
+  }
+  const next = { ...meta, ...patch };
+  await writeAuthMeta(roomId, next);
+  return next;
+}
+
+// --- 入室パスワード ---
+// 部屋の中身（盤面・ログ・コマ）はWebSocket接続直後のINITでまるごと配られるので、
+// パスワードはそこを通す前に確かめる（下のwss.on('connection')）。
+//
+// 置き場は同期される状態（store.state）ではなく、こちらの認証情報。状態に混ぜると
+// 全参加者へ配られ、「部屋の全データ保存」で書き出したファイルにも載ってしまう。
+// 平文は保存せず、部屋ごとのソルトを付けたSHA-256のハッシュだけを持つ。
+//
+// 【強度の限界】SHA-256は高速なので、ハッシュが漏れた場合の総当たり耐性はbcrypt等ほど
+// 強くない。仲間内で部屋を仕切るための鍵であって、強固な秘匿の保証ではない。
+// 接続あたりの試行回数と待ち時間には下のwss側で制限をかけている。
+const MAX_ENTRY_PASSWORD_LENGTH = 64;
+// 1接続あたりの試行回数と、JOINを待つ時間。超えたら切る（closeコード4006）。
+const MAX_ENTRY_ATTEMPTS = 5;
+const ENTRY_TIMEOUT_MS = 30 * 1000;
+
+function hashEntryPassword(salt, password) {
+  return createHash('sha256').update(`mojulaX:entry:${salt}:${password}`).digest('hex');
+}
+
+/**
+ * 入力を保存できる形（ソルトとハッシュ）にする。
+ * @returns {{salt: string, hash: string}|null} 空欄ならnull（＝パスワードなしの部屋）
+ * @throws {Error} 長すぎる等で受け付けられない場合
+ */
+function buildEntryPasswordRecord(password) {
+  const trimmed = typeof password === 'string' ? password.trim() : '';
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_ENTRY_PASSWORD_LENGTH) {
+    throw new Error(`入室パスワードは${MAX_ENTRY_PASSWORD_LENGTH}文字までにしてください。`);
+  }
+  const salt = randomUUID().replace(/-/g, '');
+  return { salt, hash: hashEntryPassword(salt, trimmed) };
+}
+
+// パスワードが設定されていない部屋は誰でも入れる（今までどおり）。
+function verifyEntryPassword(record, password) {
+  if (!record?.salt || !record?.hash) return true;
+  const given = typeof password === 'string' ? password.trim() : '';
+  if (!given) return false;
+  return equalsSecret(hashEntryPassword(record.salt, given), record.hash);
+}
+
+// ヘッダで受け取るパスワード。HTTPヘッダにはASCIIしか載せられないため、ブラウザ側は
+// encodeURIComponentしてから送る（js/room-entry.jsのentryPasswordHeaders）。
+function entryPasswordFromHeaders(req) {
+  const raw = String(req.headers['x-room-password'] || '');
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return '';
+  }
+}
+
 // 旧方式で付いていたGMの印を外す。既に処理済みの部屋、GMがいない部屋では何もしない。
 function clearLegacyGmFlags(roomId, store) {
   const participants = store.state.participants || {};
@@ -374,7 +443,9 @@ async function getOrLoadRoom(roomId) {
 
     if (meta.version !== CURRENT_AUTH_VERSION) {
       const changed = clearLegacyGmFlags(roomId, store);
-      await writeAuthMeta(roomId, { version: CURRENT_AUTH_VERSION })
+      // 入室パスワードも同じ認証情報に入っているので、混ぜて書く（丸ごと置き換えない）
+      meta = { ...meta, version: CURRENT_AUTH_VERSION };
+      await writeAuthMeta(roomId, meta)
         .catch((error) => console.warn(`[server] ${roomId} の認証情報の保存に失敗しました:`, error.message));
       if (changed) {
         await writeRoomState(roomId, store.state)
@@ -382,7 +453,9 @@ async function getOrLoadRoom(roomId) {
       }
     }
 
-    return { store, clients: new Set(), saveTimer: null };
+    // 入室パスワードは接続のたびに参照するので、部屋と一緒にメモリへ載せておく
+    // （変更時はhandleSetEntryPasswordがこちらも書き換える）。
+    return { store, clients: new Set(), saveTimer: null, entryPassword: meta.entryPassword || null };
   }
 
   try {
@@ -587,6 +660,14 @@ async function handleMediaUpload(req, res, {
   const entry = await getOrLoadRoom(roomId);
   if (!entry) {
     sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  // 入室パスワードのある部屋では、入室していない人からのアップロードは受け付けない。
+  // GM判定だけに任せると、GMが1人もいない部屋（canOperateAsGmが全員trueを返す）では
+  // 外から素通りしてしまう。
+  if (!verifyEntryPassword(entry.entryPassword, entryPasswordFromHeaders(req))) {
+    sendJson(res, 403, { error: 'この部屋の入室パスワードが必要です' });
     return;
   }
 
@@ -853,6 +934,12 @@ async function handleImageCopy(req, res) {
     return;
   }
 
+  // アップロードと同じく、入室していない人からの複製は受け付けない（handleMediaUpload参照）
+  if (!verifyEntryPassword(entry.entryPassword, entryPasswordFromHeaders(req))) {
+    sendJson(res, 403, { error: 'この部屋の入室パスワードが必要です' });
+    return;
+  }
+
   if (purpose.requireGm) {
     const participantId = String(req.headers['x-participant-id'] || '');
     const authToken = String(req.headers['x-auth-token'] || '');
@@ -906,13 +993,14 @@ async function handleListRooms(req, res) {
       continue;
     }
     const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
-    list.push({ id, occupied: true, name, activePlugin, bcdiceSystem });
+    // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは返さない。
+    list.push({ id, occupied: true, name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword });
   }
   sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list });
 }
 
 // POST /api/rooms：空きスロットに新しい部屋を作成する。
-// body: { id, name, activePlugin, bcdiceSystem, importedState? }
+// body: { id, name, activePlugin, bcdiceSystem, entryPassword?, importedState? }
 async function handleCreateRoom(req, res) {
   let body;
   try {
@@ -922,7 +1010,9 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  const { id, name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, importedState } = body;
+  const {
+    id, name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState
+  } = body;
 
   if (!isValidRoomId(id)) {
     sendJson(res, 400, { error: '無効な部屋IDです。' });
@@ -932,6 +1022,15 @@ async function handleCreateRoom(req, res) {
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   if (!trimmedName) {
     sendJson(res, 400, { error: '部屋名を入力してください。' });
+    return;
+  }
+
+  // 入室パスワード（任意）。長さの検証はここで行い、駄目なら部屋を作らずに返す。
+  let entryPasswordRecord;
+  try {
+    entryPasswordRecord = buildEntryPasswordRecord(entryPassword);
+  } catch (error) {
+    sendJson(res, 400, { error: error.message });
     return;
   }
 
@@ -991,8 +1090,78 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  rooms.set(id, { store, clients: new Set(), saveTimer: null });
+  // 認証情報はここで書いておく。書かずにおくと、次にサーバーが読み直したときに
+  // getOrLoadRoomの移行処理が走り、入室パスワードごと初期化されてしまう。
+  try {
+    await updateAuthMeta(id, { version: CURRENT_AUTH_VERSION, entryPassword: entryPasswordRecord });
+  } catch (error) {
+    console.warn(`[server] ${id} の認証情報の保存に失敗しました:`, error.message);
+    sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
+    return;
+  }
+
+  rooms.set(id, { store, clients: new Set(), saveTimer: null, entryPassword: entryPasswordRecord });
   sendJson(res, 201, { id });
+}
+
+// PUT /api/rooms/<id>/entry-password：入室パスワードの変更・解除（GM限定）。
+// body: { password }　空欄なら解除。現在のパスワードは要求しない（既に入室しているGMが行う操作のため）。
+// 変更しても入室中の接続は切らない。次に繋ぐときから新しいパスワードが要る。
+async function handleSetEntryPassword(req, res, roomId) {
+  if (!isValidRoomId(roomId)) {
+    sendJson(res, 400, { error: '部屋IDが不正です' });
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  const participantId = String(req.headers['x-participant-id'] || '');
+  const authToken = String(req.headers['x-auth-token'] || '');
+  const identified = verifyIdentity(participantId, authToken);
+  const developer = identified && isDeveloperToken(roomId, authToken);
+  if (!developer && !canOperateAsGm(entry.store.state, identified ? participantId : null)) {
+    sendJson(res, 403, { error: '入室パスワードの変更はGMだけが行えます' });
+    return;
+  }
+
+  // 今のパスワードを知らない人が変えられないよう、ここも入室済みであることを求める
+  // （GM判定だけだと、GMが1人もいない部屋では外から通ってしまう）。
+  if (!verifyEntryPassword(entry.entryPassword, entryPasswordFromHeaders(req))) {
+    sendJson(res, 403, { error: 'この部屋の入室パスワードが必要です' });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    return;
+  }
+
+  let record;
+  try {
+    record = buildEntryPasswordRecord(body?.password);
+  } catch (error) {
+    sendJson(res, 400, { error: error.message });
+    return;
+  }
+
+  try {
+    await updateAuthMeta(roomId, { entryPassword: record });
+  } catch (error) {
+    console.warn(`[server] ${roomId} の入室パスワードの保存に失敗しました:`, error.message);
+    sendJson(res, 500, { error: '入室パスワードの保存に失敗しました。' });
+    return;
+  }
+
+  entry.entryPassword = record;
+  console.log(`[server] ${roomId}: 入室パスワードを${record ? '設定' : '解除'}しました`);
+  sendJson(res, 200, { locked: !!record });
 }
 
 // --- BCDiceのシステム一覧・システム情報の中継（キャッシュ付き） ---
@@ -1099,6 +1268,12 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/entry-password') && req.method === 'PUT') {
+    const roomId = url.pathname.slice('/api/rooms/'.length, -'/entry-password'.length);
+    await handleSetEntryPassword(req, res, decodeURIComponent(roomId));
+    return;
+  }
+
   if (url.pathname === '/api/bcdice/game_system' && req.method === 'GET') {
     await handleBcdiceSystems(req, res);
     return;
@@ -1168,16 +1343,35 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
-  entry.clients.add(ws);
-  console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
+  // 入室パスワードが設定されている部屋では、正しいパスワードをJOINで受け取るまで
+  // INIT（＝部屋の中身）を送らず、他のメッセージも一切受け付けない。
+  // clientsへ加えるのも認証が通ってからにすること。ここに入れた時点で、他の人の操作が
+  // ブロードキャストで流れ込む（＝中身が漏れる）ため。
+  let entryAuthorized = !entry.entryPassword;
+  let entryAttempts = 0;
+  let entryTimer = null;
+
+  function admit() {
+    entry.clients.add(ws);
+    console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
+    ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
+  }
+
+  if (entryAuthorized) {
+    admit();
+  } else {
+    ws.send(JSON.stringify({ type: 'ENTRY_REQUIRED' }));
+    // 名乗らないまま繋ぎっぱなしにされるのを防ぐ（総当たりの足止ても兼ねる）
+    entryTimer = setTimeout(() => {
+      if (!entryAuthorized && ws.readyState === WebSocket.OPEN) ws.close(4006, 'entry timeout');
+    }, ENTRY_TIMEOUT_MS);
+  }
 
   // この接続が名乗り、検証まで通った参加者ID。名乗っていない（ゲスト）ならnullのまま。
   // IDENTIFYメッセージを受け取るまでは誰でもないものとして扱う。
   let verifiedParticipantId = null;
   // 開発用の合言葉での名乗りか（isDeveloperToken参照）。GMでなくてもGMと同じ操作ができる。
   let isDeveloper = false;
-
-  ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
 
   // 部屋を左右する操作をしてよいか。開発用の合言葉はGMの有無に関わらず通す。
   function mayOperateAsGm() {
@@ -1202,6 +1396,31 @@ wss.on('connection', async (ws, req) => {
     } catch {
       return;
     }
+
+    // 入室パスワードの照合。通るまでは部屋の中身を一切渡さない（verifyEntryPassword参照）。
+    if (message.type === 'JOIN') {
+      if (entryAuthorized) return;
+
+      entryAttempts += 1;
+      if (!verifyEntryPassword(entry.entryPassword, message.password)) {
+        console.warn(`[server] ${roomId}: 入室パスワードが違います（${entryAttempts}回目）`);
+        if (entryAttempts >= MAX_ENTRY_ATTEMPTS) {
+          // 総当たり対策。繋ぎ直せば再挑戦できるが、そのたびに接続からやり直しになる。
+          ws.close(4006, 'entry rejected');
+          return;
+        }
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ENTRY_REJECTED' }));
+        return;
+      }
+
+      entryAuthorized = true;
+      clearTimeout(entryTimer);
+      admit();
+      return;
+    }
+
+    // 認証前は他のメッセージを受け付けない（名乗りも操作も削除も）
+    if (!entryAuthorized) return;
 
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
@@ -1314,6 +1533,8 @@ wss.on('connection', async (ws, req) => {
   });
 
   ws.on('close', () => {
+    clearTimeout(entryTimer);
+    // 入室パスワードを通らないまま切れた接続はclientsに入っていない（deleteは空振りでよい）
     entry.clients.delete(ws);
     console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
 

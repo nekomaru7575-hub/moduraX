@@ -17,8 +17,14 @@ const INVALID_ROOM_CLOSE_CODES = new Set([4000, 4004]);
 // 削除操作をした本人・他の参加者を問わず、全員がこのコードで切断される。
 const ROOM_DELETED_CLOSE_CODE = 4005;
 
+// 入室パスワードを通らないまま切られた際のcloseコード（試行回数超過・待ち時間切れ）。
+// 部屋自体は存在するので、少し待って繋ぎ直し、もう一度パスワードから聞き直す。
+const ENTRY_CLOSE_CODE = 4006;
+
 import { store } from './game-store.js';
 import { EventBus } from './EventBus.js';
+import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
+import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -32,6 +38,32 @@ let developerIdentity = false;
 
 export function isDeveloperIdentity() {
   return developerIdentity;
+}
+
+// 入室パスワードの入力を求める。入力された値は覚えておき、繋がっていればその場で
+// 送り直す。切れていた場合は、再接続後のENTRY_REQUIREDで自動的に使われる。
+function askEntryPassword({ error }) {
+  showRoomEntryDialog({
+    password: getStoredEntryPassword(currentRoomId()),
+    error,
+    onSubmit: (password) => {
+      setStoredEntryPassword(currentRoomId(), password);
+      sendJoin();
+    }
+  });
+}
+
+// 覚えているパスワードで入室を試みる。まだ何も覚えていなければ入力を求める
+// （パスワードなしの部屋ではサーバーがENTRY_REQUIREDを送らないので、ここは通らない）。
+function sendJoin() {
+  const password = getStoredEntryPassword(currentRoomId());
+  if (!password) {
+    askEntryPassword({ error: false });
+    return;
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'JOIN', password }));
+  }
 }
 
 function connect() {
@@ -51,8 +83,21 @@ function connect() {
       return;
     }
 
+    // 入室パスワードのある部屋。これを通すまでINITは届かない（server/index.js参照）。
+    if (message.type === 'ENTRY_REQUIRED') {
+      sendJoin();
+      return;
+    }
+
+    if (message.type === 'ENTRY_REJECTED') {
+      askEntryPassword({ error: true });
+      return;
+    }
+
     if (message.type === 'INIT') {
       hasReceivedInit = true;
+      // 入室できたので、パスワードを聞いたままの画面が残っていれば閉じる
+      closeRoomEntryDialog();
       store.hydrate(message.state);
       // サーバーの最新状態を受け取った直後にだけ行いたい処理（参加者としての名乗り等）の
       // きっかけ。INITより前にdispatchしても、このhydrateで上書きされてしまうため。
@@ -103,6 +148,13 @@ function connect() {
     if (event.code === ROOM_DELETED_CLOSE_CODE) {
       alert('この部屋は削除されました。部屋一覧へ戻ります。');
       window.location.href = '/';
+      return;
+    }
+
+    // 入室パスワードを通らないまま切られた場合は、繋ぎ直して聞き直す（部屋は在る）。
+    // ダイアログを開いたままにしておくと、再接続後のENTRY_REQUIREDで送信し直される。
+    if (event.code === ENTRY_CLOSE_CODE) {
+      setTimeout(connect, RECONNECT_DELAY_MS);
       return;
     }
 

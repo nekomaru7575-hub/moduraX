@@ -453,6 +453,8 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
 
 // シーン/ラウンド/シナリオ終了時、該当カテゴリのエフェクト使用数(current)を0へ戻す。
 // 判定終了/プロセス終了はエフェクトの使用制限カテゴリに存在しないため無変更で返す。
+// フェーズの入れ子はCore側が1段ずつ呼び分けて処理する（例: シナリオ終了なら
+// scenario→scene→round→…の順に呼ばれる）ので、ここは渡されたカテゴリだけを見ればよい。
 // 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
 function resetDX3ComponentsOnPhaseEnd(components, phase) {
   if (!LIMIT_CATEGORIES.includes(phase)) return components;

@@ -6,13 +6,15 @@
 
 import { BUFF_PHASE_LABELS } from './game-store.js';
 
+// 入れ子の外側→内側の順に並べる（game-store.jsのPHASE_HIERARCHYと同じ順序）。
+// 内側を選んだバフは、外側のフェーズが終わったときにも消える。
 const EXPIRE_PHASE_OPTIONS = [
   { value: '', label: '手動のみ（自動消滅なし）' },
+  { value: 'scenario', label: 'シナリオ終了で消滅' },
   { value: 'scene', label: 'シーン終了で消滅' },
   { value: 'round', label: 'ラウンド終了で消滅' },
-  { value: 'scenario', label: 'シナリオ終了で消滅' },
-  { value: 'check', label: '判定終了で消滅' },
-  { value: 'process', label: 'プロセス終了で消滅' }
+  { value: 'process', label: 'プロセス終了で消滅' },
+  { value: 'check', label: '判定終了で消滅' }
 ];
 
 let addDialogEl = null;
@@ -95,6 +97,11 @@ export function showAddBuffDialog({ parameters = {}, onConfirm }) {
   });
   expireGroup.appendChild(expireLabel);
   expireGroup.appendChild(expireSelect);
+  // 入れ子の仕様はラベルからは読み取れないので、ここで明示しておく
+  const expireNote = document.createElement('p');
+  expireNote.className = 'dialog-form-note';
+  expireNote.textContent = 'シナリオ ⊃ シーン ⊃ ラウンド ⊃ プロセス ⊃ 判定。上位の終了でも消滅します。';
+  expireGroup.appendChild(expireNote);
   form.appendChild(expireGroup);
 
   // --- ボタン行 ---

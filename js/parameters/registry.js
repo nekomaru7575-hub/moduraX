@@ -29,6 +29,7 @@ export function buildRoomParameters(pluginId) {
 // confirmMode: 'skip'（点呼/割り込み確認を表示しない）| 'confirm'（表示する。ソフトゲートなので
 //   ブロックはしない）
 // expirePhaseOnComplete: このフェーズを抜ける時にEXPIRE_BUFFSと同じバフ剥がしを自動発火するか
+//   （'round'を指定すると、その内側のプロセス・判定のバフもまとめて剥がれる）
 const DEFAULT_ROUND_PHASE_TEMPLATE = [
   { id: 'setup', label: 'セットアップ', kind: 'once', confirmMode: 'skip', expirePhaseOnComplete: null },
   { id: 'action', label: 'キャラクター行動', kind: 'perCharacter', confirmMode: 'confirm', expirePhaseOnComplete: null },
@@ -118,6 +119,8 @@ export function findPluginForChatCommand(rawInput) {
  * エフェクトの使用回数等）をリセットする。Coreはcomponentsの中身を解釈しないため、
  * 「フェーズが終了した」という事実だけをプラグインに渡し、何をリセットするかは
  * プラグイン側（dx3.jsのresetComponentsOnPhaseEnd等）に委ねる。
+ * フェーズの入れ子（シナリオ終了はシーン終了も兼ねる）はCore側のapplyPhaseEndが
+ * 1段ずつ呼び分けて表現するので、プラグイン側は渡されたフェーズだけを見ればよい。
  * @param {string} pluginId
  * @param {Record<string, any>} components
  * @param {'scenario'|'scene'|'round'|'check'|'process'} phase

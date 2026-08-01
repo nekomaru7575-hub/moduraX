@@ -38,6 +38,17 @@ export function generateBuffId() {
 // バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
 export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ', check: '判定', process: 'プロセス' };
 
+// 終了フェーズの入れ子構造（外側→内側）。上位フェーズが終了したら、その内側は
+// すべて終了したものとして扱う（シナリオ ⊃ シーン ⊃ ラウンド ⊃ プロセス ⊃ 判定）。
+export const PHASE_HIERARCHY = ['scenario', 'scene', 'round', 'process', 'check'];
+
+// 指定フェーズ自身と、その内側の全フェーズを外側から順に返す。
+// 階層に無いフェーズ（将来の追加分）は自分自身だけを返し、従来どおりの単独処理になる。
+export function getPhaseChain(phase) {
+  const index = PHASE_HIERARCHY.indexOf(phase);
+  return index < 0 ? [phase] : PHASE_HIERARCHY.slice(index);
+}
+
 // ラウンド進行（Core機能）の初期状態。未開始（active:false）がデフォルト。
 function createInitialRoundState() {
   return {
@@ -52,8 +63,8 @@ function createInitialRoundState() {
 }
 
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
-// 全トークンから取り除く。EXPIRE_BUFFSと、ラウンド進行のROUND_ADVANCE_PHASE（フェーズ完了時の
-// 自動清掃）の両方から使う共通ロジック。
+// 全トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
+// フェーズを1段ずつ渡すことで表現する）。
 function removeExpiredBuffs(tokensState, phase) {
   const nextTokens = { ...tokensState };
   const removedNames = [];
@@ -222,15 +233,35 @@ function withNewUserParam(params, def) {
 
 // フェーズ（シーン/ラウンド/シナリオ/判定/プロセス）が終了したときの共通処理。
 // 期限切れバフの除去とプラグインcomponentsのリセットは必ずセットで行い、通知文もここで組み立てる。
-// EXPIRE_BUFFSと、ラウンド進行のROUND_ADVANCE_PHASE（フェーズ完了時の自動清掃）が使う。
+// EXPIRE_BUFFSと、ラウンド進行のROUND_ADVANCE_PHASE（フェーズ完了時の自動清掃）、
+// APPLY_SCENE（シーン遷移）が使う。
+//
+// 上位フェーズの終了は内側のフェーズの終了も兼ねる（PHASE_HIERARCHY参照）ため、
+// 指定フェーズから最下層まで1段ずつ同じ処理を流す。プラグインのリセットもフェーズ単位で
+// 呼ばれるので、プラグイン側は入れ子を意識しなくてよい。
 function applyPhaseEnd(tokensState, activePlugin, phase) {
-  const { nextTokens, removedNames } = removeExpiredBuffs(tokensState, phase);
+  const chain = getPhaseChain(phase);
+
+  let tokens = tokensState;
+  const removedNames = [];
+  chain.forEach(chainPhase => {
+    const result = removeExpiredBuffs(tokens, chainPhase);
+    removedNames.push(...result.removedNames);
+    tokens = resetPluginComponentsForPhase(result.nextTokens, activePlugin, chainPhase);
+  });
+
   const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
+  // 内側のフェーズも一緒に終了したことは、ログを見ただけで分かるようにしておく
+  const innerLabels = chain.slice(1).map(p => BUFF_PHASE_LABELS[p] || p);
+  const headline = innerLabels.length > 0
+    ? `${phaseLabel}終了（${innerLabels.join('・')}も終了）。`
+    : `${phaseLabel}終了。`;
+
   return {
-    tokens: resetPluginComponentsForPhase(nextTokens, activePlugin, phase),
+    tokens,
     logText: removedNames.length > 0
-      ? `${phaseLabel}終了。消滅したバフ/デバフ: ${removedNames.join('、')}`
-      : `${phaseLabel}終了。`
+      ? `${headline}消滅したバフ/デバフ: ${removedNames.join('、')}`
+      : headline
   };
 }
 
@@ -706,7 +737,8 @@ export class ImmutableStore {
       }
 
       // シーン/ラウンド/シナリオ終了を検知し、該当する終了条件を持つバフ/デバフを全コマから
-      // 一括で消す。将来実装予定の「シーン進行」機能から呼ばれる想定で、現状はチャットコマンド
+      // 一括で消す。上位フェーズを指定すると内側のフェーズ分もまとめて消える（applyPhaseEnd参照）。
+      // 将来実装予定の「シーン進行」機能から呼ばれる想定で、現状はチャットコマンド
       // （「シーン終了」等）がエスケープハッチとして直接dispatchする。
       // 結果はMainタブのチャットログへ直接追記する（理由はwithSystemLogのコメント参照）。
       case 'EXPIRE_BUFFS': {
@@ -1080,7 +1112,8 @@ export class ImmutableStore {
           nextBgm = Object.freeze({ trackId: scene.bgmTrackId, playId });
         }
 
-        // 前のシーンが終わったので、終了条件が「シーン」のバフ/デバフを消す（EXPIRE_BUFFSと同じ処理）
+        // 前のシーンが終わったので、終了条件が「シーン」のバフ/デバフを消す（EXPIRE_BUFFSと同じ処理）。
+        // シーンの内側であるラウンド/プロセス/判定のバフもここで一緒に消える。
         const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, 'scene');
 
         this.#commit(prevState, {

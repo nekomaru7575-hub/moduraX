@@ -881,6 +881,8 @@ function tryHandleParameterCommand(rawInput, character) {
 // ">対象コマ名"を省略した場合は参照キャラクター欄で選択中のコマが対象になる（従来どおり）。
 // 指定した場合はその名前のコマ（コマ名の完全一致）を、選択中のキャラクターより優先して
 // 対象にする。終了条件は シーン/ラウンド/シナリオ/判定/プロセス/手動 のいずれか（「◯◯終了」表記でも可）。
+// これらは入れ子（シナリオ ⊃ シーン ⊃ ラウンド ⊃ プロセス ⊃ 判定）なので、内側を指定したバフは
+// 外側のフェーズが終わったときにも消える（game-store.jsのPHASE_HIERARCHY参照）。
 // 対象パラメータが見つからない場合もバフ自体は付与するが、効果を持たない
 // （getEffectiveParameterValue側で無視される）。
 const BUFF_COMMAND_PATTERN = /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)\)$/;
@@ -951,6 +953,8 @@ function tryHandleBuffCommand(rawInput, character) {
 // バフ/デバフを全コマから一括で消す（EXPIRE_BUFFSはstore側で全クライアント同期・ログ追記まで
 // 完結するので、ここではdispatchするだけでよい）。標準の「シーン進行」機能実装までの
 // エスケープハッチ。
+// フェーズは入れ子（シナリオ ⊃ シーン ⊃ ラウンド ⊃ プロセス ⊃ 判定）で、上位のコマンドは
+// 内側の終了条件・使用回数もまとめて処理する（game-store.jsのPHASE_HIERARCHY参照）。
 const PHASE_END_COMMANDS = {
   'シーン終了': 'scene', 'ラウンド終了': 'round', 'シナリオ終了': 'scenario',
   '判定終了': 'check', 'プロセス終了': 'process'

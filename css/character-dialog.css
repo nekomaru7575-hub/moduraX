@@ -769,6 +769,18 @@
   margin-bottom: 12px;
 }
 
+/* コマ更新ダイアログのバフ/デバフ操作（付与・一覧）を横並びにする。
+   .dialog-add-row-btnはwidth:100%なので、flexで等分させたうえでmin-width:0を効かせる。 */
+.dialog-buff-row {
+  display: flex;
+  gap: 8px;
+}
+
+.dialog-buff-row .dialog-add-row-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .dialog-button-row {
   display: flex;
   justify-content: flex-end;

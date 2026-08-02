@@ -6,6 +6,7 @@ import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
 import { pickAndUploadImage } from './image-upload.js';
 import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
 import { showAudienceDialog } from './audience-picker.js';
+import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
 
@@ -903,6 +904,61 @@ export function showCharacterEditDialog({
   addCustomBtn.className = 'dialog-add-row-btn';
   addCustomBtn.addEventListener('click', addCustomRow);
   mainColumn.appendChild(addCustomBtn);
+
+  // --- バフ/デバフ ---
+  // 盤面の右クリックメニューと同じダイアログをここからも開けるようにする。装備の効果のように
+  // 「持っているだけで永続的にかかる」修正値（終了条件＝手動のみ）をコマの編集中に設定できる
+  // ようにするため。部屋の外（コマ作成ツール）には右クリックメニューが無いので、
+  // そちらではバフを扱う唯一の入口でもある。
+  // 付与・削除はこのダイアログの「更新」を待たず即座にdispatchされる（エフェクト/コンボ一覧と同じ）。
+  if (dispatch && tokenId && getToken) {
+    const buffRow = document.createElement('div');
+    buffRow.className = 'dialog-buff-row';
+
+    const addBuffBtn = document.createElement('button');
+    addBuffBtn.type = 'button';
+    addBuffBtn.className = 'dialog-add-row-btn';
+    addBuffBtn.textContent = '+ バフ/デバフを付与';
+
+    const listBuffBtn = document.createElement('button');
+    listBuffBtn.type = 'button';
+    listBuffBtn.className = 'dialog-add-row-btn';
+
+    const updateBuffBtnLabel = () => {
+      listBuffBtn.textContent = `バフ/デバフ一覧（${getToken()?.buffs?.length ?? 0}件）`;
+    };
+    updateBuffBtnLabel();
+
+    addBuffBtn.addEventListener('click', () => {
+      showAddBuffDialog({
+        // 開いた時点のスナップショットではなく都度最新を読む（エフェクト一覧と同じ理由）
+        parameters: getToken()?.parameters ?? character.parameters,
+        activePluginId,
+        onConfirm: ({ name, paramId, delta, expirePhase, meta }) => {
+          dispatch('ADD_BUFF', {
+            tokenId, id: generateBuffId(), name, paramId, delta, expirePhase, meta
+          });
+          updateBuffBtnLabel();
+        }
+      });
+    });
+
+    listBuffBtn.addEventListener('click', () => {
+      showBuffListDialog({
+        getBuffs: () => getToken()?.buffs ?? [],
+        getParameters: () => getToken()?.parameters ?? {},
+        activePluginId,
+        onRemove: (buffId) => {
+          dispatch('REMOVE_BUFF', { tokenId, id: buffId });
+          updateBuffBtnLabel();
+        }
+      });
+    });
+
+    buffRow.appendChild(addBuffBtn);
+    buffRow.appendChild(listBuffBtn);
+    mainColumn.appendChild(buffRow);
+  }
 
   // --- プラグイン専用スペース（右） ---
   const pluginPanel = buildPluginPanel({

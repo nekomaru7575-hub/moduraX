@@ -305,6 +305,10 @@ const GM_ONLY_ACTIONS = new Set([
   // 上の操作を通せてしまい、他の制限がすべて無意味になる。
   'SET_PARTICIPANT_GM',
   'REMOVE_PARTICIPANT'
+  // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCEは、
+  // GM以外も作成・開示できる機能なので入れない。「編集・削除できるのは作成者とGM」は
+  // 画面側（js/info-panel.jsのcanEditEntry）だけの制限で、サーバーは強制しない。
+  // これはコマの所有者チェック（board-data-driven.jsのcanOperateToken）と同じ姿勢。
 ]);
 
 const MIME_TYPES = {

@@ -820,6 +820,125 @@
       background-color: #3a3a3a;
     }
 
+    /* 情報パネル：タイトル＋内容の組をタブで並べる共有メモ（js/info-panel.js）。
+       枠と移動・拡縮は汎用の.floating-panelが持ち、ここは中身だけを受け持つ
+       （チャットパレットと同じ構成なので、見た目もそちらへそろえてある） */
+    .info-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .info-panel-tabs {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .info-panel-tab {
+      background-color: #333;
+      color: #bbb;
+      border: 1px solid #555;
+      border-radius: 4px 4px 0 0;
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .info-panel-tab.is-active {
+      background-color: #444;
+      color: #fff;
+      border-color: #777;
+    }
+
+    .info-panel-tab-add {
+      background: none;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .info-panel-tab-add:hover {
+      background-color: #3a3a3a;
+    }
+
+    .info-panel-sections {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background-color: #1e1e1e;
+      padding: 6px 8px;
+    }
+
+    .info-panel-section + .info-panel-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #2a2a2a;
+    }
+
+    /* 区画の見出し。将来のダブルハンドアウト（表の使命／裏の使命）で使う */
+    .info-panel-section-head {
+      color: #c9a227;
+      font-size: 0.75rem;
+      margin-bottom: 3px;
+    }
+
+    /* 本文はtextContentで入れるので、改行はここで見せる */
+    .info-panel-section-body {
+      color: #ddd;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .info-panel-empty {
+      color: #666;
+      font-size: 0.8rem;
+      margin: 0;
+    }
+
+    .info-panel-footer {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .info-panel-footer-btn {
+      background: none;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .info-panel-footer-btn:hover:not(:disabled) {
+      background-color: #3a3a3a;
+    }
+
+    .info-panel-footer-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
     /* ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整するためのハンドル */
     .resize-handle {
       flex: 0 0 10px;

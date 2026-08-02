@@ -40,6 +40,7 @@ import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
+import { initInfoPanel } from './info-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -1649,6 +1650,7 @@ function applyLog(entry, tabId = activeTabId) {
 window.addEventListener('DOMContentLoaded', () => {
   initNetSync();
   initRoundPanel();
+  initInfoPanel();
   initAudioPlayer();
   store.init();
 });

@@ -35,6 +35,20 @@ export function generateBuffId() {
   return `buff-user-${Date.now()}-${buffIdCounter}`;
 }
 
+let infoEntryIdCounter = 0;
+
+export function generateInfoEntryId() {
+  infoEntryIdCounter += 1;
+  return `info-user-${Date.now()}-${infoEntryIdCounter}`;
+}
+
+let infoSectionIdCounter = 0;
+
+export function generateInfoSectionId() {
+  infoSectionIdCounter += 1;
+  return `info-section-${Date.now()}-${infoSectionIdCounter}`;
+}
+
 // バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
 export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ', check: '判定', process: 'プロセス' };
 
@@ -241,6 +255,23 @@ function normalizeAudience(audience) {
   return Object.freeze([...new Set(audience.filter(id => typeof id === 'string' && id !== ''))]);
 }
 
+// 値がundefinedのキーを落とす。既存オブジェクトへの部分更新をスプレッドで作るとき、
+// undefinedが混ざると「指定なし」ではなく「その値で上書き」になってしまうのを防ぐ。
+function definedFields(patch) {
+  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+}
+
+// 情報（infoEntries）のsection1件を作る／整える。audienceの正規化をここへ集約し、
+// 追加・更新のどちらの経路を通っても同じ形になるようにする。
+function buildInfoSection({ id, label = '', body = '', audience = null }) {
+  return Object.freeze({
+    id,
+    label: label || '',
+    body: body || '',
+    audience: normalizeAudience(audience)
+  });
+}
+
 // ユーザー定義パラメータ（source:'user'）1件の定義を作る。コマのパラメータとルーム変数で共通。
 // visibleは「一覧に表示するか」の指定があるコマのパラメータ側だけが持つ（ルーム変数は常に表示）。
 function buildUserParam({ key, label, value, visible, audience }) {
@@ -404,6 +435,8 @@ export class ImmutableStore {
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
+      // この機能より前に保存された状態には情報（infoEntries）が無いため、既定値を補う
+      infoEntries: newState.infoEntries || [],
       // この機能より前に保存された状態には参加者一覧が無いため、既定値を補う
       participants: newState.participants || {},
       // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う
@@ -1425,6 +1458,111 @@ export class ImmutableStore {
         return;
       }
 
+      // --- 情報（タイトル＋内容の共有メモ。js/info-panel.js） ---
+      // idはUI側（js/info-panel.js）が採番する。sectionは必ず1件以上：0件のエントリは
+      // 作成者を含む誰にも見えず、画面から消すこともできない置き土産になるため。
+      case 'ADD_INFO_ENTRY': {
+        const { id, title, ownerId = null, sections = [] } = payload;
+        if (!id || !title) return;
+        if (prevState.infoEntries.some(entry => entry.id === id)) return;
+
+        // 通信・ファイル読み込みを経た値も通るので、sectionの形をここで確かめる
+        const validSections = Array.isArray(sections)
+          ? sections.filter(s => s && typeof s === 'object' && typeof s.id === 'string' && s.id !== '')
+          : [];
+        if (validSections.length === 0) return;
+
+        const seenSectionIds = new Set();
+        const normalized = [];
+        validSections.forEach(section => {
+          if (seenSectionIds.has(section.id)) return; // 同じidが二重に来たら先勝ち
+          seenSectionIds.add(section.id);
+          normalized.push(buildInfoSection(section));
+        });
+
+        this.#commit(prevState, {
+          infoEntries: [
+            ...prevState.infoEntries,
+            Object.freeze({ id, title, ownerId: ownerId || null, sections: Object.freeze(normalized) })
+          ]
+        });
+        return;
+      }
+
+      // タイトル・sectionの内容を更新する。sectionsは「idで突き合わせて差分を当てる」方式で、
+      // 配列ごと置き換えはしない：自分に見えていないsectionを、編集した人が消せてしまうため
+      // （今は1件しか無いので起きないが、将来の裏の使命を守るのはこの意味づけ）。
+      case 'UPDATE_INFO_ENTRY': {
+        const { id, title, sections } = payload;
+        const target = prevState.infoEntries.find(entry => entry.id === id);
+        if (!target) return;
+
+        let nextSections = target.sections;
+        if (Array.isArray(sections)) {
+          nextSections = [...target.sections];
+
+          sections.forEach(patch => {
+            if (!patch || typeof patch !== 'object' || typeof patch.id !== 'string' || !patch.id) return;
+
+            const index = nextSections.findIndex(s => s.id === patch.id);
+            if (index < 0) {
+              // 知らないidは新しい区画として末尾へ足す（将来の裏の追加もここを通る）
+              nextSections.push(buildInfoSection(patch));
+              return;
+            }
+            // 渡されたキーだけを当てる。undefinedを混ぜないのが肝で、混ざると
+            // buildInfoSectionの既定値が効いてaudienceが「全員に公開」へ広がってしまう。
+            nextSections[index] = buildInfoSection({ ...nextSections[index], ...definedFields(patch) });
+          });
+
+          nextSections = Object.freeze(nextSections);
+        }
+
+        const nextTitle = (typeof title === 'string' && title !== '') ? title : target.title;
+        if (nextTitle === target.title && nextSections === target.sections) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.map(entry => (
+            entry.id === id
+              ? Object.freeze({ ...entry, title: nextTitle, sections: nextSections })
+              : entry
+          ))
+        });
+        return;
+      }
+
+      // 本文を送り直さずに公開先だけを変える（SET_CHAT_TAB_AUDIENCEと同じ役どころ）。
+      case 'SET_INFO_SECTION_AUDIENCE': {
+        const { id, sectionId, audience } = payload;
+        const target = prevState.infoEntries.find(entry => entry.id === id);
+        if (!target) return;
+        if (!target.sections.some(s => s.id === sectionId)) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.map(entry => (
+            entry.id === id
+              ? Object.freeze({
+                  ...entry,
+                  sections: Object.freeze(entry.sections.map(s => (
+                    s.id === sectionId ? buildInfoSection({ ...s, audience }) : s
+                  )))
+                })
+              : entry
+          ))
+        });
+        return;
+      }
+
+      case 'REMOVE_INFO_ENTRY': {
+        const { id } = payload;
+        if (!prevState.infoEntries.some(entry => entry.id === id)) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.filter(entry => entry.id !== id)
+        });
+        return;
+      }
+
       default:
         return;
     }
@@ -1484,6 +1622,14 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
     chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
     chatLogs: { [MAIN_CHAT_TAB_ID]: [] },
+
+    // 情報（js/info-panel.js）。タイトル＋内容の組を浮動パネルのタブとして並べる共有メモ。
+    // { id, title, ownerId, sections: [{ id, label, body, audience }] } の配列。
+    // ownerIdは作成者の参加者ID（null＝表示名未設定の人が作った＝誰でも編集できる）。
+    // sectionsは1エントリ内の区画で、公開先(audience)をエントリではなくsectionが持つ。
+    // 将来のダブルハンドアウト（表の使命／裏の使命）で「表＝audience:null、裏＝限定公開」を
+    // 1エントリに同居させるための構造で、現状のUIは必ず1件だけ作る。
+    infoEntries: [],
 
     // 参加者一覧（js/local-identity.jsの表示名から導出した公開IDがキー）。
     // { [id]: { id, nickname, isGm } }。

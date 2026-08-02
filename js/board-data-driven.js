@@ -25,14 +25,22 @@ export {
   getEffectiveParameterValue, BUFF_PHASE_LABELS
 };
 
-// チャットパレットの浮動パネル（js/main.jsが生成する）。盤外の右クリックメニューから
-// 表示/非表示を切り替えるためだけに参照する。main.js → board-data-driven.js の向きに
-// importが張られている（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
+// 浮動パネル（チャットパレット・情報）。盤外の右クリックメニューから表示/非表示を
+// 切り替えるためだけに参照する。importは 生成側 → board-data-driven.js の向きに張られて
+// いる（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
+// 生成側はパネルごとに違う：チャットパレットはjs/main.js、情報はjs/info-panel.js。
 let chatPaletteController = null;
 
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
 export function setChatPaletteController(controller) {
   chatPaletteController = controller;
+}
+
+let infoPanelController = null;
+
+/** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
+export function setInfoPanelController(controller) {
+  infoPanelController = controller;
 }
 
 const GRID_SIZE = 25;
@@ -840,6 +848,11 @@ window.addEventListener('DOMContentLoaded', () => {
       ...(chatPaletteController ? [{
         label: chatPaletteController.isVisible() ? 'チャットパレットを隠す' : 'チャットパレットを表示',
         onSelect: () => chatPaletteController.toggle()
+      }] : []),
+      // 情報パネルは既定で非表示なので、ここが唯一の出しどころになる（生成はjs/info-panel.js）。
+      ...(infoPanelController ? [{
+        label: infoPanelController.isVisible() ? '情報を隠す' : '情報を表示',
+        onSelect: () => infoPanelController.toggle()
       }] : [])
     ]);
   });

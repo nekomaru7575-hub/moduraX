@@ -13,6 +13,8 @@ import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette } from './chat-palette.js';
+import { createFloatingPanel } from './floating-panel.js';
+import { setChatPaletteController } from './board-data-driven.js';
 import { makeResizableStack } from './resizable-stack.js';
 import { initNetSync, replaceState, requestRoomDeletion, sendIdentify } from './net-sync.js';
 import {
@@ -51,7 +53,6 @@ const commandInput = document.getElementById('commandInput');
 const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
-const chatPalettePanel = document.getElementById('chatPalettePanel');
 const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
 const netStatusEl = document.getElementById('netStatus');
@@ -675,7 +676,10 @@ if (deleteRoomBtn) {
 }
 
 // ダイス処理イベント
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId }) => {
+// onSentは送信が成立したときに呼ぶ（入力欄のクリア）。どの入力欄から送られたかは
+// 呼び出し元しか知らないため、ここで特定の欄を直接触らない
+// （以前はメイン欄を直接クリアしており、パレットから送るとメイン欄まで消えていた）。
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId, onSent }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
@@ -683,7 +687,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
   try {
     if (rawInput.includes('\n')) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
-      commandInput.value = "";
+      onSent?.();
       return;
     }
 
@@ -703,7 +707,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     if (!isDiceCommand && !isStartsChoice) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
-      commandInput.value = "";
+      onSent?.();
       return;
     }
 
@@ -716,7 +720,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
         // 認識できなかった場合（例: "aaaa"）。通信エラーではないので、アラートは
         // 出さずに入力をそのまま平文の発言としてチャットへ送る。
         applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
-        commandInput.value = "";
+        onSent?.();
         return;
       }
       throw new Error(resultText);
@@ -743,7 +747,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       system, character: characterName, characterId, color: characterColor, comment,
       resultText: `${resultText}${expiredNote}`, diceDetail
     }, tabId);
-    commandInput.value = "";
+    onSent?.();
 
   } catch (error) {
     console.error(error);
@@ -1136,122 +1140,103 @@ function tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)
   return true;
 }
 
-// チャットパレットのフレーズをクリックした際、コマンド欄を経由せず即座に送信する。
-// パラメータ変更コマンド/{}置換の判定は手入力の送信と同じ処理を通す。
-function sendPaletteText(text) {
-  const selectedSystem = store.state.room.bcdiceSystem;
-  const rawInput = text.trim();
-  if (rawInput === "") return;
+// チャット送信の共通処理。メインのチャット入力欄・チャットパレットの行クリック・
+// パレットのチャット入力欄の3経路がすべてここを通る（経路ごとに書くと、コマンドの
+// 解釈順序がズレて「片方でしか効かないコマンド」が生まれるため）。
+//
+// characterはコマ（token）で、{パラメータ名}置換とバフ/パラメータ/プラグインコマンドの
+// 対象になる。characterNameはログに出す発言者名で、characterが無くても名前だけで
+// 発言できる（チャットパレットのタブ名がどのコマ名とも一致しない場合、その名前の
+// NPC・ナレーションとして発言するため）。
+// onSentは送信が成立したときに呼ばれる。入力欄のクリアは経路ごとに違うので、
+// ここでは行わず呼び出し元に委ねる。
+function submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent }) {
+  const text = String(rawInput).trim();
+  if (text === '') return;
 
-  const selectedCharacter = characterParamSelect?.value
-    ? store.state.tokens[characterParamSelect.value]
-    : null;
-
-  if (tryHandlePhaseEndCommand(rawInput)) {
-    return;
-  }
-
-  if (tryHandleAudioStopCommand(rawInput)) {
-    return;
-  }
+  if (tryHandlePhaseEndCommand(text)) { onSent?.(); return; }
+  if (tryHandleAudioStopCommand(text)) { onSent?.(); return; }
 
   // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
-  const substitutedInput = substituteCharacterParameters(rawInput, selectedCharacter);
+  const substituted = substituteCharacterParameters(text, character);
 
-  if (tryHandleBuffCommand(substitutedInput, selectedCharacter)) {
-    return;
-  }
-
-  if (tryHandleParameterCommand(substitutedInput, selectedCharacter)) {
-    return;
-  }
-
-  if (tryHandlePluginChatCommand(substitutedInput, selectedCharacter)) {
-    return;
-  }
-
-  if (tryHandleOriginalTableCommand(substitutedInput, selectedCharacter)) {
-    return;
-  }
+  if (tryHandleBuffCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandleParameterCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandlePluginChatCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandleOriginalTableCommand(substituted, character, tabId)) { onSent?.(); return; }
 
   // ここまでコマンドとして解釈されなかった＝発言（ダイスロールを含む）なので、
   // 末尾が音源の再生フレーズと一致していれば鳴らす（発言自体はそのまま流す）。
-  triggerAudioPhrase(substitutedInput);
+  triggerAudioPhrase(substituted);
 
   EventBus.emit('DICE_ROLL_REQUESTED', {
-    system: selectedSystem,
-    rawInput: substitutedInput,
-    characterName: selectedCharacter?.name,
-    characterId: selectedCharacter?.id,
-    characterColor: selectedCharacter?.textColor,
-    tabId: activeTabId
+    system: store.state.room.bcdiceSystem,
+    rawInput: substituted,
+    characterName: characterName ?? character?.name,
+    characterId: character?.id,
+    characterColor: character?.textColor,
+    tabId,
+    onSent
   });
 }
 
-if (chatPalettePanel) {
-  renderChatPalette({ container: chatPalettePanel, onSend: sendPaletteText });
+// チャットパレットの行・パレット内チャット欄からの送信。発言者はパレットのタブ名で決まる
+// （コマ名と完全一致すればそのコマとして、しなければその名前の発言として送る）。
+function submitFromPalette({ text, name, onSent }) {
+  const trimmedName = (name || '').trim();
+  // 同名のコマが複数あることは想定していないが、あった場合は先頭を採る
+  const character = trimmedName
+    ? Object.values(store.state.tokens).find(t => t.name === trimmedName) ?? null
+    : null;
+
+  submitChatText({
+    rawInput: text,
+    character,
+    characterName: trimmedName || undefined,
+    onSent
+  });
 }
+
+// チャットパレットは移動・拡縮できる浮動パネルとして出す。表示/非表示は
+// パネルの×と、盤外の右クリックメニュー（js/board-data-driven.js）から切り替える。
+const chatPalettePanel = createFloatingPanel({
+  title: 'チャットパレット',
+  storageKey: 'chatPalettePanelRect',
+  defaultRect: { x: 24, y: 120, w: 320, h: 440 }
+});
+
+const chatPalette = renderChatPalette({
+  container: chatPalettePanel.body,
+  findTokenByName: (name) => Object.values(store.state.tokens).find(t => t.name === name) ?? null,
+  onSend: ({ text, name, onSent }) => submitFromPalette({ text, name, onSent })
+});
+
+// コマの追加・改名・削除で「名前がコマと一致しているか」の表示が変わるため、
+// 状態が変わるたびに判定し直す（パレット自体は部屋の状態を持たないので再描画は不要）。
+EventBus.subscribe('STATE_CHANGED', () => chatPalette.refreshNameStatus());
+
+// 盤外の右クリックメニューから表示/非表示を切り替えられるようにする
+setChatPaletteController(chatPalettePanel);
 
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
-    const selectedSystem = store.state.room.bcdiceSystem;
-    let rawInput = commandInput.value.trim();
+    const rawInput = commandInput.value.trim();
 
     if (rawInput === "") {
       alert("コマンドを入力してください！");
       return;
     }
 
+    // メイン欄の発言者は参照キャラクター欄の選択で決まる（パレットのタブ名とは独立）
     const selectedCharacter = characterParamSelect?.value
       ? store.state.tokens[characterParamSelect.value]
       : null;
 
-    if (tryHandlePhaseEndCommand(rawInput)) {
-      commandInput.value = "";
-      return;
-    }
-
-    if (tryHandleAudioStopCommand(rawInput)) {
-      commandInput.value = "";
-      return;
-    }
-
-    // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
-    // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
-    rawInput = substituteCharacterParameters(rawInput, selectedCharacter);
-
-    if (tryHandleBuffCommand(rawInput, selectedCharacter)) {
-      commandInput.value = "";
-      return;
-    }
-
-    if (tryHandleParameterCommand(rawInput, selectedCharacter)) {
-      commandInput.value = "";
-      return;
-    }
-
-    if (tryHandlePluginChatCommand(rawInput, selectedCharacter)) {
-      commandInput.value = "";
-      return;
-    }
-
-    if (tryHandleOriginalTableCommand(rawInput, selectedCharacter)) {
-      commandInput.value = "";
-      return;
-    }
-
-    // ここまでコマンドとして解釈されなかった＝発言（ダイスロールを含む）なので、
-    // 末尾が音源の再生フレーズと一致していれば鳴らす（発言自体はそのまま流す）。
-    triggerAudioPhrase(rawInput);
-
-    EventBus.emit('DICE_ROLL_REQUESTED', {
-      system: selectedSystem,
-      rawInput: rawInput,
-      characterName: selectedCharacter?.name,
-      characterId: selectedCharacter?.id,
-      characterColor: selectedCharacter?.textColor,
-      tabId: activeTabId
+    submitChatText({
+      rawInput,
+      character: selectedCharacter,
+      onSent: () => { commandInput.value = ""; }
     });
   });
 }

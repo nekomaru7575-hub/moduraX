@@ -25,6 +25,16 @@ export {
   getEffectiveParameterValue, BUFF_PHASE_LABELS
 };
 
+// チャットパレットの浮動パネル（js/main.jsが生成する）。盤外の右クリックメニューから
+// 表示/非表示を切り替えるためだけに参照する。main.js → board-data-driven.js の向きに
+// importが張られている（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
+let chatPaletteController = null;
+
+/** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
+export function setChatPaletteController(controller) {
+  chatPaletteController = controller;
+}
+
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
@@ -824,7 +834,13 @@ window.addEventListener('DOMContentLoaded', () => {
             onRestore: (tokenId) => store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenId })
           });
         }
-      }
+      },
+      // チャットパレットは浮動パネルなので、閉じたあと戻す手段がここだけになる。
+      // パネルの生成はjs/main.js側なので、実体はsetChatPaletteControllerで受け取る。
+      ...(chatPaletteController ? [{
+        label: chatPaletteController.isVisible() ? 'チャットパレットを隠す' : 'チャットパレットを表示',
+        onSelect: () => chatPaletteController.toggle()
+      }] : [])
     ]);
   });
 

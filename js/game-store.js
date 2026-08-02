@@ -695,7 +695,7 @@ export class ImmutableStore {
       // 持っていない）場合もnullのまま保持し、実効値計算（getEffectiveParameterValue）側で
       // 単に無視される＝効果を持たないバフとして扱う。
       case 'ADD_BUFF': {
-        const { tokenId, id, name, paramId = null, delta, expirePhase = null, tag = null } = payload;
+        const { tokenId, id, name, paramId = null, delta, expirePhase = null, tag = null, meta = null } = payload;
         const character = nextTokensState[tokenId];
         if (!character || !id || !name) return;
 
@@ -705,7 +705,11 @@ export class ImmutableStore {
           paramId,
           delta: Number(delta) || 0,
           expirePhase: expirePhase || null, // 'scene' | 'round' | 'scenario' | null(手動のみ)
-          tag: tag || null // 発行元をまとめて識別するための任意タグ（例: コンボ発動時のcombo.id）
+          tag: tag || null, // 発行元をまとめて識別するための任意タグ（例: コンボ発動時のcombo.id）
+          // プラグイン固有の付随データ（DX3ならクリティカル値の下限）。tagと同じく
+          // Coreは中身を一切解釈せず、そのまま持ち回るだけ。実効値の計算
+          // （getEffectiveParameterValue）はdeltaしか見ないため、metaは値に影響しない。
+          meta: meta ? Object.freeze({ ...meta }) : null
         });
 
         patchCharacter(nextTokensState, tokenId, {

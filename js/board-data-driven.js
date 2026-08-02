@@ -324,9 +324,11 @@ function bindTokenDrag(element, board) {
 
           showAddBuffDialog({
             parameters: current.parameters,
-            onConfirm: ({ name, paramId, delta, expirePhase }) => {
+            // プラグイン独自の追加入力欄（DX3ならクリティカル値の下限）を出すために渡す
+            activePluginId: store.state.room?.activePlugin ?? null,
+            onConfirm: ({ name, paramId, delta, expirePhase, meta }) => {
               store.dispatch('ADD_BUFF', {
-                tokenId, id: generateBuffId(), name, paramId, delta, expirePhase
+                tokenId, id: generateBuffId(), name, paramId, delta, expirePhase, meta
               });
             }
           });
@@ -343,6 +345,7 @@ function bindTokenDrag(element, board) {
             // 巻き戻る」問題と同じ轍を踏まないため）。
             getBuffs: () => store.state.tokens[tokenId]?.buffs ?? [],
             getParameters: () => store.state.tokens[tokenId]?.parameters ?? {},
+            activePluginId: store.state.room?.activePlugin ?? null,
             onRemove: (buffId) => {
               store.dispatch('REMOVE_BUFF', { tokenId, id: buffId });
             }

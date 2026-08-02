@@ -22,7 +22,10 @@ import { entryPasswordHeaders, setStoredEntryPassword } from './room-entry.js';
 import { showIdentityDialog } from './identity-dialog.js';
 import { showChatTabDialog } from './chat-tab-dialog.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
-import { handlePluginChatCommand, findPluginForChatCommand } from './parameters/registry.js';
+import {
+  handlePluginChatCommand, findPluginForChatCommand,
+  parsePluginBuffExtra, describePluginBuffMeta
+} from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
@@ -897,7 +900,14 @@ function tryHandleParameterCommand(rawInput, character) {
 // 外側のフェーズが終わったときにも消える（game-store.jsのPHASE_HIERARCHY参照）。
 // 対象パラメータが見つからない場合もバフ自体は付与するが、効果を持たない
 // （getEffectiveParameterValue側で無視される）。
-const BUFF_COMMAND_PATTERN = /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)\)$/;
+//
+// 5番目の引数は、適用中プラグイン固有の追加指定（省略可）。Coreは意味を解釈せず、
+// プラグインへ渡してbuff.metaへ変換させる（parsePluginBuffExtra）。
+// 例: DX3で バフ(コンセントレイト,AcB,-1,シーン,7) と書くとクリティカル値の下限7が付く。
+// パラメータ名はラベルに（）を含むもの（「クリティカル修正(AcB)」等）があるため、
+// この位置ではキー名（AcB）で指定する。
+const BUFF_COMMAND_PATTERN =
+  /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)(?:,([^,)]+))?\)$/;
 
 const BUFF_PHASE_TEXT_TO_KEY = {
   'シーン': 'scene', 'シーン終了': 'scene',
@@ -912,7 +922,7 @@ function tryHandleBuffCommand(rawInput, character) {
   const match = rawInput.match(BUFF_COMMAND_PATTERN);
   if (!match) return false;
 
-  const [, rawTargetName, rawName, rawParamName, rawDelta, rawPhase] = match;
+  const [, rawTargetName, rawName, rawParamName, rawDelta, rawPhase, rawExtra] = match;
   const name = rawName.trim();
   const paramName = rawParamName.trim();
   const delta = Number(rawDelta);
@@ -940,22 +950,30 @@ function tryHandleBuffCommand(rawInput, character) {
   const paramId = entry ? entry[0] : null;
   const expirePhase = phaseText in BUFF_PHASE_TEXT_TO_KEY ? BUFF_PHASE_TEXT_TO_KEY[phaseText] : null;
 
+  // 追加指定はプラグインの知識でmetaへ変換する（未適用・解釈できない値ならnull＝無視）
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  const meta = rawExtra !== undefined
+    ? parsePluginBuffExtra(activePluginId, paramId, rawExtra.trim())
+    : null;
+
   store.dispatch('ADD_BUFF', {
     tokenId: targetCharacter.id,
     id: generateBuffId(),
     name,
     paramId,
     delta,
-    expirePhase
+    expirePhase,
+    meta
   });
 
   const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
   const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
+  const metaText = describePluginBuffMeta(activePluginId, { meta });
   applyLog({
     character: targetCharacter.name,
     characterId: targetCharacter.id,
     color: targetCharacter.textColor,
-    resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）`
+    resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`
   });
 
   return true;

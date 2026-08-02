@@ -137,10 +137,28 @@ function buildEffectUseFailureMessage(names) {
 
 // クリティカル修正を持つエフェクトの「クリティカル値の下限」。複数のエフェクトが下限を
 // 持つ場合は、一番低い（＝一番緩い）ものを適用する。下限を持たないエフェクトはnullを返す。
+// これは「発動時にバフへ載せる下限を決める」ためだけに使う。判定時に効いている下限は
+// バフ側から読む（lowestBuffCriticalFloor）。
 function lowestCriticalFloor(effects) {
   const floors = effects
     .map(e => e.combo?.criticalMod?.floor)
     .filter(f => f !== null && f !== undefined && Number.isFinite(f));
+  if (floors.length === 0) return null;
+  return Math.min(...floors);
+}
+
+// 今このコマに効いている「クリティカル値の下限」。AcBへのバフが持つ下限（buff.meta.criticalFloor）
+// のうち一番低い（＝一番緩い）ものを適用する。下限を持つバフが無ければnull。
+//
+// 下限の在り処をバフ一本に統一しているのは、エフェクトから直接読むと、コンボへ組み込んだ
+// エフェクトの下限しか見られず、手動で付けたバフや「エフェクト使用」単体の下限が
+// 効かなかったため。バフを経由することで、下限の出どころ（エフェクト/手動/コマンド）に
+// 関わらず同じ経路で判定へ届く。
+export function lowestBuffCriticalFloor(token) {
+  const floors = (token?.buffs || [])
+    .filter(b => b.paramId === 'DX3:AcB')
+    .map(b => b.meta?.criticalFloor)
+    .filter(f => Number.isFinite(f));
   if (floors.length === 0) return null;
   return Math.min(...floors);
 }
@@ -258,14 +276,21 @@ export function runComboActivate({
   let appliedBuffCount = 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
     const delta = sumComboMod(selectedEffects, key, token, getEffectiveParameterValue);
-    if (!delta) return;
+    // クリティカル修正だけは、修正値が0でも下限を持つエフェクトがあればバフを付与する。
+    // 「クリティカル値は7として扱う」のような、修正値を持たず下限だけを持つエフェクトが
+    // あるため、ここで弾くと下限が判定へ届かなくなる。
+    const criticalFloor = key === 'criticalMod' ? lowestCriticalFloor(selectedEffects) : null;
+    if (!delta && criticalFloor === null) return;
     // バフ名はコンボ名ではなく、このパラメータへ実際に修正を与えたエフェクト名（複数なら" + "区切り）にする。
     const contributingNames = selectedEffects
-      .filter(e => comboModContribution(e, key, token, getEffectiveParameterValue) !== 0)
+      .filter(e => comboModContribution(e, key, token, getEffectiveParameterValue) !== 0
+        || (key === 'criticalMod' && Number.isFinite(e.combo?.criticalMod?.floor)))
       .map(e => e.name)
       .join(' + ');
     dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta, expirePhase: 'process', tag: combo.id
+      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta,
+      expirePhase: 'process', tag: combo.id,
+      meta: criticalFloor !== null ? { criticalFloor } : null
     });
     appliedBuffCount += 1;
   });
@@ -308,9 +333,12 @@ export function runEffectUse({
   let appliedBuffCount = 0;
   Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
     const delta = comboModContribution(effect, key, token, getEffectiveParameterValue);
-    if (!delta) return;
+    // コンボ発動時と同じ理由で、クリティカル修正だけは修正値0でも下限があれば付与する
+    const criticalFloor = key === 'criticalMod' ? lowestCriticalFloor([effect]) : null;
+    if (!delta && criticalFloor === null) return;
     dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: effect.name, paramId, delta, expirePhase: null, tag: null
+      tokenId, id: generateBuffId(), name: effect.name, paramId, delta, expirePhase: null, tag: null,
+      meta: criticalFloor !== null ? { criticalFloor } : null
     });
     appliedBuffCount += 1;
   });
@@ -359,10 +387,9 @@ export async function runComboCheck({
   const diceCount = Math.max(1, Math.round(ability + checkDice + db));
   const rawCriticalValue = 10 + criticalMod;
 
-  // クリティカル値の下限：このコンボで使用するエフェクトのうち下限を持つものだけを見て、
-  // 一番低い（緩い）下限を適用する。修正後のクリティカル値がそれを下回っていたら下限に引き上げる。
-  const selectedEffectsForCheck = effects.filter(e => combo.effectNames.includes(e.name));
-  const criticalFloor = lowestCriticalFloor(selectedEffectsForCheck);
+  // クリティカル値の下限：今このコマに効いているバフから読む（エフェクト由来の下限も
+  // コンボ発動時にバフへ載せてある）。修正後のクリティカル値がそれを下回っていたら下限に引き上げる。
+  const criticalFloor = lowestBuffCriticalFloor(token);
   const criticalValue = criticalFloor !== null ? Math.max(rawCriticalValue, criticalFloor) : rawCriticalValue;
 
   const command = `${diceCount}DX${criticalValue}+${skill}+${fixedValue}`;

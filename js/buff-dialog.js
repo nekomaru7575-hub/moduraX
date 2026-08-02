@@ -5,6 +5,7 @@
 // パラメータの基礎値に加算して計算する（このダイアログは付与・削除の入出力のみを担当する）。
 
 import { BUFF_PHASE_LABELS } from './game-store.js';
+import { renderPluginBuffFields, describePluginBuffMeta } from './parameters/registry.js';
 
 // 入れ子の外側→内側の順に並べる（game-store.jsのPHASE_HIERARCHYと同じ順序）。
 // 内側を選んだバフは、外側のフェーズが終わったときにも消える。
@@ -30,10 +31,11 @@ function ensureAddDialog() {
 /**
  * @param {{
  *   parameters: Record<string, {key:string,label:string,value:number}>,
- *   onConfirm: (result: { name: string, paramId: string|null, delta: number, expirePhase: string|null }) => void
+ *   activePluginId?: string|null,
+ *   onConfirm: (result: { name: string, paramId: string|null, delta: number, expirePhase: string|null, meta: object|null }) => void
  * }} options
  */
-export function showAddBuffDialog({ parameters = {}, onConfirm }) {
+export function showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm }) {
   const dialog = ensureAddDialog();
   dialog.innerHTML = '';
 
@@ -82,6 +84,19 @@ export function showAddBuffDialog({ parameters = {}, onConfirm }) {
   deltaGroup.appendChild(deltaLabel);
   deltaGroup.appendChild(deltaInput);
   form.appendChild(deltaGroup);
+
+  // --- プラグイン独自の追加入力欄（DX3ならクリティカル値の下限） ---
+  // 何を出すか・どの対象パラメータで出すかはプラグインに委ね、Coreは場所を貸すだけ。
+  // 結果はmetaとしてADD_BUFFへそのまま渡る（中身はCoreでは解釈しない）。
+  const pluginFieldsEl = document.createElement('div');
+  form.appendChild(pluginFieldsEl);
+  const pluginFields = renderPluginBuffFields(activePluginId, {
+    container: pluginFieldsEl,
+    paramId: paramSelect.value || null
+  });
+  if (pluginFields) {
+    paramSelect.addEventListener('change', () => pluginFields.sync(paramSelect.value || null));
+  }
 
   // --- 終了条件 ---
   const expireGroup = document.createElement('div');
@@ -135,7 +150,8 @@ export function showAddBuffDialog({ parameters = {}, onConfirm }) {
       name,
       paramId: paramSelect.value || null,
       delta: Number(deltaInput.value) || 0,
-      expirePhase: expireSelect.value || null
+      expirePhase: expireSelect.value || null,
+      meta: pluginFields?.getMeta() ?? null
     });
   });
 
@@ -154,23 +170,27 @@ function ensureListDialog() {
   return listDialogEl;
 }
 
-function formatBuffLine(buff, parameters) {
+function formatBuffLine(buff, parameters, activePluginId) {
   const paramLabel = buff.paramId && parameters[buff.paramId]
     ? parameters[buff.paramId].label
     : '（対象パラメータなし）';
   const sign = buff.delta >= 0 ? '+' : '';
   const expireLabel = buff.expirePhase ? `${BUFF_PHASE_LABELS[buff.expirePhase]}終了で消滅` : '手動のみ';
-  return `${buff.name}　${paramLabel}${sign}${buff.delta}　（${expireLabel}）`;
+  // プラグイン固有の付随データ（DX3ならクリティカル値の下限）は、増減値だけを見ても
+  // 分からないため、プラグイン自身に1行の説明を作らせて添える。
+  const metaText = describePluginBuffMeta(activePluginId, buff);
+  return `${buff.name}　${paramLabel}${sign}${buff.delta}　（${expireLabel}）${metaText}`;
 }
 
 /**
  * @param {{
- *   getBuffs: () => Array<{id:string,name:string,paramId:string|null,delta:number,expirePhase:string|null}>,
+ *   getBuffs: () => Array<{id:string,name:string,paramId:string|null,delta:number,expirePhase:string|null,meta:object|null}>,
  *   getParameters: () => Record<string, {label:string}>,
+ *   activePluginId?: string|null,
  *   onRemove: (buffId: string) => void
  * }} options
  */
-export function showBuffListDialog({ getBuffs, getParameters, onRemove }) {
+export function showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove }) {
   const dialog = ensureListDialog();
   dialog.innerHTML = '';
 
@@ -201,7 +221,7 @@ export function showBuffListDialog({ getBuffs, getParameters, onRemove }) {
 
       const info = document.createElement('span');
       info.className = 'buff-row-info';
-      info.textContent = formatBuffLine(buff, parameters);
+      info.textContent = formatBuffLine(buff, parameters, activePluginId);
       row.appendChild(info);
 
       const removeBtn = document.createElement('button');

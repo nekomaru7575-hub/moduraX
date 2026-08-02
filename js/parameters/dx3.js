@@ -574,6 +574,61 @@ function resetDX3ComponentsOnPhaseEnd(components, phase) {
   return changed ? { ...components, effects: nextEffects } : components;
 }
 
+// クリティカル値の下限を持てるのはクリティカル修正(AcB)へのバフだけ。
+// クリティカル値は 10＋AcB で決まるため、下限も「AcBの下限」ではなく
+// 「10＋AcBの下限」＝クリティカル値そのものの下限として扱う
+// （適用はjs/parameters/dx3-combo-box.jsのlowestBuffCriticalFloor）。
+const CRITICAL_FLOOR_PARAM_ID = 'DX3:AcB';
+const CRITICAL_FLOOR_HINT = 'クリティカル値の下限（空欄で下限なし）';
+
+// バフ/デバフ付与ダイアログ（js/buff-dialog.js）に出す、DX3独自の追加入力欄。
+// 対象パラメータがAcBのときだけ下限欄を出す（他のパラメータでは意味を持たないため）。
+function renderDX3BuffFields({ container, paramId }) {
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group';
+
+  const label = document.createElement('label');
+  label.textContent = CRITICAL_FLOOR_HINT;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.placeholder = '下限';
+
+  group.appendChild(label);
+  group.appendChild(input);
+  container.appendChild(group);
+
+  const sync = (nextParamId) => {
+    const applicable = nextParamId === CRITICAL_FLOOR_PARAM_ID;
+    group.style.display = applicable ? '' : 'none';
+    // 対象を切り替えたときに、前の対象で入れた値が残って付与されないようにする
+    if (!applicable) input.value = '';
+  };
+  sync(paramId);
+
+  return {
+    sync,
+    getMeta: () => {
+      const raw = input.value.trim();
+      if (raw === '') return null;
+      const floor = Number(raw);
+      return Number.isFinite(floor) ? { criticalFloor: floor } : null;
+    }
+  };
+}
+
+// バフ()コマンドの省略可能な追加引数（例: バフ(集中,AcB,-1,シーン,7) の「7」）。
+function parseDX3BuffExtra(paramId, text) {
+  if (paramId !== CRITICAL_FLOOR_PARAM_ID) return null;
+  const floor = Number(String(text).trim());
+  return Number.isFinite(floor) ? { criticalFloor: floor } : null;
+}
+
+function describeDX3BuffMeta(buff) {
+  const floor = buff?.meta?.criticalFloor;
+  return Number.isFinite(floor) ? `（クリティカル値下限 ${floor}）` : '';
+}
+
 export const DX3_PLUGIN = {
   id: 'DX3',
   label: 'ダブルクロス (3rd)',
@@ -584,5 +639,12 @@ export const DX3_PLUGIN = {
   importCharacterJson: importDX3CharacterJson,
   handleChatCommand: handleDX3ChatCommand,
   looksLikeOwnChatCommand: looksLikeDX3ChatCommand,
-  resetComponentsOnPhaseEnd: resetDX3ComponentsOnPhaseEnd
+  resetComponentsOnPhaseEnd: resetDX3ComponentsOnPhaseEnd,
+  // バフ/デバフに載せるDX3固有の付随データ（buff.meta）の入出力。
+  // Core側（js/buff-dialog.js・js/main.js）はmetaの中身を解釈せず、ここへ委ねる。
+  buffFields: {
+    render: renderDX3BuffFields,
+    parseExtra: parseDX3BuffExtra,
+    describe: describeDX3BuffMeta
+  }
 };

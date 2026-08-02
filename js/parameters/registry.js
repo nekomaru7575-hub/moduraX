@@ -135,6 +135,49 @@ export function resetPluginComponentsOnPhaseEnd(pluginId, components, phase) {
 }
 
 /**
+ * バフ/デバフ付与ダイアログのプラグイン用スペースに、プラグイン自身の追加入力欄を描画させる。
+ * Coreはcontainerと現在の対象パラメータを渡すだけで、何を出すかはプラグインに委ねる
+ * （renderCharacterPanelと同じ委譲パターン）。
+ * @param {string} pluginId
+ * @param {{ container: HTMLElement, paramId: string|null }} context
+ * @returns {{ sync: (paramId: string|null) => void, getMeta: () => object|null } | null}
+ *   sync()は対象パラメータが切り替わるたびに呼ばれる（例: DX3はAcBのときだけ下限欄を出す）。
+ *   getMeta()は付与時に呼ばれ、ADD_BUFFのmetaへそのまま渡る値を返す。
+ *   プラグインが追加欄を持たない場合はnullを返す。
+ */
+export function renderPluginBuffFields(pluginId, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.buffFields?.render) return null;
+  return plugin.buffFields.render(context) || null;
+}
+
+/**
+ * バフ()チャットコマンドの省略可能な追加引数を、プラグインの知識でmetaへ変換する。
+ * Coreはその文字列が何を意味するかを解釈しない（DX3ならクリティカル値の下限）。
+ * @param {string} pluginId
+ * @param {string|null} paramId バフの対象パラメータ
+ * @param {string} text コマンドに書かれた追加引数
+ * @returns {object|null} ADD_BUFFのmetaへ渡す値。解釈できなければnull。
+ */
+export function parsePluginBuffExtra(pluginId, paramId, text) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.buffFields?.parseExtra) return null;
+  return plugin.buffFields.parseExtra(paramId, text) || null;
+}
+
+/**
+ * バフ1件のmetaを、一覧やログへ添える1行の説明にする。
+ * @param {string} pluginId
+ * @param {{meta?: object|null}} buff
+ * @returns {string} 説明（無ければ空文字）
+ */
+export function describePluginBuffMeta(pluginId, buff) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.buffFields?.describe) return '';
+  return plugin.buffFields.describe(buff) || '';
+}
+
+/**
  * プラグインの既定パラメータのうち、まだそのコマが持っていないものを補う。
  * パラメータはコマ作成時にしか組み立てられないため、プラグインへ後からパラメータを
  * 足すと、それ以前に作られたコマには存在しないまま＝自動計算の結果を入れる先が無い、

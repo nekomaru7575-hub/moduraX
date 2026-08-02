@@ -3,6 +3,9 @@ import { showEffectBox } from './dx3-effect-box.js';
 import { showAbilitySkillBox } from './dx3-ability-box.js';
 import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage, runEffectUse } from './dx3-combo-box.js';
 import { LIMIT_CATEGORIES } from './dx3-effect-box.js';
+import {
+  showLoisBox, countActiveLois, normalizeLoisList, LOIS_COMPONENT_KEY, LOIS_MAX
+} from './dx3-lois-box.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -34,16 +37,23 @@ export const DX3_PARAMETERS =[
     {key : "skillPercept", label : "知覚",value : 0, locked : true, editable : false,visible : false},
     {key : "skillWill", label : "意志",value : 0, locked : true, editable : false,visible : false},
     {key : "skillNegotiate", label : "交渉",value : 0, locked : true, editable : false,visible : false},
-    {key : "skillRC", label : "RC",value : 0, locked : true, editable : false,visible : false} // 表記がシート上の略称のままか要確認
+    {key : "skillRC", label : "RC",value : 0, locked : true, editable : false,visible : false}, // 表記がシート上の略称のままか要確認
+    // ロイス数：components.lois（ロイスボックスの中身）から自動計算される値。
+    // 「D」「E」ではないロイスで、タイタスでないものの数（js/parameters/dx3-lois-box.jsのcountActiveLois）。
+    // 手入力は不可（editable:false）だが、キャラクター一覧には出す（visible:true）。
+    {key : "lois", label : "ロイス",value : 0, locked : true, editable : false, visible : true}
 ]
 
 export function buildDX3Parameters(){
     return buildParameters("DX3",DX3_PARAMETERS,{locked : true});
 }
 
-export function computeDX3DerivedParameters(parameters) {
+// パラメータ・componentsから自動計算される値をまとめて返す。
+// componentsを受け取るのは、ロイス数がボックスの中身（components.lois）から決まるため
+// （js/parameters/registry.jsのapplyPluginDerivedParameters経由で渡される）。
+export function computeDX3DerivedParameters(parameters, components = {}) {
     const corruptionVal = parameters['DX3:corruption']?.value ?? 0;
-    
+
     // 侵蝕率テーブルに基づく計算例
     const db = 
         Math.min(Math.floor((corruptionVal+70)/130),2) 
@@ -56,7 +66,8 @@ export function computeDX3DerivedParameters(parameters) {
 
     return {
         'DX3:corDB': db,
-        'DX3:corEB': eb
+        'DX3:corEB': eb,
+        'DX3:lois': countActiveLois(components?.[LOIS_COMPONENT_KEY])
     };
 }
 
@@ -77,6 +88,10 @@ function renderDX3CharacterPanel({
   const attackParam = parameters['DX3:attackPower']
   const corDBParam = parameters['DX3:corDB'];
   const corEBParam = parameters['DX3:corEB'];
+
+  // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む。
+  // getComponentsが無い場合のみ、開いた時点のスナップショット(components)にフォールバックする。
+  const readComponents = () => (getComponents ? getComponents() : components) ?? {};
 
   // 侵蝕率・DB・EBを横並びのコンパクトな枠で表示（縦スペースを節約する）
   const compactRow = document.createElement('div');
@@ -111,6 +126,25 @@ function renderDX3CharacterPanel({
     field.innerHTML = `<label>${param.label}</label><span class="dx3-compact-value">${param.value}</span>`;
     compactRow.appendChild(field);
   });
+
+  // ロイス数はDB/EBと同じ読み取り専用の表示だが、値の元がcomponents側にあり、
+  // ボックスを保存するとこのダイアログを開いたままでも変わる。parameters（開いた時点の
+  // スナップショット）を読むと古い数字が残るため、常にcomponentsから数え直す。
+  const loisField = document.createElement('div');
+  loisField.className = 'dx3-compact-field';
+  const loisLabel = document.createElement('label');
+  loisLabel.textContent = parameters['DX3:lois']?.label ?? 'ロイス';
+  const loisValue = document.createElement('span');
+  loisValue.className = 'dx3-compact-value';
+  loisField.appendChild(loisLabel);
+  loisField.appendChild(loisValue);
+  compactRow.appendChild(loisField);
+
+  const updateLoisCount = () => {
+    loisValue.textContent = countActiveLois(readComponents()[LOIS_COMPONENT_KEY]);
+  };
+  updateLoisCount();
+
   container.appendChild(compactRow);
 
   // エフェクトによるバフを受け取る汎用レジスタ（AdB/AnB/AcB/DdB/DaB）を表示。
@@ -164,10 +198,30 @@ function renderDX3CharacterPanel({
   }
 
   if (mode === 'edit' && onComponentChange) {
-    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のeffects/combosを読む。
-    // getComponentsが無い場合のみ、開いた時点のスナップショット(components)にフォールバックする。
-    const readEffects = () => (getComponents ? getComponents() : components)?.effects ?? [];
-    const readCombos = () => (getComponents ? getComponents() : components)?.combos ?? [];
+    const readEffects = () => readComponents().effects ?? [];
+    const readCombos = () => readComponents().combos ?? [];
+    const readLois = () => readComponents()[LOIS_COMPONENT_KEY] ?? [];
+
+    // ロイス一覧（ボックス）。パラメータ「ロイス」はここで登録した内容から自動計算される。
+    const loisBtn = document.createElement('button');
+    loisBtn.type = 'button';
+    loisBtn.className = 'dialog-add-row-btn';
+    loisBtn.style.marginTop = '8px';
+    const updateLoisBtnLabel = () => {
+      loisBtn.textContent = `ロイスを表示する（${readLois().length}/${LOIS_MAX}件）`;
+    };
+    updateLoisBtnLabel();
+    loisBtn.addEventListener('click', () => {
+      showLoisBox({
+        lois: readLois(),
+        onSave: (nextLois) => {
+          onComponentChange(LOIS_COMPONENT_KEY, nextLois);
+          updateLoisBtnLabel();
+          updateLoisCount();
+        }
+      });
+    });
+    container.appendChild(loisBtn);
 
     const effectBtn = document.createElement('button');
     effectBtn.type = 'button';
@@ -286,6 +340,47 @@ function importDX3Effects(json) {
   return effects;
 }
 
+// シート上のロイス欄の状態（lois{N}State）→ ボックス側の状態。
+// 表記が違う/空欄の場合はロイス扱いにする（タイタスは明示されている時だけ）。
+const DX3_SHEET_TITUS_STATE = 'タイタス';
+
+// lois1Name〜lois7Name等を起点に、シート上のロイスを読み込む。
+// 「昇華」に対応するフィールドはシート側に無いため、常に未昇華として取り込む。
+function importDX3Lois(json) {
+  const lois = [];
+
+  for (let n = 1; n <= LOIS_MAX; n++) {
+    const name = json[`lois${n}Name`] ?? '';
+    const relation = json[`lois${n}Relation`] ?? '';
+    const positive = json[`lois${n}EmoPosi`] ?? '';
+    const negative = json[`lois${n}EmoNega`] ?? '';
+    const note = json[`lois${n}Note`] ?? '';
+
+    // シートは未使用スロットにもlois{N}State（'ロイス'）だけを出力するため、
+    // Stateだけを見て空行を作らないよう、中身のある欄で判定する。
+    if (!name && !positive && !negative && !note && !relation) continue;
+
+    lois.push({
+      // 種類はシートと同じ表記（D/S/E）。未知の値はnormalizeLois側で「（種類なし）」に丸まる。
+      relation,
+      name,
+      emotion: {
+        positive,
+        negative,
+        // シートはlois{N}EmoPosiCheck / lois{N}EmoNegaCheckの片方に'1'を入れて優位な側を示す。
+        // どちらも無い場合はP感情を優位として扱う（ボックス側の既定と同じ）。
+        dominant: json[`lois${n}EmoNegaCheck`] === '1' ? 'negative' : 'positive'
+      },
+      state: json[`lois${n}State`] === DX3_SHEET_TITUS_STATE ? 'titus' : 'lois',
+      sublimated: false,
+      note
+    });
+  }
+
+  // 欠けたフィールドの補完と、種類・状態の値の検証はボックス側の正規化に任せる
+  return normalizeLoisList(lois);
+}
+
 // 可変スロット技能（skillArt1/skillArt1Name等）のうち、名前が設定されているものだけを
 // locked:true, editable:false, visible:falseの新規パラメータとして拾い上げる。
 function importDX3VariableSkillSlots(json) {
@@ -319,15 +414,20 @@ function importDX3VariableSkillSlots(json) {
  * 既存のキャラクターシート作成ツール（ytsheet/dx3rd等）が出力するJSONを取り込む。
  * 能力値・技能値はDX3_PARAMETERSに既定パラメータとして存在するため、ここでは
  * 値の同期のみ行う（新規パラメータとしては追加しない）。
- * エフェクトはcomponents.effectsとして丸ごと読み込む（ボックスUIで表示・編集）。
- * ロイス・コンボ（複数データをまとめる拡張ボックス）は今回はまだ対象外。
+ * エフェクト・ロイスはcomponents.effects / components.loisとして丸ごと読み込む
+ * （それぞれのボックスUIで表示・編集）。パラメータ「ロイス」の値はcomponents.loisから
+ * 自動計算されるため、ここでvalueOverridesとして渡す必要はない。
+ * コンボ（複数データをまとめる拡張ボックス）は今回はまだ対象外。
  * @param {any} json
  * @returns {{
  *   name?: string,
  *   valueOverrides: Record<string, number>,
  *   labelOverrides: Record<string, string>,
  *   newParameters: Record<string, {key:string,label:string,value:number,source:string,visible:boolean}>,
- *   components: { effects: Array<{name:string,timing:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null}>}> }
+ *   components: {
+ *     effects: Array<{name:string,timing:string,level:number,encroach:string,note:string,limits:Record<'scenario'|'scene'|'round',{current:number,max:number|null}>}>,
+ *     lois: Array<{relation:string,name:string,emotion:{positive:string,negative:string,dominant:'positive'|'negative'},state:'lois'|'titus',sublimated:boolean,note:string}>
+ *   }
  * } | null}
  */
 function importDX3CharacterJson(json) {
@@ -355,7 +455,8 @@ function importDX3CharacterJson(json) {
     },
     newParameters: importDX3VariableSkillSlots(json),
     components: {
-      effects: importDX3Effects(json)
+      effects: importDX3Effects(json),
+      [LOIS_COMPONENT_KEY]: importDX3Lois(json)
     }
   };
 }

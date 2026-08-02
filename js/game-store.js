@@ -470,8 +470,9 @@ export class ImmutableStore {
           parameters[`user:${key}`] = buildUserParam({ key, label, value, visible: paramVisible, audience: paramAudience });
         });
 
-        // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）
-        const finalParameters = applyPluginDerivedParameters(activePlugin, parameters);
+        // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）。
+        // 作成直後はcomponentsが空なので、componentsから決まる値（ロイス数等）は0から始まる。
+        const finalParameters = applyPluginDerivedParameters(activePlugin, parameters, {});
 
         nextTokensState[id] = Object.freeze({
           id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
@@ -532,11 +533,12 @@ export class ImmutableStore {
           nextParams[paramId] = Object.freeze({ ...paramDef });
         });
 
-        nextParams = applyPluginDerivedParameters(activePlugin, nextParams);
-
         // componentsの中身（ロイス・エフェクト・コンボ等の複雑なデータ）はCoreは解釈せず、
-        // componentKey単位でそのまま置き換えるだけ
+        // componentKey単位でそのまま置き換えるだけ。
+        // 自動計算にはcomponents（ロイス数等の算出元）を渡すため、先に反映後のcomponentsを作る。
         const nextComponents = Object.freeze({ ...character.components, ...components });
+
+        nextParams = applyPluginDerivedParameters(activePlugin, nextParams, nextComponents);
 
         patchCharacter(nextTokensState, id, {
           name: name || character.name,
@@ -562,7 +564,8 @@ export class ImmutableStore {
         Object.entries(snapshot.parameters || {}).forEach(([paramId, paramDef]) => {
           nextParams[paramId] = Object.freeze({ ...paramDef });
         });
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams);
+        const nextComponents = Object.freeze({ ...(snapshot.components || {}) });
+        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams, nextComponents);
 
         patchCharacter(nextTokensState, id, {
           name: snapshot.name || character.name,
@@ -573,7 +576,7 @@ export class ImmutableStore {
           textColor: snapshot.textColor ?? null,
           visible: snapshot.visible !== false,
           parameters: calculatedParams,
-          components: Object.freeze({ ...(snapshot.components || {}) }),
+          components: nextComponents,
           buffs: Object.freeze((snapshot.buffs || []).map(buff => Object.freeze({ ...buff })))
         });
 
@@ -589,8 +592,14 @@ export class ImmutableStore {
         const character = nextTokensState[id];
         if (!character || !componentKey) return;
 
+        // ボックスの中身から決まるパラメータ（DX3のロイス数など）があるため、
+        // componentsを差し替えたら自動計算も通し直す。値を直接書き込む必要が無いので、
+        // それらのパラメータはeditable:false（手入力不可）のままにできる。
+        const nextComponents = withMapEntry(character.components, componentKey, value);
+
         patchCharacter(nextTokensState, id, {
-          components: withMapEntry(character.components, componentKey, value)
+          components: nextComponents,
+          parameters: applyPluginDerivedParameters(activePlugin, character.parameters, nextComponents)
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -607,7 +616,7 @@ export class ImmutableStore {
 
         // プラグインの自動計算を通して新パラメータを取得
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -658,7 +667,7 @@ export class ImmutableStore {
 
         // 自動計算の再評価
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -675,7 +684,7 @@ export class ImmutableStore {
 
         // 自動計算の適用
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams)
+          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -910,7 +919,9 @@ export class ImmutableStore {
 
         Object.keys(nextTokensState).forEach(id => {
           patchCharacter(nextTokensState, id, {
-            parameters: applyPluginDerivedParameters(pluginId, nextTokensState[id].parameters)
+            parameters: applyPluginDerivedParameters(
+              pluginId, nextTokensState[id].parameters, nextTokensState[id].components
+            )
           });
         });
 

@@ -135,25 +135,57 @@ export function resetPluginComponentsOnPhaseEnd(pluginId, components, phase) {
 }
 
 /**
- * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す
+ * プラグインの既定パラメータのうち、まだそのコマが持っていないものを補う。
+ * パラメータはコマ作成時にしか組み立てられないため、プラグインへ後からパラメータを
+ * 足すと、それ以前に作られたコマには存在しないまま＝自動計算の結果を入れる先が無い、
+ * という状態になる（applyPluginDerivedParametersは既存のparamIdしか更新しないため）。
+ *
+ * 補完対象をlocked:true（＝ユーザーが削除できないパラメータ）に限るのが肝で、
+ * こうしておけば「ユーザーが消したはずのパラメータが勝手に復活する」ことは起きない。
+ */
+function withMissingPluginParameters(plugin, parameters) {
+  if (!plugin?.buildCharacterParameters) return parameters;
+
+  const defaults = plugin.buildCharacterParameters();
+  const missing = Object.entries(defaults).filter(
+    ([paramId, def]) => def.locked && !parameters[paramId]
+  );
+  if (missing.length === 0) return parameters;
+
+  const nextParameters = { ...parameters };
+  missing.forEach(([paramId, def]) => {
+    nextParameters[paramId] = def; // buildParameters側で既にfreeze済み
+  });
+  return nextParameters;
+}
+
+/**
+ * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。
+ * componentsを併せて渡すのは、ロイス数のように「ボックスのデータから決まるパラメータ」があるため。
+ * Coreはcomponentsの中身を解釈せず、そのままプラグインへ渡すだけ。
  * @param {string} pluginId
  * @param {Record<string, any>} parameters
+ * @param {Record<string, any>} [components] コマのcomponents（ロイス・エフェクト等）
  * @returns {Record<string, any>} 計算適用後のパラメータリスト
  */
-export function applyPluginDerivedParameters(pluginId, parameters) {
+export function applyPluginDerivedParameters(pluginId, parameters, components = {}) {
   const plugin = PLUGINS[pluginId];
-  if (!plugin?.computeDerivedParameters) {
-    return parameters; // プラグインがない、または計算ロジックがない場合はそのまま返す
+  if (!plugin) return parameters; // プラグイン未適用ならそのまま返す
+
+  const baseParameters = withMissingPluginParameters(plugin, parameters);
+
+  if (!plugin.computeDerivedParameters) {
+    return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
   }
 
   // プラグイン側で計算された差分 { "DX3:corDB": 2, ... } を取得
-  const updates = plugin.computeDerivedParameters(parameters);
+  const updates = plugin.computeDerivedParameters(baseParameters, components);
   if (!updates || Object.keys(updates).length === 0) {
-    return parameters;
+    return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
   }
 
   // 差分をもとにイミュータブルに新しいパラメータオブジェクト群を生成
-  const nextParameters = { ...parameters };
+  const nextParameters = { ...baseParameters };
   Object.entries(updates).forEach(([paramId, newValue]) => {
     if (nextParameters[paramId] && nextParameters[paramId].value !== newValue) {
       nextParameters[paramId] = Object.freeze({

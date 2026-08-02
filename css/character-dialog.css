@@ -224,6 +224,125 @@
   white-space: pre-line;
 }
 
+/* ロイス一覧の編集ボックス */
+.lois-box-dialog {
+  width: 100%;
+  max-width: 640px;
+}
+
+/* パラメータ「ロイス」が保存後にいくつになるかの集計。数え方（D/E・タイタスを除く）を
+   ユーザーが確かめられるようにするためのもの。 */
+.lois-box-summary {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+.lois-box-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.lois-box-item {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lois-box-header-row,
+.lois-box-emotion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lois-box-item input[type="text"],
+.lois-box-item select,
+.lois-box-note {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.lois-box-relation {
+  flex: 0 0 110px;
+  min-width: 0;
+}
+
+/* 名前欄は固定幅の項目に押しつぶされないよう最低幅を確保する（effect-box-nameと同じ理由） */
+.lois-box-name {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+/* ロイス⇔タイタスのトグル。押すたびに切り替わるので、現在どちらなのかを色でも示す */
+.lois-box-state-toggle {
+  flex: 0 0 78px;
+  background-color: #3a3a3a;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.lois-box-state-toggle.is-titus {
+  background-color: #5a3a3a;
+  border-color: #8a5555;
+  color: #fff;
+}
+
+.lois-box-sublimated {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+/* 昇華はタイタスだけが持つ状態。ロイスの間は操作できないことを見た目でも示す */
+.lois-box-sublimated.is-disabled {
+  color: #666;
+  cursor: default;
+}
+
+.lois-box-emotion-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 220px;
+}
+
+/* どちらの感情が優位かを表すラジオ。P/Nの文字はラベルとして添えるだけ */
+.lois-box-emotion-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  width: 12px;
+}
+
+.lois-box-emotion-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lois-box-note {
+  resize: vertical;
+  font-family: inherit;
+}
+
 /* 能力・技能値の表示ボックス */
 .ability-box-dialog {
   width: 100%;

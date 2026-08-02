@@ -402,7 +402,19 @@ export async function runComboCheck({
     }
 
     const floorText = criticalValue !== rawCriticalValue ? `\nクリティカル値下限（${criticalFloor}）を適用` : '';
-    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}`, token);
+
+    // 判定が済んだので、このコマの「判定終了で消滅」バフを剥がす（チャット欄で直接
+    // ダイスを振った場合と同じ扱い。js/main.jsのDICE_ROLL_REQUESTED参照）。
+    // 達成値ボーナスとコンボ発動由来のバフはそれぞれexpirePhase:null/'process'なので
+    // ここでは消えず、後続のcombo.dmgまで残る。
+    // 消滅の通知はこの判定ログへ併記する（別のシステム発言にすると判定結果が流れてしまう）。
+    // 文言はgame-store.jsのformatExpiredBuffsNoteと揃えてある。circular importになるため
+    // importできず（このファイル冒頭のコメント参照）、同じ整形をここに置いている。
+    const expiringNames = (token.buffs || []).filter(b => b.expirePhase === 'check').map(b => b.name);
+    const expiredNote = expiringNames.length > 0 ? `\n判定終了で消滅: ${expiringNames.join('、')}` : '';
+    dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId });
+
+    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}${expiredNote}`, token);
 
     const achievement = parseFinalNumber(resultText);
     if (achievement !== null) {
@@ -412,12 +424,6 @@ export async function runComboCheck({
         paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id
       });
     }
-
-    // 判定が済んだので、このコマの「判定終了で消滅」バフを剥がす（チャット欄で直接
-    // ダイスを振った場合と同じ扱い。js/main.jsのDICE_ROLL_REQUESTED参照）。
-    // 達成値ボーナスとコンボ発動由来のバフはそれぞれexpirePhase:null/'process'なので
-    // ここでは消えず、後続のcombo.dmgまで残る。
-    dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId });
   } catch (error) {
     alert(`コンボ判定でエラーが発生しました: ${error.message}`);
   }

@@ -49,6 +49,24 @@ export function getPhaseChain(phase) {
   return index < 0 ? [phase] : PHASE_HIERARCHY.slice(index);
 }
 
+// このコマがそのフェーズ終了で失うバフ/デバフの名前一覧（入れ子の内側も含む）。
+// EXPIRE_BUFFSを1コマ分で撃つときは、そのロール自身のログへ結果を併記するため、
+// 「これから何が消えるか」を撃つ前に取っておく必要がある。
+export function listExpiringBuffNames(token, phase) {
+  const chain = getPhaseChain(phase);
+  return (token?.buffs || [])
+    .filter(b => chain.includes(b.expirePhase))
+    .map(b => b.name);
+}
+
+// 上の一覧を、判定結果などのログ本文へ足す1行にする。消えるものが無ければ空文字。
+// 独立したシステム発言にせず本文へ足すのは、ロールのたびにログが2行進むと
+// 直前の結果が流れてしまうため。
+export function formatExpiredBuffsNote(names, phase) {
+  if (names.length === 0) return '';
+  return `\n${BUFF_PHASE_LABELS[phase] || phase}終了で消滅: ${names.join('、')}`;
+}
+
 // ラウンド進行（Core機能）の初期状態。未開始（active:false）がデフォルト。
 function createInitialRoundState() {
   return {
@@ -768,15 +786,24 @@ export class ImmutableStore {
       // tokenIdを指定すると、そのコマだけのフェーズ終了として扱う。ダイスを振った本人の
       // 「判定終了で消滅」バフを自動で剥がす用途（js/main.jsのDICE_ROLL_REQUESTED、
       // js/parameters/dx3-combo-box.jsのrunComboCheck）で使う。
-      // この自動発火はロールのたびに走るため、部屋全体版と違い、実際に何か消えたときだけ
-      // ログを残す（毎回「判定終了。」が流れるとチャットが読めなくなるため）。
+      //
+      // 1コマ分の場合はここでチャットログを書かない。この自動発火はロールのたびに走るため、
+      // 独立したシステム発言にすると1回の判定でログが2行進み、直前のロール結果が
+      // すぐ流れてしまう。代わりに、呼び出し側がそのロール自身のログへ併記する
+      // （listExpiringBuffNames / formatExpiredBuffsNote）。
       case 'EXPIRE_BUFFS': {
         const { phase, tokenId = null } = payload;
         if (!phase) return;
         if (tokenId && !nextTokensState[tokenId]) return;
 
         const { tokens, removedNames, logText } = applyPhaseEnd(nextTokensState, activePlugin, phase, tokenId);
-        if (tokenId && removedNames.length === 0) return;
+
+        if (tokenId) {
+          // 何も消えないなら状態を作り直さない（無駄な再描画・同期を起こさないため）
+          if (removedNames.length === 0) return;
+          this.#commit(prevState, { tokens });
+          return;
+        }
 
         this.#commit(prevState, {
           tokens,

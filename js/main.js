@@ -6,7 +6,9 @@ import {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
   BUFF_PHASE_LABELS
 } from './board-data-driven.js';
-import { AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS } from './game-store.js';
+import {
+  AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote
+} from './game-store.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
@@ -723,17 +725,25 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
-    applyLog({ system, character: characterName, characterId, color: characterColor, comment, resultText, diceDetail }, tabId);
-    commandInput.value = "";
-
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
     // ロールに乗ってから消えるよう、rollBCDiceの後に置いている（{パラメータ名}の実効値置換は
     // このイベントが発火する前に済んでいるので、ここで消しても値には影響しない）。
     // ダイスコマンドでない発言・BCDiceが構文を認識できなかった入力は、上のreturnで
     // ここへ来ないため対象にならない。
+    // 消滅の通知は独立したシステム発言にせず、このロールのログ本文へ併記する
+    // （別行にするとロールのたびにログが2行進み、結果がすぐ流れてしまうため）。
+    let expiredNote = '';
     if (characterId) {
+      const expiring = listExpiringBuffNames(store.state.tokens[characterId], 'check');
+      expiredNote = formatExpiredBuffsNote(expiring, 'check');
       store.dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId: characterId });
     }
+
+    applyLog({
+      system, character: characterName, characterId, color: characterColor, comment,
+      resultText: `${resultText}${expiredNote}`, diceDetail
+    }, tabId);
+    commandInput.value = "";
 
   } catch (error) {
     console.error(error);

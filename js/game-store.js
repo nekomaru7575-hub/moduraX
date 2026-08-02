@@ -63,12 +63,17 @@ function createInitialRoundState() {
 }
 
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
-// 全トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
+// トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
 // フェーズを1段ずつ渡すことで表現する）。
-function removeExpiredBuffs(tokensState, phase) {
+// onlyTokenIdを指定すると、そのコマだけを対象にする（「このコマが判定を1回行った」のように、
+// 部屋全体ではなく1人分だけフェーズが終わる場合に使う）。
+function removeExpiredBuffs(tokensState, phase, onlyTokenId = null) {
   const nextTokens = { ...tokensState };
   const removedNames = [];
-  Object.keys(nextTokens).forEach(tokenId => {
+  const targetIds = onlyTokenId
+    ? (nextTokens[onlyTokenId] ? [onlyTokenId] : [])
+    : Object.keys(nextTokens);
+  targetIds.forEach(tokenId => {
     const character = nextTokens[tokenId];
     const buffs = character.buffs || [];
     const remaining = buffs.filter(b => {
@@ -89,9 +94,13 @@ function removeExpiredBuffs(tokensState, phase) {
 // （DX3ならエフェクトの使用回数）もリセットする。バフの期限切れとは別関心事のため、
 // Core側はactivePluginへの委譲だけを担い、中身の意味はプラグイン側に委ねる
 // （resetPluginComponentsOnPhaseEnd、js/parameters/registry.js参照）。
-function resetPluginComponentsForPhase(tokensState, activePlugin, phase) {
+// onlyTokenIdの意味はremoveExpiredBuffsと同じ（対象を1コマに絞る）。
+function resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null) {
   const nextTokens = { ...tokensState };
-  Object.entries(nextTokens).forEach(([id, character]) => {
+  const targets = onlyTokenId
+    ? (nextTokens[onlyTokenId] ? [[onlyTokenId, nextTokens[onlyTokenId]]] : [])
+    : Object.entries(nextTokens);
+  targets.forEach(([id, character]) => {
     const nextComponents = resetPluginComponentsOnPhaseEnd(activePlugin, character.components, phase);
     if (nextComponents !== character.components) {
       nextTokens[id] = Object.freeze({ ...character, components: nextComponents });
@@ -239,15 +248,16 @@ function withNewUserParam(params, def) {
 // 上位フェーズの終了は内側のフェーズの終了も兼ねる（PHASE_HIERARCHY参照）ため、
 // 指定フェーズから最下層まで1段ずつ同じ処理を流す。プラグインのリセットもフェーズ単位で
 // 呼ばれるので、プラグイン側は入れ子を意識しなくてよい。
-function applyPhaseEnd(tokensState, activePlugin, phase) {
+// onlyTokenIdを指定すると1コマだけが対象になる（「このコマが判定を1回行った」等）。
+function applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null) {
   const chain = getPhaseChain(phase);
 
   let tokens = tokensState;
   const removedNames = [];
   chain.forEach(chainPhase => {
-    const result = removeExpiredBuffs(tokens, chainPhase);
+    const result = removeExpiredBuffs(tokens, chainPhase, onlyTokenId);
     removedNames.push(...result.removedNames);
-    tokens = resetPluginComponentsForPhase(result.nextTokens, activePlugin, chainPhase);
+    tokens = resetPluginComponentsForPhase(result.nextTokens, activePlugin, chainPhase, onlyTokenId);
   });
 
   const phaseLabel = BUFF_PHASE_LABELS[phase] || phase;
@@ -259,6 +269,7 @@ function applyPhaseEnd(tokensState, activePlugin, phase) {
 
   return {
     tokens,
+    removedNames,
     logText: removedNames.length > 0
       ? `${headline}消滅したバフ/デバフ: ${removedNames.join('、')}`
       : headline
@@ -754,11 +765,18 @@ export class ImmutableStore {
       // 将来実装予定の「シーン進行」機能から呼ばれる想定で、現状はチャットコマンド
       // （「シーン終了」等）がエスケープハッチとして直接dispatchする。
       // 結果はMainタブのチャットログへ直接追記する（理由はwithSystemLogのコメント参照）。
+      // tokenIdを指定すると、そのコマだけのフェーズ終了として扱う。ダイスを振った本人の
+      // 「判定終了で消滅」バフを自動で剥がす用途（js/main.jsのDICE_ROLL_REQUESTED、
+      // js/parameters/dx3-combo-box.jsのrunComboCheck）で使う。
+      // この自動発火はロールのたびに走るため、部屋全体版と違い、実際に何か消えたときだけ
+      // ログを残す（毎回「判定終了。」が流れるとチャットが読めなくなるため）。
       case 'EXPIRE_BUFFS': {
-        const { phase } = payload;
+        const { phase, tokenId = null } = payload;
         if (!phase) return;
+        if (tokenId && !nextTokensState[tokenId]) return;
 
-        const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, phase);
+        const { tokens, removedNames, logText } = applyPhaseEnd(nextTokensState, activePlugin, phase, tokenId);
+        if (tokenId && removedNames.length === 0) return;
 
         this.#commit(prevState, {
           tokens,

@@ -412,6 +412,12 @@ export async function runComboCheck({
         paramId: 'DX3:DdB', delta: bonusDice, expirePhase: null, tag: combo.id
       });
     }
+
+    // 判定が済んだので、このコマの「判定終了で消滅」バフを剥がす（チャット欄で直接
+    // ダイスを振った場合と同じ扱い。js/main.jsのDICE_ROLL_REQUESTED参照）。
+    // 達成値ボーナスとコンボ発動由来のバフはそれぞれexpirePhase:null/'process'なので
+    // ここでは消えず、後続のcombo.dmgまで残る。
+    dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId });
   } catch (error) {
     alert(`コンボ判定でエラーが発生しました: ${error.message}`);
   }

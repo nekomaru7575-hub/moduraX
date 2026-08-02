@@ -726,6 +726,15 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     applyLog({ system, character: characterName, characterId, color: characterColor, comment, resultText, diceDetail }, tabId);
     commandInput.value = "";
 
+    // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
+    // ロールに乗ってから消えるよう、rollBCDiceの後に置いている（{パラメータ名}の実効値置換は
+    // このイベントが発火する前に済んでいるので、ここで消しても値には影響しない）。
+    // ダイスコマンドでない発言・BCDiceが構文を認識できなかった入力は、上のreturnで
+    // ここへ来ないため対象にならない。
+    if (characterId) {
+      store.dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId: characterId });
+    }
+
   } catch (error) {
     console.error(error);
     alert(`エラーが発生しました: ${error.message}`);

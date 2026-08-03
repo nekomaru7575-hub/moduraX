@@ -7,6 +7,7 @@
     "dev": "node server/dev-local.js"
   },
   "dependencies": {
+    "@3d-dice/dice-box-threejs": "^0.0.12",
     "@upstash/redis": "^1.38.0",
     "aws4fetch": "^1.0.20",
     "dotenv": "^17.4.2",

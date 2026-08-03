@@ -13,6 +13,8 @@
 // game-store.js → registry.js → dx3.js → dx3-lois-box.js → game-store.js の
 // 循環importになる（dx3-combo-box.js冒頭のコメントと同じ理由）。
 
+import { lockFormControls } from '../read-only-form.js';
+
 // components にロイス一覧を保存するときのキー。
 export const LOIS_COMPONENT_KEY = 'lois';
 
@@ -153,10 +155,12 @@ function buildEmotionSelect(options, currentValue) {
 /**
  * @param {{
  *   lois: Array<object>,
+ *   readOnly?: boolean 他人のコマを表示だけしている時。中身は同じまま入力だけを封じる
+ *     （js/character-dialog.jsのcanEdit）。
  *   onSave: (lois: Array<object>) => void
  * }} options
  */
-export function showLoisBox({ lois = [], onSave }) {
+export function showLoisBox({ lois = [], readOnly = false, onSave }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -394,14 +398,21 @@ export function showLoisBox({ lois = [], onSave }) {
   btnRow.appendChild(saveBtn);
   form.appendChild(btnRow);
 
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
+  if (readOnly) {
+    addBtn.style.display = 'none';
+    saveBtn.style.display = 'none';
+    cancelBtn.textContent = '閉じる';
+    lockFormControls(form, { keep: [cancelBtn] });
+  } else {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
 
-    const nextLois = collectLois().filter(hasContent);
+      const nextLois = collectLois().filter(hasContent);
 
-    dialog.close();
-    onSave(nextLois);
-  });
+      dialog.close();
+      onSave(nextLois);
+    });
+  }
 
   dialog.appendChild(form);
   dialog.showModal();

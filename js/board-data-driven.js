@@ -266,7 +266,8 @@ function bindTokenDrag(element, board) {
     const amGm = isGm(store.state.participants, myParticipantId);
     const canOperate = canOperateToken(token, myParticipantId, amGm);
     // 権限が無い項目は消さずに押せない状態で出し、理由をツールチップで示す
-    const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（持ち主とGMだけが操作できます）`;
+    // （「キャラクター更新」だけは開けて、同じ理由をダイアログの見出し下に出す）
+    const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（表示のみ。編集できるのは持ち主とGMです）`;
 
     showContextMenu(event.clientX, event.clientY, [
       {
@@ -275,15 +276,17 @@ function bindTokenDrag(element, board) {
         onSelect: () => {}
       },
       {
-        label: 'キャラクター更新',
-        disabled: !canOperate,
-        title: denyReason,
+        // 見るだけなら誰でもできる。編集できるかはcanEditとしてダイアログへ渡し、
+        // 中身は同じまま入力だけを封じる（js/character-dialog.js参照）
+        label: canOperate ? 'キャラクター更新' : 'キャラクターを表示',
         onSelect: () => {
           const current = store.state.tokens[tokenId];
           if (!current) return;
 
           showCharacterEditDialog({
             character: current,
+            canEdit: canOperate,
+            readOnlyReason: denyReason,
             activePluginId: store.state.room?.activePlugin ?? null,
             participants: store.state.participants ?? {},
             onComponentChange: (componentKey, value) => {

@@ -9,6 +9,7 @@ import { showAudienceDialog } from './audience-picker.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
+import { lockFormControls } from './read-only-form.js';
 
 // コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
 // これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
@@ -114,7 +115,7 @@ export function applyCharacterEditResult(store, tokenId, result) {
 // 持っていればそれを描画し、持っていなければ「プラグイン未選択」等のプレースホルダを出す。
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
 function buildPluginPanel({
-  activePluginId, mode, parameters, components, onComponentChange, getComponents,
+  activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents,
   dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
 }) {
   const column = document.createElement('div');
@@ -122,8 +123,10 @@ function buildPluginPanel({
 
   let panel = null;
   if (activePluginId && pluginHasCharacterPanel(activePluginId)) {
+    // canEditがfalseの時に何を止めるかはプラグインに委ねる（ボックスを開くボタンは
+    // 押せたままにしたいので、Core側でこの列をまとめて無効化はしない）
     panel = renderCharacterPanel(activePluginId, {
-      container: column, mode, parameters, components, onComponentChange, getComponents,
+      container: column, mode, canEdit, parameters, components, onComponentChange, getComponents,
       dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
     });
   } else {
@@ -144,7 +147,9 @@ function buildPluginPanel({
 // キャラクター画像の選択UI（正方形クロッパー＋選択/削除ボタン）を組み立てる。
 // クロッパー内で画像をドラッグして表示位置を、スライダー/ホイールでズームを調整でき、
 // その結果を非破壊のトリミング設定(crop)として返す。作成/更新どちらのダイアログからも使う。
-function buildImagePicker(initialImage, initialCrop) {
+// readOnly: 表示だけの時。ボタン・スライダーはlockFormControlsで止まるが、枠へのドラッグと
+// ホイールはdisabledの対象外なので、リスナー自体を張らないことで止める。
+function buildImagePicker(initialImage, initialCrop, { readOnly = false } = {}) {
   let currentImage = initialImage || null;
   const crop = { ...defaultImageCrop(), ...(initialCrop || {}) };
 
@@ -196,50 +201,52 @@ function buildImagePicker(initialImage, initialCrop) {
   }
 
   // ドラッグで表示位置(posX/posY)を調整。枠幅いっぱいのドラッグで0〜100%を移動する。
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  cropper.addEventListener('pointerdown', (e) => {
-    if (!currentImage) return;
-    dragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    cropper.setPointerCapture(e.pointerId);
-  });
-  cropper.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const rect = cropper.getBoundingClientRect();
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    // 画像を右へドラッグ＝左側を見せる＝object-positionを0%側へ。よって符号は減算。
-    crop.posX = Math.min(100, Math.max(0, crop.posX - (dx / rect.width) * 100));
-    crop.posY = Math.min(100, Math.max(0, crop.posY - (dy / rect.height) * 100));
-    applyCrop();
-  });
-  const endDrag = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    try { cropper.releasePointerCapture(e.pointerId); } catch { /* 解放済みは無視 */ }
-  };
-  cropper.addEventListener('pointerup', endDrag);
-  cropper.addEventListener('pointercancel', endDrag);
+  if (!readOnly) {
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    cropper.addEventListener('pointerdown', (e) => {
+      if (!currentImage) return;
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      cropper.setPointerCapture(e.pointerId);
+    });
+    cropper.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const rect = cropper.getBoundingClientRect();
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      // 画像を右へドラッグ＝左側を見せる＝object-positionを0%側へ。よって符号は減算。
+      crop.posX = Math.min(100, Math.max(0, crop.posX - (dx / rect.width) * 100));
+      crop.posY = Math.min(100, Math.max(0, crop.posY - (dy / rect.height) * 100));
+      applyCrop();
+    });
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { cropper.releasePointerCapture(e.pointerId); } catch { /* 解放済みは無視 */ }
+    };
+    cropper.addEventListener('pointerup', endDrag);
+    cropper.addEventListener('pointercancel', endDrag);
 
-  // ホイールでもズームできるようにする（スライダーと同期）
-  cropper.addEventListener('wheel', (e) => {
-    if (!currentImage) return;
-    e.preventDefault();
-    const next = Math.min(3, Math.max(1, crop.zoom + (e.deltaY < 0 ? 0.1 : -0.1)));
-    crop.zoom = Math.round(next * 100) / 100;
-    zoomInput.value = String(crop.zoom);
-    applyCrop();
-  }, { passive: false });
+    // ホイールでもズームできるようにする（スライダーと同期）
+    cropper.addEventListener('wheel', (e) => {
+      if (!currentImage) return;
+      e.preventDefault();
+      const next = Math.min(3, Math.max(1, crop.zoom + (e.deltaY < 0 ? 0.1 : -0.1)));
+      crop.zoom = Math.round(next * 100) / 100;
+      zoomInput.value = String(crop.zoom);
+      applyCrop();
+    }, { passive: false });
 
-  zoomInput.addEventListener('input', () => {
-    crop.zoom = Number(zoomInput.value) || 1;
-    applyCrop();
-  });
+    zoomInput.addEventListener('input', () => {
+      crop.zoom = Number(zoomInput.value) || 1;
+      applyCrop();
+    });
+  }
 
   // 選択/削除ボタン
   const btnRow = document.createElement('div');
@@ -676,6 +683,10 @@ function ensureEditDialog() {
  * HP・カスタムパラメータの行には「表示」チェックボックスが付き、
  * キャラクター一覧に出すかどうか(param.visible)を値とは独立して切り替えられる。
  *
+ * canEdit:false で開くと、同じ画面のまま編集操作だけが封じられる（他人のコマを表示だけ
+ * したい時。判定は「変更」側なのでプラグインのボックスからも外す）。
+ * 公開先(audience)で自分に見せていないパラメータは、canEditに関わらず行ごと出さない。
+ *
  * @param {{
  *   character: { name: string, image?: string | null, imageCrop?: {zoom:number,posX:number,posY:number} | null, size?: number, textColor?: string | null, visible?: boolean, parameters: Record<string, {key:string,label:string,value:number|string,locked?:boolean,editable?:boolean,visible?:boolean,source?:string}>, components?: Record<string, any> },
  *   activePluginId?: string | null,
@@ -692,12 +703,15 @@ function ensureEditDialog() {
  *     visibilityUpdates: Record<string, boolean>,
  *     removedParamIds: string[],
  *     newCustomParameters: {key:string,label:string,value:number|string,visible:boolean}[]
- *   }) => void
+ *   }) => void,
+ *   canEdit?: boolean,
+ *   readOnlyReason?: string | null 表示だけになっている理由（見出しの下に1行出す）
  * }} options
  */
 export function showCharacterEditDialog({
   character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
+  canEdit = true, readOnlyReason = null
 }) {
   const myParticipantId = getCurrentParticipantId();
   const dialog = ensureEditDialog();
@@ -706,8 +720,16 @@ export function showCharacterEditDialog({
   const form = document.createElement('form');
 
   const title = document.createElement('h3');
-  title.textContent = 'キャラクターを更新';
+  // 持ち主・GM以外も同じ画面を開ける。中身は同じで、編集操作だけを封じる（canEdit）
+  title.textContent = canEdit ? 'キャラクターを更新' : 'キャラクターを表示';
   form.appendChild(title);
+
+  if (!canEdit && readOnlyReason) {
+    const note = document.createElement('p');
+    note.className = 'dialog-plugin-placeholder';
+    note.textContent = readOnlyReason;
+    form.appendChild(note);
+  }
 
   // --- 本体（左）＋ プラグイン専用スペース（右） ---
   const columns = document.createElement('div');
@@ -732,7 +754,7 @@ export function showCharacterEditDialog({
   mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
-  const imagePicker = buildImagePicker(character.image, character.imageCrop);
+  const imagePicker = buildImagePicker(character.image, character.imageCrop, { readOnly: !canEdit });
   mainColumn.appendChild(imagePicker.element);
 
   // --- サイズ ---
@@ -911,16 +933,20 @@ export function showCharacterEditDialog({
   // ようにするため。部屋の外（コマ作成ツール）には右クリックメニューが無いので、
   // そちらではバフを扱う唯一の入口でもある。
   // 付与・削除はこのダイアログの「更新」を待たず即座にdispatchされる（エフェクト/コンボ一覧と同じ）。
+  // 表示だけの人（canEdit:false）には一覧だけを残す：今かかっている修正値は見えてよいが、
+  // 付与・削除はできない。
+  let addBuffBtn = null;
+  let listBuffBtn = null;
   if (dispatch && tokenId && getToken) {
     const buffRow = document.createElement('div');
     buffRow.className = 'dialog-buff-row';
 
-    const addBuffBtn = document.createElement('button');
+    addBuffBtn = document.createElement('button');
     addBuffBtn.type = 'button';
     addBuffBtn.className = 'dialog-add-row-btn';
     addBuffBtn.textContent = '+ バフ/デバフを付与';
 
-    const listBuffBtn = document.createElement('button');
+    listBuffBtn = document.createElement('button');
     listBuffBtn.type = 'button';
     listBuffBtn.className = 'dialog-add-row-btn';
 
@@ -948,10 +974,11 @@ export function showCharacterEditDialog({
         getBuffs: () => getToken()?.buffs ?? [],
         getParameters: () => getToken()?.parameters ?? {},
         activePluginId,
-        onRemove: (buffId) => {
+        // onRemoveを渡さないと削除ボタンが出ない＝表示専用の一覧になる
+        onRemove: canEdit ? (buffId) => {
           dispatch('REMOVE_BUFF', { tokenId, id: buffId });
           updateBuffBtnLabel();
-        }
+        } : undefined
       });
     });
 
@@ -964,6 +991,7 @@ export function showCharacterEditDialog({
   const pluginPanel = buildPluginPanel({
     activePluginId,
     mode: 'edit',
+    canEdit,
     parameters: character.parameters,
     components: character.components,
     onComponentChange,
@@ -990,7 +1018,20 @@ export function showCharacterEditDialog({
   btnRow.appendChild(confirmBtn);
   form.appendChild(btnRow);
 
-  form.addEventListener('submit', (event) => {
+  // 表示だけの人は、追加・付与・更新を消したうえで残りの入力を一括で無効化する。
+  // 生成箇所ごとに分岐を撒くより、組み立て終わりに一度通すほうが封じ忘れが起きない。
+  // プラグイン専用スペース（右カラム）はプラグイン自身が同じことをする（buildPluginPanel参照）。
+  if (!canEdit) {
+    addCustomBtn.style.display = 'none';
+    if (addBuffBtn) addBuffBtn.style.display = 'none';
+    confirmBtn.style.display = 'none';
+    cancelBtn.textContent = '閉じる';
+    lockFormControls(mainColumn, { keep: [listBuffBtn] });
+    lockFormControls(btnRow, { keep: [cancelBtn] });
+  }
+
+  // 更新ボタンを消すだけだと、入力欄が1つだけの時にEnterでsubmitし得る。登録自体を止める。
+  if (canEdit) form.addEventListener('submit', (event) => {
     event.preventDefault(); // ページ遷移させない
     const name = nameInput.value.trim();
     if (name === '') {

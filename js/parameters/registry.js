@@ -55,7 +55,10 @@ export function pluginHasCharacterPanel(pluginId) {
  * キャラ作成/更新ダイアログのプラグイン専用スペースに、プラグイン自身のUIを描画させる。
  * Coreはcontainerを渡すだけで、中身の意味・デザインはプラグインに委ねる（解釈しない）。
  * @param {string} pluginId
- * @param {{ container: HTMLElement, mode: 'create'|'edit', parameters: Record<string, any> }} context
+ * modeは「コマが既に存在するか」、canEditは「この人が書き換えてよいか」で意味が別。
+ * canEdit:falseは他人のコマを表示だけしている状態で、ボックスを開くボタンは押せたままに
+ * したいので、何を止めるかはプラグイン側に委ねる（js/character-dialog.jsのbuildPluginPanel参照）。
+ * @param {{ container: HTMLElement, mode: 'create'|'edit', canEdit: boolean, parameters: Record<string, any> }} context
  * @returns {{ getValues: () => Record<string, number> } | null}
  *   getValues() はダイアログのsubmit時に呼ばれ、{paramId: value}を返す。
  *   プラグインが専用UIを持たない場合はnullを返す。

@@ -6,6 +6,7 @@ import { LIMIT_CATEGORIES } from './dx3-effect-box.js';
 import {
   showLoisBox, countActiveLois, normalizeLoisList, LOIS_COMPONENT_KEY, LOIS_MAX
 } from './dx3-lois-box.js';
+import { lockFormControls } from '../read-only-form.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -74,7 +75,7 @@ export function computeDX3DerivedParameters(parameters, components = {}) {
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
 function renderDX3CharacterPanel({
-  container, mode, parameters, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue
+  container, mode, canEdit = true, parameters, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue
 }) {
   container.innerHTML = '';
 
@@ -183,10 +184,17 @@ function renderDX3CharacterPanel({
     container.appendChild(buffSection);
   }
 
+  // ボックスを開くボタン。表示だけの人（canEdit:false）にも押させたいので、
+  // 末尾の一括無効化から外せるよう参照を持っておく。
+  let abilityBtn = null;
+  let loisBtn = null;
+  let effectBtn = null;
+  let comboBtn = null;
+
   // エフェクト一覧（ボックス）。既存キャラクターの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外）。
   if (mode === 'edit') {
-    const abilityBtn = document.createElement('button');
+    abilityBtn = document.createElement('button');
     abilityBtn.type = 'button';
     abilityBtn.className = 'dialog-add-row-btn';
     abilityBtn.style.marginTop = '8px';
@@ -203,7 +211,7 @@ function renderDX3CharacterPanel({
     const readLois = () => readComponents()[LOIS_COMPONENT_KEY] ?? [];
 
     // ロイス一覧（ボックス）。パラメータ「ロイス」はここで登録した内容から自動計算される。
-    const loisBtn = document.createElement('button');
+    loisBtn = document.createElement('button');
     loisBtn.type = 'button';
     loisBtn.className = 'dialog-add-row-btn';
     loisBtn.style.marginTop = '8px';
@@ -214,6 +222,7 @@ function renderDX3CharacterPanel({
     loisBtn.addEventListener('click', () => {
       showLoisBox({
         lois: readLois(),
+        readOnly: !canEdit,
         onSave: (nextLois) => {
           onComponentChange(LOIS_COMPONENT_KEY, nextLois);
           updateLoisBtnLabel();
@@ -223,7 +232,7 @@ function renderDX3CharacterPanel({
     });
     container.appendChild(loisBtn);
 
-    const effectBtn = document.createElement('button');
+    effectBtn = document.createElement('button');
     effectBtn.type = 'button';
     effectBtn.className = 'dialog-add-row-btn';
     effectBtn.style.marginTop = '8px';
@@ -236,6 +245,7 @@ function renderDX3CharacterPanel({
         effects: readEffects(),
         // コンボ時修正の式に書ける{パラメータ名}の検証・提示に使う
         parameters,
+        readOnly: !canEdit,
         onSave: (nextEffects) => {
           onComponentChange('effects', nextEffects);
           updateEffectBtnLabel();
@@ -247,7 +257,7 @@ function renderDX3CharacterPanel({
     // コンボ一覧（ボックス）。発動/判定/ダメージの実行はチャットコマンド
     // （combo.awk/combo.chk/combo.dmg、js/main.js）から行うため、このボックス自体は
     // コンボの登録・編集とコマンドのコピーのみを担当する。
-    const comboBtn = document.createElement('button');
+    comboBtn = document.createElement('button');
     comboBtn.type = 'button';
     comboBtn.className = 'dialog-add-row-btn';
     comboBtn.style.marginTop = '8px';
@@ -260,6 +270,7 @@ function renderDX3CharacterPanel({
         combos: readCombos(),
         effects: readEffects(),
         parameters,
+        readOnly: !canEdit,
         onSave: (nextCombos) => {
           onComponentChange('combos', nextCombos);
           updateComboBtnLabel();
@@ -267,6 +278,12 @@ function renderDX3CharacterPanel({
       });
     });
     container.appendChild(comboBtn);
+  }
+
+  // 表示だけの人には侵蝕率・攻撃力の入力を固め、ボックスを開くボタンだけ残す
+  // （ボックスの中身はそれぞれのreadOnlyで表示専用になる）。
+  if (!canEdit) {
+    lockFormControls(container, { keep: [abilityBtn, loisBtn, effectBtn, comboBtn] });
   }
 
   return {

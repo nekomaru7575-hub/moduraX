@@ -3,6 +3,7 @@
 // 保存すると即座にonSaveへ新しい配列を渡す。Core側はこの配列の中身を解釈しない。
 
 import { analyzeComboModFormula, normalizeComboModFormula, listFormulaNames } from './dx3-formula.js';
+import { lockFormControls } from '../read-only-form.js';
 
 let dialogEl = null;
 
@@ -45,10 +46,12 @@ export const COMBO_MOD_FIELDS = [
  *   }>,
  *   parameters?: Record<string, {label?:string, key?:string, value?:number}>,
  *     コンボ時修正の式に書ける{パラメータ名}を検証・提示するために使う（値の評価はしない）。
+ *   readOnly?: boolean 他人のコマを表示だけしている時。中身は同じまま入力だけを封じる
+ *     （js/character-dialog.jsのcanEdit）。
  *   onSave: (effects: Array<object>) => void
  * }} options
  */
-export function showEffectBox({ effects = [], parameters = {}, onSave }) {
+export function showEffectBox({ effects = [], parameters = {}, readOnly = false, onSave }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -311,7 +314,14 @@ export function showEffectBox({ effects = [], parameters = {}, onSave }) {
   btnRow.appendChild(saveBtn);
   form.appendChild(btnRow);
 
-  form.addEventListener('submit', (event) => {
+  if (readOnly) {
+    addBtn.style.display = 'none';
+    saveBtn.style.display = 'none';
+    cancelBtn.textContent = '閉じる';
+    lockFormControls(form, { keep: [cancelBtn] });
+  }
+
+  if (!readOnly) form.addEventListener('submit', (event) => {
     event.preventDefault();
 
     const nextEffects = rows

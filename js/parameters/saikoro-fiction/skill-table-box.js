@@ -199,7 +199,11 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       }
     }
 
-    if (mode === 'edit') {
+    if (!canEdit && !canCheck) {
+      // 他人のコマを表示だけしている時（js/character-dialog.jsのcanEdit）。
+      // どのマスも押せないので、操作の説明を出すとかえって迷わせる。
+      setStatus('表示のみです。取得している特技を確認できます。');
+    } else if (mode === 'edit') {
       setStatus(spec.gapFillable
         ? 'マスをクリックで取得／解除、ギャップ（細い縦帯）をクリックで塗りつぶし。変更は即座に保存されます。'
         : 'マスをクリックで取得／解除。変更は即座に保存されます。');

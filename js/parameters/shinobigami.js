@@ -63,7 +63,7 @@ function readSkillTableState(components) {
  * 特技表の編集も判定も1つのボックスの中で完結させるため、ここはボタン1つだけ置く。
  */
 function renderShinobigamiCharacterPanel({
-  container, mode, components, onComponentChange, getComponents, getToken, dispatch, rollBCDice
+  container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, dispatch, rollBCDice
 }) {
   container.innerHTML = '';
 
@@ -102,14 +102,17 @@ function renderShinobigamiCharacterPanel({
       spec: SHINOBIGAMI_SKILL_TABLE,
       state: readSkillTableState(readComponents()),
       title: '特技表',
-      editable: true,
+      // 他人のコマを表示だけしている時は取得の編集も判定も外す。判定はチャットへログを流し
+      // バフも付けるので「変更」側として扱う。onCheckを渡さなければモード切替も判定オプション
+      // 欄も出ず、表を眺めてコマンドをコピーするだけのボックスになる。
+      editable: canEdit,
       onSave: (nextState) => {
         onComponentChange(SKILL_TABLE_COMPONENT_KEY, nextState);
         updateLabel();
       },
       // checkOptionsは表ボックスの「判定オプション」欄で指定された値。保存はされないので、
       // 次にボックスを開くと既定値に戻る。
-      onCheck: (cellId, checkOptions) => {
+      onCheck: canEdit ? (cellId, checkOptions) => {
         runSkillCheck({
           spec: SHINOBIGAMI_SKILL_TABLE,
           state: readSkillTableState(readComponents()),
@@ -120,7 +123,7 @@ function renderShinobigamiCharacterPanel({
           bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM,
           checkOptions
         });
-      }
+      } : undefined
     });
   });
   container.appendChild(skillTableBtn);

@@ -187,10 +187,13 @@ function formatBuffLine(buff, parameters, activePluginId) {
  *   getBuffs: () => Array<{id:string,name:string,paramId:string|null,delta:number,expirePhase:string|null,meta:object|null}>,
  *   getParameters: () => Record<string, {label:string}>,
  *   activePluginId?: string|null,
- *   onRemove: (buffId: string) => void
+ *   onRemove?: (buffId: string) => void
+ *     省略すると削除ボタンを出さない＝表示専用の一覧になる（他人のコマを表示だけする時。
+ *     js/character-dialog.jsのcanEdit参照）。
  * }} options
  */
 export function showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove }) {
+  const canRemove = typeof onRemove === 'function';
   const dialog = ensureListDialog();
   dialog.innerHTML = '';
 
@@ -224,15 +227,17 @@ export function showBuffListDialog({ getBuffs, getParameters, activePluginId = n
       info.textContent = formatBuffLine(buff, parameters, activePluginId);
       row.appendChild(info);
 
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'dialog-remove-row';
-      removeBtn.textContent = '×';
-      removeBtn.addEventListener('click', () => {
-        onRemove(buff.id);
-        renderList(); // 削除は即時反映。ダイアログを開いたまま次の操作へ移れるようにする
-      });
-      row.appendChild(removeBtn);
+      if (canRemove) {
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'dialog-remove-row';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+          onRemove(buff.id);
+          renderList(); // 削除は即時反映。ダイアログを開いたまま次の操作へ移れるようにする
+        });
+        row.appendChild(removeBtn);
+      }
 
       listEl.appendChild(row);
     });

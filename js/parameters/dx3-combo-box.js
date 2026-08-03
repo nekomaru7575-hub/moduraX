@@ -17,6 +17,7 @@
 
 import { COMBO_MOD_FIELDS, LIMIT_CATEGORIES } from './dx3-effect-box.js';
 import { analyzeComboModFormula, resolveComboModFormula } from './dx3-formula.js';
+import { lockFormControls } from '../read-only-form.js';
 
 let dialogEl = null;
 
@@ -474,11 +475,14 @@ export async function runComboDamage({
  *   combos: Array<{id:string,name:string,timing:string|null,effectNames:string[],abilityParamId:string|null,skillParamId:string|null}>,
  *   effects: Array<object>,
  *   parameters: Record<string, {label:string}>,
+ *   readOnly?: boolean 他人のコマを表示だけしている時。中身は同じまま入力だけを封じる
+ *     （js/character-dialog.jsのcanEdit）。コマンドのコピーは残す：貼り付けて実行しても
+ *     対象は自分が選んでいる参照キャラクターなので、他人のコマは動かない。
  *   onSave: (combos: Array<object>) => void
  * }} options
  */
 export function showComboBox({
-  combos = [], effects = [], parameters = {},
+  combos = [], effects = [], parameters = {}, readOnly = false,
   onSave
 }) {
   const dialog = ensureDialog();
@@ -701,7 +705,7 @@ export function showComboBox({
 
     listEl.appendChild(item);
 
-    rows.push({ item, savedCombo, nameInput, timingSelect, checkedEffectNames, abilitySelect, skillSelect });
+    rows.push({ item, savedCombo, nameInput, timingSelect, checkedEffectNames, abilitySelect, skillSelect, copyBtn });
   }
 
   combos.forEach(addRow);
@@ -730,7 +734,13 @@ export function showComboBox({
   btnRow.appendChild(saveBtn);
   form.appendChild(btnRow);
 
-  form.addEventListener('submit', (event) => {
+  if (readOnly) {
+    addBtn.style.display = 'none';
+    saveBtn.style.display = 'none';
+    lockFormControls(form, { keep: [cancelBtn, ...rows.map(row => row.copyBtn)] });
+  }
+
+  if (!readOnly) form.addEventListener('submit', (event) => {
     event.preventDefault();
 
     const nextCombos = rows

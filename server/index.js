@@ -304,6 +304,8 @@ const GM_ONLY_ACTIONS = new Set([
   'UPDATE_SCENE_META',
   'APPLY_SCENE',
   'REMOVE_SCENE',
+  // 全タブのログの消去（js/log-clear-dialog.js）。一度消すと戻せないのでGM限定。
+  'CLEAR_ALL_CHAT_LOGS',
   // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
   // 上の操作を通せてしまい、他の制限がすべて無意味になる。
   'SET_PARTICIPANT_GM',

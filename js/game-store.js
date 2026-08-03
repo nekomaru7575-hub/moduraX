@@ -1452,6 +1452,20 @@ export class ImmutableStore {
         return;
       }
 
+      // 全タブのログを消す（GM限定。js/main.jsのルームメニュー「ログを消去」から）。
+      // タブそのもの（chatTabs・公開先）は残し、中身だけを空にする。
+      // 他の人から見ると前触れなくログが消えるので、Mainタブに理由を1行だけ残す。
+      case 'CLEAR_ALL_CHAT_LOGS': {
+        const emptied = Object.freeze(Object.fromEntries(
+          Object.keys(prevState.chatLogs).map(tabId => [tabId, Object.freeze([])])
+        ));
+
+        this.#commit(prevState, {
+          chatLogs: withSystemLog(emptied, 'ログを消去しました。')
+        });
+        return;
+      }
+
       // --- パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト） ---
       // 位置(x,y)は盤面ローカルのピクセル座標（グリッド吸着済み、盤面外は負値もあり得る）、
       // 大きさ(cols,rows)はマス数。置ける場所に制限は無く、盤面から離れた位置にも置ける。

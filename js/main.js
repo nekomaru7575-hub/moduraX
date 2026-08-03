@@ -36,6 +36,7 @@ import { showOriginalTableListDialog } from './original-table-list-dialog.js';
 import { showSceneListDialog } from './scene-list-dialog.js';
 import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
+import { showLogClearConfirmDialog } from './log-clear-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
@@ -171,7 +172,9 @@ function renderActiveTabLog(state) {
   if (!logContainer) return;
   const entries = state.chatLogs[activeTabId] || [];
 
-  if (lastRenderedLogTabId !== activeTabId) {
+  // 件数が減るのはログの消去（CLEAR_ALL_CHAT_LOGS）だけ。差分追記では追いつけないので
+  // 描き直す（この分岐が無いと、消してもタブを切り替えるまで古いログが残る）。
+  if (lastRenderedLogTabId !== activeTabId || entries.length < lastRenderedLogCount) {
     logContainer.innerHTML = '';
     lastRenderedLogTabId = activeTabId;
     lastRenderedLogCount = 0;
@@ -199,6 +202,13 @@ function renderActiveTabLog(state) {
 function renderMainChatMirror(state) {
   if (!currentChatLog) return;
   const entries = state.chatLogs[MAIN_TAB_ID] || [];
+
+  // ログの消去（CLEAR_ALL_CHAT_LOGS）で件数が減った場合は、最後の発言もろとも空にする
+  // （立ち絵の元になる参照キャラクターも忘れる）。
+  if (entries.length < lastRenderedMainCount) {
+    currentChatLog.innerHTML = '';
+    lastSpokenCharacterId = null;
+  }
 
   if (entries.length > lastRenderedMainCount) {
     const latestEntry = entries[entries.length - 1];
@@ -532,6 +542,19 @@ if (roomMenuBtn && roomSettingsDialog) {
       }
     ];
 
+    // 全タブのログの消去はGM限定（サーバー側もserver/index.jsのGM_ONLY_ACTIONSで
+    // CLEAR_ALL_CHAT_LOGSを弾く）。項目自体は残して理由を示す。
+    {
+      const allowed = canOperateAsGm();
+      items.push({
+        label: 'ログを消去',
+        onSelect: openLogClearDialog,
+        danger: true,
+        disabled: !allowed,
+        title: allowed ? undefined : GM_ONLY_REASON
+      });
+    }
+
     // シーンの作成・遷移・編集・削除はGM限定（サーバー側もserver/index.jsの
     // GM_ONLY_ACTIONSで同じ4つを弾く）。項目自体は残して理由を示す。
     {
@@ -613,6 +636,14 @@ function openLogExportDialog() {
 
       downloadBlob(new Blob([html], { type: 'text/html' }), `trpg-log-${safeName}-${dateStr}.html`);
     }
+  });
+}
+
+// 全タブのログの消去。取り消せない操作なので、必ず確認ダイアログを挟む。
+// 見えないタブのぶんも含めて全部消えるため、消去自体はGM限定にしてある。
+function openLogClearDialog() {
+  showLogClearConfirmDialog({
+    onConfirm: () => store.dispatch('CLEAR_ALL_CHAT_LOGS')
   });
 }
 

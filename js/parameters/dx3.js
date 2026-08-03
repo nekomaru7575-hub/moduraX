@@ -528,6 +528,7 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
     const tokenId = token.id;
     runEffectUse({
       effect, effects, tokenId, dispatch, getToken: () => token, getEffectiveParameterValue, generateBuffId,
+      chatCommand: rawInput,
       onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
     });
     return true;
@@ -558,12 +559,19 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
   if (action === 'awk') {
     runComboActivate({
       combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
+      chatCommand: rawInput,
       onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
     });
   } else if (action === 'chk') {
-    runComboCheck({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice });
+    runComboCheck({
+      combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice,
+      chatCommand: rawInput
+    });
   } else if (action === 'dmg') {
-    runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice });
+    runComboDamage({
+      combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice,
+      chatCommand: rawInput
+    });
   }
 
   return true;

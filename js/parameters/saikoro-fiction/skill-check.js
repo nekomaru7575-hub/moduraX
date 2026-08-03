@@ -44,7 +44,9 @@ export function buildCheckCommand(spec, targetNumber, checkOptions) {
 
 // DX3の logToMain（js/parameters/dx3-combo-box.js）と同型。プラグインからチャットへ
 // 結果を流す口はこれだけ（Coreの applyLog はプラグインに渡されていない）。
-function logToMain(dispatch, resultText, token, system) {
+// chatCommand: これを起こしたチャットコマンド。特技表のマスをクリックして振った場合は
+// 打ったコマンドが無いのでundefinedのままでよい。
+function logToMain(dispatch, resultText, token, system, chatCommand) {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: 'main',
     entry: {
@@ -52,6 +54,7 @@ function logToMain(dispatch, resultText, token, system) {
       character: token?.name || '',
       characterId: token?.id || null,
       color: token?.textColor || null,
+      command: chatCommand,
       resultText
     }
   });
@@ -69,11 +72,12 @@ function logToMain(dispatch, resultText, token, system) {
  *   bcdiceSystem: string,
  *   checkOptions?: object,      判定オプション（省略時はspecの既定値）
  *   systemLabel?: string        チャットログの「システム」欄に出す名前
+ *   chatCommand?: string        これを起こしたチャットコマンド（表から振った場合は無し）
  * }} options
  */
 export async function runSkillCheck({
   spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem,
-  checkOptions, systemLabel = '特技判定'
+  checkOptions, systemLabel = '特技判定', chatCommand
 }) {
   const resolution = resolveSkillCheck(spec, state, targetCellId);
   if (!resolution) {
@@ -100,7 +104,7 @@ export async function runSkillCheck({
       alert(`特技判定に失敗しました: ${resultText}`);
       return;
     }
-    logToMain(dispatch, `${heading}\n${resultText}`, token, systemLabel);
+    logToMain(dispatch, `${heading}\n${resultText}`, token, systemLabel, chatCommand);
   } catch (error) {
     alert(`特技判定でエラーが発生しました: ${error.message}`);
   }

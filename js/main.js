@@ -821,7 +821,7 @@ function shouldMaskParameterValue(param) {
 
 // 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
 // 1件のログにまとめて記録する。
-function applyParameterChanges({ character, targets, amount, diceResultText }) {
+function applyParameterChanges({ character, targets, amount, diceResultText, command }) {
   const changeLines = targets.map(({ operator, paramId, param, before }) => {
     const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
     store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
@@ -835,6 +835,7 @@ function applyParameterChanges({ character, targets, amount, diceResultText }) {
     character: character.name,
     characterId: character.id,
     color: character.textColor,
+    command,
     resultText: diceResultText
       ? `${changeLines.join('\n')}\n${diceResultText}`
       : changeLines.join('\n')
@@ -898,14 +899,18 @@ function tryHandleParameterCommand(rawInput, character) {
         alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
         return;
       }
-      applyParameterChanges({ character, targets: resolvedTargets, amount, diceResultText: resultText });
+      applyParameterChanges({
+        character, targets: resolvedTargets, amount, diceResultText: resultText, command: rawInput
+      });
     }).catch(error => {
       alert(`ダイスロールでエラーが発生しました: ${error.message}`);
     });
     return true;
   }
 
-  applyParameterChanges({ character, targets: resolvedTargets, amount: Number(rawAmount) });
+  applyParameterChanges({
+    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput
+  });
 
   return true;
 }
@@ -993,6 +998,7 @@ function tryHandleBuffCommand(rawInput, character) {
     character: targetCharacter.name,
     characterId: targetCharacter.id,
     color: targetCharacter.textColor,
+    command: rawInput,
     resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`
   });
 
@@ -1030,6 +1036,7 @@ function tryHandleAudioStopCommand(rawInput) {
   if (!canOperateAsGm()) {
     applyLog({
       system: '音楽',
+      command: AUDIO_STOP_COMMAND,
       resultText: '♪ 再生中の音楽を止められるのはGMだけです'
         + '（自分にだけ聞こえないようにするには、音楽ダイアログの「ミュート」をお使いください）'
     });
@@ -1050,6 +1057,7 @@ function tryHandleAudioStopCommand(rawInput) {
   // 何も鳴っていなかった場合も無反応にはしない（コマンドが効いたことは伝える）
   applyLog({
     system: '音楽',
+    command: AUDIO_STOP_COMMAND,
     resultText: stopped.length > 0
       ? `♪ 演奏を停止しました（${stopped.join('、')}）`
       : '♪ 再生中の音楽はありません'
@@ -1126,6 +1134,7 @@ function tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)
       character: character?.name,
       characterId: character?.id,
       color: character?.textColor,
+      command: rawInput,
       resultText: entryText !== undefined
         ? `${table.title}(${table.dice}) ＞ ${rolled} ＞ ${entryText}`
         : `${resultText}\n（表「${table.title}」に出目${rolled}に対応する結果がありません）`
@@ -1516,15 +1525,29 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
 // color: 発言キャラクターの文字色設定（未設定なら既定の緑）。キャラ名にのみ適用し、
 // 発言テキスト自体は常に既定色（白）のまま変えない。
-function buildLogHtml({ system = "", character = "", comment = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
+// command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
+// 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
   const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
   const commentTag = comment ? `<span style="color: #aaa;">(${comment})</span>` : '';
   const resultHtml = String(resultText).replace(/\n/g, '<br>');
+  // コマンドは利用者の入力そのままなので、記号がマークアップとして解釈されないようにする
+  // （+HP(1)<2 のような入力で以降の行が消えてしまうため）。
+  const commandHtml = command
+    ? `<small class="log-command-text" style="color: #888;">（${escapeHtml(command)}）</small><br>`
+    : '';
 
   // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
   // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
@@ -1533,6 +1556,7 @@ function buildLogHtml({ system = "", character = "", comment = "", resultText, d
 
   return `
     ${headerHtml}
+    ${commandHtml}
     <span class="log-result-text" style="color: #fff;">${resultHtml}</span><br>
     ${detail}`;
 }

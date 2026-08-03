@@ -215,10 +215,16 @@ function parseFinalNumber(resultText) {
   return match ? Number(match[0]) : null;
 }
 
-function logToMain(dispatch, resultText, token, system = 'コンボ') {
+// chatCommand: これを起こしたチャットコマンド（combo.awk(名前) 等）。ログの1行目に
+// 添えるためCore側（js/main.jsのbuildLogHtml）へそのまま渡す。ボックスから直接呼ばれた
+// 場合のように、打ったコマンドが存在しない経路ではundefinedのままでよい。
+function logToMain(dispatch, resultText, token, system = 'コンボ', chatCommand) {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: 'main',
-    entry: { system, character: token?.name || '', characterId: token?.id || null, color: token?.textColor || null, resultText }
+    entry: {
+      system, character: token?.name || '', characterId: token?.id || null,
+      color: token?.textColor || null, command: chatCommand, resultText
+    }
   });
 }
 
@@ -247,7 +253,8 @@ export function findComboByName(combos, name) {
  *   onSaveEffects:Function}} options
  */
 export function runComboActivate({
-  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects
+  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects,
+  chatCommand
 }) {
   const token = getToken();
   if (!token) return;
@@ -305,7 +312,7 @@ export function runComboActivate({
   const effectNamesText = selectedEffects.map(e => e.name).join(' + ');
   logToMain(dispatch, effectNamesText
     ? `コンボ発動: ${combo.name}\n${effectNamesText}${notice}`
-    : `コンボ発動: ${combo.name}${notice}`, token);
+    : `コンボ発動: ${combo.name}${notice}`, token, 'コンボ', chatCommand);
 }
 
 /**
@@ -320,7 +327,8 @@ export function runComboActivate({
  *   onSaveEffects:Function}} options
  */
 export function runEffectUse({
-  effect, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects
+  effect, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects,
+  chatCommand
 }) {
   const token = getToken();
   if (!token) return;
@@ -365,7 +373,7 @@ export function runEffectUse({
   const notice = buildModNoticeText({
     effects: [effect], token, getEffectiveParameterValue, appliedBuffCount
   });
-  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}${notice}`, token, 'エフェクト');
+  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}${notice}`, token, 'エフェクト', chatCommand);
 }
 
 /**
@@ -373,7 +381,8 @@ export function runEffectUse({
  *   getEffectiveParameterValue:Function, generateBuffId:Function, rollBCDice:Function}} options
  */
 export async function runComboCheck({
-  combo, effects = [], tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice
+  combo, effects = [], tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice,
+  chatCommand
 }) {
   const token = getToken();
   if (!token) return;
@@ -415,7 +424,7 @@ export async function runComboCheck({
     const expiredNote = expiringNames.length > 0 ? `\n判定終了で消滅: ${expiringNames.join('、')}` : '';
     dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId });
 
-    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}${expiredNote}`, token);
+    logToMain(dispatch, `コンボ判定: ${combo.name}\n${resultText}${floorText}${expiredNote}`, token, 'コンボ', chatCommand);
 
     const achievement = parseFinalNumber(resultText);
     if (achievement !== null) {
@@ -435,7 +444,7 @@ export async function runComboCheck({
  *   getToken:Function, getEffectiveParameterValue:Function, rollBCDice:Function}} options
  */
 export async function runComboDamage({
-  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice
+  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice, chatCommand
 }) {
   const token = getToken();
   if (!token) return;
@@ -457,7 +466,7 @@ export async function runComboDamage({
     const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
 
     const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
-    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`, token);
+    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`, token, 'コンボ', chatCommand);
 
     if (corruptionGain) {
       const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;

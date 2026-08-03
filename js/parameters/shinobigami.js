@@ -168,7 +168,8 @@ function handleShinobigamiChatCommand(rawInput, { token, dispatch, rollBCDice })
     token,
     dispatch,
     rollBCDice,
-    bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM
+    bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM,
+    chatCommand: rawInput
   });
   return true;
 }

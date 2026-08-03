@@ -758,6 +758,54 @@
   padding: 4px 0;
 }
 
+/* 情報（js/info-entry-dialog.js）の区画エディタ。1区画＝見出し＋本文＋公開先を1枚の枠に
+   まとめ、表／裏のように複数並べても、どの公開先がどの本文のものか取り違えないようにする */
+.info-section-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.info-section-editor {
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.info-section-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.info-section-editor-label {
+  flex: 1;
+  min-width: 0;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.info-section-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.info-section-editor .dialog-remove-row:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .dialog-add-row-btn {
   background: none;
   border: 1px dashed #555;

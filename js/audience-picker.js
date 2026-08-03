@@ -14,14 +14,18 @@ import { isRestricted } from './visibility.js';
  *   participants: Record<string, {id:string, nickname:string, isGm:boolean}>,
  *   myParticipantId: string|null,
  *   everyoneLabel?: string,
- *   limitedLabel?: string
+ *   limitedLabel?: string,
+ *   showNote?: boolean
  * }} options
+ *   showNote: 下部の注意書きを出すか。1つのダイアログにピッカーを複数並べる場面
+ *   （情報の表/裏など）で、同じ文言が何度も繰り返されないよう先頭以外を落とすために使う。
  * @returns {{element: HTMLElement, getAudience: () => string[]|null, canRestrict: boolean}}
  */
 export function buildAudiencePicker({
   audience, participants, myParticipantId,
   everyoneLabel = '全員に公開',
-  limitedLabel = '選んだ参加者だけに公開'
+  limitedLabel = '選んだ参加者だけに公開',
+  showNote = true
 }) {
   const container = document.createElement('div');
 
@@ -79,7 +83,9 @@ export function buildAudiencePicker({
 
   const note = document.createElement('p');
   note.className = 'audio-note';
-  if (!canRestrict) {
+  if (!showNote) {
+    note.style.display = 'none';
+  } else if (!canRestrict) {
     note.textContent = '公開先を絞るには、ルームメニューの「参加者設定」で表示名を設定してください。';
   } else if (memberChecks.length <= 1) {
     note.textContent = '他の参加者がまだ名乗っていません。相手が「参加者設定」で表示名を入れると、ここに出てきます。';

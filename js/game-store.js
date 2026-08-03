@@ -1553,6 +1553,29 @@ export class ImmutableStore {
         return;
       }
 
+      // 区画を1つ消す（ダブルハンドアウトの「裏」を取り下げる等）。最後の1つは消せない：
+      // section 0件のエントリは誰にも見えず、画面から消すこともできなくなるため。
+      // 見えていない区画は編集画面に出てこないので、ここへは自分に見える区画のidしか来ない。
+      case 'REMOVE_INFO_SECTION': {
+        const { id, sectionId } = payload;
+        const target = prevState.infoEntries.find(entry => entry.id === id);
+        if (!target) return;
+        if (target.sections.length <= 1) return;
+        if (!target.sections.some(s => s.id === sectionId)) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.map(entry => (
+            entry.id === id
+              ? Object.freeze({
+                  ...entry,
+                  sections: Object.freeze(entry.sections.filter(s => s.id !== sectionId))
+                })
+              : entry
+          ))
+        });
+        return;
+      }
+
       case 'REMOVE_INFO_ENTRY': {
         const { id } = payload;
         if (!prevState.infoEntries.some(entry => entry.id === id)) return;

@@ -4,11 +4,12 @@
 // かつ渡す相手を選べる置き場として使う。既定は非表示で、盤外の右クリックメニューから出す。
 //
 // 1件（エントリ）は { id, title, ownerId, sections } で、公開先(audience)はエントリでは
-// なくsectionが持つ。今のUIはsectionを必ず1件だけ作るが、この形にしてあるのは将来の
-// ダブルハンドアウト（シノビガミ等の「表の使命／裏の使命」）のためで、
-// 「表＝audience:null、裏＝限定公開」を1エントリに同居させられるようにしてある。
+// なくsectionが持つ。これにより1つのタブの中で「表＝全員に公開、裏＝選んだ人だけ」を
+// 同居させられる（シノビガミ／インセインのダブルハンドアウト）。
 // タブは「見えるsectionが1つでもあるか」で出し分けるので、全section非公開の情報は
-// タイトルごと相手の画面に出ない。
+// タイトルごと相手の画面に出ない。逆に表が公開なら、裏の対象外の人にもタブと表は見え、
+// 裏だけが見えない。鍵マークも自分に見えるsectionからしか立てないので、
+// 「見えない裏がある」ことも相手には伝わらない。
 //
 // 編集・削除できるのは作成者(ownerId)とGM。ただしこれは画面側だけの制限で、サーバーは
 // 強制しない（js/room-authority.jsのGM限定アクションには入れていない。誰でも作成・開示
@@ -24,6 +25,7 @@ import { EventBus } from './EventBus.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { showInfoEntryDialog } from './info-entry-dialog.js';
 import { showAudienceDialog } from './audience-picker.js';
+import { showContextMenu } from './context-menu.js';
 import { canView, isGm, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
 
@@ -120,14 +122,14 @@ export function initInfoPanel() {
       mode: 'create',
       participants: store.state.participants || {},
       myParticipantId: getCurrentParticipantId(),
-      onConfirm: ({ title, body, audience }) => {
+      onConfirm: ({ title, sections }) => {
         const id = generateInfoEntryId();
         store.dispatch('ADD_INFO_ENTRY', {
           id,
           title,
           // 表示名未設定（ゲスト）ならnull＝誰でも編集できる情報になる
           ownerId: getCurrentParticipantId(),
-          sections: [{ id: generateInfoSectionId(), label: '', body, audience }]
+          sections: sections.map(section => ({ ...section, id: generateInfoSectionId() }))
         });
         activeEntryId = id;
         render(store.state);
@@ -185,8 +187,9 @@ export function initInfoPanel() {
       const sectionEl = document.createElement('div');
       sectionEl.className = 'info-panel-section';
 
-      // labelは将来のダブルハンドアウト（表／裏）で使う見出し。今は常に空なので出ない
-      if (section.label.trim() !== '') {
+      // 見出し（表／裏など）か、限定公開の目印が要るときだけ帯を出す。見出し無しの
+      // 区画1つだけ＝ただのメモのときは、余計な行を足さない。
+      if (section.label.trim() !== '' || isRestricted(section.audience)) {
         const head = document.createElement('div');
         head.className = 'info-panel-section-head';
         head.textContent = (isRestricted(section.audience) ? '🔒' : '') + section.label;
@@ -230,39 +233,39 @@ export function initInfoPanel() {
     if (!entry) return;
     if (!canEditEntry(entry, myId, isGm(store.state.participants, myId))) return;
 
-    // 今のUIは1エントリ＝1sectionなので、見えている先頭のsectionを編集する
-    const section = visibleSections(entry, myId)[0];
-    if (!section) return;
-
+    // 自分に見える区画だけを渡す。見えない区画（自分が対象外の裏など）は編集画面に
+    // 出てこないので、知らないうちに書き換えたり消したりすることがない。
     showInfoEntryDialog({
       mode: 'edit',
       title: entry.title,
-      body: section.body,
-      audience: section.audience,
+      sections: visibleSections(entry, myId),
       participants: store.state.participants || {},
       myParticipantId: myId,
-      onConfirm: ({ title, body, audience }) => {
+      onConfirm: ({ title, sections, removedSectionIds }) => {
+        // 先に追加・更新、あとから削除の順で送る。逆にすると「1つ消して1つ足す」編集で、
+        // 消す時点の区画が1つになって最後の1つを守るガードに引っかかってしまう。
         store.dispatch('UPDATE_INFO_ENTRY', {
           id: entry.id,
           title,
-          sections: [{ id: section.id, body, audience }]
+          sections: sections.map(section => (
+            section.id ? section : { ...section, id: generateInfoSectionId() }
+          ))
+        });
+        removedSectionIds.forEach(sectionId => {
+          store.dispatch('REMOVE_INFO_SECTION', { id: entry.id, sectionId });
         });
       }
     });
   });
 
-  audienceBtn.addEventListener('click', () => {
-    const myId = getCurrentParticipantId();
-    const entry = activeEntry(store.state, myId);
-    if (!entry) return;
-    if (!canEditEntry(entry, myId, isGm(store.state.participants, myId))) return;
-
-    const section = visibleSections(entry, myId)[0];
-    if (!section) return;
-
+  // 公開先だけを手早く変える経路。区画が複数ある情報（表／裏）では、まずどの区画かを選ぶ
+  // ——「裏を1人に開示する」のような、卓中に一番よく起きる操作をここで済ませるため。
+  function openAudienceDialog(entry, section, myId) {
+    const sectionName = section.label.trim() ? `「${section.label.trim()}」` : '';
     showAudienceDialog({
-      title: '情報の公開先',
-      description: `「${entryLabel(entry)}」を誰に見せるかを選びます。公開先に入っていない人には、タイトルも含めて表示されません。`,
+      title: `情報の公開先${sectionName}`,
+      description: `「${entryLabel(entry)}」${sectionName}を誰に見せるかを選びます。`
+        + '公開先に入っていない人には、この区画があること自体が表示されません。',
       audience: section.audience,
       participants: store.state.participants || {},
       myParticipantId: myId,
@@ -270,6 +273,28 @@ export function initInfoPanel() {
         store.dispatch('SET_INFO_SECTION_AUDIENCE', { id: entry.id, sectionId: section.id, audience });
       }
     });
+  }
+
+  audienceBtn.addEventListener('click', () => {
+    const myId = getCurrentParticipantId();
+    const entry = activeEntry(store.state, myId);
+    if (!entry) return;
+    if (!canEditEntry(entry, myId, isGm(store.state.participants, myId))) return;
+
+    const sections = visibleSections(entry, myId);
+    if (sections.length === 0) return;
+    if (sections.length === 1) {
+      openAudienceDialog(entry, sections[0], myId);
+      return;
+    }
+
+    const rect = audienceBtn.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 4, sections.map((section, index) => ({
+      label: (isRestricted(section.audience) ? '🔒' : '')
+        + (section.label.trim() || `区画${index + 1}`),
+      title: describeAudience(section.audience, store.state.participants),
+      onSelect: () => openAudienceDialog(entry, section, myId)
+    })));
   });
 
   removeBtn.addEventListener('click', () => {

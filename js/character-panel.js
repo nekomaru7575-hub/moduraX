@@ -15,7 +15,7 @@ import {
 } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { createFloatingPanel } from './floating-panel.js';
-import { canView } from './visibility.js';
+import { canView, HIDDEN_VALUE_MASK } from './visibility.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 
 // パラメータのラベルは列幅に収まらないので頭だけ見せる（全文はtitleで出す）
@@ -93,8 +93,8 @@ function buildBoardRow(tokenData, myId) {
   paramList.className = 'character-param-list';
 
   Object.entries(tokenData.parameters || {})
-    // visible: 一覧に出すかどうか（全員共通）。audience: 誰に見せるか（相手ごと）
-    .filter(([, param]) => param.visible !== false && canView(param.audience, myId))
+    // visible: 一覧に出すかどうか（全員共通）。出さないものは行ごと消える。
+    .filter(([, param]) => param.visible !== false)
     .forEach(([paramId, param]) => {
       const paramRow = document.createElement('div');
       paramRow.className = 'character-list-param-row';
@@ -104,20 +104,29 @@ function buildBoardRow(tokenData, myId) {
       labelSpan.textContent = truncateLabel(param.label);
       labelSpan.title = param.label;
 
-      // バフ/デバフがかかっている場合は実効値（基礎値＋合計）を表示し、
-      // 差分を括弧書きで添える（例: 68 (+10)）
-      const effectiveValue = getEffectiveParameterValue(tokenData, paramId);
-      // 文字列値の変数にはバフ差分の概念がない（getEffectiveParameterValueが
-      // 基礎値をそのまま返すため常に差分ゼロ）。数値どうしの引き算のみ行う。
-      const buffTotal = typeof param.value === 'number' ? effectiveValue - param.value : 0;
-
       const valueSpan = document.createElement('span');
       valueSpan.className = 'character-param-value';
-      valueSpan.textContent = buffTotal !== 0
-        ? `${effectiveValue} (${buffTotal > 0 ? '+' : ''}${buffTotal})`
-        : String(effectiveValue);
-      if (buffTotal !== 0) {
-        valueSpan.title = `基礎値 ${param.value}${buffTotal > 0 ? '+' : ''}${buffTotal}`;
+
+      // audience: 誰に見せるか（相手ごと）。宛先でない人には行は出すが値だけを伏せる。
+      // 行ごと消すと「そのコマが何を持っているか」まで隠れて、伏せられていること自体に
+      // 気づけない。パラメータ変更コマンドのログ（js/main.js）と同じ見せ方に揃える。
+      if (!canView(param.audience, myId)) {
+        valueSpan.textContent = HIDDEN_VALUE_MASK;
+        valueSpan.title = '公開されていません';
+      } else {
+        // バフ/デバフがかかっている場合は実効値（基礎値＋合計）を表示し、
+        // 差分を括弧書きで添える（例: 68 (+10)）
+        const effectiveValue = getEffectiveParameterValue(tokenData, paramId);
+        // 文字列値の変数にはバフ差分の概念がない（getEffectiveParameterValueが
+        // 基礎値をそのまま返すため常に差分ゼロ）。数値どうしの引き算のみ行う。
+        const buffTotal = typeof param.value === 'number' ? effectiveValue - param.value : 0;
+
+        valueSpan.textContent = buffTotal !== 0
+          ? `${effectiveValue} (${buffTotal > 0 ? '+' : ''}${buffTotal})`
+          : String(effectiveValue);
+        if (buffTotal !== 0) {
+          valueSpan.title = `基礎値 ${param.value}${buffTotal > 0 ? '+' : ''}${buffTotal}`;
+        }
       }
 
       paramRow.appendChild(labelSpan);

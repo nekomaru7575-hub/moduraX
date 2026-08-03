@@ -14,6 +14,10 @@
 // 見ようとする相手からデータを守るものではない。守るには、サーバー側で人ごとに状態を
 // 絞って配る作り（projection）が必要で、それは次の段階で入れる。
 
+// 見せられない値の代わりに出す表記。「その項目が存在すること」は伝えつつ、中身だけを伏せる
+// （キャラクター一覧の限定公開パラメータ、パラメータ変更コマンドのログ）。
+export const HIDDEN_VALUE_MASK = '??';
+
 export function isRestricted(audience) {
   return Array.isArray(audience);
 }

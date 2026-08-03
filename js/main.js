@@ -25,7 +25,7 @@ import {
 import { entryPasswordHeaders, setStoredEntryPassword } from './room-entry.js';
 import { showIdentityDialog } from './identity-dialog.js';
 import { showChatTabDialog } from './chat-tab-dialog.js';
-import { canView, isRestricted, describeAudience } from './visibility.js';
+import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK } from './visibility.js';
 import {
   handlePluginChatCommand, findPluginForChatCommand,
   parsePluginBuffExtra, describePluginBuffMeta
@@ -810,9 +810,6 @@ function parseParameterTargets(rawTargets) {
   });
   return targets.some(t => !t) ? null : targets;
 }
-
-// 誰にでも見せてよいとは限らない値を、ログで伏せるための表記。
-const HIDDEN_VALUE_MASK = '??';
 
 // この値をログに実数で残してよいか。
 // visible:false（キャラクター一覧に出していない）と、公開先を絞ったパラメータが対象。

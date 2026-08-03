@@ -425,6 +425,18 @@
   border-radius: 4px;
 }
 
+/* ダイアログ内の画像プレビュー（背景・パネル）。地図のような大きい画像でも
+   ダイアログを押し広げないよう、枠に収めて縦横比を保つ。 */
+.dialog-image-preview {
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  align-self: flex-start;
+  margin-bottom: 6px;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
 /* 入力欄の下に添える補足文（バフの終了条件の入れ子説明など）。ラベルより弱く見せる。 */
 .dialog-form-note {
   font-size: 0.75rem;

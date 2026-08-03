@@ -296,6 +296,9 @@ const GM_ONLY_ACTIONS = new Set([
   'ROUND_ADVANCE_PHASE',
   'ROUND_SET_PARTICIPANTS',
   'ROUND_PROGRESSION_END',
+  // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
+  // 画像のアップロード側（下のIMAGE_PURPOSES.background）も同じくGM限定。
+  'SET_BOARD_BACKGROUND',
   // シーン（js/scene-list-dialog.js）。作成・遷移・編集・削除はすべてGM限定。
   'SAVE_SCENE',
   'UPDATE_SCENE_META',

@@ -49,7 +49,7 @@ export function showSceneListDialog({ scenes, onApply, onEdit, onCreate, onRemov
   const note = document.createElement('p');
   note.className = 'audio-note';
   note.textContent = 'シーン名を押すとその場面へ移動します（背景・盤面サイズ・パネルが切り替わります）。'
-    + 'コマと「シーンチェンジで残す」パネルはそのまま残ります。';
+    + 'コマと、「シーンチェンジで残す」を付けた背景・パネルはそのまま残ります。';
   container.appendChild(note);
 
   const listEl = document.createElement('div');
@@ -74,7 +74,7 @@ export function showSceneListDialog({ scenes, onApply, onEdit, onCreate, onRemov
     nameBtn.className = 'dialog-table-name-btn';
     nameBtn.textContent = scene.name;
     // 遷移は取り消せないので、押す前に何が起きるか分かるようにしておく
-    nameBtn.title = 'このシーンへ移動します（「シーンチェンジで残す」パネル以外は置き換わります）';
+    nameBtn.title = 'このシーンへ移動します（「シーンチェンジで残す」を付けたもの以外は置き換わります）';
     nameBtn.addEventListener('click', () => {
       dialog.close();
       onApply(scene.id);

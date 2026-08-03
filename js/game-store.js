@@ -1222,10 +1222,14 @@ export class ImmutableStore {
         this.#commit(prevState, {
           room: {
             ...room,
-            backgroundImage: scene.backgroundImage || null,
-            backgroundImageKey: scene.backgroundImageKey || null,
-            boardWidth: scene.boardWidth || null,
-            boardHeight: scene.boardHeight || null,
+            // 背景に「シーンチェンジで残す」が付いている間は、背景・盤面サイズを上書きしない
+            // （js/background-dialog.js）。フラグ自体は...roomに乗ってそのまま残る。
+            ...(room.keepBackgroundOnSceneChange ? {} : {
+              backgroundImage: scene.backgroundImage || null,
+              backgroundImageKey: scene.backgroundImageKey || null,
+              boardWidth: scene.boardWidth || null,
+              boardHeight: scene.boardHeight || null
+            }),
             audioPlayback: withMapEntry(playback, 'bgm', nextBgm)
           },
           panels: freezePanelMap({ ...scene.panels, ...keptPanels }),
@@ -1343,22 +1347,30 @@ export class ImmutableStore {
         return;
       }
 
+      // 背景設定（js/background-dialog.js）。画像・盤面サイズ・シーンチェンジでの扱いを
+      // 1つのダイアログで決めるので、まとめて1回のdispatchで反映する。
       // imageKeyはR2に実体がある場合のキー（部屋削除時の掃除に使う）。外部URLや、
       // R2へ移行する前に保存されたデータURLの背景ではnullのまま。
-      case 'SET_BACKGROUND_IMAGE': {
-        const { imageUrl, imageKey = null, boardWidth, boardHeight } = payload;
+      case 'SET_BOARD_BACKGROUND': {
+        const {
+          imageUrl, imageKey = null, boardWidth = null, boardHeight = null, keepOnSceneChange = false
+        } = payload;
 
         this.#commit(prevState, {
           room: {
             ...prevState.room,
             backgroundImage: imageUrl || null,
             backgroundImageKey: imageUrl ? (imageKey || null) : null,
-            boardWidth: imageUrl ? (boardWidth || null) : null,
-            boardHeight: imageUrl ? (boardHeight || null) : null
+            // 画像とサイズは独立して決める（画像なしで盤面だけ広げる／画像を消しても
+            // サイズは残す）。null＝ビューポートに合わせる（resolveBoardPixelSize参照）。
+            boardWidth: boardWidth || null,
+            boardHeight: boardHeight || null,
+            // シーンへ遷移しても背景・盤面サイズを上書きしない（APPLY_SCENE参照）。
+            // パネルのkeepOnSceneChangeと違い、シーン側には従来どおり保存する：
+            // 背景は1つしかなく、保存しない（＝null）と「背景なし」の区別が付かないため。
+            keepBackgroundOnSceneChange: !!keepOnSceneChange
           }
         });
-
-        EventBus.emit('BackgroundImageChanged', { imageUrl });
         return;
       }
 
@@ -1623,8 +1635,12 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
       // データURLではnull。音源のtrack.keyと同じ役割。
       backgroundImageKey: null,
-      boardWidth: null,      // null = ビューポート幅いっぱい（CSSの100%）
-      boardHeight: null,     // null = ビューポート高さいっぱい（CSSの100%）
+      // null = 自動（ビューポートをマス単位に切り上げたサイズ。resolveBoardPixelSize参照）
+      boardWidth: null,
+      boardHeight: null,
+      // シーンへ遷移しても背景・盤面サイズを変えないか（js/background-dialog.js）。
+      // シーン側への保存は従来どおり行い、遷移時の上書きだけを止める
+      keepBackgroundOnSceneChange: false,
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
 

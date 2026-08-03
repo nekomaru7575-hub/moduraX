@@ -3,16 +3,17 @@
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
-import { showBackgroundSizeDialog } from './background-dialog.js';
+import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsText } from './file-uploader.js';
-import { pickAndUploadImage, adoptImageIntoRoom } from './image-upload.js';
+import { adoptImageIntoRoom } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
 import { canView, isGm } from './visibility.js';
+import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
@@ -53,17 +54,6 @@ export function setCharacterPanelController(controller) {
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
-
-// 画像を読み込み、実際の縦横ピクセル数を取得する（背景サイズダイアログの初期値用）。
-// R2の公開URLでもデータURLでも同じように扱える。
-function loadImageDimensions(imageSrc) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => resolve({ width: 1000, height: 1000 });
-    img.src = imageSrc;
-  });
-}
 
 // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
 // 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
@@ -750,6 +740,11 @@ window.addEventListener('DOMContentLoaded', () => {
       board
     );
 
+    // 背景と盤面サイズは部屋全体の見た目を左右するのでGM限定（サーバー側も
+    // server/index.jsのGM_ONLY_ACTIONSでSET_BOARD_BACKGROUNDを弾く）。
+    // 項目自体は残して、押せない理由をツールチップで示す。
+    const canSetBackground = canOperateAsGm();
+
     showContextMenu(event.clientX, event.clientY, [
       {
         label: 'キャラクターを追加',
@@ -811,23 +806,25 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       },
       {
-        label: '背景画像を変更',
-        onSelect: async () => {
-          // R2へ上げてURLだけを状態に載せる（使えない環境ではデータURLへ退避。
-          // js/image-upload.jsのpickAndUploadImage参照）
-          const picked = await pickAndUploadImage({ purpose: 'background' });
-          if (!picked) return;
+        label: '背景設定',
+        disabled: !canSetBackground,
+        title: canSetBackground ? undefined : GM_ONLY_REASON,
+        onSelect: () => {
+          const room = store.state.room;
+          // boardWidth/boardHeightがnull＝自動（ビューポートに合わせる）。
+          // 自動のときは、今画面に出ている実サイズを数値欄の初期値として渡す。
+          const auto = !room.boardWidth || !room.boardHeight;
 
-          const { url: imageUrl, key: imageKey } = picked;
-          const { width, height } = await loadImageDimensions(imageUrl);
-
-          showBackgroundSizeDialog({
-            naturalWidth: width,
-            naturalHeight: height,
+          showBackgroundDialog({
+            initialImage: room.backgroundImage,
+            initialImageKey: room.backgroundImageKey,
+            initialCols: auto ? null : Math.round(room.boardWidth / GRID_SIZE),
+            initialRows: auto ? null : Math.round(room.boardHeight / GRID_SIZE),
+            fallbackCols: Math.max(1, Math.round(board.offsetWidth / GRID_SIZE)),
+            fallbackRows: Math.max(1, Math.round(board.offsetHeight / GRID_SIZE)),
+            initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
             gridSize: GRID_SIZE,
-            onConfirm: ({ width: boardWidth, height: boardHeight }) => {
-              store.dispatch('SET_BACKGROUND_IMAGE', { imageUrl, imageKey, boardWidth, boardHeight });
-            }
+            onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)
           });
         }
       },

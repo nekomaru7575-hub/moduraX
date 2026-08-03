@@ -811,13 +811,22 @@ function parseParameterTargets(rawTargets) {
   return targets.some(t => !t) ? null : targets;
 }
 
+// キャラクター一覧に出さないパラメータ（visible:false）の値を、ログでも伏せるための表記。
+const HIDDEN_VALUE_MASK = '??';
+
 // 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
 // 1件のログにまとめて記録する。
 function applyParameterChanges({ character, targets, amount, diceResultText }) {
   const changeLines = targets.map(({ operator, paramId, param, before }) => {
     const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
     store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
-    return `${param.label}: ${before} → ${after}`;
+    // 一覧に出していない値（visible:false）は、コマンドで動かしてもログに実数を残さない。
+    // 「何が動いたか」は伝えたいのでラベルは出し、前後の値だけを伏せる。
+    // ログは全員へ同じ文字列が配られるため、伏せるかどうかは書き込む時点で決まる
+    // （相手ごとに出し分けられるaudienceとは別の仕組み）。
+    return param.visible === false
+      ? `${param.label}: ${HIDDEN_VALUE_MASK} → ${HIDDEN_VALUE_MASK}`
+      : `${param.label}: ${before} → ${after}`;
   });
 
   applyLog({

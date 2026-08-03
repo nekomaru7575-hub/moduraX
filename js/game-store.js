@@ -1452,6 +1452,15 @@ export class ImmutableStore {
         return;
       }
 
+      // 3Dダイスを転がす合図（js/dice-animation.jsが購読）。状態は一切変えず、通知だけを行う。
+      // 出目をチャットログのエントリに持たせなかったのは、部屋のJSONへ永続化されてしまい、
+      // 再接続時のhydrateで過去のロールが一斉に転がり出すため。状態を変えないので
+      // サーバー側のstore（server/index.js）でも素通りし、そのまま他クライアントへ中継される。
+      case 'ROLL_DICE_ANIMATION': {
+        EventBus.emit('DICE_ROLLED', payload);
+        return;
+      }
+
       // 全タブのログを消す（GM限定。js/main.jsのルームメニュー「ログを消去」から）。
       // タブそのもの（chatTabs・公開先）は残し、中身だけを空にする。
       // 他の人から見ると前触れなくログが消えるので、Mainタブに理由を1行だけ残す。

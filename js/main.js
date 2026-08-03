@@ -40,6 +40,8 @@ import { showLogClearConfirmDialog } from './log-clear-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
+import { initDiceAnimation } from './dice-animation.js';
+import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel } from './character-panel.js';
@@ -750,6 +752,13 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
+
+    // 3Dダイスを転がす合図。状態を変えないアクションなので、部屋の全員へ届くだけで
+    // ログにも部屋のJSONにも残らない（js/game-store.jsのROLL_DICE_ANIMATION）。
+    // Mainタブ以外を演出しない判定は受け取り側（js/dice-animation.js）が行う。
+    if (diceValues?.length) {
+      store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+    }
 
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
     // ロールに乗ってから消えるよう、rollBCDiceの後に置いている（{パラメータ名}の実効値置換は
@@ -1611,5 +1620,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initInfoPanel();
   initCharacterPanel();
   initAudioPlayer();
+  initDiceAnimation();
   store.init();
 });

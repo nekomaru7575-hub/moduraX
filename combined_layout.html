@@ -224,6 +224,26 @@
       cursor: grab;
     }
 
+    /* 3Dダイスを転がす場所（js/dice-animation.js）。盤面にぴったり重ね、盤面外へは出さない。
+       ダイスは駒(.token, z-index:10)より手前、浮動パネル(.floating-panel, z-index:60)より奥。
+       表示していない間は盤面の操作（パン・ズーム・駒のドラッグ）を邪魔しないよう素通しにする。
+       display:noneにしないのは、canvasの大きさが0になってライブラリの初期化に失敗するため。 */
+    .dice-stage {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease-out;
+    }
+
+    /* 転がっている間だけ。クリックで消せるようここでポインタを受け取る */
+    .dice-stage.is-rolling {
+      opacity: 1;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
     /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
     .round-panel-bar {
       flex: 0 0 auto;
@@ -1244,6 +1264,8 @@
 
       <div id="board-viewport">
         <div id="board"></div>
+        <!-- 3Dダイスの舞台（js/dice-animation.js）。中のcanvasはライブラリが作る -->
+        <div id="dice-stage" class="dice-stage" aria-hidden="true"></div>
       </div>
 
       <!-- 盤面下1/4：既存ログのミラー表示。左側（キャラ一覧パネルと重なりうる領域）は

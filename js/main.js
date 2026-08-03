@@ -3,7 +3,7 @@
 import { rollBCDice } from './BCdice.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
-  store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
+  store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
   BUFF_PHASE_LABELS
 } from './board-data-driven.js';
 import {
@@ -41,6 +41,7 @@ import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
+import { initCharacterPanel } from './character-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -242,8 +243,6 @@ EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
 
 // DOM要素の取得（キャラクター登録関連）
 
-const characterList = document.getElementById('characterList');
-
 // ...(既存のDOM取得の並びに追加)
 const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
@@ -284,20 +283,6 @@ function applyGmOnlyControls() {
 // （IDENTITY_CHANGED。状態自体は変わらないのでSTATE_CHANGEDでは拾えない）で変わる。
 EventBus.subscribe('STATE_CHANGED', applyGmOnlyControls);
 EventBus.subscribe('IDENTITY_CHANGED', applyGmOnlyControls);
-
-// キャラクター一覧パネルの折りたたみ（他プレイヤーには影響しない、見た目だけのローカル状態）
-const characterPanelArea = document.getElementById('characterPanelArea');
-const characterPanelCollapseBtn = document.getElementById('characterPanelCollapseBtn');
-const characterPanelExpandBtn = document.getElementById('characterPanelExpandBtn');
-
-if (characterPanelArea && characterPanelCollapseBtn && characterPanelExpandBtn) {
-  characterPanelCollapseBtn.addEventListener('click', () => {
-    characterPanelArea.classList.add('collapsed');
-  });
-  characterPanelExpandBtn.addEventListener('click', () => {
-    characterPanelArea.classList.remove('collapsed');
-  });
-}
 
 // ルーム変数ダイアログを開き、結果（値の変更／削除／新規追加）を差分でdispatchする。
 // ルーム設定（部屋名・BCDiceシステム等）とは独立したメニュー項目から呼ぶ。
@@ -1509,110 +1494,12 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   }
 });
 
-// キャラクター一覧の描画（登録・削除の両方に反応）。
-// バックヤードにしまわれているコマは「今、盤面にいない」扱いなので一覧には出さない。
-function renderCharacterList(state) {
-  if (!characterList) return;
-
-  characterList.innerHTML = "";
-
-  const sortedTokens = Object.values(state.tokens).filter(t => !t.inBackyard && t.visible !== false).sort((a, b) => {
-    const initiativeA = a.parameters?.['core:initiative'] ? getEffectiveParameterValue(a, 'core:initiative') : 0;
-    const initiativeB = b.parameters?.['core:initiative'] ? getEffectiveParameterValue(b, 'core:initiative') : 0;
-    return initiativeB - initiativeA;
-  });
-
-  sortedTokens.forEach(tokenData => {
-    const item = document.createElement('div');
-    item.className = 'character-list-item';
-
-    // アバター（画像 or 色）＋ イニシアチブバッジ ＋ 名前
-    const avatarColumn = document.createElement('div');
-    avatarColumn.className = 'character-avatar-column';
-
-    const avatar = document.createElement('div');
-    avatar.className = 'character-avatar';
-    if (tokenData.image) {
-      avatar.style.backgroundImage = `url('${tokenData.image}')`;
-    } else {
-      avatar.style.backgroundColor = tokenData.color || DEFAULT_TOKEN_COLOR;
-    }
-
-    const initiativeParam = tokenData.parameters?.['core:initiative'];
-    if (initiativeParam) {
-      const initiativeBadge = document.createElement('span');
-      initiativeBadge.className = 'character-avatar-initiative';
-      initiativeBadge.textContent = getEffectiveParameterValue(tokenData, 'core:initiative');
-      avatar.appendChild(initiativeBadge);
-    }
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'character-avatar-name';
-    nameSpan.textContent = tokenData.name;
-    if (tokenData.textColor) {
-      nameSpan.style.color = tokenData.textColor;
-    }
-
-    avatarColumn.appendChild(avatar);
-    avatarColumn.appendChild(nameSpan);
-    item.appendChild(avatarColumn);
-
-    // パラメータ一覧
-    const paramList = document.createElement('div');
-    paramList.className = 'character-param-list';
-
-    Object.entries(tokenData.parameters || {})
-      // visible: 一覧に出すかどうか（全員共通）。audience: 誰に見せるか（相手ごと）
-      .filter(([, param]) => param.visible !== false && canView(param.audience, getCurrentParticipantId()))
-      .forEach(([paramId, param]) => {
-        const paramRow = document.createElement('div');
-        paramRow.className = 'character-list-param-row';
-
-        const labelSpan = document.createElement('span');
-        labelSpan.className = 'character-param-label';
-        labelSpan.textContent = truncateLabel(param.label);
-        labelSpan.title = param.label;
-
-        // バフ/デバフがかかっている場合は実効値（基礎値＋合計）を表示し、
-        // 差分を括弧書きで添える（例: 68 (+10)）
-        const effectiveValue = getEffectiveParameterValue(tokenData, paramId);
-        // 文字列値の変数にはバフ差分の概念がない（getEffectiveParameterValueが
-        // 基礎値をそのまま返すため常に差分ゼロ）。数値どうしの引き算のみ行う。
-        const buffTotal = typeof param.value === 'number' ? effectiveValue - param.value : 0;
-
-        const valueSpan = document.createElement('span');
-        valueSpan.className = 'character-param-value';
-        valueSpan.textContent = buffTotal !== 0
-          ? `${effectiveValue} (${buffTotal > 0 ? '+' : ''}${buffTotal})`
-          : String(effectiveValue);
-        if (buffTotal !== 0) {
-          valueSpan.title = `基礎値 ${param.value}${buffTotal > 0 ? '+' : ''}${buffTotal}`;
-        }
-
-        paramRow.appendChild(labelSpan);
-        paramRow.appendChild(valueSpan);
-        paramList.appendChild(paramRow);
-      });
-
-    item.appendChild(paramList);
-    characterList.appendChild(item);
-  });
-}
-
-EventBus.subscribe('STATE_CHANGED', renderCharacterList);
-
-// 名乗る人が変わると、見えるパラメータ・見えるチャットタブが変わる（状態自体は
-// 変わらないためSTATE_CHANGEDでは拾えない）
+// 名乗る人が変わると、見えるチャットタブが変わる（状態自体は変わらないため
+// STATE_CHANGEDでは拾えない）
 EventBus.subscribe('IDENTITY_CHANGED', () => {
-  renderCharacterList(store.state);
   renderChatTabs(store.state);
   ensureActiveTabVisible(store.state);
 });
-
-function truncateLabel(label, maxLength = 4) {
-  if (!label) return '';
-  return label.length > maxLength ? `${label.slice(0, maxLength)}...` : label;
-}
 
 function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
@@ -1651,6 +1538,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initNetSync();
   initRoundPanel();
   initInfoPanel();
+  initCharacterPanel();
   initAudioPlayer();
   store.init();
 });

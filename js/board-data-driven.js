@@ -6,7 +6,6 @@ import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, appl
 import { showBackgroundSizeDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
-import { showBackyardDialog } from './backyard-dialog.js';
 import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
 import { pickFileAsText } from './file-uploader.js';
 import { pickAndUploadImage, adoptImageIntoRoom } from './image-upload.js';
@@ -25,10 +24,11 @@ export {
   getEffectiveParameterValue, BUFF_PHASE_LABELS
 };
 
-// 浮動パネル（チャットパレット・情報）。盤外の右クリックメニューから表示/非表示を
-// 切り替えるためだけに参照する。importは 生成側 → board-data-driven.js の向きに張られて
-// いる（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
-// 生成側はパネルごとに違う：チャットパレットはjs/main.js、情報はjs/info-panel.js。
+// 浮動パネル（チャットパレット・情報・キャラクター一覧）。盤外の右クリックメニューから
+// 表示/非表示を切り替えるためだけに参照する。importは 生成側 → board-data-driven.js の向きに
+// 張られている（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
+// 生成側はパネルごとに違う：チャットパレットはjs/main.js、情報はjs/info-panel.js、
+// キャラクター一覧はjs/character-panel.js。
 let chatPaletteController = null;
 
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
@@ -41,6 +41,13 @@ let infoPanelController = null;
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
 export function setInfoPanelController(controller) {
   infoPanelController = controller;
+}
+
+let characterPanelController = null;
+
+/** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
+export function setCharacterPanelController(controller) {
+  characterPanelController = controller;
 }
 
 const GRID_SIZE = 25;
@@ -650,21 +657,6 @@ function ownerNameOf(token) {
   return store.state.participants?.[token.ownerId]?.nickname || '不明な参加者';
 }
 
-// バックヤードに入っているコマのうち、自分の棚のものだけを返す。
-// 表示名を設定している人は所有者(ownerId)で判定するので、別の端末から入り直しても
-// 同じ棚が見える。ownerIdを持たないコマ（この機能より前にしまったもの・ゲストがしまった
-// もの）は、従来どおりブラウザ単位のIDで判定する。
-function listMyBackyardTokens() {
-  const myParticipantId = getCurrentParticipantId();
-  const myLocalUserId = getLocalUserId();
-
-  return Object.values(store.state.tokens).filter(t => {
-    if (!t.inBackyard) return false;
-    if (t.ownerId) return t.ownerId === myParticipantId;
-    return t.backyardOwnerId === myLocalUserId;
-  });
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
@@ -751,8 +743,6 @@ window.addEventListener('DOMContentLoaded', () => {
       board
     );
 
-    const backyardCount = listMyBackyardTokens().length;
-
     showContextMenu(event.clientX, event.clientY, [
       {
         label: 'キャラクターを追加',
@@ -833,16 +823,6 @@ window.addEventListener('DOMContentLoaded', () => {
           });
         }
       },
-      {
-        // 件数はメニューを開いた時点の状態から数える（0件でも項目自体は出す）
-        label: backyardCount > 0 ? `バックヤード (${backyardCount})` : 'バックヤード',
-        onSelect: () => {
-          showBackyardDialog({
-            getTokens: listMyBackyardTokens,
-            onRestore: (tokenId) => store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenId })
-          });
-        }
-      },
       // チャットパレットは浮動パネルなので、閉じたあと戻す手段がここだけになる。
       // パネルの生成はjs/main.js側なので、実体はsetChatPaletteControllerで受け取る。
       ...(chatPaletteController ? [{
@@ -853,6 +833,12 @@ window.addEventListener('DOMContentLoaded', () => {
       ...(infoPanelController ? [{
         label: infoPanelController.isVisible() ? '情報を隠す' : '情報を表示',
         onSelect: () => infoPanelController.toggle()
+      }] : []),
+      // キャラクター一覧も浮動パネル（生成はjs/character-panel.js）。バックヤードは
+      // このパネルのタブに統合したので、しまったコマを取り出す導線もここから辿る。
+      ...(characterPanelController ? [{
+        label: characterPanelController.isVisible() ? 'キャラクター一覧を隠す' : 'キャラクター一覧を表示',
+        onSelect: () => characterPanelController.toggle()
       }] : [])
     ]);
   });

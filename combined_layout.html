@@ -104,7 +104,7 @@
       color: #bbb;
     }
 
-    /* キャラ一覧サイドバー専用（ルーム変数一覧とは見た目を分ける） */
+    /* キャラクター一覧パネル専用（ルーム変数一覧とは見た目を分ける） */
     .character-list-param-row {
       display: grid;
       grid-template-columns: 4.4em 1fr;
@@ -128,97 +128,76 @@
     .character-param-value {
       text-align: left;
     }
-/* キャラクター一覧：main-area内に浮かせるオーバーレイ。
-   盤面・チャット（board-area/control-area）のflex比率には関与しない。 */
-    .character-panel-area {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      width: 220px;
-      z-index: 30;
-      display: flex;
-      flex-direction: column;
-      transition: width 0.15s ease;
-      pointer-events: none;
-    }
-
-    .character-panel-area > * {
-      pointer-events: auto;
-    }
-
-    .character-panel-area.collapsed {
-      width: 28px;
-    }
-
+/* キャラクター一覧：浮動パネル（js/character-panel.js）の中身。盤面のコマと
+   バックヤードのコマをタブで切り替えて並べる。枠と移動/拡縮は.floating-panel側。 */
     .character-panel {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
-    }
-
-    .character-panel-area.collapsed .character-panel {
-      display: none;
-    }
-
-    .character-panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       gap: 6px;
-      margin-bottom: 4px;
+      padding: 6px;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
-    .character-panel-header label {
-      margin: 0;
-    }
-
-    .character-panel-collapse-btn {
-      background: none;
-      border: 1px solid #444;
-      border-radius: 4px;
-      color: #aaa;
-      cursor: pointer;
-      width: 22px;
-      height: 22px;
-      font-size: 0.8rem;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .character-panel-collapse-btn:hover {
-      background-color: #3a3a3a;
-    }
-
-    .character-panel-expand-strip {
-      display: none;
-      width: 100%;
-      height: 100%;
-      background-color: #2a2a2a;
-      border: 1px solid #444;
-      border-radius: 6px;
-      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
-      color: #aaa;
-      cursor: pointer;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 0;
-      writing-mode: vertical-rl;
-      letter-spacing: 2px;
-      font-size: 0.8rem;
-    }
-
-    .character-panel-area.collapsed .character-panel-expand-strip {
+    .character-panel-tabs {
       display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
     }
 
-    .character-panel-expand-strip:hover {
+    .character-panel-tab {
+      background-color: #333;
+      color: #bbb;
+      border: 1px solid #555;
+      border-radius: 4px 4px 0 0;
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .character-panel-tab.is-active {
+      background-color: #444;
+      color: #fff;
+      border-color: #777;
+    }
+
+    .character-panel-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .character-panel-empty {
+      color: #888;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    /* バックヤードタブの「盤面に戻す」。行の右端へ寄せる */
+    .character-panel-restore-btn {
+      margin-left: auto;
+      flex-shrink: 0;
       background-color: #3a3a3a;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
     }
 
-/* 盤面＋コントロールのコンテナ。キャラ一覧オーバーレイの基準位置にもなる */
+    .character-panel-restore-btn:hover {
+      background-color: #4a4a4a;
+      color: #fff;
+    }
+
+/* 盤面＋コントロールのコンテナ */
     .main-area {
       position: relative;
       flex: 1;
@@ -256,21 +235,6 @@
       border: 1px solid #444;
       border-radius: 8px;
       padding: 6px 10px;
-      transition: margin 0.15s ease;
-    }
-
-    /* キャラクター一覧パネル（左に浮かぶオーバーレイ）を、ラウンド進行バーの中身が
-       その下に隠れないよう常に避ける。展開中は幅220px、折りたたみ中も展開ストリップ
-       （幅28px）が残るので、どちらの状態でもその分の余白を空ける。
-       横に置けない分は折り返して縦に伸びてよい。 */
-    #characterPanelArea ~ .board-area .round-panel-bar,
-    #characterPanelArea ~ .board-area .round-panel-detail {
-      margin-left: 220px;
-    }
-
-    #characterPanelArea.collapsed ~ .board-area .round-panel-bar,
-    #characterPanelArea.collapsed ~ .board-area .round-panel-detail {
-      margin-left: 28px;
     }
 
     .round-panel-status {
@@ -547,8 +511,8 @@
       padding: 8px 16px;
     }
 
-    /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。今はチャットパレット専用だが、
-       枠と操作だけを持つ汎用スタイルにしてある */
+    /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。枠と操作だけを持つ汎用スタイルで、
+       中身（チャットパレット・情報・キャラクター一覧）はそれぞれのクラスが持つ */
     .floating-panel {
       position: fixed;
       z-index: 60;
@@ -1097,15 +1061,6 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    #characterList {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 8px;
-      max-height: 180px;
-      overflow-y: auto;
-    }
-
     .character-list-item {
       display: flex;
       align-items: center;
@@ -1273,18 +1228,8 @@
   <div class="app-container">
   <!-- 既存の盤面＋コントロールを、新しいラッパーで囲む -->
   <div class="main-area">
-    <!-- キャラクター一覧：main-area内に浮かせるオーバーレイ。board-area/control-areaの大きさには影響しない -->
-      <div class="character-panel-area" id="characterPanelArea">
-        <div class="panel character-panel">
-          <div class="character-panel-header">
-            <label>登録済みキャラクター</label>
-            <button type="button" id="characterPanelCollapseBtn" class="character-panel-collapse-btn" title="折りたたむ">◂</button>
-          </div>
-          <div id="characterList" style="flex: 1; max-height: none;"></div>
-        </div>
-        <button type="button" id="characterPanelExpandBtn" class="character-panel-expand-strip" title="展開する">キャラクター一覧</button>
-      </div>
-
+    <!-- キャラクター一覧は浮動パネル（js/character-panel.js）。body直下に動的生成するので
+         ここにmarkupは無い -->
     <div class="board-area">
       <!-- ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 -->
       <div class="round-panel-bar" id="roundPanelBar" style="display: none;">

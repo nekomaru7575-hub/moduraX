@@ -87,7 +87,7 @@ function dispatchCharacterImport(id, importResult) {
 let scale = 1;
 let panX = 0;
 let panY = 0;
-const MIN_SCALE = 0.5;
+const MIN_SCALE = 0.2;
 const MAX_SCALE = 2.5;
 
 let rafId = null;
@@ -101,58 +101,34 @@ function scheduleBoardTransform(board) {
 }
 
 
-// コマを置ける領域の外接矩形（盤面ローカル座標）を返す。
-// 盤面本体に加え、盤面外に連結されたパネルの範囲も含める（コマをパネル上に乗せられるように）。
-function getPlacementBounds(board) {
+// 盤面に置かれている物すべての外接矩形（盤面ローカル座標）を返す。
+// コマ・パネルは盤面の外にも自由に置けるので、盤面本体に加えてそれらの範囲も含める。
+// パン範囲(clampPan)の基準に使い、盤面外へ置いた物にも必ず視点を寄せられるようにする。
+function getContentBounds(board) {
   let minX = 0;
   let minY = 0;
   let maxX = board.offsetWidth;
   let maxY = board.offsetHeight;
 
+  const extend = (x, y, w, h) => {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x + w > maxX) maxX = x + w;
+    if (y + h > maxY) maxY = y + h;
+  };
+
   Object.values(store.state.panels || {}).forEach(panel => {
-    const px2 = panel.x + panel.cols * GRID_SIZE;
-    const py2 = panel.y + panel.rows * GRID_SIZE;
-    if (panel.x < minX) minX = panel.x;
-    if (panel.y < minY) minY = panel.y;
-    if (px2 > maxX) maxX = px2;
-    if (py2 > maxY) maxY = py2;
+    extend(panel.x, panel.y, panel.cols * GRID_SIZE, panel.rows * GRID_SIZE);
+  });
+
+  // バックヤードにしまわれたコマは盤面に描画されないので数えない
+  Object.values(store.state.tokens || {}).forEach(token => {
+    if (token.inBackyard) return;
+    const size = (token.size || 1) * GRID_SIZE;
+    extend(token.x, token.y, size, size);
   });
 
   return { minX, minY, maxX, maxY };
-}
-
-// ローカル座標(コマの位置)が配置可能領域からはみ出さない範囲にクランプする。tokenPixelSizeは
-// そのコマの実際の一辺の長さ（size×GRID_SIZE）で、コマごとに大きさが異なるため呼び出し側で渡す。
-function clampToBoard(x, y, board, tokenPixelSize = GRID_SIZE) {
-  const bounds = getPlacementBounds(board);
-  const maxX = bounds.maxX - tokenPixelSize;
-  const maxY = bounds.maxY - tokenPixelSize;
-
-  return {
-    x: Math.max(bounds.minX, Math.min(x, maxX)),
-    y: Math.max(bounds.minY, Math.min(y, maxY))
-  };
-}
-
-// 2つの矩形が「連結している」（重なる、または辺で接している）かを判定する。
-// 角だけが触れている場合（斜めの隙間）は連結とみなさない。
-function rectsConnected(a, b) {
-  const hOverlap = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-  const vOverlap = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
-  return hOverlap >= 0 && vOverlap >= 0 && (hOverlap > 0 || vOverlap > 0);
-}
-
-// パネルの配置(candidateRect)が妥当か（盤面または他のいずれかのパネルに連結しているか）を判定する。
-// selfIdは移動・リサイズ中の自分自身のパネルIDで、連結相手から除外する。
-function isPanelPlacementValid(candidateRect, board, selfId) {
-  const boardRect = { x: 0, y: 0, w: board.offsetWidth, h: board.offsetHeight };
-  if (rectsConnected(candidateRect, boardRect)) return true;
-
-  return Object.values(store.state.panels || {}).some(panel => {
-    if (panel.id === selfId) return false;
-    const rect = { x: panel.x, y: panel.y, w: panel.cols * GRID_SIZE, h: panel.rows * GRID_SIZE };
-    return rectsConnected(candidateRect, rect);
-  });
 }
 
 function applyBoardTransform(board) {
@@ -214,7 +190,7 @@ function applyBoardBackground(board, room) {
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
 
-function bindTokenDrag(element, board) {
+function bindTokenDrag(element) {
   element.addEventListener('mousedown', (event) => {
     event.preventDefault();
     event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
@@ -223,7 +199,6 @@ function bindTokenDrag(element, board) {
     const currentTokenState = store.state.tokens[tokenId];
     if (!currentTokenState) return;
 
-    const tokenPixelSize = (currentTokenState.size || 1) * GRID_SIZE;
     const startClientX = event.clientX;
     const startClientY = event.clientY;
     const startX = currentTokenState.x;
@@ -234,8 +209,8 @@ function bindTokenDrag(element, board) {
       const deltaX = (e.clientX - startClientX) / scale;
       const deltaY = (e.clientY - startClientY) / scale;
 
-      const { x: clampedX, y: clampedY } = clampToBoard(startX + deltaX, startY + deltaY, board, tokenPixelSize);
-      store.dispatch('MOVE_TOKEN', { id: tokenId, x: clampedX, y: clampedY });
+      // 置ける範囲は制限しない（盤面の外にも自由に動かせる）
+      store.dispatch('MOVE_TOKEN', { id: tokenId, x: startX + deltaX, y: startY + deltaY });
     }
 
     function onMouseUp() {
@@ -248,8 +223,7 @@ function bindTokenDrag(element, board) {
       const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE;
       const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE;
 
-      const { x: finalX, y: finalY } = clampToBoard(snappedX, snappedY, board, tokenPixelSize);
-      store.dispatch('MOVE_TOKEN', { id: tokenId, x: finalX, y: finalY });
+      store.dispatch('MOVE_TOKEN', { id: tokenId, x: snappedX, y: snappedY });
     }
 
     document.addEventListener('mousemove', onMouseMove);
@@ -466,7 +440,7 @@ function createTokenElement(tokenData, board) {
   el.appendChild(nameSpan);
 
   applyTokenAppearance(el, tokenData);
-  bindTokenDrag(el, board);
+  bindTokenDrag(el);
   board.appendChild(el);
   return el;
 }
@@ -496,8 +470,9 @@ function applyPanelAppearance(el, panelData) {
   el.classList.toggle('locked', !!panelData.locked);
 }
 
-// パネルのドラッグ移動。グリッド吸着し、ドロップ時に隣接判定に通らなければ元の位置へ戻す。
-function bindPanelDrag(element, board) {
+// パネルのドラッグ移動。ドロップ時にグリッドへ吸着させるだけで、置ける場所は制限しない
+// （盤面から離れた位置にも置ける）。
+function bindPanelDrag(element) {
   element.addEventListener('mousedown', (event) => {
     const panelId = element.id;
     const currentPanelState = store.state.panels[panelId];
@@ -530,14 +505,8 @@ function bindPanelDrag(element, board) {
 
       const snappedX = Math.round(latest.x / GRID_SIZE) * GRID_SIZE;
       const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
-      const rect = { x: snappedX, y: snappedY, w: latest.cols * GRID_SIZE, h: latest.rows * GRID_SIZE };
 
-      if (isPanelPlacementValid(rect, board, panelId)) {
-        store.dispatch('MOVE_PANEL', { id: panelId, x: snappedX, y: snappedY });
-      } else {
-        // 連結が切れる位置には置けないので、ドラッグ開始位置へ戻す
-        store.dispatch('MOVE_PANEL', { id: panelId, x: startX, y: startY });
-      }
+      store.dispatch('MOVE_PANEL', { id: panelId, x: snappedX, y: snappedY });
     }
 
     document.addEventListener('mousemove', onMouseMove);
@@ -624,7 +593,7 @@ function createPanelElement(panelData, board) {
   el.id = panelData.id;
   applyPanelAppearance(el, panelData);
 
-  bindPanelDrag(el, board);
+  bindPanelDrag(el);
   board.appendChild(el);
   return el;
 }
@@ -633,9 +602,9 @@ function clampPan(viewport, board) {
   const vw = viewport.clientWidth;
   const vh = viewport.clientHeight;
 
-  // パネルが盤面外に連結されている場合も見渡せるよう、配置可能領域の外接矩形を基準にする
-  // （盤面外パネルはローカル座標が負にもなり得るので minX/minY も考慮する）
-  const bounds = getPlacementBounds(board);
+  // 盤面の外に置かれたコマ・パネルも見渡せるよう、それらを含む外接矩形を基準にする
+  // （盤面外のコマ・パネルはローカル座標が負にもなり得るので minX/minY も考慮する）
+  const bounds = getContentBounds(board);
 
   // 画面中央より奥へ盤面の端が行かないようにする「のりしろ」
   const marginX = vw / 2;
@@ -746,11 +715,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const dropX = (cx - panX) / scale;
     const dropY = (cy - panY) / scale;
 
-    const { x: clampedX, y: clampedY } = clampToBoard(
-      dropX - GRID_SIZE / 2,
-      dropY - GRID_SIZE / 2,
-      board
-    );
+    // クリックした位置をコマの中心にする（盤面の外でもそのまま置ける）
+    const newTokenX = Math.round(dropX - GRID_SIZE / 2);
+    const newTokenY = Math.round(dropY - GRID_SIZE / 2);
 
     // 背景と盤面サイズは部屋全体の見た目を左右するのでGM限定（サーバー側も
     // server/index.jsのGM_ONLY_ACTIONSでSET_BOARD_BACKGROUNDを弾く）。
@@ -773,8 +740,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 size,
                 textColor,
                 visible,
-                x: Math.round(clampedX),
-                y: Math.round(clampedY),
+                x: newTokenX,
+                y: newTokenY,
                 // 登録した人のコマにする（表示名未設定なら所有者なし＝誰でも触れる）。
                 // NPC等をみんなで触りたい場合は「コマを手放す」で外す。
                 ownerId: getCurrentParticipantId(),
@@ -798,11 +765,6 @@ window.addEventListener('DOMContentLoaded', () => {
             title: 'パネルを追加',
             gridSize: GRID_SIZE,
             onConfirm: ({ image, text, cols, rows, keepOnSceneChange }) => {
-              const rect = { x: snapX, y: snapY, w: cols * GRID_SIZE, h: rows * GRID_SIZE };
-              if (!isPanelPlacementValid(rect, board, null)) {
-                alert('パネルは盤面または他のパネルに隣接する位置に配置してください。');
-                return;
-              }
               store.dispatch('ADD_PANEL', {
                 id: generatePanelId(),
                 image,
@@ -910,18 +872,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const cy = event.clientY - viewportRect.top;
     const dropX = (cx - panX) / scale;
     const dropY = (cy - panY) / scale;
-    const { x: clampedX, y: clampedY } = clampToBoard(
-      dropX - GRID_SIZE / 2,
-      dropY - GRID_SIZE / 2,
-      board
-    );
 
     const newId = generateTokenId();
     store.dispatch('ADD_CHARACTER', {
       id: newId,
       name: (isSnapshot ? json.name : importResult.name) || '新規キャラクター',
-      x: Math.round(clampedX),
-      y: Math.round(clampedY),
+      x: Math.round(dropX - GRID_SIZE / 2),
+      y: Math.round(dropY - GRID_SIZE / 2),
       ownerId: getCurrentParticipantId() // 読み込んだ人のコマにする（作成時と同じ扱い）
     });
 

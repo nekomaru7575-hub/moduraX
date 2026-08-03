@@ -1454,7 +1454,7 @@ export class ImmutableStore {
 
       // --- パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト） ---
       // 位置(x,y)は盤面ローカルのピクセル座標（グリッド吸着済み、盤面外は負値もあり得る）、
-      // 大きさ(cols,rows)はマス数。隣接判定などの配置妥当性チェックはUI層(board-data-driven.js)が行う。
+      // 大きさ(cols,rows)はマス数。置ける場所に制限は無く、盤面から離れた位置にも置ける。
       case 'ADD_PANEL': {
         const {
           id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,

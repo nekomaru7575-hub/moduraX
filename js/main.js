@@ -352,7 +352,11 @@ function currentBoardSnapshot() {
       boardWidth: room.boardWidth,
       boardHeight: room.boardHeight
     },
-    panels: store.state.panels || {}
+    // 「シーンチェンジで残す」パネルはどのシーンにも属さないので写し取らない。
+    // 焼き付けてしまうと、そのパネルを消したあとに古いシーンへ行ったとき復活してしまう。
+    panels: Object.fromEntries(
+      Object.entries(store.state.panels || {}).filter(([, panel]) => !panel.keepOnSceneChange)
+    )
   };
 }
 

@@ -386,7 +386,9 @@ const PANEL_FIELD_PATCHES = {
   SET_PANEL_TEXT: ({ text }) => ({ text: text || '' }),
   // パネルのテキストを誰に見せるか（null＝全員。js/visibility.js参照）。画像は対象外で、
   // 「絵は見えるがメモはGMだけが読める」という使い方を想定している。
-  SET_PANEL_TEXT_AUDIENCE: ({ textAudience }) => ({ textAudience: normalizeAudience(textAudience) })
+  SET_PANEL_TEXT_AUDIENCE: ({ textAudience }) => ({ textAudience: normalizeAudience(textAudience) }),
+  // シーンへ遷移しても盤面に残すか（APPLY_SCENE参照）
+  SET_PANEL_KEEP_ON_SCENE_CHANGE: ({ keepOnSceneChange }) => ({ keepOnSceneChange: !!keepOnSceneChange })
 };
 
 export class ImmutableStore {
@@ -1185,6 +1187,7 @@ export class ImmutableStore {
       // 分けるとその分だけ穴が増える）。
       //
       // コマ・チャット・参加者・ラウンド進行には触れない（バフの消滅だけはコマに及ぶ）。
+      // パネルは総入れ替えだが、keepOnSceneChangeが付いたものだけは持ち越す。
       // playIdは呼び出し側が採番する。ここでDate.now()を呼ぶと、各クライアントとサーバーが
       // 同じアクションを再実行したときに値がずれ、js/audio-player.jsの再生検知が壊れる。
       case 'APPLY_SCENE': {
@@ -1209,6 +1212,13 @@ export class ImmutableStore {
         // シーンの内側であるラウンド/プロセス/判定のバフもここで一緒に消える。
         const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, 'scene');
 
+        // 「シーンチェンジで残す」パネルは、遷移先のパネルへ重ねて持ち越す。
+        // 同じidが両方にある場合（この属性より前に保存したシーン等）は盤面側を採る：
+        // 保存したあとに動かした位置・大きさを巻き戻したくないため。
+        const keptPanels = Object.fromEntries(
+          Object.entries(prevState.panels || {}).filter(([, panel]) => panel.keepOnSceneChange)
+        );
+
         this.#commit(prevState, {
           room: {
             ...room,
@@ -1218,7 +1228,7 @@ export class ImmutableStore {
             boardHeight: scene.boardHeight || null,
             audioPlayback: withMapEntry(playback, 'bgm', nextBgm)
           },
-          panels: freezePanelMap(scene.panels),
+          panels: freezePanelMap({ ...scene.panels, ...keptPanels }),
           tokens,
           chatLogs: withSystemLog(
             withSystemLog(prevState.chatLogs, logText),
@@ -1430,7 +1440,7 @@ export class ImmutableStore {
       case 'ADD_PANEL': {
         const {
           id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,
-          textAudience = null
+          textAudience = null, keepOnSceneChange = false
         } = payload;
         if (!id) return;
         if (prevState.panels[id]) return;
@@ -1441,7 +1451,10 @@ export class ImmutableStore {
           rows: Math.max(1, Math.round(rows)),
           locked: !!locked, // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
           // テキスト（マウスオーバーで出るメモ）の公開先。null＝全員に見せる
-          textAudience: normalizeAudience(textAudience)
+          textAudience: normalizeAudience(textAudience),
+          // シーンへ遷移してもこのパネルだけは盤面に残す。シーン側には保存されないので、
+          // 実体は常に1つ（js/main.jsのcurrentBoardSnapshotとAPPLY_SCENE参照）
+          keepOnSceneChange: !!keepOnSceneChange
         });
 
         this.#commit(prevState, { panels: withMapEntry(prevState.panels, id, panel) });
@@ -1631,6 +1644,8 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // シーン（js/scene-list-dialog.js）。GMが場面ごとに盤面の見た目を保存しておき、
       // 1クリックで切り替えるための入れ物。保存するのは背景・盤面サイズ・パネルだけで、
       // コマ・チャット・参加者・ラウンド進行には触れない。
+      // panelsには「シーンチェンジで残す」指定のパネルは入らない（どのシーンにも属さず、
+      // 盤面側に1つだけ在り続けるため。js/main.jsのcurrentBoardSnapshot参照）。
       // { [id]: { id, name, text, bgmTrackId, backgroundImage, backgroundImageKey,
       //           boardWidth, boardHeight, panels } }
       // bgmTrackId は null=BGMを変えない / SCENE_BGM_STOP=止める / audioTracksのid=その曲。

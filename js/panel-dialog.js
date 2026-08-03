@@ -2,6 +2,7 @@
 // パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。
 // 画像とサイズ（幅・高さ、マス単位）を指定する。画像を選ぶと、その実サイズを
 // マス換算した近似値をサイズ欄に自動反映する（あとから手で変更可）。
+// 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
 import { pickAndUploadImage } from './image-upload.js';
 
@@ -32,12 +33,16 @@ function loadImageDimensions(dataUrl) {
  *   initialText?: string,
  *   initialCols?: number,
  *   initialRows?: number,
+ *   initialKeepOnSceneChange?: boolean,
  *   gridSize: number,
- *   onConfirm: (result: { image: string | null, text: string, cols: number, rows: number }) => void
+ *   onConfirm: (result: {
+ *     image: string | null, text: string, cols: number, rows: number, keepOnSceneChange: boolean
+ *   }) => void
  * }} options
  */
 export function showPanelDialog({
-  title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, gridSize, onConfirm
+  title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
+  initialKeepOnSceneChange = false, gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -146,6 +151,24 @@ export function showPanelDialog({
   rowsGroup.appendChild(rowsInput);
   form.appendChild(rowsGroup);
 
+  // --- シーンチェンジで残す ---
+  // 既定はオフ（＝従来どおり、シーンへ遷移するとパネルは総入れ替えになる）。
+  const keepGroup = document.createElement('div');
+  keepGroup.className = 'dialog-form-group';
+  const keepLabel = document.createElement('label');
+  keepLabel.style.display = 'flex';
+  keepLabel.style.alignItems = 'center';
+  keepLabel.style.gap = '6px';
+  keepLabel.style.cursor = 'pointer';
+  keepLabel.title = '他のシーンへ移動してもこのパネルは盤面に残ります（シーンには保存されません）。';
+  const keepInput = document.createElement('input');
+  keepInput.type = 'checkbox';
+  keepInput.checked = !!initialKeepOnSceneChange;
+  keepLabel.appendChild(keepInput);
+  keepLabel.appendChild(document.createTextNode('シーンチェンジで残す'));
+  keepGroup.appendChild(keepLabel);
+  form.appendChild(keepGroup);
+
   // --- ボタン行 ---
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';
@@ -169,7 +192,10 @@ export function showPanelDialog({
     const cols = Math.max(1, Math.round(Number(colsInput.value) || initialCols));
     const rows = Math.max(1, Math.round(Number(rowsInput.value) || initialRows));
     dialog.close();
-    onConfirm({ image: currentImage, text: textInput.value, cols, rows });
+    onConfirm({
+      image: currentImage, text: textInput.value, cols, rows,
+      keepOnSceneChange: keepInput.checked
+    });
   });
 
   dialog.appendChild(form);

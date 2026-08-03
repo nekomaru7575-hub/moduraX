@@ -76,7 +76,8 @@ export function showSceneDialog({ scene = null, tracks = [], onConfirm, onOverwr
   if (!scene) {
     const note = document.createElement('p');
     note.className = 'audio-note';
-    note.textContent = '今の背景・盤面サイズ・パネルをこのシーンとして保存します。コマは含みません。';
+    note.textContent = '今の背景・盤面サイズ・パネルをこのシーンとして保存します。'
+      + 'コマと「シーンチェンジで残す」パネルは含みません。';
     form.appendChild(note);
   }
 

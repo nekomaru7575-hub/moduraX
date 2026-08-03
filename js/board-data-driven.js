@@ -561,8 +561,9 @@ function bindPanelDrag(element, board) {
             initialText: current.text,
             initialCols: current.cols,
             initialRows: current.rows,
+            initialKeepOnSceneChange: !!current.keepOnSceneChange,
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows }) => {
+            onConfirm: ({ image, text, cols, rows, keepOnSceneChange }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
               if (image !== (latest.image || null)) {
@@ -573,6 +574,9 @@ function bindPanelDrag(element, board) {
               }
               if (cols !== latest.cols || rows !== latest.rows) {
                 store.dispatch('SET_PANEL_SIZE', { id: panelId, cols, rows });
+              }
+              if (keepOnSceneChange !== !!latest.keepOnSceneChange) {
+                store.dispatch('SET_PANEL_KEEP_ON_SCENE_CHANGE', { id: panelId, keepOnSceneChange });
               }
             }
           });
@@ -786,7 +790,7 @@ window.addEventListener('DOMContentLoaded', () => {
           showPanelDialog({
             title: 'パネルを追加',
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows }) => {
+            onConfirm: ({ image, text, cols, rows, keepOnSceneChange }) => {
               const rect = { x: snapX, y: snapY, w: cols * GRID_SIZE, h: rows * GRID_SIZE };
               if (!isPanelPlacementValid(rect, board, null)) {
                 alert('パネルは盤面または他のパネルに隣接する位置に配置してください。');
@@ -799,7 +803,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 x: snapX,
                 y: snapY,
                 cols,
-                rows
+                rows,
+                keepOnSceneChange
               });
             }
           });

@@ -350,7 +350,8 @@ function currentBoardSnapshot() {
       imageUrl: room.backgroundImage,
       imageKey: room.backgroundImageKey,
       boardWidth: room.boardWidth,
-      boardHeight: room.boardHeight
+      boardHeight: room.boardHeight,
+      showGrid: room.showGrid
     },
     // 「シーンチェンジで残す」パネルはどのシーンにも属さないので写し取らない。
     // 焼き付けてしまうと、そのパネルを消したあとに古いシーンへ行ったとき復活してしまう。

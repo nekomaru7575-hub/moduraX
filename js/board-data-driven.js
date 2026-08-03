@@ -176,28 +176,40 @@ function resolveBoardPixelSize(board, room) {
   };
 }
 
-// 背景画像とボードサイズを盤面に反映する。盤面サイズは常にマスの整数倍にし、
-// 背景画像はその盤面全体へ拡縮して敷く（マス目からはみ出さない）。imageUrlが無い場合は
-// CSS側のデフォルト背景（グリッド＋グレー）に戻す。
+// 背景画像・マス目・ボードサイズを盤面に反映する。盤面サイズは常にマスの整数倍にし、
+// 背景画像はその盤面全体へ拡縮して敷く（マス目からはみ出さない）。
+// マス目の有無と画像の有無は独立なので、重ねる層をその都度組み立てる。
 function applyBoardBackground(board, room) {
   const imageUrl = room?.backgroundImage;
+  // 既定はマス目あり。この項目より前の部屋・シーンにはキーが無いので !== false で読む。
+  const showGrid = room?.showGrid !== false;
   const { width: bw, height: bh } = resolveBoardPixelSize(board, room);
 
   board.style.width = `${bw}px`;
   board.style.height = `${bh}px`;
 
-  if (!imageUrl) {
-    board.style.backgroundImage = '';
-    board.style.backgroundSize = '';
-    board.style.backgroundPosition = '';
-    board.style.backgroundRepeat = '';
-    return;
+  // 手前から順に重ねる（マス目が画像の上）
+  const layers = [];
+  const sizes = [];
+  const repeats = [];
+
+  if (showGrid) {
+    layers.push(BOARD_GRID_LAYERS); // 縦線・横線の2層
+    sizes.push(`${GRID_SIZE}px ${GRID_SIZE}px`, `${GRID_SIZE}px ${GRID_SIZE}px`);
+    repeats.push('repeat', 'repeat');
+  }
+  if (imageUrl) {
+    layers.push(`url('${imageUrl}')`);
+    sizes.push(`${bw}px ${bh}px`);
+    repeats.push('no-repeat');
   }
 
-  board.style.backgroundImage = `${BOARD_GRID_LAYERS}, url('${imageUrl}')`;
-  board.style.backgroundSize = `${GRID_SIZE}px ${GRID_SIZE}px, ${GRID_SIZE}px ${GRID_SIZE}px, ${bw}px ${bh}px`;
-  board.style.backgroundPosition = '0 0, 0 0, 0 0';
-  board.style.backgroundRepeat = 'repeat, repeat, no-repeat';
+  // 画像もマス目も無い場合、インラインを空にするとCSS側の既定（#boardのグリッド）へ
+  // 戻ってしまう。'none'を明示して打ち消す（背景色のグレーはCSS側のまま残る）。
+  board.style.backgroundImage = layers.length > 0 ? layers.join(', ') : 'none';
+  board.style.backgroundSize = sizes.join(', ');
+  board.style.backgroundPosition = sizes.map(() => '0 0').join(', ');
+  board.style.backgroundRepeat = repeats.join(', ');
 }
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
@@ -822,6 +834,7 @@ window.addEventListener('DOMContentLoaded', () => {
             initialRows: auto ? null : Math.round(room.boardHeight / GRID_SIZE),
             fallbackCols: Math.max(1, Math.round(board.offsetWidth / GRID_SIZE)),
             fallbackRows: Math.max(1, Math.round(board.offsetHeight / GRID_SIZE)),
+            initialShowGrid: room.showGrid !== false,
             initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
             gridSize: GRID_SIZE,
             onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)

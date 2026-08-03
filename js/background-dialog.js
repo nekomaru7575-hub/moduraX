@@ -40,12 +40,13 @@ function loadImageDimensions(imageSrc) {
  *   initialRows?: number | null,
  *   fallbackCols?: number,        自動のときに数値欄へ初期表示する、今の実サイズ
  *   fallbackRows?: number,
+ *   initialShowGrid?: boolean,
  *   initialKeepOnSceneChange?: boolean,
  *   gridSize: number,
  *   onConfirm: (result: {
  *     imageUrl: string | null, imageKey: string | null,
  *     boardWidth: number | null, boardHeight: number | null,
- *     keepOnSceneChange: boolean
+ *     showGrid: boolean, keepOnSceneChange: boolean
  *   }) => void
  * }} options
  *   boardWidth/boardHeightはマス数×gridSizeへ変換した後のピクセルサイズ（自動ならnull）。
@@ -54,7 +55,7 @@ export function showBackgroundDialog({
   initialImage = null, initialImageKey = null,
   initialCols = null, initialRows = null,
   fallbackCols = 20, fallbackRows = 15,
-  initialKeepOnSceneChange = false,
+  initialShowGrid = true, initialKeepOnSceneChange = false,
   gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
@@ -186,6 +187,24 @@ export function showBackgroundDialog({
   autoInput.addEventListener('change', syncSizeInputs);
   syncSizeInputs();
 
+  // --- マス目を描画する ---
+  // 既定はあり。地図画像に元からマス目が描かれている場合など、二重に見えるときに外す。
+  const gridGroup = document.createElement('div');
+  gridGroup.className = 'dialog-form-group';
+  const gridLabel = document.createElement('label');
+  gridLabel.style.display = 'flex';
+  gridLabel.style.alignItems = 'center';
+  gridLabel.style.gap = '6px';
+  gridLabel.style.cursor = 'pointer';
+  gridLabel.title = '盤面に敷くマス目（グリッド線）の表示です。コマの吸着は外しても変わりません。';
+  const gridInput = document.createElement('input');
+  gridInput.type = 'checkbox';
+  gridInput.checked = initialShowGrid !== false;
+  gridLabel.appendChild(gridInput);
+  gridLabel.appendChild(document.createTextNode('マス目を描画する'));
+  gridGroup.appendChild(gridLabel);
+  form.appendChild(gridGroup);
+
   // --- シーンチェンジで残す ---
   // 既定はオフ（＝従来どおり、シーンへ遷移すると背景と盤面サイズが切り替わる）。
   const keepGroup = document.createElement('div');
@@ -234,6 +253,7 @@ export function showBackgroundDialog({
       imageKey: currentImageKey,
       boardWidth: auto ? null : cols * gridSize,
       boardHeight: auto ? null : rows * gridSize,
+      showGrid: gridInput.checked,
       keepOnSceneChange: keepInput.checked
     });
   });

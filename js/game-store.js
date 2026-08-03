@@ -1139,6 +1139,8 @@ export class ImmutableStore {
           backgroundImageKey: background.imageKey || null,
           boardWidth: background.boardWidth || null,
           boardHeight: background.boardHeight || null,
+          // この項目より前に保存されたシーンにはキーが無いので、既定（マス目あり）へ倒す
+          showGrid: background.showGrid !== false,
           panels: freezePanelMap(panels)
         });
 
@@ -1228,7 +1230,8 @@ export class ImmutableStore {
               backgroundImage: scene.backgroundImage || null,
               backgroundImageKey: scene.backgroundImageKey || null,
               boardWidth: scene.boardWidth || null,
-              boardHeight: scene.boardHeight || null
+              boardHeight: scene.boardHeight || null,
+              showGrid: scene.showGrid !== false
             }),
             audioPlayback: withMapEntry(playback, 'bgm', nextBgm)
           },
@@ -1353,7 +1356,8 @@ export class ImmutableStore {
       // R2へ移行する前に保存されたデータURLの背景ではnullのまま。
       case 'SET_BOARD_BACKGROUND': {
         const {
-          imageUrl, imageKey = null, boardWidth = null, boardHeight = null, keepOnSceneChange = false
+          imageUrl, imageKey = null, boardWidth = null, boardHeight = null,
+          showGrid = true, keepOnSceneChange = false
         } = payload;
 
         this.#commit(prevState, {
@@ -1361,6 +1365,8 @@ export class ImmutableStore {
             ...prevState.room,
             backgroundImage: imageUrl || null,
             backgroundImageKey: imageUrl ? (imageKey || null) : null,
+            // マス目（グリッド線）を敷くか。既定はあり（applyBoardBackground参照）
+            showGrid: showGrid !== false,
             // 画像とサイズは独立して決める（画像なしで盤面だけ広げる／画像を消しても
             // サイズは残す）。null＝ビューポートに合わせる（resolveBoardPixelSize参照）。
             boardWidth: boardWidth || null,
@@ -1638,6 +1644,7 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // null = 自動（ビューポートをマス単位に切り上げたサイズ。resolveBoardPixelSize参照）
       boardWidth: null,
       boardHeight: null,
+      showGrid: true,        // マス目（グリッド線）を敷くか。地図画像をそのまま見せたい時に外す
       // シーンへ遷移しても背景・盤面サイズを変えないか（js/background-dialog.js）。
       // シーン側への保存は従来どおり行い、遷移時の上書きだけを止める
       keepBackgroundOnSceneChange: false,
@@ -1663,7 +1670,7 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // panelsには「シーンチェンジで残す」指定のパネルは入らない（どのシーンにも属さず、
       // 盤面側に1つだけ在り続けるため。js/main.jsのcurrentBoardSnapshot参照）。
       // { [id]: { id, name, text, bgmTrackId, backgroundImage, backgroundImageKey,
-      //           boardWidth, boardHeight, panels } }
+      //           boardWidth, boardHeight, showGrid, panels } }
       // bgmTrackId は null=BGMを変えない / SCENE_BGM_STOP=止める / audioTracksのid=その曲。
       scenes: {}
     },

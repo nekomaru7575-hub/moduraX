@@ -22,6 +22,7 @@ const ROOM_DELETED_CLOSE_CODE = 4005;
 const ENTRY_CLOSE_CODE = 4006;
 
 import { store } from './game-store.js';
+import { adoptImportedState } from './state-import.js';
 import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
@@ -35,6 +36,10 @@ let ws = null;
 // 開発用の合言葉で名乗れているか。サーバーだけが判定できる値なので、名乗りの結果
 // （IDENTITY_ACCEPTED）で受け取って持っておく。接続ごとに名乗り直すため、切れたら忘れる。
 let developerIdentity = false;
+
+// この画面が名乗る値（{participantId, authToken}）。名乗りは接続ごとにサーバーが忘れるので、
+// 繋がるたびに送り直せるようここで覚えておく。ゲスト参加へ切り替えたときはnullに戻す。
+let identityToSend = null;
 
 export function isDeveloperIdentity() {
   return developerIdentity;
@@ -66,6 +71,16 @@ function sendJoin() {
   }
 }
 
+// 覚えている名乗りをサーバーへ送る。送れなければ何もしない：接続が開いたとき（open）と
+// 部屋の中身を受け取ったとき（INIT）に必ず呼ぶので、そのどちらかで送り直される。
+// 入室パスワードのある部屋では、照合が済むまでサーバーが名乗りを読み捨てる
+// （server/index.jsの「認証前は他のメッセージを受け付けない」）ため、INIT側の呼び出しが要る。
+function flushIdentify() {
+  if (!identityToSend) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'IDENTIFY', ...identityToSend }));
+}
+
 function connect() {
   EventBus.emit('NET_STATUS_CHANGED', 'connecting');
   ws = new WebSocket(WS_URL);
@@ -73,6 +88,9 @@ function connect() {
 
   ws.addEventListener('open', () => {
     EventBus.emit('NET_STATUS_CHANGED', 'connected');
+    // 繋ぎ直したときの名乗り直し。名乗りは接続ごとなので、ここで送らないと
+    // 名乗り直すまでの間、GM限定の操作がサーバーに黙って断られ続ける。
+    flushIdentify();
   });
 
   ws.addEventListener('message', (event) => {
@@ -99,6 +117,10 @@ function connect() {
       // 入室できたので、パスワードを聞いたままの画面が残っていれば閉じる
       closeRoomEntryDialog();
       store.hydrate(message.state);
+      // 覚えている名乗りをここでも送り直す。下のNET_INITIALIZEDでもjs/main.jsが名乗り直すが、
+      // そちらは表示名からIDを導出し直す非同期の処理なので、届くまでのわずかな間だけ
+      // 「画面は操作できるのにサーバーからは誰でもない」状態になってしまう。
+      flushIdentify();
       // サーバーの最新状態を受け取った直後にだけ行いたい処理（参加者としての名乗り等）の
       // きっかけ。INITより前にdispatchしても、このhydrateで上書きされてしまうため。
       EventBus.emit('NET_INITIALIZED', message.state);
@@ -191,15 +213,15 @@ export function initNetSync() {
 // この接続での名乗りをサーバーへ伝える。表示名から導出した公開ID（participantId）と、
 // 状態には載せない名乗り用の値（authToken）を送る。サーバーはこの2つを突き合わせて
 // 「そのIDを名乗ってよいか」を判断し、GM限定の操作の可否に使う（server/index.jsのverifyIdentity）。
-// 接続が切れると忘れられるので、再接続のたびに送り直す必要がある
-// （js/main.jsがNET_INITIALIZEDのたびに名乗り直すため、その経路で送られる）。
+// 接続が切れるとサーバーは忘れるので、値はidentityToSendに覚えておき、繋がるたび
+// （open・INIT）にflushIdentifyで送り直す。まだ繋がっていない間に呼ばれても取りこぼさない。
 export function sendIdentify(participantId, authToken) {
   // 名乗り直しの結果が返るまでは、前の名乗りで得た権限を持ち越さない
   developerIdentity = false;
-  if (!participantId || !authToken) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'IDENTIFY', participantId, authToken }));
-  }
+  // 名前なし（ゲスト参加）への切り替え。覚えていた名乗りも捨てる：残しておくと、
+  // 次に繋ぎ直したときに前の人として名乗り直してしまう。
+  identityToSend = (participantId && authToken) ? { participantId, authToken } : null;
+  flushIdentify();
 }
 
 // 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させた上で
@@ -215,9 +237,13 @@ export function requestRoomDeletion() {
 // 置き換える。ローカルには即座に反映し、サーバーには別途通知して他クライアントにも
 // ブロードキャストしてもらう（ADD_CHAT_MESSAGE等の通常アクションとは別経路）。
 export function replaceState(newState) {
-  store.hydrate(newState);
+  // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。今の部屋の参加者一覧を
+  // 引き継がないと、読み込んだ本人がその場でGM権限を失う。サーバー側も同じ関数を通すが、
+  // ここで通しておかないと、送り返されるINITが届くまでの間だけ画面が食い違う。
+  const adopted = adoptImportedState(newState, { participants: store.state.participants });
+  store.hydrate(adopted);
 
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'REPLACE_STATE', state: newState }));
+    ws.send(JSON.stringify({ type: 'REPLACE_STATE', state: adopted }));
   }
 }

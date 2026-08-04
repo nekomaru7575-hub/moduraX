@@ -315,6 +315,45 @@ function buildInfoSection({ id, label = '', body = '', audience = null }) {
   });
 }
 
+// 保存済み・読み込まれた情報（infoEntries）の形を整える。hydrateと「部屋の全データ読み込み」
+// （js/state-import.js）の両方がここを通る。
+// ADD_INFO_ENTRYと同じ規則で検証し、通らないものは捨てる：sectionsやtitleを欠いたエントリが
+// 1件混ざるだけで、情報パネルは描画のたびに例外を投げてしまうため（js/info-panel.js）。
+export function normalizeInfoEntries(infoEntries) {
+  if (!Array.isArray(infoEntries)) return [];
+
+  const seenEntryIds = new Set();
+  const normalized = [];
+
+  infoEntries.forEach(entry => {
+    if (!entry || typeof entry !== 'object') return;
+    if (typeof entry.id !== 'string' || entry.id === '') return;
+    if (typeof entry.title !== 'string') return;
+    if (seenEntryIds.has(entry.id)) return;
+
+    const seenSectionIds = new Set();
+    const sections = [];
+    (Array.isArray(entry.sections) ? entry.sections : []).forEach(section => {
+      if (!section || typeof section !== 'object') return;
+      if (typeof section.id !== 'string' || section.id === '') return;
+      if (seenSectionIds.has(section.id)) return;
+      seenSectionIds.add(section.id);
+      sections.push(buildInfoSection(section));
+    });
+    // 区画0件のエントリは誰にも見えず画面から消すこともできない（ADD_INFO_ENTRYと同じ理由で捨てる）
+    if (sections.length === 0) return;
+
+    seenEntryIds.add(entry.id);
+    normalized.push(Object.freeze({
+      ...entry,
+      ownerId: entry.ownerId || null,
+      sections: Object.freeze(sections)
+    }));
+  });
+
+  return Object.freeze(normalized);
+}
+
 // ユーザー定義パラメータ（source:'user'）1件の定義を作る。コマのパラメータとルーム変数で共通。
 // visibleは「一覧に表示するか」の指定があるコマのパラメータ側だけが持つ（ルーム変数は常に表示）。
 function buildUserParam({ key, label, value, visible, audience }) {
@@ -502,8 +541,9 @@ export class ImmutableStore {
       panels: newState.panels || {},
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
-      // この機能より前に保存された状態には情報（infoEntries）が無いため、既定値を補う
-      infoEntries: newState.infoEntries || [],
+      // この機能より前に保存された状態には情報（infoEntries）が無いため、既定値を補う。
+      // 形の壊れたエントリ（sections欠落など）もここで落とす（normalizeInfoEntries参照）。
+      infoEntries: normalizeInfoEntries(newState.infoEntries),
       // この機能より前に保存された状態には参加者一覧が無いため、既定値を補う
       participants: newState.participants || {},
       // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う。
@@ -1826,6 +1866,35 @@ export class ImmutableStore {
         return;
       }
 
+      // 読み込んだ部屋データの情報を、GMが自分のものとして引き取る（js/state-import.js）。
+      // 取り込みの時点ではまだGMが決まっていないことがある（部屋作成と同時の読み込み）ため、
+      // 引き取りは取り込みと分けてこのアクションにしてある。発火はjs/info-panel.js。
+      // 公開先が設定されていた区画は取り込み時に宛先なし（＝誰にも見えない）へ潰してあるので、
+      // ここでGMを宛先に入れて初めて画面に出る。全員公開だった区画はそのまま触らない。
+      case 'CLAIM_RESTORED_INFO': {
+        const { participantId } = payload;
+        if (!participantId) return;
+        if (!prevState.infoEntries.some(entry => entry.restoredFromImport)) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.map(entry => {
+            if (!entry.restoredFromImport) return entry;
+
+            const { restoredFromImport, ...rest } = entry;
+            return Object.freeze({
+              ...rest,
+              ownerId: participantId,
+              sections: Object.freeze(entry.sections.map(section => (
+                Array.isArray(section.audience)
+                  ? buildInfoSection({ ...section, audience: [participantId] })
+                  : section
+              )))
+            });
+          })
+        });
+        return;
+      }
+
       case 'REMOVE_INFO_ENTRY': {
         const { id } = payload;
         if (!prevState.infoEntries.some(entry => entry.id === id)) return;
@@ -1913,6 +1982,8 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     // sectionsは1エントリ内の区画で、公開先(audience)をエントリではなくsectionが持つ。
     // 将来のダブルハンドアウト（表の使命／裏の使命）で「表＝audience:null、裏＝限定公開」を
     // 1エントリに同居させるための構造で、現状のUIは必ず1件だけ作る。
+    // 部屋データの読み込みで復元されたエントリだけは、GMが引き取るまでの間だけ
+    // restoredFromImport:true を持つ（js/state-import.js・CLAIM_RESTORED_INFO）。
     infoEntries: [],
 
     // 参加者一覧（js/local-identity.jsの表示名から導出した公開IDがキー）。

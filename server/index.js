@@ -23,6 +23,7 @@ import path from 'node:path';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
+import { adoptImportedState } from '../js/state-import.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
   publicUrlFor, publicBaseUrl, keyFromPublicUrl
@@ -313,7 +314,11 @@ const GM_ONLY_ACTIONS = new Set([
   // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
   // 上の操作を通せてしまい、他の制限がすべて無意味になる。
   'SET_PARTICIPANT_GM',
-  'REMOVE_PARTICIPANT'
+  'REMOVE_PARTICIPANT',
+  // 読み込んだ部屋データの情報をGMが引き取る操作（js/state-import.js）。情報系で唯一の
+  // GM限定アクション：ここが空いていると、誰でも「読み込んだ限定公開の情報」を丸ごと
+  // 自分宛てにして読めてしまう。
+  'CLAIM_RESTORED_INFO'
   // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCEは、
   // GM以外も作成・開示できる機能なので入れない。「編集・削除できるのは作成者とGM」は
   // 画面側（js/info-panel.jsのcanEditEntry）だけの制限で、サーバーは強制しない。
@@ -1074,7 +1079,10 @@ async function handleCreateRoom(req, res) {
       ? importedRoom.bcdiceSystem
       : safeBcdiceSystem;
 
-    initialState = {
+    // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。この部屋にはまだ誰も
+    // 入っていないので参加者一覧は空で渡す＝ファイル側の参加者（GMの印を含む）を捨て、
+    // 「最初に名乗った人がGMになる」規則に戻す。
+    initialState = adoptImportedState({
       ...importedState,
       room: {
         ...importedRoom,
@@ -1082,7 +1090,7 @@ async function handleCreateRoom(req, res) {
         activePlugin: resolvedActivePlugin,
         bcdiceSystem: resolvedBcdiceSystem
       }
-    };
+    }, { participants: {} });
   } else {
     initialState = createInitialGameState({ name: trimmedName, activePlugin: safeActivePlugin, bcdiceSystem: safeBcdiceSystem });
   }
@@ -1475,7 +1483,12 @@ wss.on('connection', async (ws, req) => {
       // 持ち物へ複製し直す（adoptStateImages参照）。複製には時間がかかるので、
       // その間に届いた他の操作は先に適用され、この置き換えで上書きされる——が、
       // 全データの読み込みは元々そういう操作なので問題にしない。
-      adoptStateImages(roomId, message.state).then((adopted) => {
+      // 送り手側でも通しているが、ここでも必ず通す（js/state-import.js）。今この部屋にいる
+      // 参加者一覧を引き継ぐことで、読み込んだGMがGMのままでいられる。
+      const importedState = adoptImportedState(message.state, {
+        participants: entry.store.state.participants
+      });
+      adoptStateImages(roomId, importedState).then((adopted) => {
         entry.store.hydrate(adopted);
         schedulePersistForRoom(roomId, entry);
         // 送り手にも配る。送り手の画面には複製前（データURL等）が入っているため、

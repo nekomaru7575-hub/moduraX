@@ -37,6 +37,12 @@ let activeEntryId = null;
 let lastRenderedEntriesRef = null;
 let lastRenderedParticipantsRef = null;
 
+// 引き取り（下のclaimRestoredEntries）の連続失敗を数える。サーバーに断られるとRESYNCで
+// 印の付いた状態が戻ってくるため、無条件に撃ち直すと往復し続けてしまう。引き取れたら
+// 0に戻すので、入室中に続けて読み込んだ場合もその都度やり直せる。
+const MAX_CLAIM_ATTEMPTS = 3;
+let claimAttempts = 0;
+
 function entryLabel(entry) {
   return entry.title.trim() || '(無題)';
 }
@@ -219,8 +225,28 @@ export function initInfoPanel() {
     });
   }
 
+  // 部屋データの読み込みで復元された情報（restoredFromImport）を、GMのものとして引き取る。
+  // 読み込んだファイルの公開先は、部屋が変われば誰も名乗れないIDになっている。取り込みの時点
+  // （js/state-import.js）では宛先なしに潰してあるので、GMの画面へ届いたここで引き取って
+  // 初めて読めるようになる。GMがまだ決まっていない部屋では誰も撃たないので、部屋の作成と
+  // 同時に読み込んだ場合は、最初に名乗った人がGMになった瞬間に引き取られる。
+  function claimRestoredEntries(state, myId) {
+    if (!(state.infoEntries || []).some(entry => entry.restoredFromImport)) {
+      claimAttempts = 0; // 引き取り済み。次の読み込みに備えて数え直す
+      return false;
+    }
+    if (claimAttempts >= MAX_CLAIM_ATTEMPTS) return false;
+    if (!myId || !isGm(state.participants, myId)) return false;
+
+    claimAttempts += 1;
+    store.dispatch('CLAIM_RESTORED_INFO', { participantId: myId });
+    return true;
+  }
+
   function render(state) {
     const myId = getCurrentParticipantId();
+    // 引き取ると状態が変わり、その通知で描き直されるので、ここでは描かずに譲る
+    if (claimRestoredEntries(state, myId)) return;
     ensureActiveEntryVisible(state, myId);
     renderTabs(state, myId);
     renderSections(state, myId);
@@ -319,7 +345,10 @@ export function initInfoPanel() {
 
   // 名乗る人が変わると、見えるタブと編集できるかが変わる。状態自体は変わらず上の差分
   // チェックにも引っかからないため、参照キャッシュを捨てて描き直す。
+  // 引き取りの失敗数もここで0に戻す：サーバーは名乗りが通っていない接続からのGM限定操作を
+  // 断るので、名乗りが通った（IDENTITY_ACCEPTED）この機会に必ずやり直す。
   EventBus.subscribe('IDENTITY_CHANGED', () => {
+    claimAttempts = 0;
     lastRenderedEntriesRef = null;
     lastRenderedParticipantsRef = null;
     render(store.state);

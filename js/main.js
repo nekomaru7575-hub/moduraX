@@ -477,7 +477,12 @@ async function activateAndRegisterIdentity(name, devPassphrase) {
   // STATE_CHANGEDでは拾えず、専用のイベントで各所に描き直してもらう。
   EventBus.emit('IDENTITY_CHANGED', identity?.participantId ?? null);
 
-  if (!identity) return; // 名前なし＝ゲスト参加。参加者一覧には載せない
+  // 名前なし＝ゲスト参加。参加者一覧には載せない。net-syncが覚えている名乗りも消して、
+  // 繋ぎ直したときに前の名前で名乗り直さないようにする。
+  if (!identity) {
+    sendIdentify(null, null);
+    return;
+  }
 
   // 参加者としての登録より先に名乗る。サーバーは名乗りが通ったID本人からの
   // REGISTER_PARTICIPANTしか受け付けない（server/index.js参照）。

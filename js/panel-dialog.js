@@ -1,7 +1,8 @@
 // js/panel-dialog.js
 // パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。
-// 画像とサイズ（幅・高さ、マス単位）を指定する。画像を選ぶと、その実サイズを
-// マス換算した近似値をサイズ欄に自動反映する（あとから手で変更可）。
+// 画像とサイズ（幅・高さ、マス単位）を指定する。画像がまだ無いパネルで画像を選ぶと、
+// その実サイズをマス換算した近似値をサイズ欄に自動反映する（あとから手で変更可）。
+// すでに画像があるパネルの編集では、画像を差し替えてもサイズは変えない。
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
 import { pickAndUploadImage } from './image-upload.js';
@@ -49,6 +50,10 @@ export function showPanelDialog({
 
   let currentImage = initialImage || null;
 
+  // すでに画像を持つパネルの編集では、画像を選び直してもサイズ欄へは自動反映しない
+  // （＝盤面上のパネルの大きさを変えない）。サイズを変えたいときは手で入力する。
+  const autoSizeFromImage = !currentImage;
+
   const form = document.createElement('form');
 
   const heading = document.createElement('h3');
@@ -85,7 +90,8 @@ export function showPanelDialog({
     preview.src = currentImage;
     preview.style.display = 'block';
 
-    // 画像の実サイズをマス換算してサイズ欄へ自動反映
+    // 画像の実サイズをマス換算してサイズ欄へ自動反映（新規追加時のみ）
+    if (!autoSizeFromImage) return;
     const dim = await loadImageDimensions(currentImage);
     if (dim) {
       colsInput.value = Math.max(1, Math.round(dim.width / gridSize));

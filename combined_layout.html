@@ -327,6 +327,28 @@
       font-weight: bold;
     }
 
+    /* このラウンドで行動を終えたコマ。手番が回ってこないことが一目で分かるよう薄く沈める
+       （GMがクリックして「行動済みを解除」すると戻る。js/round-panel.js参照） */
+    .round-panel-turn-row.acted {
+      color: #777;
+      text-decoration: line-through;
+      opacity: 0.75;
+    }
+
+    /* 次の手番に割り込む予約が入っているコマ */
+    .round-panel-turn-row.interrupt-reserved {
+      border: 1px solid #d0a000;
+      color: #f0c040;
+    }
+
+    .round-panel-turn-row.clickable {
+      cursor: pointer;
+    }
+
+    .round-panel-turn-row.clickable:hover {
+      background-color: #3a3a3a;
+    }
+
     /* 盤面下1/4：既存ログのミラー表示エリア */
     .current-chat-bar {
       flex: 1;
@@ -1219,6 +1241,15 @@
       <div class="dialog-form-group">
         <label for="roomPluginSelect">ルームのプラグイン</label>
         <select id="roomPluginSelect"></select>
+      </div>
+      <!-- ラウンド進行の設定（js/game-store.jsのSET_ROUND_SETTINGS）。ルーム単位・全員共通で、
+           進行中に切り替えた場合は次に手番が決まるタイミングから効く -->
+      <div class="dialog-form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+               title="各キャラクターの手番の直前に「イニシアチブプロセス」を挟み、その都度イニシアチブ順を計算し直します。">
+          <input type="checkbox" id="roundInitiativeProcessCheck">
+          キャラクターの手番の前にイニシアチブプロセスを挟む
+        </label>
       </div>
       <!-- 入室パスワード。現在の値はサーバーに平文で残っていないため表示できない。
            空欄で「変更」を押すと解除になる（js/main.jsのapplyEntryPassword） -->

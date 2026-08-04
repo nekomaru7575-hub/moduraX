@@ -32,10 +32,18 @@ export function buildRoomParameters(pluginId) {
 //   ブロックはしない）
 // expirePhaseOnComplete: このフェーズを抜ける時にEXPIRE_BUFFSと同じバフ剥がしを自動発火するか
 //   （'round'を指定すると、その内側のプロセス・判定のバフもまとめて剥がれる）
+// preTurnStep: 各キャラの手番の直前に挟む段（perCharacterのみ意味を持つ。nullなら挟まない）。
+//   「挟める段があるか」はテンプレート側＝将来はプラグイン/ユーザー定義が宣言し、
+//   「今回それを使うか」はルーム設定（room.roundSettings.useInitiativeProcess）が決める。
+//   この段を抜ける時に次の行動者を決め直すので、直前のバフで変わった行動値も反映される。
 const DEFAULT_ROUND_PHASE_TEMPLATE = [
-  { id: 'setup', label: 'セットアップ', kind: 'once', confirmMode: 'skip', expirePhaseOnComplete: null },
-  { id: 'action', label: 'キャラクター行動', kind: 'perCharacter', confirmMode: 'confirm', expirePhaseOnComplete: null },
-  { id: 'cleanup', label: 'クリンナップ', kind: 'once', confirmMode: 'confirm', expirePhaseOnComplete: 'round' }
+  { id: 'setup', label: 'セットアップ', kind: 'once', confirmMode: 'skip', expirePhaseOnComplete: null, preTurnStep: null },
+  {
+    id: 'action', label: 'キャラクター行動', kind: 'perCharacter', confirmMode: 'confirm',
+    expirePhaseOnComplete: null,
+    preTurnStep: { id: 'initiative', label: 'イニシアチブプロセス' }
+  },
+  { id: 'cleanup', label: 'クリンナップ', kind: 'once', confirmMode: 'confirm', expirePhaseOnComplete: 'round', preTurnStep: null }
 ];
 
 // 指定プラグインのラウンド進行フェーズテンプレートを返す。プラグイン未定義/未対応なら

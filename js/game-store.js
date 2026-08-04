@@ -82,16 +82,59 @@ export function formatExpiredBuffsNote(names, phase) {
 }
 
 // ラウンド進行（Core機能）の初期状態。未開始（active:false）がデフォルト。
+// 手番は「participants内のインデックス」ではなく「まだ行動していない人の集合」で表す。
+// こうしておくと、行動済みを取り消して手番を回復させたり、順番を無視して割り込ませたりが
+// 単なる集合の出し入れで済む（pickNextActor参照）。
 function createInitialRoundState() {
   return {
     active: false,
     template: null,   // 開始時にスナップショットするフェーズ配列（parameters/registry.jsのgetRoundPhaseTemplate参照）
     roundNumber: 0,
     phaseIndex: 0,
-    turnIndex: 0,      // participants内の現在の手番（kind:'perCharacter'のフェーズのみ意味を持つ）
-    participants: [],  // イニシアチブ降順のtokenId配列
+    participants: [],      // 参加者のtokenId（順序は開始時点の記録。実際の手番順は都度計算する）
+    acted: [],             // このラウンドで行動を終えたtokenId
+    currentActorId: null,  // 現在手番のコマ（kind:'perCharacter'かつstep:'act'のときだけ非null）
+    step: 'act',           // perCharacterフェーズ内のサブステップ。'preTurn'（イニシアチブプロセス）| 'act'
+    interruptId: null,     // 次の手番に割り込ませるコマ（GM指定。手番が決まる時に1回で消費する）
     confirmation: { readyEntries: [] } // 点呼/割り込み確認の「準備OK」一覧。[{userId, nickname}]
   };
+}
+
+// 保存済み・同期されてきたround状態に欠けているキーを補う（hydrate専用）。
+// turnIndex方式で保存された古い状態は、そのインデックスまでを行動済みと見なして
+// 新しいモデルへ読み替える（進行中の部屋を壊さないため）。
+function normalizeRoundState(round) {
+  if (!round) return createInitialRoundState();
+
+  const base = createInitialRoundState();
+  const participants = round.participants || [];
+
+  // 新形式（actedを持つ）ならそのまま。旧形式ならturnIndexから作り直す。
+  const migrated = round.acted
+    ? {}
+    : {
+      acted: participants.slice(0, round.turnIndex || 0),
+      currentActorId: participants[round.turnIndex || 0] || null,
+      step: 'act'
+    };
+
+  const next = {
+    ...base,
+    ...round,
+    ...migrated,
+    participants,
+    // 値がundefinedのキーもスプレッドで既定値を上書きしてしまうので、参照される
+    // まとまりだけは最後に埋め直す（round-panel.jsがreadyEntriesを直接読むため）
+    confirmation: round.confirmation || base.confirmation
+  };
+  delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
+  return next;
+}
+
+// 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。
+// この機能より前の状態にはキーが無いので、必ずこのヘルパ経由で読む。
+export function usesInitiativeProcess(state) {
+  return state?.room?.roundSettings?.useInitiativeProcess === true;
 }
 
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
@@ -336,6 +379,28 @@ function sortByInitiative(tokensState, participantIds) {
   });
 }
 
+// まだこのラウンドで行動していない参加者を、イニシアチブの実効値の降順で返す。
+// 呼ばれるたびに並べ替え直すので、バフ/デバフで行動値が変わっていれば次の手番の順序に
+// そのまま反映される（＝「イニシアチブプロセスで順番を計算し直す」の実体）。
+export function listUnactedParticipants(tokensState, round) {
+  const acted = round.acted || [];
+  return sortByInitiative(tokensState, round.participants.filter(id => !acted.includes(id)));
+}
+
+// 次に手番を得るコマ。割り込み指定が最優先で、無ければ未行動者のうち行動値が最大のもの。
+// 割り込み指定されたコマはROUND_SET_INTERRUPT側でactedから外してあるので、ここでは
+// 「参加者として残っているか」だけを確かめればよい。誰も残っていなければnull。
+export function pickNextActor(tokensState, round) {
+  if (round.interruptId && round.participants.includes(round.interruptId)) return round.interruptId;
+  return listUnactedParticipants(tokensState, round)[0] || null;
+}
+
+// フェーズに入るときのサブステップを決める。イニシアチブプロセスを挟む設定で、かつ
+// そのフェーズが「手番の前に挟む段」を宣言しているときだけ'preTurn'から始める。
+function initialStepForPhase(phase, useInitiativeProcess) {
+  return (useInitiativeProcess && phase?.kind === 'perCharacter' && phase.preTurnStep) ? 'preTurn' : 'act';
+}
+
 // ログ表示用にコマ名を並べる（見つからないidはそのまま出す）。
 function joinTokenNames(tokensState, ids) {
   return ids.map(id => tokensState[id]?.name || id).join('、');
@@ -441,8 +506,9 @@ export class ImmutableStore {
       infoEntries: newState.infoEntries || [],
       // この機能より前に保存された状態には参加者一覧が無いため、既定値を補う
       participants: newState.participants || {},
-      // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う
-      round: newState.round || createInitialRoundState(),
+      // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う。
+      // turnIndex方式で保存された進行中の状態もここで新しい手番モデルへ読み替える。
+      round: normalizeRoundState(newState.round),
       // この機能より前に保存された状態にはroom.bcdiceSystem/nameが無いため、既定値を補う
       room: {
         ...newState.room,
@@ -454,7 +520,9 @@ export class ImmutableStore {
         audioTracks: newState.room?.audioTracks || {},
         audioPlayback: newState.room?.audioPlayback || { bgm: null, se: null },
         // この機能より前に保存された状態にはroom.scenesが無いため、既定値を補う
-        scenes: newState.room?.scenes || {}
+        scenes: newState.room?.scenes || {},
+        // 同上、ラウンド進行の設定（イニシアチブプロセスを挟むか）も既定値を補う
+        roundSettings: newState.room?.roundSettings || { useInitiativeProcess: false }
       }
     };
     this.#state = this.#createProtectedProxy(normalized);
@@ -848,10 +916,11 @@ export class ImmutableStore {
       }
 
       // --- ラウンド進行（Core機能）。詳細はcreateInitialRoundState()のコメント・
-      // 実装プラン（C:\Users\necom\.claude\plans\swirling-foraging-lemon.md）参照。
-      // 認証/ロールが無いアプリの方針上、進行操作（開始/進行/終了/参加者変更）は
-      // 接続中の誰でも行える前提でガードしていない。点呼(confirmation)もソフトな
-      // 可視化のみで、進行操作自体をブロックしない。 ---
+      // 実装プラン（C:\Users\necom\.claude\plans\swirling-foraging-lemon.md、
+      // 手番モデルの作り替えはC:\Users\necom\.claude\plans\floofy-forging-cupcake.md）参照。
+      // 進行操作（開始/進行/終了/参加者変更/行動済みの回復/割り込み）はGM限定
+      // （js/room-authority.js・server/index.jsのGM_ONLY_ACTIONS）。点呼(confirmation)は
+      // PL各自の意思表示なのでソフトな可視化のみで、進行操作自体をブロックしない。 ---
 
       case 'ROUND_PROGRESSION_START': {
         const { participantIds = [] } = payload;
@@ -861,6 +930,13 @@ export class ImmutableStore {
         const participants = sortByInitiative(nextTokensState, participantIds);
 
         const firstPhase = template[0];
+        const step = initialStepForPhase(firstPhase, usesInitiativeProcess(prevState));
+        // 先頭がいきなりキャラクター行動フェーズのテンプレートもありうるので、その場合は
+        // ここで最初の手番を決めておく（'preTurn'から始まるなら手番はまだ決めない）。
+        const currentActorId = (firstPhase.kind === 'perCharacter' && step === 'act')
+          ? (sortByInitiative(nextTokensState, participants)[0] || null)
+          : null;
+
         const participantNames = joinTokenNames(nextTokensState, participants);
         const logText = participants.length > 0
           ? `ラウンド進行を開始しました（参加者: ${participantNames}）。ラウンド1 - ${firstPhase.label}開始。`
@@ -868,13 +944,14 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           round: {
+            ...createInitialRoundState(),
             active: true,
             template,
             roundNumber: 1,
             phaseIndex: 0,
-            turnIndex: 0,
             participants,
-            confirmation: { readyEntries: [] }
+            step,
+            currentActorId
           },
           chatLogs: withSystemLog(prevState.chatLogs, logText)
         });
@@ -887,15 +964,17 @@ export class ImmutableStore {
 
         const participants = sortByInitiative(nextTokensState, participantIds);
 
-        // 手番中のキャラが除外された場合に備え、turnIndexを新しい参加者数の範囲へ収める
-        const nextTurnIndex = participants.length > 0
-          ? Math.min(round.turnIndex, participants.length - 1)
-          : 0;
+        // 参加者から外れたコマの痕跡（行動済み・手番・割り込み予約）を掃除する。
+        // 手番中のコマが外された場合はcurrentActorIdをnullにし、次の「次へ進む」で
+        // pickNextActorに選び直させる。
+        const acted = (round.acted || []).filter(id => participants.includes(id));
+        const currentActorId = participants.includes(round.currentActorId) ? round.currentActorId : null;
+        const interruptId = participants.includes(round.interruptId) ? round.interruptId : null;
 
         const participantNames = joinTokenNames(nextTokensState, participants) || '（なし）';
 
         this.#commit(prevState, {
-          round: { ...round, participants, turnIndex: nextTurnIndex },
+          round: { ...round, participants, acted, currentActorId, interruptId },
           chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`)
         });
         return;
@@ -905,21 +984,58 @@ export class ImmutableStore {
         const round = prevState.round;
         if (!round.active) return;
 
+        const useInitiativeProcess = usesInitiativeProcess(prevState);
+
         let tokensForRound = nextTokensState;
         let phaseIndex = round.phaseIndex;
-        let turnIndex = round.turnIndex;
         let roundNumber = round.roundNumber;
+        let acted = round.acted || [];
+        let currentActorId = round.currentActorId;
+        let step = round.step || 'act';
+        let interruptId = round.interruptId;
         const logParts = [];
 
         const currentPhase = round.template[phaseIndex];
-        const isLastParticipant = turnIndex >= round.participants.length - 1;
+        const nameOf = (id) => tokensForRound[id]?.name || '？';
 
-        if (currentPhase.kind === 'perCharacter' && !isLastParticipant) {
-          // 同じフェーズ内で次の参加者へ手番を送る
-          turnIndex += 1;
-          const nextName = nextTokensState[round.participants[turnIndex]]?.name || '？';
-          logParts.push(`${currentPhase.label}: ${nextName}の手番です。`);
+        // このフェーズ内でまだやることが残っているかを先に決める。残っていなければ
+        // 下のフェーズ完了処理へ落ちる（once種別のフェーズは常に完了扱い）。
+        let phaseCompleted = false;
+
+        if (currentPhase.kind === 'perCharacter' && step === 'preTurn') {
+          // イニシアチブプロセスを終える。ここで初めて次の行動者を確定させるので、
+          // この段の最中に行動値が変わっていれば新しい順序で選ばれる。
+          const actor = pickNextActor(tokensForRound, { ...round, acted });
+          if (actor) {
+            currentActorId = actor;
+            interruptId = null; // 割り込み指定は手番が決まった時点で消費する
+            step = 'act';
+            logParts.push(`${currentPhase.preTurnStep?.label || 'イニシアチブプロセス'}終了。${nameOf(actor)}の手番です。`);
+          } else {
+            phaseCompleted = true; // 未行動者がいない（参加者が外された等）
+          }
+        } else if (currentPhase.kind === 'perCharacter') {
+          // 手番を終える。行動済みに加えたうえで、まだ手番が残っていれば次へ送る。
+          if (currentActorId && !acted.includes(currentActorId)) acted = [...acted, currentActorId];
+
+          const nextActor = pickNextActor(tokensForRound, { ...round, acted, interruptId });
+          if (!nextActor) {
+            phaseCompleted = true;
+          } else if (useInitiativeProcess && currentPhase.preTurnStep) {
+            // 次の行動者はイニシアチブプロセスを抜ける時に決め直すので、ここでは確定させない
+            step = 'preTurn';
+            currentActorId = null;
+            logParts.push(`${currentPhase.preTurnStep.label}を行います。`);
+          } else {
+            currentActorId = nextActor;
+            interruptId = null;
+            logParts.push(`${currentPhase.label}: ${nameOf(nextActor)}の手番です。`);
+          }
         } else {
+          phaseCompleted = true;
+        }
+
+        if (phaseCompleted) {
           // 現在のフェーズを完了させ、次のフェーズへ（テンプレート末尾ならラウンドを繰り上げる）
           if (currentPhase.expirePhaseOnComplete) {
             const { tokens, logText } = applyPhaseEnd(tokensForRound, activePlugin, currentPhase.expirePhaseOnComplete);
@@ -933,7 +1049,11 @@ export class ImmutableStore {
             roundNumber += 1;
           }
           phaseIndex = nextPhaseIndex;
-          turnIndex = 0;
+
+          // 行動済み・手番・割り込み予約はフェーズを抜けるときに畳む
+          acted = [];
+          currentActorId = null;
+          interruptId = null;
 
           // 参加者0人でperCharacterフェーズに入ってしまう場合は手番の主がいないので、
           // もう一段先（同じ規則で完了扱い）へ進める防御処理
@@ -947,8 +1067,13 @@ export class ImmutableStore {
           }
 
           const newPhase = round.template[phaseIndex];
-          const turnLabel = newPhase.kind === 'perCharacter' && round.participants.length > 0
-            ? `（手番: ${nextTokensState[round.participants[0]]?.name || '？'}）`
+          step = initialStepForPhase(newPhase, useInitiativeProcess);
+          if (newPhase.kind === 'perCharacter' && step === 'act') {
+            currentActorId = pickNextActor(tokensForRound, { ...round, acted: [], interruptId: null });
+          }
+
+          const turnLabel = currentActorId ? `（手番: ${nameOf(currentActorId)}）`
+            : step === 'preTurn' ? `（${newPhase.preTurnStep.label}）`
             : '';
           logParts.push(`ラウンド${roundNumber} - ${newPhase.label}開始${turnLabel}。`);
         }
@@ -958,12 +1083,83 @@ export class ImmutableStore {
           round: {
             ...round,
             phaseIndex,
-            turnIndex,
-            roundNumber
+            roundNumber,
+            acted,
+            currentActorId,
+            step,
+            interruptId
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
           chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'))
+        });
+        return;
+      }
+
+      // 行動済みの付け外し。actedをfalseにするのが「行動済みを回復する」操作で、
+      // そのコマは以降の手番決定（pickNextActor）にまた現れるようになる。
+      // 現在手番のコマは対象にしない（「次へ進む」と意味が重なるため、UI側でも出さない）。
+      case 'ROUND_SET_ACTED': {
+        const { tokenId, acted } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+
+        const current = round.acted || [];
+        const isActed = current.includes(tokenId);
+        if (isActed === !!acted) return; // 変化なし
+
+        const nextActed = acted ? [...current, tokenId] : current.filter(id => id !== tokenId);
+        const name = nextTokensState[tokenId]?.name || '？';
+
+        this.#commit(prevState, {
+          round: { ...round, acted: nextActed },
+          chatLogs: withSystemLog(
+            prevState.chatLogs,
+            acted ? `${name}を行動済みにしました。` : `${name}の行動済みを解除しました。`
+          )
+        });
+        return;
+      }
+
+      // 次の手番への割り込み指定。行動済みのコマにも割り込ませられるよう、ここで
+      // actedからも外しておく（回復と割り込みが1操作で済み、pickNextActor側は
+      // 「参加者に残っているか」だけを見ればよくなる）。tokenId=nullで予約解除。
+      // 進行中の手番は中断しない（あくまで「次の手番」に割り込む）。
+      case 'ROUND_SET_INTERRUPT': {
+        const { tokenId = null } = payload;
+        const round = prevState.round;
+        if (!round.active) return;
+        if (tokenId && !round.participants.includes(tokenId)) return;
+
+        const acted = tokenId ? (round.acted || []).filter(id => id !== tokenId) : (round.acted || []);
+        const logText = tokenId
+          ? `${nextTokensState[tokenId]?.name || '？'}が次の手番に割り込みます。`
+          : '割り込み予約を解除しました。';
+
+        this.#commit(prevState, {
+          round: { ...round, interruptId: tokenId, acted },
+          chatLogs: withSystemLog(prevState.chatLogs, logText)
+        });
+        return;
+      }
+
+      // ラウンド進行の設定（今はイニシアチブプロセスを挟むかどうかだけ）。ルーム単位・
+      // 全員共通なのでroomに置く。進行中に切り替えた場合は、次に手番が決まるタイミングから
+      // 効く（round.templateには焼き込まず、遷移のたびにusesInitiativeProcessを見るため）。
+      case 'SET_ROUND_SETTINGS': {
+        const { useInitiativeProcess } = payload;
+        const room = prevState.room;
+        const next = !!useInitiativeProcess;
+        if (usesInitiativeProcess(prevState) === next) return;
+
+        this.#commit(prevState, {
+          room: { ...room, roundSettings: { ...room.roundSettings, useInitiativeProcess: next } },
+          chatLogs: withSystemLog(
+            prevState.chatLogs,
+            next
+              ? 'キャラクターの手番の前にイニシアチブプロセスを挟むようにしました。'
+              : 'イニシアチブプロセスを挟まないようにしました。'
+          )
         });
         return;
       }
@@ -1671,6 +1867,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // シーンへ遷移しても背景・盤面サイズを変えないか（js/background-dialog.js）。
       // シーン側への保存は従来どおり行い、遷移時の上書きだけを止める
       keepBackgroundOnSceneChange: false,
+      // ラウンド進行の設定（js/round-panel.js・SET_ROUND_SETTINGS）。今は
+      // 「キャラクターの手番の前にイニシアチブプロセスを挟むか」だけを持つ。
+      // 将来ラウンド進行の仕組み自体をユーザー/プラグインで指定できるようにする際の置き場。
+      roundSettings: { useInitiativeProcess: false },
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
 

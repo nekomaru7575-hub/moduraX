@@ -296,6 +296,10 @@ const GM_ONLY_ACTIONS = new Set([
   'ROUND_ADVANCE_PHASE',
   'ROUND_SET_PARTICIPANTS',
   'ROUND_PROGRESSION_END',
+  // 行動済みの付け外し・次の手番への割り込み指定・ラウンド進行の設定も進行操作の一部
+  'ROUND_SET_ACTED',
+  'ROUND_SET_INTERRUPT',
+  'SET_ROUND_SETTINGS',
   // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
   // 画像のアップロード側（下のIMAGE_PURPOSES.background）も同じくGM限定。
   'SET_BOARD_BACKGROUND',

@@ -7,7 +7,8 @@ import {
   BUFF_PHASE_LABELS
 } from './board-data-driven.js';
 import {
-  AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote
+  AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
+  usesInitiativeProcess
 } from './game-store.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
@@ -269,6 +270,7 @@ const deleteRoomBtn = document.getElementById('deleteRoomBtn');
 const entryPasswordInput = document.getElementById('entryPasswordInput');
 const entryPasswordBtn = document.getElementById('entryPasswordBtn');
 const entryPasswordNote = document.getElementById('entryPasswordNote');
+const roundInitiativeProcessCheck = document.getElementById('roundInitiativeProcessCheck');
 
 // --- GM限定の操作（js/room-authority.js参照） ---
 // 部屋そのものを左右する操作は、GMが決まっている部屋ではGMだけができるようにする。
@@ -282,7 +284,7 @@ function applyGmOnlyControls() {
   const allowed = canOperateAsGm();
 
   [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn,
-    entryPasswordInput, entryPasswordBtn].forEach(el => {
+    entryPasswordInput, entryPasswordBtn, roundInitiativeProcessCheck].forEach(el => {
     if (!el) return;
     el.disabled = !allowed;
     el.title = allowed ? '' : GM_ONLY_REASON;
@@ -1362,6 +1364,24 @@ if (roomPluginSelect) {
       return;
     }
     store.dispatch('SET_ACTIVE_PLUGIN', { pluginId: roomPluginSelect.value || null });
+  });
+}
+
+// ラウンド進行の設定（イニシアチブプロセスを挟むか）。ルーム単位・全員共通なので
+// プラグイン選択と同じく、操作はdispatch・表示は状態への追従で揃える。
+if (roundInitiativeProcessCheck) {
+  roundInitiativeProcessCheck.addEventListener('change', () => {
+    // 表示が古い状態で操作された場合の保険（無効化はapplyGmOnlyControls側で行っている）
+    if (!canOperateAsGm()) {
+      roundInitiativeProcessCheck.checked = usesInitiativeProcess(store.state);
+      return;
+    }
+    store.dispatch('SET_ROUND_SETTINGS', { useInitiativeProcess: roundInitiativeProcessCheck.checked });
+  });
+
+  EventBus.subscribe('STATE_CHANGED', (state) => {
+    const next = usesInitiativeProcess(state);
+    if (roundInitiativeProcessCheck.checked !== next) roundInitiativeProcessCheck.checked = next;
   });
 }
 

@@ -7,6 +7,8 @@
 // 変わったときだけ再描画する（lastRenderedChatTabsRefと同じ差分チェックパターン）。
 // participantsも見るのは、GMの付け外しで進行ボタンの可否が変わるため。
 // 点呼(confirmation)はソフトな可視化のみで、進行操作自体はブロックしない。
+// 手番は「行動済み(round.acted)の集合」で表され、詳細リストの各行から行動済みの回復・
+// 次の手番への割り込みを操作する（buildTurnRow・js/game-store.jsのpickNextActor参照）。
 
 import { store } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
@@ -14,11 +16,13 @@ import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
+import { listUnactedParticipants, getEffectiveParameterValue } from './game-store.js';
 
 let lastRenderedRoundRef = null;
 let lastRenderedTokensRef = null;
 let lastRenderedParticipantsRef = null;
-let detailExpanded = false;
+// 行動済みの回復・割り込みの操作はこの詳細リストから行うため、既定で開いておく。
+let detailExpanded = true;
 
 function getTokenName(state, tokenId) {
   return state.tokens[tokenId]?.name || '？';
@@ -28,11 +32,77 @@ function currentPhase(round) {
   return round.template ? round.template[round.phaseIndex] : null;
 }
 
+// イニシアチブプロセス中か（perCharacterフェーズのサブステップ。js/game-store.js参照）
+function isPreTurnStep(round) {
+  return currentPhase(round)?.kind === 'perCharacter' && round.step === 'preTurn';
+}
+
+// 詳細リストの並び：手番中 → 未行動（イニシアチブ降順） → 行動済み。
+// 「次に誰が動くか」が上から読めるようにするため、参加者の登録順ではなくこの順で出す。
+function listTurnOrderRows(state, round) {
+  const unacted = listUnactedParticipants(state.tokens, round);
+  const current = round.currentActorId;
+  const rows = [];
+
+  if (current && round.participants.includes(current)) rows.push(current);
+  unacted.forEach(id => { if (id !== current) rows.push(id); });
+  round.participants.forEach(id => { if (!rows.includes(id)) rows.push(id); });
+
+  return rows;
+}
+
 // 直前の遷移に対して点呼/割り込み確認を表示すべきか（進行中のみ意味を持つ。フェーズの
 // confirmModeに従う）。
 function shouldShowConfirmation(round) {
   const phase = currentPhase(round);
   return phase ? phase.confirmMode === 'confirm' : true;
+}
+
+// 詳細リストの1行。状態（手番中／行動済み／割り込み予約）の見せ方と、GM向けの
+// 操作メニュー（行動済みの回復・次の手番への割り込み）を持つ。
+function buildTurnRow(state, round, tokenId, canOperate) {
+  const row = document.createElement('div');
+  row.className = 'round-panel-turn-row';
+
+  const isCurrent = tokenId === round.currentActorId;
+  const isActed = (round.acted || []).includes(tokenId);
+  const isInterrupt = tokenId === round.interruptId;
+  if (isCurrent) row.classList.add('active-turn');
+  if (isActed) row.classList.add('acted');
+  if (isInterrupt) row.classList.add('interrupt-reserved');
+
+  const token = state.tokens[tokenId];
+  const initiative = token ? getEffectiveParameterValue(token, 'core:initiative') : undefined;
+  const name = getTokenName(state, tokenId);
+  row.textContent = `${isInterrupt ? '⏭ ' : ''}${name}${initiative === undefined ? '' : ` (${initiative})`}`;
+
+  // 手番中のコマの「行動済みにする」は「手番を終了」と意味が重なるので操作を出さない
+  if (isCurrent) {
+    row.title = '手番中です';
+    return row;
+  }
+
+  row.classList.add('clickable');
+  row.title = canOperate ? 'クリックで行動済み・割り込みを操作' : GM_ONLY_REASON;
+  row.addEventListener('click', (event) => {
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: isActed ? '行動済みを解除' : '行動済みにする',
+        disabled: !canOperate,
+        title: canOperate ? undefined : GM_ONLY_REASON,
+        onSelect: () => store.dispatch('ROUND_SET_ACTED', { tokenId, acted: !isActed })
+      },
+      {
+        // 行動済みのコマを指定した場合は、リデューサー側で行動済みも解除される
+        label: isInterrupt ? '割り込み予約を解除' : '次の手番に割り込ませる',
+        disabled: !canOperate,
+        title: canOperate ? undefined : GM_ONLY_REASON,
+        onSelect: () => store.dispatch('ROUND_SET_INTERRUPT', { tokenId: isInterrupt ? null : tokenId })
+      }
+    ]);
+  });
+
+  return row;
 }
 
 function listBoardTokens(state) {
@@ -76,10 +146,16 @@ export function initRoundPanel() {
 
     // --- ステータス行 ---
     const phase = currentPhase(round);
-    const turnText = phase?.kind === 'perCharacter' && round.participants.length > 0
-      ? `（手番: ${getTokenName(state, round.participants[round.turnIndex])}）`
+    const turnText = isPreTurnStep(round)
+      ? `／${phase.preTurnStep?.label || 'イニシアチブプロセス'}`
+      : (phase?.kind === 'perCharacter' && round.currentActorId)
+        ? `（手番: ${getTokenName(state, round.currentActorId)}）`
+        : '';
+    // 割り込み予約は「次に誰が動くか」が変わる重要な状態なので、手番と並べて常に出す
+    const interruptText = round.interruptId
+      ? ` ⏭ 次: ${getTokenName(state, round.interruptId)}`
       : '';
-    statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`;
+    statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}${interruptText}`;
 
     // --- 「割り込みなし：（宣言済みのニックネーム,...）」の一覧表示 ---
     const showConfirmation = shouldShowConfirmation(round);
@@ -114,10 +190,17 @@ export function initRoundPanel() {
 
     // --- 主操作ボタン（点呼に対してはソフトゲート：割り込み確認の状態では止めない。
     // ただし進行そのものはGM限定にする。誰がGMかはjs/room-authority.js参照） ---
-    const isLastParticipant = round.turnIndex >= round.participants.length - 1;
-    const isLastStepOfPhase = phase?.kind !== 'perCharacter' || isLastParticipant;
+    // このフェーズにまだ手番が残っているか＝「自分以外の未行動者」か割り込み予約があるか
+    const remainingAfterCurrent = listUnactedParticipants(state.tokens, round)
+      .filter(id => id !== round.currentActorId);
+    const isLastStepOfPhase = phase?.kind !== 'perCharacter'
+      || (remainingAfterCurrent.length === 0 && !round.interruptId);
     const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
-    actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ' : '次へ進む';
+
+    actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ'
+      : isPreTurnStep(round) ? '手番を開始'
+      : phase?.kind === 'perCharacter' ? '手番を終了'
+      : '次へ進む';
 
     // 「割り込みなし」の宣言はPL各自の意思表示なので、ここでは止めない（全員が押せる）。
     const canOperate = canOperateAsGm();
@@ -140,14 +223,8 @@ export function initRoundPanel() {
           empty.textContent = '参加者がいません。';
           detailEl.appendChild(empty);
         } else {
-          round.participants.forEach((tokenId, idx) => {
-            const row = document.createElement('div');
-            row.className = 'round-panel-turn-row';
-            if (idx === round.turnIndex && phase?.kind === 'perCharacter') {
-              row.classList.add('active-turn');
-            }
-            row.textContent = getTokenName(state, tokenId);
-            detailEl.appendChild(row);
+          listTurnOrderRows(state, round).forEach(tokenId => {
+            detailEl.appendChild(buildTurnRow(state, round, tokenId, canOperate));
           });
         }
       }

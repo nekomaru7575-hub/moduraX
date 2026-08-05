@@ -116,7 +116,8 @@ export function applyCharacterEditResult(store, tokenId, result) {
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
 function buildPluginPanel({
   activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
+  allowParameterEdit = false
 }) {
   const column = document.createElement('div');
   column.className = 'dialog-plugin-column';
@@ -127,7 +128,8 @@ function buildPluginPanel({
     // 押せたままにしたいので、Core側でこの列をまとめて無効化はしない）
     panel = renderCharacterPanel(activePluginId, {
       container: column, mode, canEdit, parameters, components, onComponentChange, getComponents,
-      dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+      dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
+      allowParameterEdit
     });
   } else {
     const placeholder = document.createElement('p');
@@ -705,13 +707,16 @@ function ensureEditDialog() {
  *     newCustomParameters: {key:string,label:string,value:number|string,visible:boolean}[]
  *   }) => void,
  *   canEdit?: boolean,
- *   readOnlyReason?: string | null 表示だけになっている理由（見出しの下に1行出す）
+ *   readOnlyReason?: string | null 表示だけになっている理由（見出しの下に1行出す）,
+ *   allowParameterEdit?: boolean プラグインが持つeditable:falseのパラメータ（DX3の能力値・技能値等）を
+ *     プラグイン側のUIから編集させてよいか。部屋の外のコマ作成ツール専用の許可で、既定はfalse。
+ *     Coreは意味を解釈せず、プラグインへそのまま渡すだけ。
  * }} options
  */
 export function showCharacterEditDialog({
   character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
   dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-  canEdit = true, readOnlyReason = null
+  canEdit = true, readOnlyReason = null, allowParameterEdit = false
 }) {
   const myParticipantId = getCurrentParticipantId();
   const dialog = ensureEditDialog();
@@ -996,7 +1001,8 @@ export function showCharacterEditDialog({
     components: character.components,
     onComponentChange,
     getComponents,
-    dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId
+    dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
+    allowParameterEdit
   });
   columns.appendChild(pluginPanel.element);
 

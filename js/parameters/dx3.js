@@ -75,7 +75,8 @@ export function computeDX3DerivedParameters(parameters, components = {}) {
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
 // Core側の汎用パラメータ一覧とは別に、このプラグインだけの見た目・構成で表示する。
 function renderDX3CharacterPanel({
-  container, mode, canEdit = true, parameters, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue
+  container, mode, canEdit = true, parameters, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue,
+  dispatch, tokenId, allowParameterEdit = false
 }) {
   container.innerHTML = '';
 
@@ -198,12 +199,27 @@ function renderDX3CharacterPanel({
     abilityBtn.type = 'button';
     abilityBtn.className = 'dialog-add-row-btn';
     abilityBtn.style.marginTop = '8px';
-    abilityBtn.textContent = '能力・技能値を表示';
+    // 能力値・技能値はeditable:falseで手入力できないパラメータだが、部屋の外のコマ作成ツール
+    // （allowParameterEdit:true）でだけ、このボックスから編集できるようにしている。
+    const canEditAbilityValues = allowParameterEdit && canEdit && typeof dispatch === 'function' && !!tokenId;
+    abilityBtn.textContent = canEditAbilityValues ? '能力・技能値を編集' : '能力・技能値を表示';
     abilityBtn.addEventListener('click', () => {
       // AdB/AnB/AcBはバフでのみ変化する実効値のため、判定ツールが正しい値を読めるよう
       // token/getEffectiveParameterValueも渡す（151行目付近の「エフェクトによる修正値」表示と同じ理由）。
       const token = getToken ? getToken() : null;
-      showAbilitySkillBox({ parameters, token, getEffectiveParameterValue });
+      // ボックスで保存した後に開き直しても巻き戻らないよう、開いた時点のスナップショットではなく
+      // 都度最新のparametersを読む（ロイス・エフェクトのgetComponentsと同じ理由）。
+      showAbilitySkillBox({
+        parameters: token?.parameters ?? parameters,
+        token,
+        getEffectiveParameterValue,
+        editable: canEditAbilityValues,
+        // editable:falseのパラメータへはSET_PARAMETERが通らない（js/game-store.jsのガード）ため、
+        // 値の上書きを担当する既存のIMPORT_CHARACTER_DATAで書き込む。派生値の再計算も通る。
+        onSave: canEditAbilityValues
+          ? (valueOverrides) => dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, valueOverrides })
+          : undefined
+      });
     });
     container.appendChild(abilityBtn);
   }

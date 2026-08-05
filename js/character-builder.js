@@ -153,6 +153,9 @@ function openEditDialog(pluginId) {
     getToken: () => draftStore.state.tokens[DRAFT_TOKEN_ID],
     getEffectiveParameterValue,
     generateBuffId,
+    // 能力値・技能値（editable:falseのパラメータ）の編集は、この部屋の外の作成ツールでのみ許可する。
+    // 部屋側はこのオプションを渡さない＝既定のfalseのままなので、従来どおり閲覧専用。
+    allowParameterEdit: true,
     // rollBCDice: コンボの発動/判定/ダメージ（チャットコマンド専用）でのみ使われ、
     // コンボ設定ボックス自体は使わないため渡さない。
     onConfirm: (result) => {

@@ -1,6 +1,8 @@
 // js/parameters/dx3-ability-box.js
-// DX3の能力値・技能値をまとめて表示する「ボックス」（閲覧専用）。
+// DX3の能力値・技能値をまとめて表示する「ボックス」。
 // 能力値は大きく、技能値はそれが属する能力値のまとまりの下に小さく表示する。
+// 既定は閲覧専用で、editable:trueのときだけ能力値・固定技能を入力欄にして編集できる
+// （部屋の外のコマ作成ツール専用。js/character-builder.jsのallowParameterEditを参照）。
 
 // 能力値ごとに、その能力値が持つ固定技能（2種）と、対応する可変スロット技能の
 // カテゴリ（技芸/知識/騎乗/情報）をまとめる。DX3の能力値-技能の対応関係そのもの。
@@ -81,17 +83,35 @@ function ensureDialog() {
 
 /**
  * @param {{ parameters: Record<string, {key:string,label:string,value:number,source?:string}>,
- *   token?: object, getEffectiveParameterValue?: (token:object, paramId:string) => number|undefined
+ *   token?: object, getEffectiveParameterValue?: (token:object, paramId:string) => number|undefined,
+ *   editable?: boolean 能力値・固定技能を入力欄にして編集させるか（既定false＝閲覧専用）,
+ *   onSave?: (valueOverrides: Record<string, number>) => void 保存時に{paramId: 値}を渡す
  * }} options
  */
-export function showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue }) {
+export function showAbilitySkillBox({
+  parameters, token = null, getEffectiveParameterValue, editable = false, onSave
+}) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
+
+  // 編集できるのはonSaveの渡し先がある場合だけ（保存できないのに入力欄を出さない）
+  const canEditValues = editable && typeof onSave === 'function';
+  // 保存対象の入力欄を paramId => input で集める
+  const valueInputs = new Map();
+
+  function buildValueInput(paramId, value) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'ability-box-value-input';
+    input.value = Number(value) || 0;
+    valueInputs.set(paramId, input);
+    return input;
+  }
 
   const form = document.createElement('form');
 
   const title = document.createElement('h3');
-  title.textContent = '能力・技能値';
+  title.textContent = canEditValues ? '能力・技能値を編集' : '能力・技能値';
   form.appendChild(title);
 
   const groupListEl = document.createElement('div');
@@ -106,7 +126,19 @@ export function showAbilitySkillBox({ parameters, token = null, getEffectivePara
 
     const abilityRow = document.createElement('div');
     abilityRow.className = 'ability-box-ability-row';
-    abilityRow.innerHTML = `<span class="ability-box-ability-label">${group.label}</span><span class="ability-box-ability-value">${abilityParam?.value ?? 0}</span>`;
+    const abilityLabelEl = document.createElement('span');
+    abilityLabelEl.className = 'ability-box-ability-label';
+    abilityLabelEl.textContent = group.label;
+    abilityRow.appendChild(abilityLabelEl);
+
+    if (canEditValues && abilityParam) {
+      abilityRow.appendChild(buildValueInput(`DX3:${group.paramKey}`, abilityParam.value));
+    } else {
+      const abilityValueEl = document.createElement('span');
+      abilityValueEl.className = 'ability-box-ability-value';
+      abilityValueEl.textContent = abilityParam?.value ?? 0;
+      abilityRow.appendChild(abilityValueEl);
+    }
     groupEl.appendChild(abilityRow);
 
     const skillListEl = document.createElement('div');
@@ -117,11 +149,19 @@ export function showAbilitySkillBox({ parameters, token = null, getEffectivePara
       if (!skillParam) return;
       const skillEl = document.createElement('span');
       skillEl.className = 'ability-box-skill';
-      skillEl.textContent = `${skillParam.label}: ${skillParam.value}`;
+      if (canEditValues) {
+        const skillLabelEl = document.createElement('span');
+        skillLabelEl.textContent = `${skillParam.label}: `;
+        skillEl.appendChild(skillLabelEl);
+        skillEl.appendChild(buildValueInput(`DX3:${skillKey}`, skillParam.value));
+      } else {
+        skillEl.textContent = `${skillParam.label}: ${skillParam.value}`;
+      }
       skillListEl.appendChild(skillEl);
     });
 
-    // 可変スロット技能（技芸/知識/騎乗/情報）。使われている分だけ表示する
+    // 可変スロット技能（技芸/知識/騎乗/情報）。使われている分だけ表示する。
+    // 値の編集対象は能力値と固定技能だけなので、editableでも常に表示のまま。
     const variableParams = Object.values(parameters).filter(
       p => p.source === 'DX3' && p.key?.startsWith(group.variablePrefix)
     );
@@ -239,9 +279,29 @@ export function showAbilitySkillBox({ parameters, token = null, getEffectivePara
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';
 
+  // 保存はロイス・エフェクト・コンボの各ボックスと同じく、このボックス単独で完結させる
+  // （更新ダイアログの「保存」を待たずに即時反映する）。
+  if (canEditValues) {
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = '保存';
+    saveBtn.className = 'dialog-confirm-btn';
+    saveBtn.addEventListener('click', () => {
+      const valueOverrides = {};
+      valueInputs.forEach((input, paramId) => {
+        // 空欄・不正な入力は0に丸める。書き込み側（IMPORT_CHARACTER_DATA）は
+        // typeof value === 'number' のものしか反映しないため、NaNを渡さない。
+        valueOverrides[paramId] = Number(input.value) || 0;
+      });
+      onSave(valueOverrides);
+      dialog.close();
+    });
+    btnRow.appendChild(saveBtn);
+  }
+
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.textContent = '閉じる';
+  closeBtn.textContent = canEditValues ? 'キャンセル' : '閉じる';
   closeBtn.className = 'dialog-confirm-btn';
   closeBtn.addEventListener('click', () => dialog.close());
 

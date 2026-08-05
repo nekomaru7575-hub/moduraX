@@ -396,6 +396,29 @@
   color: #666;
 }
 
+/* 能力値・技能値の編集（部屋の外のコマ作成ツールのみ）。表示用の span と同じ行に収まるよう、
+   幅を詰めた数値入力にする。能力値の行では大きく、技能値の行では小さく見せる。 */
+.ability-box-value-input {
+  width: 4em;
+  padding: 2px 4px;
+  background-color: #2a2a2a;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.ability-box-ability-row .ability-box-value-input {
+  width: 3.5em;
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.ability-box-skill .ability-box-value-input {
+  margin-left: 2px;
+}
+
 .character-dialog::backdrop {
   background: rgba(0, 0, 0, 0.5);
 }

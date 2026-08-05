@@ -3,6 +3,7 @@
 // 能力値は大きく、技能値はそれが属する能力値のまとまりの下に小さく表示する。
 // 既定は閲覧専用で、editable:trueのときだけ能力値・固定技能を入力欄にして編集できる
 // （部屋の外のコマ作成ツール専用。js/character-builder.jsのallowParameterEditを参照）。
+// 判定セクションはチャットへ送信できる画面（＝部屋の中）でのみ表示する。
 
 // 能力値ごとに、その能力値が持つ固定技能（2種）と、対応する可変スロット技能の
 // カテゴリ（技芸/知識/騎乗/情報）をまとめる。DX3の能力値-技能の対応関係そのもの。
@@ -60,10 +61,18 @@ function readEffectiveOrBaseValue(paramId, { parameters, token, getEffectivePara
 // 渡されて呼ばれており、新しい送信手段を実装しないという制約から、判定式のチャット送信は
 // 実際のメイン入力欄＋送信ボタン（js/main.jsのcommandInput/sendBtn、js/chat-palette.js等と
 // 同じ送信経路の入口）へ値を入れてクリックすることで行う。
+// チャットへ送信できる画面か（＝部屋の中か）。部屋の外のコマ作成ツールには入力欄も送信ボタンも
+// 無いため、判定セクションごと出さない（js/parameters/saikoro-fiction/skill-check.jsが
+// rollBCDiceの有無で判定実行を出し分けているのと同じ考え方）。
+function canSendToChat() {
+  return !!document.getElementById('commandInput') && !!document.getElementById('sendBtn');
+}
+
 function sendDX3CheckCommand(command) {
   const commandInput = document.getElementById('commandInput');
   const sendBtn = document.getElementById('sendBtn');
   if (!commandInput || !sendBtn) {
+    // 描画後に画面が変わった場合の保険（通常はcanSendToChatで手前で出さないようにしている）
     alert('この画面ではチャットへ送信できません。');
     return;
   }
@@ -184,10 +193,13 @@ export function showAbilitySkillBox({
   });
 
   // --- 判定用ツール：能力値・技能値を選んで実行すると、判定式をチャットへ送信する ---
+  // チャットへ送れない画面（部屋の外のコマ作成ツール）では、このセクションごと出さない。
+  const checkSection = document.createElement('div');
+
   const checkTitle = document.createElement('div');
   checkTitle.className = 'effect-box-combo-title';
   checkTitle.textContent = '判定';
-  form.appendChild(checkTitle);
+  checkSection.appendChild(checkTitle);
 
   const checkRow = document.createElement('div');
   checkRow.className = 'effect-box-combo-row';
@@ -227,7 +239,7 @@ export function showAbilitySkillBox({
   skillField.appendChild(skillSelect);
   checkRow.appendChild(skillField);
 
-  form.appendChild(checkRow);
+  checkSection.appendChild(checkRow);
 
   const checkActionRow = document.createElement('div');
   checkActionRow.className = 'dialog-button-row';
@@ -274,7 +286,9 @@ export function showAbilitySkillBox({
   });
 
   checkActionRow.appendChild(executeBtn);
-  form.appendChild(checkActionRow);
+  checkSection.appendChild(checkActionRow);
+
+  if (canSendToChat()) form.appendChild(checkSection);
 
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';

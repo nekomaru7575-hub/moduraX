@@ -15,3 +15,4 @@ txt/
 .env
 旧ファイル/room.js
 js/room.js
+.loop/runs/

@@ -200,7 +200,10 @@ function renderDX3CharacterPanel({
     abilityBtn.style.marginTop = '8px';
     abilityBtn.textContent = '能力・技能値を表示';
     abilityBtn.addEventListener('click', () => {
-      showAbilitySkillBox({ parameters });
+      // AdB/AnB/AcBはバフでのみ変化する実効値のため、判定ツールが正しい値を読めるよう
+      // token/getEffectiveParameterValueも渡す（151行目付近の「エフェクトによる修正値」表示と同じ理由）。
+      const token = getToken ? getToken() : null;
+      showAbilitySkillBox({ parameters, token, getEffectiveParameterValue });
     });
     container.appendChild(abilityBtn);
   }

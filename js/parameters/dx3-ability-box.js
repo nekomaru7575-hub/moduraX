@@ -11,6 +11,64 @@ const DX3_ABILITY_SKILL_GROUPS = [
   { paramKey: 'sttTotalSocial', label: '社会', fixedSkills: ['skillNegotiate', 'skillProcure'], variablePrefix: 'skillInfo', variableLabel: '情報' }
 ];
 
+// クリティカル値の下限。判定式は「10+AcB」（js/parameters/dx3-combo-box.jsのrunComboCheckと
+// 同じ式）だが、AcBのバフでこれが1以下まで下がると全ダイスがクリティカルして無限ロールに
+// なってしまうため、ここでは2を下回らないようにクランプする。dx3-combo-box.js側の
+// 「バフが持つクリティカル値の下限」（lowestBuffCriticalFloor）とは別物の、常時適用する下限。
+const DX3_ABILITY_BOX_CRITICAL_FLOOR = 2;
+
+// 技能ドロップダウンの選択肢集め。技能一覧の表示（下のforEach内）と同じ絞り込み
+// （固定技能2種＋使われている可変スロット技能）を、ability・skillの各グループを横断して集める。
+function collectSkillParamEntries(parameters) {
+  const entries = [];
+  DX3_ABILITY_SKILL_GROUPS.forEach(group => {
+    group.fixedSkills.forEach(skillKey => {
+      const paramId = `DX3:${skillKey}`;
+      const skillParam = parameters[paramId];
+      if (skillParam) entries.push([paramId, skillParam]);
+    });
+    Object.entries(parameters)
+      .filter(([, p]) => p.source === 'DX3' && p.key?.startsWith(group.variablePrefix))
+      .forEach(entry => entries.push(entry));
+  });
+  return entries;
+}
+
+// 能力値ドロップダウンの選択肢集め。対象キャラクターが持つ能力値だけを出す。
+function collectAbilityParamEntries(parameters) {
+  return DX3_ABILITY_SKILL_GROUPS
+    .map(group => [`DX3:${group.paramKey}`, parameters[`DX3:${group.paramKey}`]])
+    .filter(([, param]) => !!param);
+}
+
+// AdB/AnB/AcBはエフェクト/コンボのバフでのみ変化する実効値で、parameters[...].valueは
+// 常に基礎値0のまま（js/parameters/dx3.jsのDX3_PARAMETERS定義・コメント参照）。
+// token/getEffectiveParameterValueが渡されていれば実効値（js/parameters/dx3-combo-box.jsの
+// runComboCheckと同じ取得方法）を使い、渡されていない（未対応の呼び出し元）場合のみ
+// 基礎値へフォールバックする。例外は投げない。
+function readEffectiveOrBaseValue(paramId, { parameters, token, getEffectiveParameterValue }) {
+  if (token && typeof getEffectiveParameterValue === 'function') {
+    const effective = getEffectiveParameterValue(token, paramId);
+    if (effective !== undefined && effective !== null) return Number(effective) || 0;
+  }
+  return Number(parameters[paramId]?.value) || 0;
+}
+
+// このボックスはjs/parameters/dx3.js側から{ parameters, token, getEffectiveParameterValue }を
+// 渡されて呼ばれており、新しい送信手段を実装しないという制約から、判定式のチャット送信は
+// 実際のメイン入力欄＋送信ボタン（js/main.jsのcommandInput/sendBtn、js/chat-palette.js等と
+// 同じ送信経路の入口）へ値を入れてクリックすることで行う。
+function sendDX3CheckCommand(command) {
+  const commandInput = document.getElementById('commandInput');
+  const sendBtn = document.getElementById('sendBtn');
+  if (!commandInput || !sendBtn) {
+    alert('この画面ではチャットへ送信できません。');
+    return;
+  }
+  commandInput.value = command;
+  sendBtn.click();
+}
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -22,9 +80,11 @@ function ensureDialog() {
 }
 
 /**
- * @param {{ parameters: Record<string, {key:string,label:string,value:number,source?:string}> }} options
+ * @param {{ parameters: Record<string, {key:string,label:string,value:number,source?:string}>,
+ *   token?: object, getEffectiveParameterValue?: (token:object, paramId:string) => number|undefined
+ * }} options
  */
-export function showAbilitySkillBox({ parameters }) {
+export function showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -82,6 +142,99 @@ export function showAbilitySkillBox({ parameters }) {
     groupEl.appendChild(skillListEl);
     groupListEl.appendChild(groupEl);
   });
+
+  // --- 判定用ツール：能力値・技能値を選んで実行すると、判定式をチャットへ送信する ---
+  const checkTitle = document.createElement('div');
+  checkTitle.className = 'effect-box-combo-title';
+  checkTitle.textContent = '判定';
+  form.appendChild(checkTitle);
+
+  const checkRow = document.createElement('div');
+  checkRow.className = 'effect-box-combo-row';
+
+  function buildParamSelect(entries) {
+    const select = document.createElement('select');
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '（選択なし）';
+    select.appendChild(noneOpt);
+    entries.forEach(([paramId, param]) => {
+      const opt = document.createElement('option');
+      opt.value = paramId;
+      opt.textContent = param.label;
+      select.appendChild(opt);
+    });
+    return select;
+  }
+
+  const abilityField = document.createElement('div');
+  abilityField.className = 'effect-box-combo-field';
+  const abilityLabel = document.createElement('span');
+  abilityLabel.className = 'effect-box-combo-label';
+  abilityLabel.textContent = '能力値';
+  const abilitySelect = buildParamSelect(collectAbilityParamEntries(parameters));
+  abilityField.appendChild(abilityLabel);
+  abilityField.appendChild(abilitySelect);
+  checkRow.appendChild(abilityField);
+
+  const skillField = document.createElement('div');
+  skillField.className = 'effect-box-combo-field';
+  const skillLabel = document.createElement('span');
+  skillLabel.className = 'effect-box-combo-label';
+  skillLabel.textContent = '技能値';
+  const skillSelect = buildParamSelect(collectSkillParamEntries(parameters));
+  skillField.appendChild(skillLabel);
+  skillField.appendChild(skillSelect);
+  checkRow.appendChild(skillField);
+
+  form.appendChild(checkRow);
+
+  const checkActionRow = document.createElement('div');
+  checkActionRow.className = 'dialog-button-row';
+  checkActionRow.style.marginTop = '8px';
+
+  const executeBtn = document.createElement('button');
+  executeBtn.type = 'button';
+  executeBtn.className = 'dialog-confirm-btn';
+  executeBtn.textContent = '実行';
+  executeBtn.addEventListener('click', () => {
+    const abilityParamId = abilitySelect.value;
+    const skillParamId = skillSelect.value;
+    if (!abilityParamId || !skillParamId) {
+      alert('能力値と技能値を選択してください。');
+      return;
+    }
+
+    const abilityParam = parameters[abilityParamId];
+    const skillParam = parameters[skillParamId];
+    if (!abilityParam || !skillParam) {
+      // 選択後にパラメータが無くなっていた（取得できていない）場合は、例外を投げずに送信しない
+      alert('選択した能力値または技能値が見つかりません。');
+      return;
+    }
+
+    // DBはバフ対象ではなく基礎値がそのまま実効値のためparameters経由のまま。
+    // AdB/AnB/AcBはバフでのみ変化するため、実効値（token/getEffectiveParameterValueが
+    // 渡っていれば）を読む。渡っていなければ基礎値0へ安全にフォールバックする。
+    const dbValue = Number(parameters['DX3:corDB']?.value) || 0;
+    const ctx = { parameters, token, getEffectiveParameterValue };
+    const adbValue = readEffectiveOrBaseValue('DX3:AdB', ctx);
+    const anbValue = readEffectiveOrBaseValue('DX3:AnB', ctx);
+    const acbValue = readEffectiveOrBaseValue('DX3:AcB', ctx);
+    const abilityValue = Number(abilityParam.value) || 0;
+    const skillValue = Number(skillParam.value) || 0;
+
+    // クリティカル値：js/parameters/dx3-combo-box.jsのrunComboCheckと同じ「10+AcB」で求め、
+    // 下限（DX3_ABILITY_BOX_CRITICAL_FLOOR=2）でクランプする
+    const rawCriticalValue = 10 + acbValue;
+    const criticalValue = Math.max(rawCriticalValue, DX3_ABILITY_BOX_CRITICAL_FLOOR);
+
+    const command = `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue}`;
+    sendDX3CheckCommand(command);
+  });
+
+  checkActionRow.appendChild(executeBtn);
+  form.appendChild(checkActionRow);
 
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';

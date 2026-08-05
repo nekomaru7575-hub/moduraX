@@ -7,9 +7,12 @@
 | 工程 | 担当 |
 |---|---|
 | 分割・発注書作成・最終承認 | Opus 5（Claude Code 本体） |
-| 実装 | Gemini（gemini CLI） |
+| 実装 | Sonnet 5 サブエージェント（本来は Gemini。下記「実装役の差し替え」参照） |
 | 検査（エラー / オーダー照合 / セキュリティ） | Sonnet 5 サブエージェント |
 | 修正 | Sonnet 5 サブエージェント |
+
+実装役・検査役・修正役は**それぞれ別のエージェント**を立てる。同じ文脈のまま検査させると
+自作自演になり、検査が機能しない。
 
 ## コスト最小化の原則
 
@@ -25,7 +28,7 @@
 .loop/
   spec/_TEMPLATE.md    発注書テンプレ
   spec/T-XXX.md        発注書（Opus が書く。1タスク1枚）
-  prompts/implement.md Gemini 用
+  prompts/implement.md 実装用（実装役が誰でも共通）
   prompts/review.md    Sonnet 検査用
   prompts/fix.md       Sonnet 修正用
   gate.ps1             機械ゲート（UTF-8 BOM 必須）
@@ -33,17 +36,42 @@
   runs/T-XXX/          各周回のプロンプト・ログ・gate.json（git 管理外）
 ```
 
-## 前提: Gemini CLI の認証
+## 実装役の差し替え
 
-**Google 個人アカウントでのログイン（Gemini Code Assist for individuals 無料枠）は
-このクライアントでは使えなくなっています**（`IneligibleTierError: UNSUPPORTED_CLIENT`）。
-代わりに Google AI Studio の API キーを使う:
+実装役はループの中で唯一の差し替え可能な部品。触るのは
+`.claude/commands/dev-loop.md` の手順3だけで、発注書・ゲート・検査・修正はそのまま使える。
 
-1. https://aistudio.google.com/apikey で API キーを発行
-2. ユーザー環境変数 `GEMINI_API_KEY` に設定
-3. 新しいシェルで `gemini -p "ping"` が返れば OK
+### 現状: Sonnet 5（2026-08-06 時点）
 
-`.env` ではなくユーザー環境変数に置くこと（`.env` はゲートの秘密情報チェックで FAIL する）。
+本来の設計は Gemini CLI（外部の安いコーダーに実装を逃がし、Claude プランの枠を温存する）
+だったが、**Google 側の未解決の不具合により Gemini 経路が使えない**ため Sonnet に退避している。
+
+### Gemini 経路が使えない理由
+
+1. Google 個人アカウントのログイン（Gemini Code Assist for individuals 無料枠）は
+   このクライアントでは廃止 — `IneligibleTierError: UNSUPPORTED_CLIENT`
+2. 代わりの AI Studio の API キーは、Google が Traffic key（`AIza`）から
+   Authentication key（`AQ.`）へ移行中で、**現在は `AQ.` しか発行されない**
+3. その `AQ.` キーが多くの SDK / サービスで `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` を返す。
+   `?key=` でもヘッダでも同じ。gemini-cli 0.53.1（最新）でも再現
+4. Google スタッフは移行を認めたうえで「互換性の問題はフォームで報告してほしい」と回答するのみで、
+   回避策は未提示（2026年8月時点で未解決）
+
+- https://discuss.ai.google.dev/t/401-error-access-token-type-unsupported-with-new-aq-api-key/176648
+- https://discuss.ai.google.dev/t/account-only-issues-aq-keys-all-return-401-access-token-type-unsupported/176964
+
+### 復旧したら
+
+リポジトリ直下で `gemini -p "ping"` が通るようになったら、`dev-loop.md` の手順3を
+`run-gemini.ps1` の呼び出しに戻すだけでよい。キーは `.env` の `GEMINI_API_KEY` に
+既に置いてある（`.env` は gitignore 済みで、ゲートの検査対象にも入らない）。
+
+### その他の選択肢
+
+| 経路 | 費用 | 備考 |
+|---|---|---|
+| Vertex AI（`GOOGLE_GENAI_USE_VERTEXAI=true` + gcloud + GCP 課金） | 従量、Flash 系なら極小 | API キーではなく OAuth を使うため `AQ.` 問題を回避できる |
+| ローカル Gemma（ollama + `gemini gemma`） | 無料 | GPU が要る。コード生成の品質は明確に劣る |
 
 ## 使い方
 
@@ -53,11 +81,10 @@ Claude Code で:
 /dev-loop 情報ボックスのタイトルを編集できるようにする
 ```
 
-手動で 1 周だけ回す場合:
+実装役以外は自動で回る。機械ゲートだけ単独で回すこともできる:
 
 ```powershell
 git rev-parse HEAD > .loop/runs/T-001/base-ref.txt
-powershell -File .loop/run-gemini.ps1 -TaskId T-001 -Iteration 1
 powershell -File .loop/gate.ps1 -TaskId T-001
 ```
 

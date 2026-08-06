@@ -418,9 +418,24 @@ function readBinaryBody(req, maxBytes) {
 }
 
 // --- 部屋管理 ---
-// roomId -> { store, clients: Set<ws>, saveTimer }
+// roomId -> { store, clients: Set<ws>, saveTimer, entryPassword, pendingDelete?, deletion? }
 // 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
 const rooms = new Map();
+
+// 削除中の部屋か。削除は「印を付けた瞬間に部屋を無いものとして扱い、実データの片付けは
+// その後ろで進める」方式なので（startRoomDeletion参照）、片付けが終わるまでの間だけ
+// entryが墓標としてこのMapに残る。この間は一覧にも出さず、新しい接続も受け付けない。
+function isDeletingRoom(roomId) {
+  return rooms.get(roomId)?.pendingDelete === true;
+}
+
+// 同じスロットの削除の片付けが終わるのを待つ。部屋の作り直しの前にだけ使う：
+// 待たずに作ると、古い部屋のファイル一括削除（接頭辞 rooms/room-N/）が、同じ番号で
+// 作られた新しい部屋のファイルまで巻き込んで消してしまう。
+function waitForRoomDeletion(roomId) {
+  const entry = rooms.get(roomId);
+  return entry?.pendingDelete ? entry.deletion : Promise.resolve();
+}
 
 function isValidRoomId(id) {
   if (typeof id !== 'string') return false;
@@ -440,7 +455,11 @@ function roomFilePath(roomId) {
 // MIGRATE_LEGACY_ROOM_FILES=1 のときだけ、Redisに無い部屋を旧ローカルファイルから
 // 読み込んでRedisへ移行する（既定では行わない。理由は宣言箇所のコメント参照）。
 async function getOrLoadRoom(roomId) {
-  if (rooms.has(roomId)) return rooms.get(roomId);
+  const cached = rooms.get(roomId);
+  // 削除中の部屋は「もう無い部屋」として返す。ここで下へ進めてしまうと、まだ消し終えて
+  // いない保存先のデータを読んで部屋がメモリ上に復活し、墓標を上書きしてしまう
+  // （一覧に載り続ける→入室できる→操作で書き戻されて完全に生き返る、まで繋がる）。
+  if (cached) return cached.pendingDelete ? null : cached;
 
   // savedStateを直接コンストラクタへ渡すと、この機能より前に保存された部屋データに
   // 無い新しいトップレベルキー（round等）がundefinedのまま残り、そのキーを前提とする
@@ -516,6 +535,9 @@ async function getOrLoadRoom(roomId) {
 }
 
 function schedulePersistForRoom(roomId, entry) {
+  // 削除中の部屋は保存しない。ここを通すと、片付けの最中に届いた（あるいは処理中だった）
+  // 操作の結果がRedisへ書き戻され、消したはずの部屋が復活する。
+  if (entry.pendingDelete) return;
   if (entry.saveTimer) return;
   entry.saveTimer = setTimeout(async () => {
     entry.saveTimer = null;
@@ -553,9 +575,54 @@ function isOwnKeyOfRoom(roomId, key) {
   return typeof key === 'string' && key.startsWith(roomObjectPrefix(roomId));
 }
 
-// 部屋の実データ（Redis・移行元のローカルファイルが残っていればそれも）を消す。
-// 呼び出し元（ws.on('close')）で、削除待ち状態の部屋の接続者が0人になったことを
-// 確認してから呼ぶこと。
+// 部屋を削除する。要求を受けたその場で「削除中」の印を付け、全員を退室させ、実データの
+// 片付けを始める。切断イベントは待たない。
+//
+// 以前は「印を付けて全員を切り、接続数が0になった時点（ws.on('close')）で消す」方式
+// だったが、これだと消えるまでに待ちが入る・そもそも消えないことがあった：
+//   ・端末のスリープや回線断で切断イベントが届かない接続が1つでも残ると、接続数は
+//     いつまでも0にならない（OSのTCP keepaliveが働くのは数時間後）
+//   ・0になっても、片付けが終わるまでの間に一覧取得や再接続がgetOrLoadRoomを呼ぶと、
+//     まだ消えていない保存先のデータから部屋がメモリへ復活してしまう
+// 印を付けた瞬間から、この部屋は一覧に出ず・接続を受け付けず・保存もしない
+// （getOrLoadRoom / isDeletingRoom / schedulePersistForRoom）ので、片付けの完了を
+// 待つ必要がなく、待たない方が「消えたのに残っている」時間を作らずに済む。
+function startRoomDeletion(roomId, entry) {
+  if (entry.pendingDelete) return entry.deletion;
+  entry.pendingDelete = true;
+
+  // デバウンス中の保存がこの後に発火すると、削除したはずのデータが保存先へ
+  // 復活してしまうため、片付けを始める前に確実に止めておく
+  if (entry.saveTimer) {
+    clearTimeout(entry.saveTimer);
+    entry.saveTimer = null;
+  }
+
+  // 削除を要求した本人を含む全員を退室させる。切断の完了は待たない（待つ必要がない）。
+  // 集合を先に空にしておくのは、この後に届く操作を確実に配らないため。
+  Array.from(entry.clients).forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) client.close(4005, 'room deleted');
+  });
+  entry.clients.clear();
+
+  entry.deletion = deleteRoomData(roomId)
+    .then(() => console.log(`[server] ${roomId} を削除しました`))
+    .finally(() => {
+      // 墓標を下ろす。ここまで来て初めてこのスロットを空きとして作り直せる
+      // （作り直しはwaitForRoomDeletionでここを待っている）。
+      if (rooms.get(roomId) === entry) rooms.delete(roomId);
+    });
+
+  return entry.deletion;
+}
+
+// 部屋の実データ（保存先の状態・認証情報、R2上のファイル、移行元のローカルファイルが
+// 残っていればそれも）を消す。呼ぶのはstartRoomDeletionからだけ。
+//
+// 消す順番は「部屋そのものの記録（状態・認証情報）が先、R2のファイルが後」。記録さえ
+// 消えれば部屋は誰からも辿れなくなるので、そこを最短で終わらせる。逆順にすると、
+// ファイルの一覧取得と削除（画像や音源の数だけ往復する）が終わるまでの数秒〜数十秒の間、
+// 「消したはずの部屋のデータが保存先に残っている」状態が続いてしまう。
 //
 // R2上のファイルは、状態から辿れるキーではなく接頭辞（rooms/room-N/）でまとめて消す。
 // 状態から集める方式だと、差し替えられて参照されなくなった古い背景のように「もう状態に
@@ -565,17 +632,6 @@ function isOwnKeyOfRoom(roomId, key) {
 // 複数のシーンが同時に参照しうるため、個別に消すと「まだ使っているシーンの背景が404に
 // なる」という最悪の壊れ方をする。掃除はこの部屋の削除時にまとめて行う。
 async function deleteRoomData(roomId) {
-  if (isR2Configured()) {
-    try {
-      const { deleted, failed } = await deleteObjectsByPrefix(roomObjectPrefix(roomId));
-      console.log(`[server] ${roomId} のファイルを${deleted}件削除しました`
-        + (failed > 0 ? `（${failed}件は失敗）` : ''));
-    } catch (error) {
-      // 一覧が取れなくても部屋データの削除自体は止めない（残るのは孤児だけ）
-      console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
-    }
-  }
-
   try {
     await deleteRoomState(roomId);
   } catch (error) {
@@ -589,8 +645,20 @@ async function deleteRoomData(roomId) {
   } catch (error) {
     console.warn(`[server] ${roomId} の認証情報の削除に失敗しました:`, error.message);
   }
+
   // Redis運用でも、移行前のローカルファイルが残っていれば一緒に消す
   await unlink(roomFilePath(roomId)).catch(() => {});
+
+  if (isR2Configured()) {
+    try {
+      const { deleted, failed } = await deleteObjectsByPrefix(roomObjectPrefix(roomId));
+      console.log(`[server] ${roomId} のファイルを${deleted}件削除しました`
+        + (failed > 0 ? `（${failed}件は失敗）` : ''));
+    } catch (error) {
+      // 一覧が取れなくても部屋データの削除自体は止めない（残るのは孤児だけ）
+      console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
+    }
+  }
 }
 
 // 起動時、まだserver/rooms/が無ければ作成する。既存のserver/state.json（本機能より前の
@@ -1054,6 +1122,10 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
+  // 同じ番号の部屋を削除した直後なら、ファイルの片付けが終わるまでここで待つ。
+  // 待たずに作ると、古い部屋の一括削除が新しい部屋のファイルまで消してしまう。
+  await waitForRoomDeletion(id);
+
   const existing = await getOrLoadRoom(id);
   if (existing) {
     sendJson(res, 409, { error: 'その部屋は既に使われています。' });
@@ -1349,8 +1421,19 @@ wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room');
 
+  // 生存確認の初期値。以後はpongが返るたびに立て直す（下のheartbeatTimer参照）。
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   if (!isValidRoomId(roomId)) {
     ws.close(4000, 'invalid room');
+    return;
+  }
+
+  // 削除中の部屋。getOrLoadRoomはこれを「無い部屋」としてnullで返すので、
+  // 「まだ作られていない部屋」と区別してここで先に見る（案内の文言が変わる）。
+  if (isDeletingRoom(roomId)) {
+    ws.close(4005, 'room deleted');
     return;
   }
 
@@ -1360,7 +1443,7 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
-  // 削除待ち（全員の退室を待っている）部屋には新規接続させない
+  // 読み込みを待っている間に削除された場合
   if (entry.pendingDelete) {
     ws.close(4005, 'room deleted');
     return;
@@ -1375,6 +1458,13 @@ wss.on('connection', async (ws, req) => {
   let entryTimer = null;
 
   function admit() {
+    // 入室パスワードの入力待ちのまま部屋が削除されることがある。この接続はclientsに
+    // 入っていないので削除時の一斉切断でも切られておらず、ここを素通しにすると、
+    // 消えた部屋の中身を配ってしまう（以後の操作で部屋ごと復活もする）。
+    if (entry.pendingDelete) {
+      ws.close(4005, 'room deleted');
+      return;
+    }
     entry.clients.add(ws);
     console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
     ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
@@ -1419,6 +1509,10 @@ wss.on('connection', async (ws, req) => {
     } catch {
       return;
     }
+
+    // 削除中の部屋への操作は全て捨てる。切断は要求したがブラウザ側にまだ届いておらず、
+    // 行き違いで届いた操作を処理すると、片付けたそばから状態が書き戻される。
+    if (entry.pendingDelete) return;
 
     // 入室パスワードの照合。通るまでは部屋の中身を一切渡さない（verifyEntryPassword参照）。
     if (message.type === 'JOIN') {
@@ -1506,12 +1600,9 @@ wss.on('connection', async (ws, req) => {
         console.warn(`[server] ${roomId}: GM以外からの部屋削除の要求を拒否しました`);
         return;
       }
-      // 即座には消さない。全クライアント（自分含む）を退室させ、退室が完了して
-      // （clients.size===0）から実データを消す（ws.on('close')側で行う）。
-      entry.pendingDelete = true;
-      Array.from(entry.clients).forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) client.close(4005, 'room deleted');
-      });
+      // 全員（自分含む）を退室させ、その場で片付けを始める（startRoomDeletion参照）。
+      // この呼び出しが返った時点で、部屋は一覧からも入室先からも消えている。
+      startRoomDeletion(roomId, entry);
       return;
     }
 
@@ -1565,22 +1656,31 @@ wss.on('connection', async (ws, req) => {
     // 入室パスワードを通らないまま切れた接続はclientsに入っていない（deleteは空振りでよい）
     entry.clients.delete(ws);
     console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
-
-    if (entry.pendingDelete && entry.clients.size === 0) {
-      // デバウンス中の保存がこの後に発火すると、削除したはずのデータがRedisへ
-      // 復活してしまうため、削除前に確実に止めておく
-      if (entry.saveTimer) {
-        clearTimeout(entry.saveTimer);
-        entry.saveTimer = null;
-      }
-      rooms.delete(roomId);
-      // R2上のファイルは接頭辞でまとめて消すので、状態を渡す必要はない
-      deleteRoomData(roomId).then(() => {
-        console.log(`[server] ${roomId} を削除しました`);
-      });
-    }
   });
 });
+
+// --- 落ちた接続の掃除 ---
+// 端末のスリープ、回線断、タブの凍結（スマホのバックグラウンド）では、ブラウザからの
+// closeフレームが届かないままTCP接続だけが残る。OSのkeepaliveが気づくのは数時間後なので、
+// 放っておくとサーバーから見た部屋の人数がいつまでも減らない（実際には誰も居ないのに
+// 「まだ1人いる」ように見える）。一定間隔でpingを送り、次の間隔までにpongが返らない
+// 接続は落ちたものとして切る。terminate()でもcloseイベントは発火するので、
+// 人数の減算（上のws.on('close')）は通常の切断と同じ経路で行われる。
+// 落ちた接続に気づくまでの最長時間はこの2倍（pingを送った次の回で判定するため）。
+const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+
+const heartbeatTimer = setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.isAlive === false) {
+      client.terminate();
+      return;
+    }
+    client.isAlive = false;
+    client.ping();
+  });
+}, HEARTBEAT_INTERVAL_MS);
+
+wss.on('close', () => clearInterval(heartbeatTimer));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);

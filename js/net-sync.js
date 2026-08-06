@@ -224,9 +224,9 @@ export function sendIdentify(participantId, authToken) {
   flushIdentify();
 }
 
-// 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させた上で
-// （全員の退室が完了してから）実データを消す。結果は各クライアントのws closeイベント
-// （ROOM_DELETED_CLOSE_CODE）で通知される。
+// 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させ、
+// その場で実データを消す（切断の完了は待たない。server/index.jsのstartRoomDeletion）。
+// 結果は各クライアントのws closeイベント（ROOM_DELETED_CLOSE_CODE）で通知される。
 export function requestRoomDeletion() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'DELETE_ROOM' }));

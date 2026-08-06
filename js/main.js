@@ -691,8 +691,8 @@ if (importStateBtn && importStateInput) {
 }
 
 // 部屋の削除。ルーム設定の一番下にある赤いボタンから。押した直後には消さず、
-// 確認ダイアログ（いいえ／はい／部屋を保存し削除）を挟む。実際の削除は
-// サーバー側が全員の退室を確認してから行う（net-sync.jsのrequestRoomDeletion参照）。
+// 確認ダイアログ（いいえ／はい／部屋を保存し削除）を挟む。実際の削除は、要求を受けた
+// サーバーが全員を退室させながらその場で行う（net-sync.jsのrequestRoomDeletion参照）。
 if (deleteRoomBtn) {
   deleteRoomBtn.addEventListener('click', () => {
     if (!canOperateAsGm()) return;

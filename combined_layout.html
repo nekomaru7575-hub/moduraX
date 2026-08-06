@@ -470,6 +470,18 @@
       width : 100%;
     }
 
+    /* パネルの重なり層。パネル同士の重なり順（.panel-objectのz-index、js/board-data-driven.jsが
+       state.panels[].stackOrderから決める）をここで閉じ込める。層自身がz-index:5を持つので、
+       中で何番を付けてもコマ(.token, z-index:10)やダイス(.dice-stage, z-index:40)より前には出ない。
+       素通し(pointer-events:none)にして、パネルの無いところの左ドラッグ（盤面パン）と
+       右クリック（盤面メニュー）は今までどおり下の#boardへ届くようにする。 */
+    #panel-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+    }
+
     /* パネル：コマの下に敷くマップタイル状オブジェクト（盤面上／盤面外に配置可能） */
     .panel-object {
       position: absolute;
@@ -481,7 +493,8 @@
       box-sizing: border-box;
       cursor: grab;
       user-select: none;
-      z-index: 5;
+      /* 親(#panel-layer)が素通しなので、パネル自身で操作を拾い直す */
+      pointer-events: auto;
     }
 
     .panel-object:active {
@@ -1316,7 +1329,11 @@
       <div class="round-panel-detail" id="roundPanelDetail" style="display: none;"></div>
 
       <div id="board-viewport">
-        <div id="board"></div>
+        <div id="board">
+          <!-- パネルの置き場（js/board-data-driven.js）。コマは#board直下に足されるので、
+               この層を挟むことでパネルの重なり順がコマを追い越さないようにしている -->
+          <div id="panel-layer"></div>
+        </div>
         <!-- 3Dダイスの舞台（js/dice-animation.js）。中のcanvasはライブラリが作る -->
         <div id="dice-stage" class="dice-stage" aria-hidden="true"></div>
       </div>

@@ -298,6 +298,15 @@ function normalizeAudience(audience) {
   return Object.freeze([...new Set(audience.filter(id => typeof id === 'string' && id !== ''))]);
 }
 
+// パネルの重なり順（stackOrder）を0以上の整数にそろえる。小さいほど下、大きいほど上。
+// 未設定・数値でない・負値はすべて0になる。この項目より前に作られた部屋・シーン・
+// 書き出しファイルのパネルにはキーが無いので、その既定値もこれが兼ねる（移行処理は不要）。
+// 描画側（js/board-data-driven.js）も読むときに同じ関数を通す。片方だけ変えると、
+// 状態に入っている値と画面上の重なりがずれるため。
+export function normalizeStackOrder(value) {
+  return Math.max(0, Math.round(Number(value) || 0));
+}
+
 // 値がundefinedのキーを落とす。既存オブジェクトへの部分更新をスプレッドで作るとき、
 // undefinedが混ざると「指定なし」ではなく「その値で上書き」になってしまうのを防ぐ。
 function definedFields(patch) {
@@ -491,6 +500,8 @@ const PANEL_FIELD_PATCHES = {
   // パネルのテキストを誰に見せるか（null＝全員。js/visibility.js参照）。画像は対象外で、
   // 「絵は見えるがメモはGMだけが読める」という使い方を想定している。
   SET_PANEL_TEXT_AUDIENCE: ({ textAudience }) => ({ textAudience: normalizeAudience(textAudience) }),
+  // パネル同士の重なり順（0以上。小さいほど下、大きいほど上。同値なら追加順）
+  SET_PANEL_STACK_ORDER: ({ stackOrder }) => ({ stackOrder: normalizeStackOrder(stackOrder) }),
   // シーンへ遷移しても盤面に残すか（APPLY_SCENE参照）
   SET_PANEL_KEEP_ON_SCENE_CHANGE: ({ keepOnSceneChange }) => ({ keepOnSceneChange: !!keepOnSceneChange })
 };
@@ -1717,7 +1728,7 @@ export class ImmutableStore {
       case 'ADD_PANEL': {
         const {
           id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,
-          textAudience = null, keepOnSceneChange = false
+          textAudience = null, keepOnSceneChange = false, stackOrder = 0
         } = payload;
         if (!id) return;
         if (prevState.panels[id]) return;
@@ -1731,7 +1742,9 @@ export class ImmutableStore {
           textAudience: normalizeAudience(textAudience),
           // シーンへ遷移してもこのパネルだけは盤面に残す。シーン側には保存されないので、
           // 実体は常に1つ（js/main.jsのcurrentBoardSnapshotとAPPLY_SCENE参照）
-          keepOnSceneChange: !!keepOnSceneChange
+          keepOnSceneChange: !!keepOnSceneChange,
+          // パネル同士の重なり順。同値のパネル同士はこのマップの並び（＝追加順）で決まる
+          stackOrder: normalizeStackOrder(stackOrder)
         });
 
         this.#commit(prevState, { panels: withMapEntry(prevState.panels, id, panel) });

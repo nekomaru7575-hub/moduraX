@@ -1,6 +1,6 @@
 // js/panel-dialog.js
 // パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。
-// 画像とサイズ（幅・高さ、マス単位）を指定する。画像がまだ無いパネルで画像を選ぶと、
+// 画像・サイズ（幅・高さ、マス単位）・パネル同士の重なり順を指定する。画像がまだ無いパネルで画像を選ぶと、
 // その実サイズをマス換算した近似値をサイズ欄に自動反映する（あとから手で変更可）。
 // すでに画像があるパネルの編集では、画像を差し替えてもサイズは変えない。
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
@@ -34,16 +34,18 @@ function loadImageDimensions(dataUrl) {
  *   initialText?: string,
  *   initialCols?: number,
  *   initialRows?: number,
+ *   initialStackOrder?: number,
  *   initialKeepOnSceneChange?: boolean,
  *   gridSize: number,
  *   onConfirm: (result: {
- *     image: string | null, text: string, cols: number, rows: number, keepOnSceneChange: boolean
+ *     image: string | null, text: string, cols: number, rows: number,
+ *     stackOrder: number, keepOnSceneChange: boolean
  *   }) => void
  * }} options
  */
 export function showPanelDialog({
   title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
-  initialKeepOnSceneChange = false, gridSize, onConfirm
+  initialStackOrder = 0, initialKeepOnSceneChange = false, gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -157,6 +159,24 @@ export function showPanelDialog({
   rowsGroup.appendChild(rowsInput);
   form.appendChild(rowsGroup);
 
+  // --- 重なり順 ---
+  // パネル同士の前後だけを決める値（コマは常にパネルより手前のまま）。
+  // 実際の描き分けはjs/board-data-driven.jsが行う。
+  const stackGroup = document.createElement('div');
+  stackGroup.className = 'dialog-form-group';
+  const stackLabel = document.createElement('label');
+  stackLabel.textContent = '重なり順';
+  stackLabel.title = '小さいほど下、大きいほど上に重なります。同じ数値なら後から追加したパネルが上になります。';
+  const stackInput = document.createElement('input');
+  stackInput.type = 'number';
+  stackInput.min = '0';
+  stackInput.step = '1';
+  stackInput.required = true;
+  stackInput.value = initialStackOrder;
+  stackGroup.appendChild(stackLabel);
+  stackGroup.appendChild(stackInput);
+  form.appendChild(stackGroup);
+
   // --- シーンチェンジで残す ---
   // 既定はオフ（＝従来どおり、シーンへ遷移するとパネルは総入れ替えになる）。
   const keepGroup = document.createElement('div');
@@ -197,9 +217,14 @@ export function showPanelDialog({
     event.preventDefault();
     const cols = Math.max(1, Math.round(Number(colsInput.value) || initialCols));
     const rows = Math.max(1, Math.round(Number(rowsInput.value) || initialRows));
+    // 0は有効な値なので、空欄・非数のときだけ元の値へ戻す（|| だと0が弾かれてしまう）
+    const rawStackOrder = Number(stackInput.value);
+    const stackOrder = Math.max(0, Math.round(
+      Number.isFinite(rawStackOrder) ? rawStackOrder : initialStackOrder
+    ));
     dialog.close();
     onConfirm({
-      image: currentImage, text: textInput.value, cols, rows,
+      image: currentImage, text: textInput.value, cols, rows, stackOrder,
       keepOnSceneChange: keepInput.checked
     });
   });

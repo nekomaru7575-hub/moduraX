@@ -18,7 +18,7 @@ import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
-  getEffectiveParameterValue, BUFF_PHASE_LABELS
+  getEffectiveParameterValue, BUFF_PHASE_LABELS, normalizeStackOrder
 } from './game-store.js';
 export {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
@@ -534,9 +534,10 @@ function bindPanelDrag(element) {
             initialText: current.text,
             initialCols: current.cols,
             initialRows: current.rows,
+            initialStackOrder: normalizeStackOrder(current.stackOrder),
             initialKeepOnSceneChange: !!current.keepOnSceneChange,
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, keepOnSceneChange }) => {
+            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
               if (image !== (latest.image || null)) {
@@ -547,6 +548,9 @@ function bindPanelDrag(element) {
               }
               if (cols !== latest.cols || rows !== latest.rows) {
                 store.dispatch('SET_PANEL_SIZE', { id: panelId, cols, rows });
+              }
+              if (stackOrder !== normalizeStackOrder(latest.stackOrder)) {
+                store.dispatch('SET_PANEL_STACK_ORDER', { id: panelId, stackOrder });
               }
               if (keepOnSceneChange !== !!latest.keepOnSceneChange) {
                 store.dispatch('SET_PANEL_KEEP_ON_SCENE_CHANGE', { id: panelId, keepOnSceneChange });
@@ -589,14 +593,16 @@ function bindPanelDrag(element) {
   });
 }
 
-function createPanelElement(panelData, board) {
+// パネルは盤面直下ではなく専用の層（#panel-layer）へ入れる。層がz-indexを持つことで、
+// パネル同士の重なり順をいくつにしてもコマより手前へ出ないようにしている（CSS参照）。
+function createPanelElement(panelData, panelLayer) {
   const el = document.createElement('div');
   el.className = 'panel-object';
   el.id = panelData.id;
   applyPanelAppearance(el, panelData);
 
   bindPanelDrag(el);
-  board.appendChild(el);
+  panelLayer.appendChild(el);
   return el;
 }
 
@@ -640,7 +646,9 @@ function ownerNameOf(token) {
 window.addEventListener('DOMContentLoaded', () => {
   const viewport = document.getElementById('board-viewport');
   const board = document.getElementById('board');
-  if (!viewport || !board) return;
+  // パネルの置き場（combined_layout.html）。パネルの重なり順をここで閉じ込めている
+  const panelLayer = document.getElementById('panel-layer');
+  if (!viewport || !board || !panelLayer) return;
 
   // ウィンドウサイズ変更時：カスタムサイズ未設定のデフォルト盤面は、マス整数倍サイズを
   // ビューポートに合わせて再計算する（端のマスが切れないよう保つ）。
@@ -766,7 +774,7 @@ window.addEventListener('DOMContentLoaded', () => {
           showPanelDialog({
             title: 'パネルを追加',
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, keepOnSceneChange }) => {
+            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange }) => {
               store.dispatch('ADD_PANEL', {
                 id: generatePanelId(),
                 image,
@@ -775,6 +783,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 y: snapY,
                 cols,
                 rows,
+                stackOrder,
                 keepOnSceneChange
               });
             }
@@ -906,7 +915,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // --- パネルの同期（コマより下に敷く背景層） ---
     const panels = state.panels || {};
     const existingPanelIds = new Set(
-      Array.from(board.querySelectorAll('.panel-object')).map(el => el.id)
+      Array.from(panelLayer.querySelectorAll('.panel-object')).map(el => el.id)
     );
     const panelIds = new Set(Object.keys(panels));
 
@@ -917,13 +926,21 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    Object.values(panels).forEach(panelData => {
+    // 重なり順（stackOrder）の小さいものから並べ、その並び順の添字をそのままz-indexにする。
+    // sortは安定なので、同値のパネルはpanelsマップの並び（＝追加された順）のまま後ろに
+    // 来る＝上に重なる。DOMの並びに頼らず全員が状態から同じ値を計算するので、シーンの適用
+    // などで要素の生成順が入れ替わっても、どの画面でも同じ重なりになる。
+    const stackedPanels = Object.values(panels)
+      .sort((a, b) => normalizeStackOrder(a.stackOrder) - normalizeStackOrder(b.stackOrder));
+
+    stackedPanels.forEach((panelData, stackIndex) => {
       let el = document.getElementById(panelData.id);
       if (!el) {
-        el = createPanelElement(panelData, board);
+        el = createPanelElement(panelData, panelLayer);
       }
       el.style.left = `${panelData.x}px`;
       el.style.top = `${panelData.y}px`;
+      el.style.zIndex = stackIndex;
       applyPanelAppearance(el, panelData);
     });
 

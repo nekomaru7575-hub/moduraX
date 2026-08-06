@@ -6,6 +6,8 @@ Output rules (strict):
 - Do NOT change the function name.
 - Keep the existing code style: same indentation, same comment language, same naming conventions.
 - Change only what the instructions ask for. Do not refactor, reformat, or "improve" anything else.
+- Do NOT add comments that describe the edit itself (no `// Add this line`, `// changed`, `// new`).
+  Only add a comment if the instructions explicitly ask for one.
 
 Function:
 ```js

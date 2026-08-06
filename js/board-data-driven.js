@@ -453,8 +453,10 @@ function applyPanelAppearance(el, panelData) {
 
   if (panelData.image) {
     el.style.backgroundImage = `url('${panelData.image}')`;
+    el.style.backgroundColor = '';
   } else {
     el.style.backgroundImage = '';
+    el.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
   }
 
   // マウスオーバー時にブラウザ標準のツールチップとして表示する（画像とは独立）。

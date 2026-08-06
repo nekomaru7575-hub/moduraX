@@ -145,6 +145,19 @@ function Compare-Normalized([string]$a, [string]$b) {
     return (($a -replace '\s+', ' ').Trim()) -eq (($b -replace '\s+', ' ').Trim())
 }
 
+# 元コードにあったコメント行が出力に残っているか。
+# 小さいモデルは「既存コメントをそのまま残せ」と明示しても日本語コメントを落とす。
+# 構文も動作も壊れないため他のどの検査にも掛からず、黙って情報だけが失われる。
+function Find-LostComments([string]$original, [string]$rewritten) {
+    $commentLines = @($original -split "`n" | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -match '^(//|/\*|\*)' })
+    $lost = @()
+    foreach ($c in $commentLines) {
+        if (-not ($rewritten -like "*$c*")) { $lost += $c }
+    }
+    return $lost
+}
+
 # 断片単体が構文として成立するか
 function Test-SnippetSyntax([string]$code) {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("loopsnip_" + [guid]::NewGuid().ToString('N') + '.mjs')
@@ -168,7 +181,11 @@ function Invoke-LocalModel([string]$prompt, [double]$temperature) {
         # Ollamaのnum_ctx既定値は2048。明示しないと黙って切り捨てられる。
         options = @{ num_ctx = 8192; temperature = $temperature }
     } | ConvertTo-Json -Depth 5
-    $res = Invoke-RestMethod -Uri "$Endpoint/api/generate" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 600
+    # 文字列のままBodyに渡すとPowerShell 5.1はUTF-8で送らず、日本語コメントが「?????」に
+    # 化けたままモデルへ届く（モデルはそれを忠実に再現するので、原因が分かりにくい）。
+    # 必ずUTF-8バイト列にしてcharsetも明示する。
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $res = Invoke-RestMethod -Uri "$Endpoint/api/generate" -Method Post -Body $bytes -ContentType 'application/json; charset=utf-8' -TimeoutSec 600
     return $res.response
 }
 
@@ -199,6 +216,10 @@ foreach ($u in $units) {
         continue
     }
 
+    # 元ファイルのBOM有無を覚えておく。ReadAllTextはBOMを外して返すため、
+    # 覚えずに書き戻すとBOMが消えて差分に無関係な1行が出る。
+    $head = [System.IO.File]::ReadAllBytes($full) | Select-Object -First 3
+    $hadBom = ($head.Count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF)
     $src = [System.IO.File]::ReadAllText($full, [System.Text.Encoding]::UTF8)
     $found = Find-JsFunction $src $u.Function
     if (-not $found) {
@@ -227,11 +248,19 @@ foreach ($u in $units) {
         if ($code -notmatch [regex]::Escape("function $($u.Function)")) { $lastReason = '関数名が変わっている'; Write-Host "  試行$attempt : $lastReason"; continue }
         if (-not (Test-SnippetSyntax $code)) { $lastReason = '断片が構文エラー'; Write-Host "  試行$attempt : $lastReason"; continue }
 
+        $lost = Find-LostComments $original $code
+        if ($lost.Count -gt 0) {
+            $lastReason = "既存コメントが $($lost.Count) 行失われた"
+            Write-Host "  試行$attempt : $lastReason"
+            $lost | Select-Object -First 3 | ForEach-Object { Write-Host "      失: $_" }
+            continue
+        }
+
         # 完全一致置換して、ファイル全体の構文も確認する
         $next = $src.Remove($found.Start, $found.Length).Insert($found.Start, $code)
         if (-not (Test-SnippetSyntax $next)) { $lastReason = '置換後のファイルが構文エラー'; Write-Host "  試行$attempt : $lastReason"; continue }
 
-        [System.IO.File]::WriteAllText($full, $next, (New-Object System.Text.UTF8Encoding($false)))
+        [System.IO.File]::WriteAllText($full, $next, (New-Object System.Text.UTF8Encoding($hadBom)))
         Write-Host "  適用しました（試行$attempt, temp=$temp）"
         $results += [pscustomobject]@{ Unit = "$($u.File)::$($u.Function)"; Status = 'applied'; Reason = "attempt=$attempt" }
         $applied = $true

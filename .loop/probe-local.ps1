@@ -28,8 +28,10 @@ function Invoke-LocalModel([string]$prompt) {
         options = @{ num_ctx = 8192; temperature = 0 }
     } | ConvertTo-Json -Depth 5
 
+    # 文字列のままBodyに渡すとPowerShell 5.1はUTF-8で送らず、日本語が化けてモデルへ届く。
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $res = Invoke-RestMethod -Uri "$Endpoint/api/generate" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 600
+    $res = Invoke-RestMethod -Uri "$Endpoint/api/generate" -Method Post -Body $bytes -ContentType 'application/json; charset=utf-8' -TimeoutSec 600
     $sw.Stop()
     return [pscustomobject]@{
         Text = $res.response

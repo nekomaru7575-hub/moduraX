@@ -2,13 +2,16 @@
 
 1タスクを「発注 → 実装 → 機械ゲート → 検査 → 修正」の閉ループで回すための仕組み。
 
-## 状態: 休止中（2026-08-06〜）
+## 状態: ローカルLLMを実装役に組み込み済み（2026-08-06）
 
-**Gemini が使えるようになるまでこのループは使わない。** 通常どおり Claude Code に直接
-依頼する運用に戻す。
+実装役は **ローカルLLM（Ollama / qwen2.5-coder:7b）→ 失敗時 Sonnet** の2段構え。
+ローカルで通れば実装のトークン消費はゼロ、通らなければ従来どおりなので**下振れが無い**。
 
-理由: 実装役を Gemini に逃がせない以上、コスト面の利点がほぼ無いため。T-001 を1周
-回した実測は次のとおり。
+Gemini は引き続き使えない（後述）。
+
+### 計測: なぜローカルLLMを入れたか
+
+T-001（Sonnetのみ）の実測は次のとおり。
 
 | 工程 | モデル | トークン |
 |---|---|---|
@@ -25,13 +28,73 @@
 得られたものは、独立した検査が仕様との食い違いを1件検出したこと、機械ゲートが無料で
 効いたことの2点。
 
-### 再開の手順
+### ローカルLLM実装役の使い方
 
-1. リポジトリ直下で `gemini -p "ping"` が通るか確認する（`.env` の `GEMINI_API_KEY` はそのまま置いてある）
-2. 通れば `.claude/commands/dev-loop.md` の手順3を `run-gemini.ps1` の呼び出しに戻す
-3. 下記「再開時に入れる改善」を反映してから回す
+```powershell
+powershell -File .loop/probe-local.ps1                    # モデル適格性チェック
+powershell -File .loop/run-ollama.ps1 -TaskId T-XXX       # 実装
+```
 
-### 再開時に入れる改善
+**モデルを入れ替えたら必ず `probe-local.ps1` を通すこと。** 実際の書き換え課題で
+合否を出す。合格しないモデルを実装役に据えてはいけない。
+
+回せるのは「1つの `function` 宣言の中で完結する変更」だけ。発注書の `## LOCAL TASKS`
+に、対象の `ファイルパス :: 関数名` と英語の指示を書く（書式は `spec/_TEMPLATE.md`）。
+
+`run-ollama.ps1` はモデルにツールもリポジトリも渡さない。関数1つを渡して書き換えた
+関数1つを受け取り、**完全一致置換**で貼り付ける。差分適用とファイル全文の再生成は
+小さいモデルが壊すのでさせない。貼り付け前に以下を機械で検査する（トークン0）。
+
+| 検査 | 落とす条件 |
+|---|---|
+| フェンス抽出 | ` ```js ` ブロックが取り出せない |
+| 無変更検出 | 出力が元コードと実質同一 |
+| 関数名 | 関数名が変わっている |
+| 断片の構文 | 断片単体が `node --check` を通らない |
+| 置換後の構文 | 置換後のファイルが `node --check` を通らない |
+
+再試行は temperature を 0 → 0.2 → 0.4 と上げる。0 のまま再試行しても同じ出力しか返らない。
+
+### 重要: プロンプトは必ず英語で書く
+
+**これが合否を分ける最大の要因だった。** 2026-08-06 の実測:
+
+| モデル | 言語 | 結果 |
+|---|---|---|
+| qwen2.5-coder:3b | 日本語 | 全滅（解説文を返す / 無変更） |
+| qwen2.5-coder:7b | 日本語 | 全滅（無変更 / 指示と違う変更） |
+| qwen2.5-coder:7b | 英語 | 全合格（1件あたり約6.5秒） |
+
+日本語での失敗は「指示が曖昧だから」ではない。対象コードを全文渡し、変更は1箇所、
+出力の書き出しまで固定した最大限明確な条件でも、元コードをそのまま返してきた。
+
+発注書の他のセクションは人間が読むので日本語のままでよい。`## LOCAL TASKS` だけ英語。
+
+### ローカルLLMを入れても検査は外せない
+
+適格性チェックに合格した出力にも、実際に欠陥があった。
+
+```js
+return Math.max(Number(effective) || 0, floor || -Infinity);
+```
+
+`floor || -Infinity` なので `floor: 0` を渡すとクランプが効かない。構文は正しく指示も
+一見満たしているため、**機械ゲートでは絶対に捕まらない**。削れるのは実装のトークンだけで、
+Sonnet の検査は必須。
+
+### Gemini が使えない件（未解決）
+
+1. Google 個人アカウントのログイン（Gemini Code Assist for individuals 無料枠）は廃止 — `IneligibleTierError: UNSUPPORTED_CLIENT`
+2. AI Studio は現在 Authentication key（`AQ.`）しか発行しない
+3. その `AQ.` キーが多くの SDK で `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` を返す。gemini-cli 0.53.1 でも再現
+4. Google は移行を認めたうえで回避策を提示していない（2026年8月時点）
+
+- https://discuss.ai.google.dev/t/401-error-access-token-type-unsupported-with-new-aq-api-key/176648
+- https://discuss.ai.google.dev/t/account-only-issues-aq-keys-all-return-401-access-token-type-unsupported/176964
+
+復旧したら `run-gemini.ps1` をそのまま使える。キーは `.env` の `GEMINI_API_KEY` に置いてある。
+
+### まだ入れていない改善
 
 T-001 で判明した無駄。未反映。
 
@@ -53,7 +116,8 @@ T-001 で判明した無駄。未反映。
 | 工程 | 担当 |
 |---|---|
 | 分割・発注書作成・最終承認 | Opus 5（Claude Code 本体） |
-| 実装 | Sonnet 5 サブエージェント（本来は Gemini。下記「実装役の差し替え」参照） |
+| 実装（1段目） | ローカルLLM（Ollama / qwen2.5-coder:7b）。関数単位の変更のみ。無料 |
+| 実装（2段目） | Sonnet 5 サブエージェント。1段目で回せない／失敗したもの |
 | 検査（エラー / オーダー照合 / セキュリティ） | Sonnet 5 サブエージェント |
 | 修正 | Sonnet 5 サブエージェント |
 
@@ -74,12 +138,15 @@ T-001 で判明した無駄。未反映。
 .loop/
   spec/_TEMPLATE.md    発注書テンプレ
   spec/T-XXX.md        発注書（Opus が書く。1タスク1枚）
-  prompts/implement.md 実装用（実装役が誰でも共通）
-  prompts/review.md    Sonnet 検査用
-  prompts/fix.md       Sonnet 修正用
-  gate.ps1             機械ゲート（UTF-8 BOM 必須）
-  run-gemini.ps1       gemini CLI ラッパ（UTF-8 BOM 必須）
-  runs/T-XXX/          各周回のプロンプト・ログ・gate.json（git 管理外）
+  prompts/implement.md       実装用（エージェント型の実装役に共通）
+  prompts/implement-local.md ローカルLLM用（英語。関数の書き換えのみ）
+  prompts/review.md          Sonnet 検査用
+  prompts/fix.md             Sonnet 修正用
+  gate.ps1                   機械ゲート（UTF-8 BOM 必須）
+  probe-local.ps1            ローカルLLM適格性チェック（UTF-8 BOM 必須）
+  run-ollama.ps1             ローカル実装役（UTF-8 BOM 必須）
+  run-gemini.ps1             gemini CLI ラッパ。Gemini復旧まで未使用（UTF-8 BOM 必須）
+  runs/T-XXX/                各周回のプロンプト・ログ・gate.json（git 管理外）
 ```
 
 ## 実装役の差し替え
@@ -87,30 +154,9 @@ T-001 で判明した無駄。未反映。
 実装役はループの中で唯一の差し替え可能な部品。触るのは
 `.claude/commands/dev-loop.md` の手順3だけで、発注書・ゲート・検査・修正はそのまま使える。
 
-### 現状: Sonnet 5（2026-08-06 時点）
+### 現状（2026-08-06）
 
-本来の設計は Gemini CLI（外部の安いコーダーに実装を逃がし、Claude プランの枠を温存する）
-だったが、**Google 側の未解決の不具合により Gemini 経路が使えない**ため Sonnet に退避している。
-
-### Gemini 経路が使えない理由
-
-1. Google 個人アカウントのログイン（Gemini Code Assist for individuals 無料枠）は
-   このクライアントでは廃止 — `IneligibleTierError: UNSUPPORTED_CLIENT`
-2. 代わりの AI Studio の API キーは、Google が Traffic key（`AIza`）から
-   Authentication key（`AQ.`）へ移行中で、**現在は `AQ.` しか発行されない**
-3. その `AQ.` キーが多くの SDK / サービスで `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` を返す。
-   `?key=` でもヘッダでも同じ。gemini-cli 0.53.1（最新）でも再現
-4. Google スタッフは移行を認めたうえで「互換性の問題はフォームで報告してほしい」と回答するのみで、
-   回避策は未提示（2026年8月時点で未解決）
-
-- https://discuss.ai.google.dev/t/401-error-access-token-type-unsupported-with-new-aq-api-key/176648
-- https://discuss.ai.google.dev/t/account-only-issues-aq-keys-all-return-401-access-token-type-unsupported/176964
-
-### 復旧したら
-
-リポジトリ直下で `gemini -p "ping"` が通るようになったら、`dev-loop.md` の手順3を
-`run-gemini.ps1` の呼び出しに戻すだけでよい。キーは `.env` の `GEMINI_API_KEY` に
-既に置いてある（`.env` は gitignore 済みで、ゲートの検査対象にも入らない）。
+ローカルLLM → Sonnet の2段構え。Gemini は使えない（冒頭「Gemini が使えない件」参照）。
 
 ### その他の選択肢
 

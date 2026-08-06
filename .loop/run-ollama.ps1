@@ -13,7 +13,10 @@ param(
     [Parameter(Mandatory = $true)][string]$TaskId,
     [string]$Model = 'qwen2.5-coder:7b',
     [string]$Endpoint = 'http://localhost:11434',
-    [int]$MaxAttempts = 3
+    # ローカルLLMはトークン課金が無いので、機械検査を通るまで多めに回す。
+    # ただし壁時計時間は有限なのでユニットごとに上限秒数を設ける。
+    [int]$MaxAttempts = 12,
+    [int]$MaxSecondsPerUnit = 300
 )
 
 $ErrorActionPreference = 'Stop'
@@ -158,6 +161,62 @@ function Find-LostComments([string]$original, [string]$rewritten) {
     return $lost
 }
 
+# 元コードに無かったコメントが増えていないか。
+# 「// Add this line」のような編集の説明コメントを、プロンプトで禁止しても消せない。
+# 新しいコメントを本当に入れたい場合は、発注書の指示文にそのコメント本文をそのまま書くこと。
+# 「コメントを残せ」といった記述で免除されないよう、免除は本文一致に限る。
+function Find-AddedComments([string]$original, [string]$rewritten, [string]$instruction) {
+    $added = @()
+    foreach ($line in ($rewritten -split "`n")) {
+        $idx = Get-LineCommentIndex $line
+        if ($idx -lt 0) { continue }
+        $c = $line.Substring($idx).Trim()
+        if ($original -like "*$c*") { continue }        # 元からあるコメント
+        if ($instruction -like "*$c*") { continue }     # 指示文が本文ごと要求しているコメント
+        $added += $c
+    }
+    return $added
+}
+
+# 行内でコメントが始まる位置を返す（文字列リテラルの中の // は無視する）。無ければ -1。
+# 'http://example.com' のような文字列を誤ってコメント扱いしないために必要。
+function Get-LineCommentIndex([string]$line) {
+    $state = 'code'
+    for ($i = 0; $i -lt $line.Length; $i++) {
+        $c = $line[$i]
+        $n = if ($i + 1 -lt $line.Length) { $line[$i + 1] } else { [char]0 }
+        if ($state -eq 'code') {
+            if ($c -eq '/' -and ($n -eq '/' -or $n -eq '*')) { return $i }
+            elseif ($c -eq "'") { $state = 'single' }
+            elseif ($c -eq '"') { $state = 'double' }
+            elseif ($c -eq '`') { $state = 'template' }
+        }
+        elseif ($state -eq 'single')   { if ($c -eq '\') { $i++ } elseif ($c -eq "'") { $state = 'code' } }
+        elseif ($state -eq 'double')   { if ($c -eq '\') { $i++ } elseif ($c -eq '"') { $state = 'code' } }
+        elseif ($state -eq 'template') { if ($c -eq '\') { $i++ } elseif ($c -eq '`') { $state = 'code' } }
+    }
+    return -1
+}
+
+# 指示に無い新規コメントを機械的に取り除く。
+# 「コメントを足すな」という否定制約は、失敗理由を返して12回再試行しても守られなかった
+# （2026-08-06 実測）。モデルに守らせるのを諦め、こちらで確実に落とす。
+function Remove-AddedComments([string]$original, [string]$rewritten, [string]$instruction) {
+    $out = @()
+    foreach ($line in ($rewritten -split "`n")) {
+        $idx = Get-LineCommentIndex $line
+        if ($idx -lt 0) { $out += $line; continue }
+
+        $c = $line.Substring($idx).Trim()
+        if (($original -like "*$c*") -or ($instruction -like "*$c*")) { $out += $line; continue }
+
+        $head = $line.Substring(0, $idx).TrimEnd()
+        # コメントだけの行は行ごと落とす。コードの後ろに付いた注釈はコメント部分だけ落とす。
+        if ($head -ne '') { $out += $head }
+    }
+    return ($out -join "`n")
+}
+
 # 断片単体が構文として成立するか
 function Test-SnippetSyntax([string]$code) {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("loopsnip_" + [guid]::NewGuid().ToString('N') + '.mjs')
@@ -173,13 +232,15 @@ function Test-SnippetSyntax([string]$code) {
     }
 }
 
-function Invoke-LocalModel([string]$prompt, [double]$temperature) {
+function Invoke-LocalModel([string]$prompt, [double]$temperature, [int]$seed) {
     $body = @{
         model   = $Model
         prompt  = $prompt
         stream  = $false
         # Ollamaのnum_ctx既定値は2048。明示しないと黙って切り捨てられる。
-        options = @{ num_ctx = 8192; temperature = $temperature }
+        # seedを振るのは、温度だけを上げて多様性を出すと品質が落ちるため。
+        # 同じ温度のまま別の標本を引くほうが当たりやすい。
+        options = @{ num_ctx = 8192; temperature = $temperature; seed = $seed }
     } | ConvertTo-Json -Depth 5
     # 文字列のままBodyに渡すとPowerShell 5.1はUTF-8で送らず、日本語コメントが「?????」に
     # 化けたままモデルへ届く（モデルはそれを忠実に再現するので、原因が分かりにくい）。
@@ -234,31 +295,87 @@ foreach ($u in $units) {
 
     $applied = $false
     $lastReason = ''
+    $feedback = ''
+    $reasonCounts = @{}
+    $unitSw = [System.Diagnostics.Stopwatch]::StartNew()
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        # temperature 0 のまま再試行しても同じ出力しか返らないため、試行ごとに上げる
-        $temp = @(0.0, 0.2, 0.4)[[Math]::Min($attempt - 1, 2)]
-        $raw = Invoke-LocalModel $prompt $temp
-        [void]$log.AppendLine("--- attempt $attempt (temp=$temp) ---")
-        [void]$log.AppendLine($raw)
-
-        $code = Get-CodeFence $raw
-        if (-not $code) { $lastReason = 'コードフェンスが無い'; Write-Host "  試行$attempt : $lastReason"; continue }
-        if (Compare-Normalized $code $original) { $lastReason = '無変更（元コードをそのまま返した）'; Write-Host "  試行$attempt : $lastReason"; continue }
-        if ($code -notmatch [regex]::Escape("function $($u.Function)")) { $lastReason = '関数名が変わっている'; Write-Host "  試行$attempt : $lastReason"; continue }
-        if (-not (Test-SnippetSyntax $code)) { $lastReason = '断片が構文エラー'; Write-Host "  試行$attempt : $lastReason"; continue }
-
-        $lost = Find-LostComments $original $code
-        if ($lost.Count -gt 0) {
-            $lastReason = "既存コメントが $($lost.Count) 行失われた"
-            Write-Host "  試行$attempt : $lastReason"
-            $lost | Select-Object -First 3 | ForEach-Object { Write-Host "      失: $_" }
-            continue
+        if ($unitSw.Elapsed.TotalSeconds -gt $MaxSecondsPerUnit) {
+            $lastReason = "時間切れ（$MaxSecondsPerUnit 秒）: $lastReason"
+            Write-Host "  打ち切り: $MaxSecondsPerUnit 秒を超えました"
+            break
         }
 
-        # 完全一致置換して、ファイル全体の構文も確認する
-        $next = $src.Remove($found.Start, $found.Length).Insert($found.Start, $code)
-        if (-not (Test-SnippetSyntax $next)) { $lastReason = '置換後のファイルが構文エラー'; Write-Host "  試行$attempt : $lastReason"; continue }
+        # 1回目は温度0（決定的に最良を引く）。2回目以降は温度を固定的に振りつつseedを変える。
+        # 温度0のまま再試行しても同じ出力しか返らないので、必ず何かを変える必要がある。
+        $temp = if ($attempt -eq 1) { 0.0 } else { @(0.3, 0.5, 0.7)[($attempt - 2) % 3] }
+        $seed = $attempt * 7919
+
+        # 直前の失敗理由をプロンプトに返す。単なる再抽選より当たりやすい。
+        $attemptPrompt = if ($feedback) { $prompt + "`n" + $feedback } else { $prompt }
+
+        $raw = Invoke-LocalModel $attemptPrompt $temp $seed
+        [void]$log.AppendLine("--- attempt $attempt (temp=$temp, seed=$seed) ---")
+        [void]$log.AppendLine($raw)
+
+        # 失敗したらここに理由と、モデルへ返す英語のフィードバックを入れて次の試行へ
+        $fail = $null
+        $feedback = ''
+
+        $code = Get-CodeFence $raw
+        if ($code) {
+            # 「// Add this line」のような編集注釈は再試行では消せないので、ここで機械的に落とす
+            $code = Remove-AddedComments $original $code $u.Instruction
+        }
+        if (-not $code) {
+            $fail = 'コードフェンスが無い'
+            $feedback = "Your previous answer was rejected: you did not wrap the function in a ```js code fence. Output ONLY the rewritten function inside a ```js fence."
+        }
+        elseif (Compare-Normalized $code $original) {
+            $fail = '無変更（元コードをそのまま返した）'
+            $feedback = "Your previous answer was rejected: you returned the original function unchanged. You MUST actually apply the requested change."
+        }
+        elseif ($code -notmatch [regex]::Escape("function $($u.Function)")) {
+            $fail = '関数名が変わっている'
+            $feedback = "Your previous answer was rejected: you changed the function name. Keep it exactly ``$($u.Function)``."
+        }
+        elseif (-not (Test-SnippetSyntax $code)) {
+            $fail = '断片が構文エラー'
+            $feedback = "Your previous answer was rejected: the code you produced is not valid JavaScript. Return syntactically valid code."
+        }
+        elseif (($addedComments = Find-AddedComments $original $code $u.Instruction).Count -gt 0) {
+            $fail = "指示に無いコメントが $($addedComments.Count) 件増えた"
+            $addedText = $addedComments -join "`n"
+            $feedback = "Your previous answer was rejected: you added comments that were not in the original and were not requested. Remove them completely. Do not annotate your own edit. The offending comments are:`n$addedText"
+            Write-Host "  試行$attempt : $fail"
+            $addedComments | Select-Object -First 3 | ForEach-Object { Write-Host "      増: $_" }
+        }
+        else {
+            $lost = Find-LostComments $original $code
+            if ($lost.Count -gt 0) {
+                $fail = "既存コメントが $($lost.Count) 行失われた"
+                $lostText = ($lost | ForEach-Object { $_ }) -join "`n"
+                $feedback = "Your previous answer was rejected: you deleted existing comment lines. Every comment line below must appear in your output, character for character, in its original position. Do not translate, shorten, or drop them:`n$lostText"
+                Write-Host "  試行$attempt : $fail"
+                $lost | Select-Object -First 3 | ForEach-Object { Write-Host "      失: $_" }
+            }
+        }
+
+        if (-not $fail) {
+            # 完全一致置換して、ファイル全体の構文も確認する
+            $next = $src.Remove($found.Start, $found.Length).Insert($found.Start, $code)
+            if (-not (Test-SnippetSyntax $next)) {
+                $fail = '置換後のファイルが構文エラー'
+                $feedback = "Your previous answer was rejected: splicing it back into the file produced invalid JavaScript. Return the complete function only, balanced braces included."
+            }
+        }
+
+        if ($fail) {
+            $lastReason = $fail
+            $reasonCounts[$fail] = 1 + [int]$reasonCounts[$fail]
+            if ($fail -notlike '既存コメント*' -and $fail -notlike '指示に無いコメント*') { Write-Host "  試行$attempt : $fail" }
+            continue
+        }
 
         [System.IO.File]::WriteAllText($full, $next, (New-Object System.Text.UTF8Encoding($hadBom)))
         Write-Host "  適用しました（試行$attempt, temp=$temp）"
@@ -268,8 +385,17 @@ foreach ($u in $units) {
     }
 
     if (-not $applied) {
-        Write-Host "  失敗: $MaxAttempts 回とも通りませんでした（$lastReason）"
-        $results += [pscustomobject]@{ Unit = "$($u.File)::$($u.Function)"; Status = 'fail'; Reason = $lastReason }
+        Write-Host "  失敗: 通りませんでした（$([math]::Round($unitSw.Elapsed.TotalSeconds,1)) 秒 / $lastReason）"
+        Write-Host "  棄却理由の内訳:"
+        $reasonCounts.GetEnumerator() | Sort-Object Value -Descending | ForEach-Object {
+            Write-Host "    $($_.Value) 回: $($_.Key)"
+        }
+        $results += [pscustomobject]@{
+            Unit    = "$($u.File)::$($u.Function)"
+            Status  = 'fail'
+            Reason  = $lastReason
+            Rejects = ($reasonCounts.GetEnumerator() | ForEach-Object { "$($_.Key) x$($_.Value)" }) -join ' / '
+        }
     }
 }
 

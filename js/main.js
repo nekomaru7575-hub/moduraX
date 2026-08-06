@@ -13,7 +13,7 @@ import {
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
-import { renderChatPalette } from './chat-palette.js';
+import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines } from './chat-palette.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
 import { makeResizableStack } from './resizable-stack.js';
@@ -56,6 +56,7 @@ const gameSystemHelpBtn = document.getElementById('gameSystemHelpBtn');
 const gameSystemHelp = document.getElementById('gameSystemHelp');
 const characterParamSelect = document.getElementById('characterParamSelect');
 const commandInput = document.getElementById('commandInput');
+const commandInputSuggestions = document.getElementById('commandInputSuggestions');
 const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
@@ -1294,7 +1295,7 @@ if (sendBtn) {
     submitChatText({
       rawInput,
       character: selectedCharacter,
-      onSent: () => { commandInput.value = ""; }
+      onSent: () => { commandInput.value = ""; hideCommandInputSuggestions(); }
     });
   });
 }
@@ -1307,6 +1308,70 @@ if (commandInput && sendBtn) {
       sendBtn.click();
     }
   });
+}
+
+// チャット欄の予測変換：入力中の文字列を含むフレーズを、選択中の参照キャラクターと
+// 同名のチャットパレットタブから拾って候補表示する（送信はしない。クリックで全置換のみ）。
+// パレット側のnameInput→findTokenByNameと同じ規則（保存されたタブ名をtrimして比べる）に揃える。
+const MAX_COMMAND_INPUT_SUGGESTIONS = 8;
+
+function hideCommandInputSuggestions() {
+  if (!commandInputSuggestions) return;
+  commandInputSuggestions.innerHTML = '';
+  commandInputSuggestions.style.display = 'none';
+}
+
+function updateCommandInputSuggestions() {
+  if (!commandInputSuggestions || !commandInput) return;
+
+  const inputValue = commandInput.value;
+  const tokenId = characterParamSelect?.value;
+  const tokenName = tokenId ? store.state.tokens[tokenId]?.name : null;
+
+  if (!tokenName || inputValue === '') {
+    hideCommandInputSuggestions();
+    return;
+  }
+
+  const needle = inputValue.toLowerCase();
+  const phrases = [];
+  loadChatPaletteState().tabs
+    .filter(tab => tab.name.trim() === tokenName)
+    .forEach(tab => {
+      parseChatPaletteLines(tab.text).forEach(line => {
+        if (line.toLowerCase().includes(needle)) phrases.push(line);
+      });
+    });
+
+  if (phrases.length === 0) {
+    hideCommandInputSuggestions();
+    return;
+  }
+
+  commandInputSuggestions.innerHTML = '';
+  phrases.slice(0, MAX_COMMAND_INPUT_SUGGESTIONS).forEach(phrase => {
+    const row = document.createElement('div');
+    row.className = 'chat-palette-line';
+    row.textContent = phrase; // フレーズはユーザー入力なのでtextContentで描画する（innerHTML禁止）
+    row.addEventListener('click', () => {
+      commandInput.value = phrase; // 全置換（追記はしない）
+      hideCommandInputSuggestions();
+      commandInput.focus();
+    });
+    commandInputSuggestions.appendChild(row);
+  });
+  commandInputSuggestions.style.display = '';
+}
+
+if (commandInput) {
+  commandInput.addEventListener('input', updateCommandInputSuggestions);
+  commandInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideCommandInputSuggestions();
+  });
+}
+
+if (characterParamSelect) {
+  characterParamSelect.addEventListener('change', updateCommandInputSuggestions);
 }
 
 // 参照キャラクターの選択肢をキャラ一覧と同じ内容で維持する（登録・削除・改名に追従）。

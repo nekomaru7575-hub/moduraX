@@ -541,6 +541,23 @@
       display: flex;
       align-items: flex-end;
       gap: 8px;
+      position: relative;
+    }
+
+    /* チャット欄の予測変換候補。commandInputの直下に重ねて出す（見た目はチャットパレットの
+       行一覧・.chat-palette-listに合わせ、新しい色は定義しない） */
+    .chat-input-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background-color: #1e1e1e;
+      z-index: 20;
     }
 
     .chat-input-row textarea {
@@ -1331,6 +1348,7 @@
           </div>
           <div class="chat-input-row">
             <textarea id="commandInput" rows="3" placeholder="CC(45) 隠れます／{HP}／+侵蝕率(10)"></textarea>
+            <div id="commandInputSuggestions" class="chat-input-suggestions" style="display:none;"></div>
             <button class="btn-send" id="sendBtn">送信</button>
           </div>
         </div>

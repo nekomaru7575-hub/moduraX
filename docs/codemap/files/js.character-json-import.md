@@ -27,9 +27,14 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 18 | fn | importCharacterJsonGeneric | `importCharacterJsonGeneric(json)` | name?: string, valueOverrides: Record<string, number>, labelOverrides: Record<string, string>, newParameters… |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 18 | importCharacterJsonGeneric | `importCharacterJsonGeneric(json)` | 19 | ✓ |
 
 ## 依存
 

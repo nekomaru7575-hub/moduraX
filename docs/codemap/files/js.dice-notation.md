@@ -28,13 +28,15 @@ BCDice が返す生の出目配列（rands）を、3Dダイスライブラリが
 | 11 | const | MAX_ANIMATED_DICE | `MAX_ANIMATED_DICE` | 一度に転がすダイスの上限。 |
 | 58 | fn | randsToNotation | `randsToNotation(rands)` | randsをダイス記法へ変換する。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 30 | expandRand | `expandRand(rand)` | 21 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 30 | expandRand | `expandRand(rand)` | 21 |  |
+| 58 | randsToNotation | `randsToNotation(rands)` | 24 | ✓ |
 
 ## 依存
 

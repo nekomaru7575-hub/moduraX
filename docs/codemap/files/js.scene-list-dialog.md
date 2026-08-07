@@ -27,13 +27,15 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 37 | fn | showSceneListDialog | `showSceneListDialog({ scenes, onApply, onEdit, onCreate, onRemove })` | 作成・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 17 | ensureDialog | `ensureDialog()` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 17 | ensureDialog | `ensureDialog()` | 7 |  |
+| 37 | showSceneListDialog | `showSceneListDialog({ scenes, onApply, onEdit, onCreate, onRemove })` | 94 | ✓ |
 
 ## 依存
 

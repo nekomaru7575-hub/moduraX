@@ -31,16 +31,21 @@ tags: [codemap]
 | 85 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
 | 102 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 25 | generateTabId | `generateTabId()` | 4 |
-| 30 | createTab | `createTab(name = '', text = '')` | 3 |
-| 34 | emptyState | `emptyState()` | 4 |
-| 41 | normalizeState | `normalizeState(raw)` | 18 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 25 | generateTabId | `generateTabId()` | 4 |  |
+| 30 | createTab | `createTab(name = '', text = '')` | 3 |  |
+| 34 | emptyState | `emptyState()` | 4 |  |
+| 41 | normalizeState | `normalizeState(raw)` | 18 |  |
+| 60 | loadChatPaletteState | `loadChatPaletteState()` | 16 | ✓ |
+| 77 | saveChatPaletteState | `saveChatPaletteState(state)` | 7 | ✓ |
+| 85 | parseChatPaletteLines | `parseChatPaletteLines(text)` | 6 | ✓ |
+| 102 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **275** | ✓ |
 
 ## 依存
 

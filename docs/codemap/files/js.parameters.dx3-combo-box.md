@@ -34,28 +34,37 @@ DX3 のコンボ（複数エフェクトの組み合わせ）の一覧・編集�
 | 446 | fn | runComboDamage | `async runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice, chatCommand })` | getToken:Function, getEffectiveParameterValue:Function, rollBCDice:Function}} options |
 | 493 | fn | showComboBox | `showComboBox({ combos = [], effects = [], parameters = {}, readOnly = false, onSave })` | combos: Array<{id:string,name:string,timing:string\|null,effectNames:string[],abilityParamId:string\|null,skil… |
 
-## トップレベル関数・非export（16）
+## トップレベル関数（LOCAL TASKS 候補）（24）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 24 | ensureDialog | `ensureDialog()` | 7 |
-| 43 | comboModAnalysis | `comboModAnalysis(effect, key, token, getEffectiveParameterValue)` | 3 |
-| 47 | comboModContribution | `comboModContribution(effect, key, token, getEffectiveParameterValue)` | 3 |
-| 51 | sumComboMod | `sumComboMod(effects, key, token, getEffectiveParameterValue)` | 3 |
-| 58 | collectComboModProblems | `collectComboModProblems(effects, token, getEffectiveParameterValue)` | 19 |
-| 79 | collectLimitProblems | `collectLimitProblems(effects, token, getEffectiveParameterValue)` | 20 |
-| 101 | buildModNoticeText | `buildModNoticeText({ effects, token, getEffectiveParameterValue, appliedBuffCount })` | 1 |
-| 123 | isEffectAtLimit | `isEffectAtLimit(effect, token, getEffectiveParameterValue)` | 11 |
-| 135 | buildEffectUseFailureMessage | `buildEffectUseFailureMessage(names)` | 3 |
-| 143 | lowestCriticalFloor | `lowestCriticalFloor(effects)` | 7 |
-| 169 | parseEncroachNumber | `parseEncroachNumber(encroach)` | 4 |
-| 182 | isDX3AbilityParam | `isDX3AbilityParam(paramId)` | 3 |
-| 186 | isDX3SkillParam | `isDX3SkillParam(paramId)` | 6 |
-| 197 | sortTimings | `sortTimings(timings)` | 10 |
-| 210 | parseFinalNumber | `parseFinalNumber(resultText)` | 7 |
-| 221 | logToMain | `logToMain(dispatch, resultText, token, system = 'コンボ', chatCommand)` | 9 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 24 | ensureDialog | `ensureDialog()` | 7 |  |
+| 43 | comboModAnalysis | `comboModAnalysis(effect, key, token, getEffectiveParameterValue)` | 3 |  |
+| 47 | comboModContribution | `comboModContribution(effect, key, token, getEffectiveParameterValue)` | 3 |  |
+| 51 | sumComboMod | `sumComboMod(effects, key, token, getEffectiveParameterValue)` | 3 |  |
+| 58 | collectComboModProblems | `collectComboModProblems(effects, token, getEffectiveParameterValue)` | 19 |  |
+| 79 | collectLimitProblems | `collectLimitProblems(effects, token, getEffectiveParameterValue)` | 20 |  |
+| 101 | buildModNoticeText | `buildModNoticeText({ effects, token, getEffectiveParameterValue, appliedBuffCount })` | 16 |  |
+| 123 | isEffectAtLimit | `isEffectAtLimit(effect, token, getEffectiveParameterValue)` | 11 |  |
+| 135 | buildEffectUseFailureMessage | `buildEffectUseFailureMessage(names)` | 3 |  |
+| 143 | lowestCriticalFloor | `lowestCriticalFloor(effects)` | 7 |  |
+| 158 | lowestBuffCriticalFloor | `lowestBuffCriticalFloor(token)` | 8 | ✓ |
+| 169 | parseEncroachNumber | `parseEncroachNumber(encroach)` | 4 |  |
+| 182 | isDX3AbilityParam | `isDX3AbilityParam(paramId)` | 3 |  |
+| 186 | isDX3SkillParam | `isDX3SkillParam(paramId)` | 6 |  |
+| 197 | sortTimings | `sortTimings(timings)` | 10 |  |
+| 210 | parseFinalNumber | `parseFinalNumber(resultText)` | 7 |  |
+| 221 | logToMain | `logToMain(dispatch, resultText, token, system = 'コンボ', chatCommand)` | 9 |  |
+| 233 | buildComboChatLines | `buildComboChatLines(comboName)` | 7 | ✓ |
+| 243 | findComboByName | `findComboByName(combos, name)` | 3 | ✓ |
+| 255 | runComboActivate | `runComboActivate({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects, chatCommand })` | 62 | ✓ |
+| 329 | runEffectUse | `runEffectUse({ effect, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects, chatCommand })` | 49 | ✓ |
+| 383 | runComboCheck | `async runComboCheck({ combo, effects = [], tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, chatCommand })` | 58 | ✓ |
+| 446 | runComboDamage | `async runComboDamage({ combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice, chatCommand })` | 35 | ✓ |
+| 493 | showComboBox | `showComboBox({ combos = [], effects = [], parameters = {}, readOnly = false, onSave })` | **287** | ✓ |
 
 ## 依存
 

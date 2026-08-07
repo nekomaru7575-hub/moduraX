@@ -28,15 +28,18 @@ tags: [codemap]
 | 38 | fn | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | parameters: Record<string, {key:string,label:string,value:number}>, activePluginId?: string\|null, onConfirm:… |
 | 195 | fn | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | getBuffs: () => Array<{id:string,name:string,paramId:string\|null,delta:number,expirePhase:string\|null,meta:o… |
 
-## トップレベル関数・非export（3）
+## トップレベル関数（LOCAL TASKS 候補）（5）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 23 | ensureAddDialog | `ensureAddDialog()` | 7 |
-| 165 | ensureListDialog | `ensureListDialog()` | 7 |
-| 173 | formatBuffLine | `formatBuffLine(buff, parameters, activePluginId)` | 11 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 23 | ensureAddDialog | `ensureAddDialog()` | 7 |  |
+| 38 | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | 124 | ✓ |
+| 165 | ensureListDialog | `ensureListDialog()` | 7 |  |
+| 173 | formatBuffLine | `formatBuffLine(buff, parameters, activePluginId)` | 11 |  |
+| 195 | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | 66 | ✓ |
 
 ## 依存
 

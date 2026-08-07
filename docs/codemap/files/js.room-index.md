@@ -25,16 +25,17 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 19 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 1 |
-| 35 | buildOccupiedCard | `buildOccupiedCard(room)` | 35 |
-| 71 | buildVacantCard | `buildVacantCard(room)` | 173 |
-| 245 | loadRooms | `async loadRooms()` | 26 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 19 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
+| 35 | buildOccupiedCard | `buildOccupiedCard(room)` | 35 |  |
+| 71 | buildVacantCard | `buildVacantCard(room)` | 173 |  |
+| 245 | loadRooms | `async loadRooms()` | 26 |  |
 
 ## 依存
 

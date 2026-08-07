@@ -41,13 +41,29 @@ DX3 とシノビガミの記述子を登録し、キャラクターパラメー�
 | 185 | fn | describePluginBuffMeta | `describePluginBuffMeta(pluginId, buff)` | バフ1件のmetaを、一覧やログへ添える1行の説明にする。 |
 | 225 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（16）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 200 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 14 | listPlugins | `listPlugins()` | 3 | ✓ |
+| 18 | buildCharacterParametersForPlugin | `buildCharacterParametersForPlugin(pluginId)` | 4 | ✓ |
+| 23 | buildRoomParameters | `buildRoomParameters(pluginId)` | 4 | ✓ |
+| 51 | getRoundPhaseTemplate | `getRoundPhaseTemplate(pluginId)` | 5 | ✓ |
+| 58 | pluginHasCharacterPanel | `pluginHasCharacterPanel(pluginId)` | 3 | ✓ |
+| 74 | renderCharacterPanel | `renderCharacterPanel(pluginId, context)` | 5 | ✓ |
+| 81 | pluginHasCharacterImport | `pluginHasCharacterImport(pluginId)` | 3 | ✓ |
+| 97 | importCharacterJsonForPlugin | `importCharacterJsonForPlugin(pluginId, json)` | 5 | ✓ |
+| 112 | handlePluginChatCommand | `handlePluginChatCommand(pluginId, rawInput, context)` | 5 | ✓ |
+| 126 | findPluginForChatCommand | `findPluginForChatCommand(rawInput)` | 3 | ✓ |
+| 142 | resetPluginComponentsOnPhaseEnd | `resetPluginComponentsOnPhaseEnd(pluginId, components, phase)` | 5 | ✓ |
+| 159 | renderPluginBuffFields | `renderPluginBuffFields(pluginId, context)` | 5 | ✓ |
+| 173 | parsePluginBuffExtra | `parsePluginBuffExtra(pluginId, paramId, text)` | 5 | ✓ |
+| 185 | describePluginBuffMeta | `describePluginBuffMeta(pluginId, buff)` | 5 | ✓ |
+| 200 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |  |
+| 225 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {})` | 29 | ✓ |
 
 ## 依存
 

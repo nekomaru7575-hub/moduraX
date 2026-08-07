@@ -27,15 +27,17 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 98 | fn | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | participants: Record<string, {id:string, nickname:string, isGm:boolean}>, myParticipantId: string \| null, ni… |
 
-## トップレベル関数・非export（3）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 10 | ensureDialog | `ensureDialog()` | 7 |
-| 18 | buildFormGroup | `buildFormGroup(labelText, input)` | 9 |
-| 30 | buildParticipantList | `buildParticipantList({ participants, myParticipantId, amGm, onSetGm, onRemove, rerender })` | 1 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 10 | ensureDialog | `ensureDialog()` | 7 |  |
+| 18 | buildFormGroup | `buildFormGroup(labelText, input)` | 9 |  |
+| 30 | buildParticipantList | `buildParticipantList({ participants, myParticipantId, amGm, onSetGm, onRemove, rerender })` | 56 |  |
+| 98 | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | 106 | ✓ |
 
 ## 依存
 

@@ -222,15 +222,19 @@ function extractSymbols(src, file) {
     let endLine = i;
 
     if (isFunction || kindRaw === 'class') {
+      // 本体の `{` を探し始める位置。分割代入の引数 `({ a, b })` を本体と取り違えないよう、
+      // 引数リストが読めたときはその閉じ括弧の後ろから探す（取り違えると行数が数行に化ける）。
+      let bodyFrom = offsets[i];
       const parenAt = src.indexOf('(', offsets[i]);
       if (isFunction && parenAt >= 0 && parenAt < offsets[i] + line.length + 400) {
         const close = matchBracket(src, parenAt, '(', ')');
         if (close > 0) {
           const params = src.slice(parenAt, close + 1).replace(/\s+/g, ' ').trim();
           signature = `${asyncKw ? 'async ' : ''}${name}${params}`;
+          bodyFrom = close;
         }
       }
-      const braceAt = src.indexOf('{', offsets[i]);
+      const braceAt = src.indexOf('{', bodyFrom);
       if (braceAt >= 0) {
         const close = matchBracket(src, braceAt, '{', '}');
         if (close > 0) endLine = lineOf(offsets, close);
@@ -292,7 +296,9 @@ const PROSE_KEYS = ['summary', 'role', 'notes'];
 function readExisting(file) {
   const p = path.join(REPO, notePath(file));
   if (!fs.existsSync(p)) return { prose: {}, descriptions: {}, proseSha: null };
-  const md = fs.readFileSync(p, 'utf8');
+  // CRLF で checkout されている場合がある（worktree など）。改行を正規化しないと
+  // 下の `-->\n` が一致せず、散文を読み落として全ノートが「未記入」に戻る。
+  const md = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
   const prose = {};
   for (const key of PROSE_KEYS) {
@@ -301,8 +307,9 @@ function readExisting(file) {
   }
 
   // export 表の説明列を symbol 名で拾う（コードにコメントが無いものの受け皿）。
+  // 2列目の種別で export 表に限定する。候補表も5列なので、これが無いと export 列を説明と誤読する。
   const descriptions = {};
-  for (const m of md.matchAll(/^\| *\d+ *\| *[^|]* *\| *`?([A-Za-z_$][\w$]*)`? *\|[^|]*\|([^|]*)\|/gm)) {
+  for (const m of md.matchAll(/^\| *\d+ *\| *(?:fn|class|const) *\| *`?([A-Za-z_$][\w$]*)`? *\|[^|]*\|([^|]*)\|/gm)) {
     const desc = m[2].trim();
     if (desc) descriptions[m[1]] = desc;
   }
@@ -315,7 +322,7 @@ const sha = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 12
 const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 function renderNote(info) {
-  const { file, lineCount, exports: exp, locals, imports, importedBy, apiSha, proseSha, prose } = info;
+  const { file, lineCount, exports: exp, topFns, imports, importedBy, apiSha, proseSha, prose } = info;
 
   const proseBlock = (key, fallback) =>
     `<!-- prose:${key} -->\n${prose[key] || fallback || EMPTY_PROSE}\n<!-- /prose:${key} -->`;
@@ -354,18 +361,19 @@ function renderNote(info) {
   }
   out.push('');
 
-  out.push(`## トップレベル関数・非export（${locals.length}）`);
+  out.push(`## トップレベル関数（LOCAL TASKS 候補）（${topFns.length}）`);
   out.push('');
-  if (locals.length === 0) {
-    out.push('なし。');
+  if (topFns.length === 0) {
+    out.push('なし（`function 名(...) {}` 宣言がトップレベルに無い）。');
   } else {
-    out.push('`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。');
+    out.push('トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**');
+    out.push(`行数が大きいもの（${BIG_FN_LINES} 行以上、太字）はローカルLLMに渡せない。`);
     out.push('');
-    out.push('| 行 | 名前 | シグネチャ | 行数 |');
-    out.push('|---:|---|---|---:|');
-    for (const s of locals) {
+    out.push('| 行 | 名前 | シグネチャ | 行数 | export |');
+    out.push('|---:|---|---|---:|:-:|');
+    for (const s of topFns) {
       const size = s.bodyLines >= BIG_FN_LINES ? `**${s.bodyLines}**` : String(s.bodyLines);
-      out.push(`| ${s.line} | ${cell(s.name)} | \`${cell(s.signature)}\` | ${size} |`);
+      out.push(`| ${s.line} | ${cell(s.name)} | \`${cell(s.signature)}\` | ${size} | ${s.exported ? '✓' : ''} |`);
     }
   }
   out.push('');
@@ -470,7 +478,9 @@ function collect() {
 
   return parsed.map((f) => {
     const exports = f.symbols.filter((s) => s.exported);
-    const locals = f.symbols.filter((s) => !s.exported && s.kind === 'fn');
+    // export の有無で絞らない。implement.md 手順1の条件は「トップレベルの function 宣言」だけで、
+    // export 済みかどうかは入っていない（T-007 で export 関数を候補外と誤読された）。
+    const topFns = f.symbols.filter((s) => s.kind === 'fn');
     const apiSha = sha(JSON.stringify(exports.map((s) => [s.name, s.kind, s.signature])));
     const existing = readExisting(f.file);
 
@@ -481,7 +491,7 @@ function collect() {
     return {
       ...f,
       exports,
-      locals,
+      topFns,
       apiSha,
       // 新規ノートは api_sha を刻んで生まれる（要更新にはしない）。未記入は別集計。
       proseSha: existing.proseSha === null ? apiSha : existing.proseSha,

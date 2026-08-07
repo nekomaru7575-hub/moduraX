@@ -27,14 +27,16 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 54 | fn | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | initialImage?: string \| null, initialImageKey?: string \| null, initialCols?: number \| null, null＝自動（ビューポートに合… |
 
-## トップレベル関数・非export（2）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 16 | ensureDialog | `ensureDialog()` | 7 |
-| 26 | loadImageDimensions | `loadImageDimensions(imageSrc)` | 8 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 16 | ensureDialog | `ensureDialog()` | 7 |  |
+| 26 | loadImageDimensions | `loadImageDimensions(imageSrc)` | 8 |  |
+| 54 | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | **210** | ✓ |
 
 ## 依存
 

@@ -8,9 +8,11 @@
   },
   "dependencies": {
     "@3d-dice/dice-box-threejs": "^0.0.12",
+    "@google/genai": "^2.15.0",
     "@upstash/redis": "^1.38.0",
     "aws4fetch": "^1.0.20",
     "dotenv": "^17.4.2",
+    "openai": "^7.4.0",
     "ws": "^8.18.0"
   }
 }

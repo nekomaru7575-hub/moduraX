@@ -26,6 +26,7 @@ import { adoptImportedState } from './state-import.js';
 import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
+import { playEntrySound } from './audio-player.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -157,6 +158,11 @@ function connect() {
 
     if (message.type === 'ACTION') {
       localDispatch(message.action, message.payload);
+      // 入室メッセージに合わせた入室音。URLはサーバーの環境変数ENTRY_SOUND_URL由来で、
+      // 状態には載せずこのACTIONメッセージのpayloadだけで運ぶ（js/audio-player.js参照）。
+      if (message.action === 'ADD_ENTRY_MESSAGE' && message.payload?.entrySoundUrl) {
+        playEntrySound(message.payload.entrySoundUrl);
+      }
     }
   });
 
@@ -215,12 +221,13 @@ export function initNetSync() {
 // 「そのIDを名乗ってよいか」を判断し、GM限定の操作の可否に使う（server/index.jsのverifyIdentity）。
 // 接続が切れるとサーバーは忘れるので、値はidentityToSendに覚えておき、繋がるたび
 // （open・INIT）にflushIdentifyで送り直す。まだ繋がっていない間に呼ばれても取りこぼさない。
-export function sendIdentify(participantId, authToken) {
+// nameは入室メッセージ用のニックネーム（サーバーは状態を持たないため、名乗りのたびに渡す）。
+export function sendIdentify(participantId, authToken, name) {
   // 名乗り直しの結果が返るまでは、前の名乗りで得た権限を持ち越さない
   developerIdentity = false;
   // 名前なし（ゲスト参加）への切り替え。覚えていた名乗りも捨てる：残しておくと、
   // 次に繋ぎ直したときに前の人として名乗り直してしまう。
-  identityToSend = (participantId && authToken) ? { participantId, authToken } : null;
+  identityToSend = (participantId && authToken) ? { participantId, authToken, name } : null;
   flushIdentify();
 }
 

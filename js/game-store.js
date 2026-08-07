@@ -137,6 +137,23 @@ export function usesInitiativeProcess(state) {
   return state?.room?.roundSettings?.useInitiativeProcess === true;
 }
 
+// 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。
+// 既定は有効。この機能より前の状態にはキーが無いが、その場合も有効として扱いたいので
+// usesInitiativeProcessとは逆に「falseの場合だけ無効」の形で読む。
+export function showsEntryMessages(state) {
+  return state?.room?.showEntryMessages !== false;
+}
+
+// 入室メッセージ本文に名前を埋め込む前のHTMLエスケープ。ログ表示側（main.jsのbuildLogHtml）は
+// resultTextをエスケープせずinnerHTMLへ挿入するため、他人が自由に設定できる名前はここで
+// 必ずエスケープしてから埋め込む。
+function escapeForEntryMessage(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
 // トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
 // フェーズを1段ずつ渡すことで表現する）。
@@ -1215,6 +1232,35 @@ export class ImmutableStore {
         return;
       }
 
+      // 入室メッセージ表示の切り替え。イニシアチブ設定と同じくルーム単位・全員共通で、
+      // 同じダイアログ（roomSettingsDialog）から同じ権限判定（canOperateAsGm）を通して呼ばれる。
+      case 'SET_SHOW_ENTRY_MESSAGES': {
+        const { enabled } = payload;
+        const room = prevState.room;
+        const next = !!enabled;
+        if (showsEntryMessages(prevState) === next) return;
+
+        this.#commit(prevState, {
+          room: { ...room, showEntryMessages: next }
+        });
+        return;
+      }
+
+      // 入室メッセージ本体の追加。identify（名乗り）完了時にサーバーだけがdispatchする
+      // （server/index.jsのIDENTIFYメッセージ処理）。フラグが無効な部屋では何もしない。
+      // 名前は他人が自由に設定できるニックネームなので、ログ表示（main.jsのbuildLogHtml）が
+      // innerHTMLで挿入する前提に合わせてここでHTMLエスケープしてから埋め込む。
+      case 'ADD_ENTRY_MESSAGE': {
+        if (!showsEntryMessages(prevState)) return;
+        const name = (typeof payload?.name === 'string' && payload.name.trim()) || 'ゲスト';
+        const escapedName = escapeForEntryMessage(name);
+
+        this.#commit(prevState, {
+          chatLogs: withSystemLog(prevState.chatLogs, `${escapedName}が入室しました。`)
+        });
+        return;
+      }
+
       case 'ROUND_PROGRESSION_END': {
         const round = prevState.round;
         if (!round.active) return;
@@ -1953,6 +1999,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // 「キャラクターの手番の前にイニシアチブプロセスを挟むか」だけを持つ。
       // 将来ラウンド進行の仕組み自体をユーザー/プラグインで指定できるようにする際の置き場。
       roundSettings: { useInitiativeProcess: false },
+      // 入室時に既定のチャットタブ（Main）へ「〈名前〉が入室しました。」を出すか
+      // （js/game-store.jsのSET_SHOW_ENTRY_MESSAGES・showsEntryMessages）。既定は有効。
+      showEntryMessages: true,
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
 

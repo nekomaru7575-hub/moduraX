@@ -1,10 +1,10 @@
 ---
 source: js/game-store.js
-lines: 2012
-exports: 24
+lines: 2061
+exports: 25
 imported_by: 13
-api_sha: 64306f2c4d2d
-prose_sha: 64306f2c4d2d
+api_sha: fca7f731d89d
+prose_sha: fca7f731d89d
 generated: 2026-08-07
 tags: [codemap]
 ---
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-部屋の全状態（コマ・パネル・チャット・シーン・バフ・ラウンド進行・音源）と、その遷移を担う `ImmutableStore` を持つ。DOM も window も参照しないためサーバー側（[[server.index]]）からも同じコードが使われ、クライアントとサーバーで状態の解釈がずれないようにしている。ID 生成・フェーズ階層・バフの失効判定などの純粋関数もここに集まっている。
+部屋の全状態（コマ・パネル・チャット・シーン・バフ・ラウンド進行・音源・入室メッセージ設定）と、その遷移を担う `ImmutableStore` を持つ。DOM も window も参照しないためサーバー側（[[server.index]]）からも同じコードが使われ、クライアントとサーバーで状態の解釈がずれないようにしている。ID 生成・フェーズ階層・バフの失効判定などの純粋関数もここに集まっている。入室メッセージ（ADD_ENTRY_MESSAGE）はサーバーだけが dispatch し、ここではチャットログへの追記までを担う。入室音の再生自体は持たない（URL は [[js.net-sync]] が運び、鳴らすのは [[js.audio-player]]）。
 <!-- /prose:role -->
 
-## export（24）
+## export（25）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -37,20 +37,21 @@ tags: [codemap]
 | 69 | fn | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | このコマがそのフェーズ終了で失うバフ/デバフの名前一覧（入れ子の内側も含む）。 |
 | 79 | fn | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 上の一覧を、判定結果などのログ本文へ足す1行にする。 |
 | 136 | fn | usesInitiativeProcess | `usesInitiativeProcess(state)` | 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。 |
-| 192 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
-| 211 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
-| 214 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
-| 219 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
-| 306 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
-| 331 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
-| 433 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、イニシアチブの実効値の降順で返す。 |
-| 441 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 509 | class | ImmutableStore | `ImmutableStore` |  |
-| 1931 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 1935 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 2011 | const | store | `store` |  |
+| 143 | fn | showsEntryMessages | `showsEntryMessages(state)` | 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。 |
+| 209 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
+| 228 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
+| 231 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
+| 236 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
+| 323 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
+| 348 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
+| 450 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、イニシアチブの実効値の降順で返す。 |
+| 458 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 526 | class | ImmutableStore | `ImmutableStore` |  |
+| 1977 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 1981 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 2060 | const | store | `store` |  |
 
-## トップレベル関数・非export（22）
+## トップレベル関数・非export（23）
 
 `## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
 
@@ -58,26 +59,27 @@ tags: [codemap]
 |---:|---|---|---:|
 | 88 | createInitialRoundState | `createInitialRoundState()` | 14 |
 | 106 | normalizeRoundState | `normalizeRoundState(round)` | 27 |
-| 145 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |
-| 173 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |
-| 227 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |
-| 232 | withMapEntry | `withMapEntry(map, key, value)` | 3 |
-| 237 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |
-| 245 | freezePanelMap | `freezePanelMap(panels)` | 5 |
-| 252 | withChatEntry | `withChatEntry(chatLogs, tabId, entry)` | 4 |
-| 260 | withSystemLog | `withSystemLog(chatLogs, text)` | 3 |
-| 266 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |
-| 274 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |
-| 283 | withoutParam | `withoutParam(params, paramId, label)` | 9 |
-| 296 | normalizeAudience | `normalizeAudience(audience)` | 4 |
-| 312 | definedFields | `definedFields(patch)` | 3 |
-| 318 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 1 |
-| 368 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 1 |
-| 377 | withNewUserParam | `withNewUserParam(params, def)` | 5 |
-| 392 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |
-| 420 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |
-| 448 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |
-| 453 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |
+| 150 | escapeForEntryMessage | `escapeForEntryMessage(text)` | 6 |
+| 162 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |
+| 190 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |
+| 244 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |
+| 249 | withMapEntry | `withMapEntry(map, key, value)` | 3 |
+| 254 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |
+| 262 | freezePanelMap | `freezePanelMap(panels)` | 5 |
+| 269 | withChatEntry | `withChatEntry(chatLogs, tabId, entry)` | 4 |
+| 277 | withSystemLog | `withSystemLog(chatLogs, text)` | 3 |
+| 283 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |
+| 291 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |
+| 300 | withoutParam | `withoutParam(params, paramId, label)` | 9 |
+| 313 | normalizeAudience | `normalizeAudience(audience)` | 4 |
+| 329 | definedFields | `definedFields(patch)` | 3 |
+| 335 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 1 |
+| 385 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 1 |
+| 394 | withNewUserParam | `withNewUserParam(params, def)` | 5 |
+| 409 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |
+| 437 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |
+| 465 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |
+| 470 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |
 
 ## 依存
 

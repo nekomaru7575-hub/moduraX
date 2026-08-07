@@ -92,6 +92,20 @@ function applyChannel(channel, entry, tracks) {
   }
 }
 
+// 入室音。room.audioTracksに登録された曲とは別枠の一回きりの再生で、チャンネルの
+// 音量・ミュート管理（channels/getChannelVolume等）には乗せない。urlが無ければ
+// （サーバーのENTRY_SOUND_URL未設定）何もしない＝Audio()自体を作らない。
+export function playEntrySound(url) {
+  if (!url) return;
+  const audio = new Audio(url);
+  const played = audio.play();
+  if (played && typeof played.catch === 'function') {
+    played.catch(() => {
+      console.warn('[audio] 入室音の自動再生がブラウザに拒否されました。');
+    });
+  }
+}
+
 export function initAudioPlayer() {
   AUDIO_CHANNELS.forEach(channel => {
     const audio = new Audio();

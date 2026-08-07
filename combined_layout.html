@@ -1286,6 +1286,15 @@
           キャラクターの手番の前にイニシアチブプロセスを挟む
         </label>
       </div>
+      <!-- 入室メッセージ（js/game-store.jsのSET_SHOW_ENTRY_MESSAGES）。ルーム単位・全員共通で、
+           上のイニシアチブ設定と同じ権限判定（canOperateAsGm）で操作可否を決める -->
+      <div class="dialog-form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+               title="部屋に入室したとき、既定のチャットタブ（Main）へ「〈名前〉が入室しました。」を表示します。">
+          <input type="checkbox" id="showEntryMessagesCheck">
+          入室メッセージを表示する
+        </label>
+      </div>
       <!-- 入室パスワード。現在の値はサーバーに平文で残っていないため表示できない。
            空欄で「変更」を押すと解除になる（js/main.jsのapplyEntryPassword） -->
       <div class="dialog-form-group">

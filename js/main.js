@@ -8,7 +8,7 @@ import {
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
-  usesInitiativeProcess
+  usesInitiativeProcess, showsEntryMessages
 } from './game-store.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
@@ -272,6 +272,7 @@ const entryPasswordInput = document.getElementById('entryPasswordInput');
 const entryPasswordBtn = document.getElementById('entryPasswordBtn');
 const entryPasswordNote = document.getElementById('entryPasswordNote');
 const roundInitiativeProcessCheck = document.getElementById('roundInitiativeProcessCheck');
+const showEntryMessagesCheck = document.getElementById('showEntryMessagesCheck');
 
 // --- GM限定の操作（js/room-authority.js参照） ---
 // 部屋そのものを左右する操作は、GMが決まっている部屋ではGMだけができるようにする。
@@ -285,7 +286,7 @@ function applyGmOnlyControls() {
   const allowed = canOperateAsGm();
 
   [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn,
-    entryPasswordInput, entryPasswordBtn, roundInitiativeProcessCheck].forEach(el => {
+    entryPasswordInput, entryPasswordBtn, roundInitiativeProcessCheck, showEntryMessagesCheck].forEach(el => {
     if (!el) return;
     el.disabled = !allowed;
     el.title = allowed ? '' : GM_ONLY_REASON;
@@ -487,7 +488,7 @@ async function activateAndRegisterIdentity(name, devPassphrase) {
 
   // 参加者としての登録より先に名乗る。サーバーは名乗りが通ったID本人からの
   // REGISTER_PARTICIPANTしか受け付けない（server/index.js参照）。
-  sendIdentify(identity.participantId, identity.authToken);
+  sendIdentify(identity.participantId, identity.authToken, name);
   store.dispatch('REGISTER_PARTICIPANT', { id: identity.participantId, nickname: name });
 }
 
@@ -1452,6 +1453,24 @@ if (roundInitiativeProcessCheck) {
   EventBus.subscribe('STATE_CHANGED', (state) => {
     const next = usesInitiativeProcess(state);
     if (roundInitiativeProcessCheck.checked !== next) roundInitiativeProcessCheck.checked = next;
+  });
+}
+
+// 入室メッセージの表示設定。ルーム単位・全員共通なので、上のイニシアチブ設定と
+// 同じく操作はdispatch・表示は状態への追従で揃える。
+if (showEntryMessagesCheck) {
+  showEntryMessagesCheck.addEventListener('change', () => {
+    // 表示が古い状態で操作された場合の保険（無効化はapplyGmOnlyControls側で行っている）
+    if (!canOperateAsGm()) {
+      showEntryMessagesCheck.checked = showsEntryMessages(store.state);
+      return;
+    }
+    store.dispatch('SET_SHOW_ENTRY_MESSAGES', { enabled: showEntryMessagesCheck.checked });
+  });
+
+  EventBus.subscribe('STATE_CHANGED', (state) => {
+    const next = showsEntryMessages(state);
+    if (showEntryMessagesCheck.checked !== next) showEntryMessagesCheck.checked = next;
   });
 }
 

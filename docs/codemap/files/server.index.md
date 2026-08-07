@@ -1,6 +1,6 @@
 ---
 source: server/index.js
-lines: 1688
+lines: 1727
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -31,56 +31,56 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 |
 |---:|---|---|---:|
-| 54 | roomKey | `roomKey(roomId)` | 3 |
-| 59 | readRoomState | `async readRoomState(roomId)` | 10 |
-| 70 | writeRoomState | `async writeRoomState(roomId, state)` | 8 |
-| 79 | deleteRoomState | `async deleteRoomState(roomId)` | 7 |
-| 101 | deriveParticipantId | `deriveParticipantId(authToken)` | 3 |
-| 106 | equalsSecret | `equalsSecret(a, b)` | 6 |
-| 117 | verifyIdentity | `verifyIdentity(participantId, authToken)` | 4 |
-| 140 | isDeveloperToken | `isDeveloperToken(roomId, authToken)` | 7 |
-| 157 | authMetaKey | `authMetaKey(roomId)` | 3 |
-| 161 | authMetaFilePath | `authMetaFilePath(roomId)` | 3 |
-| 165 | readAuthMeta | `async readAuthMeta(roomId)` | 10 |
-| 176 | writeAuthMeta | `async writeAuthMeta(roomId, meta)` | 8 |
-| 185 | deleteAuthMeta | `async deleteAuthMeta(roomId)` | 6 |
-| 194 | updateAuthMeta | `async updateAuthMeta(roomId, patch)` | 11 |
-| 222 | hashEntryPassword | `hashEntryPassword(salt, password)` | 3 |
-| 231 | buildEntryPasswordRecord | `buildEntryPasswordRecord(password)` | 9 |
-| 242 | verifyEntryPassword | `verifyEntryPassword(record, password)` | 6 |
-| 251 | entryPasswordFromHeaders | `entryPasswordFromHeaders(req)` | 9 |
-| 262 | clearLegacyGmFlags | `clearLegacyGmFlags(roomId, store)` | 10 |
-| 276 | canOperateAsGm | `canOperateAsGm(state, participantId)` | 6 |
-| 350 | serveStaticFile | `async serveStaticFile(req, res)` | 22 |
-| 373 | sendJson | `sendJson(res, statusCode, body)` | 5 |
-| 379 | readJsonBody | `readJsonBody(req)` | 14 |
-| 397 | readBinaryBody | `readBinaryBody(req, maxBytes)` | 22 |
-| 428 | isDeletingRoom | `isDeletingRoom(roomId)` | 3 |
-| 435 | waitForRoomDeletion | `waitForRoomDeletion(roomId)` | 4 |
-| 440 | isValidRoomId | `isValidRoomId(id)` | 7 |
-| 448 | roomFilePath | `roomFilePath(roomId)` | 3 |
-| 457 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 79 |
-| 537 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 14 |
-| 552 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |
-| 562 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |
-| 568 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |
-| 574 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |
-| 590 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 28 |
-| 634 | deleteRoomData | `async deleteRoomData(roomId)` | 29 |
-| 667 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |
-| 736 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 4 |
-| 835 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |
-| 864 | decodeDataUrl | `decodeDataUrl(dataUrl)` | 12 |
-| 881 | adoptImage | `async adoptImage(roomId, image)` | 33 |
-| 919 | adoptStateImages | `async adoptStateImages(roomId, state)` | 43 |
-| 976 | handleImageUpload | `handleImageUpload(req, res)` | 20 |
-| 1005 | handleImageCopy | `async handleImageCopy(req, res)` | 67 |
-| 1074 | handleListRooms | `async handleListRooms(req, res)` | 15 |
-| 1092 | handleCreateRoom | `async handleCreateRoom(req, res)` | 109 |
-| 1205 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 56 |
-| 1275 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 38 |
-| 1315 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |
-| 1331 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |
+| 59 | roomKey | `roomKey(roomId)` | 3 |
+| 64 | readRoomState | `async readRoomState(roomId)` | 10 |
+| 75 | writeRoomState | `async writeRoomState(roomId, state)` | 8 |
+| 84 | deleteRoomState | `async deleteRoomState(roomId)` | 7 |
+| 106 | deriveParticipantId | `deriveParticipantId(authToken)` | 3 |
+| 111 | equalsSecret | `equalsSecret(a, b)` | 6 |
+| 122 | verifyIdentity | `verifyIdentity(participantId, authToken)` | 4 |
+| 145 | isDeveloperToken | `isDeveloperToken(roomId, authToken)` | 7 |
+| 162 | authMetaKey | `authMetaKey(roomId)` | 3 |
+| 166 | authMetaFilePath | `authMetaFilePath(roomId)` | 3 |
+| 170 | readAuthMeta | `async readAuthMeta(roomId)` | 10 |
+| 181 | writeAuthMeta | `async writeAuthMeta(roomId, meta)` | 8 |
+| 190 | deleteAuthMeta | `async deleteAuthMeta(roomId)` | 6 |
+| 199 | updateAuthMeta | `async updateAuthMeta(roomId, patch)` | 11 |
+| 227 | hashEntryPassword | `hashEntryPassword(salt, password)` | 3 |
+| 236 | buildEntryPasswordRecord | `buildEntryPasswordRecord(password)` | 9 |
+| 247 | verifyEntryPassword | `verifyEntryPassword(record, password)` | 6 |
+| 256 | entryPasswordFromHeaders | `entryPasswordFromHeaders(req)` | 9 |
+| 267 | clearLegacyGmFlags | `clearLegacyGmFlags(roomId, store)` | 10 |
+| 281 | canOperateAsGm | `canOperateAsGm(state, participantId)` | 6 |
+| 361 | serveStaticFile | `async serveStaticFile(req, res)` | 22 |
+| 384 | sendJson | `sendJson(res, statusCode, body)` | 5 |
+| 390 | readJsonBody | `readJsonBody(req)` | 14 |
+| 408 | readBinaryBody | `readBinaryBody(req, maxBytes)` | 22 |
+| 439 | isDeletingRoom | `isDeletingRoom(roomId)` | 3 |
+| 446 | waitForRoomDeletion | `waitForRoomDeletion(roomId)` | 4 |
+| 451 | isValidRoomId | `isValidRoomId(id)` | 7 |
+| 459 | roomFilePath | `roomFilePath(roomId)` | 3 |
+| 468 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 79 |
+| 548 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 14 |
+| 563 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |
+| 573 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |
+| 579 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |
+| 585 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |
+| 601 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 28 |
+| 645 | deleteRoomData | `async deleteRoomData(roomId)` | 29 |
+| 678 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |
+| 747 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 4 |
+| 846 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |
+| 875 | decodeDataUrl | `decodeDataUrl(dataUrl)` | 12 |
+| 892 | adoptImage | `async adoptImage(roomId, image)` | 33 |
+| 930 | adoptStateImages | `async adoptStateImages(roomId, state)` | 43 |
+| 987 | handleImageUpload | `handleImageUpload(req, res)` | 20 |
+| 1016 | handleImageCopy | `async handleImageCopy(req, res)` | 67 |
+| 1085 | handleListRooms | `async handleListRooms(req, res)` | 15 |
+| 1103 | handleCreateRoom | `async handleCreateRoom(req, res)` | 109 |
+| 1216 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 56 |
+| 1286 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 38 |
+| 1326 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |
+| 1342 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |
 
 ## 依存
 

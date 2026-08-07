@@ -17,7 +17,9 @@ import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines } from '
 import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
 import { makeResizableStack } from './resizable-stack.js';
-import { initNetSync, replaceState, requestRoomDeletion, sendIdentify } from './net-sync.js';
+import {
+  initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound
+} from './net-sync.js';
 import {
   getNickname, normalizeRoomName, getStoredRoomName, setStoredRoomName,
   getStoredDevPassphrase, setStoredDevPassphrase,
@@ -712,7 +714,7 @@ if (deleteRoomBtn) {
 // onSentは送信が成立したときに呼ぶ（入力欄のクリア）。どの入力欄から送られたかは
 // 呼び出し元しか知らないため、ここで特定の欄を直接触らない
 // （以前はメイン欄を直接クリアしており、パレットから送るとメイン欄まで消えていた）。
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId, onSent }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId, onSent, onPlainChat }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
@@ -720,6 +722,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
   try {
     if (rawInput.includes('\n')) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
+      onPlainChat?.();
       onSent?.();
       return;
     }
@@ -740,6 +743,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     if (!isDiceCommand && !isStartsChoice) {
       applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
+      onPlainChat?.();
       onSent?.();
       return;
     }
@@ -753,6 +757,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
         // 認識できなかった場合（例: "aaaa"）。通信エラーではないので、アラートは
         // 出さずに入力をそのまま平文の発言としてチャットへ送る。
         applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
+        onPlainChat?.();
         onSent?.();
         return;
       }
@@ -1237,7 +1242,14 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
     characterId: character?.id,
     characterColor: character?.textColor,
     tabId,
-    onSent
+    onSent,
+    // ここまでのtryHandle*のどれにも該当しなかった時点ではまだ「素の発言」と決まらない。
+    // BCDiceへ実際に判定として送られた場合（成功・失敗を問わず）は発言ではなく判定なので
+    // 送信音を鳴らさない。その区別はBCDiceのcommand_patternの取得を要する非同期処理で、
+    // ここでは決定できないため、DICE_ROLL_REQUESTEDハンドラ側でBCDiceへ送らずそのまま
+    // 発言になったと分かった箇所（複数行入力／ダイスコマンドに見えない入力）でだけ
+    // このコールバックを呼んでもらう。
+    onPlainChat: requestChatSendSound
   });
 }
 

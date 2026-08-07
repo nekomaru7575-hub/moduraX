@@ -20,7 +20,7 @@ generated: 2026-08-07
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 68 | 221 | 496 | 0 | 0 |
+| 68 | 225 | 500 | 3 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -31,7 +31,7 @@ generated: 2026-08-07
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 5 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
 | [[js.audio-phrase\|js/audio-phrase.js]] | 音源に設定した「再生フレーズ」と発言の照合。 | 1 | 1 |
-| [[js.audio-player\|js/audio-player.js]] | 部屋の音楽の再生エンジン（UIは持たない。操作はjs/audio-dialog.js側）。 | 7 | 4 |
+| [[js.audio-player\|js/audio-player.js]] | 部屋の音楽（BGM・効果音）とシステム音（入室音・チャット送信音）の再生エンジン（UIは持たない。操作は[[js.audio-dialog]]側）。 | 10 | 4 |
 | [[js.background-dialog\|js/background-dialog.js]] | 盤面の「背景設定」ダイアログ。 | 1 | 1 |
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
 | [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 2 |
@@ -50,7 +50,7 @@ generated: 2026-08-07
 | [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 9 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 3 | 5 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 3 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジックだけを持つ、DOM に一切依存しない単一のストア。 | 25 | 13 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 25 | 13 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-upload\|js/image-upload.js]] | 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。 | 5 | 4 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
@@ -59,8 +59,8 @@ generated: 2026-08-07
 | [[js.log-clear-dialog\|js/log-clear-dialog.js]] | 全タブのログを消す前の確認ダイアログ。 | 1 | 1 |
 | [[js.log-export-dialog\|js/log-export-dialog.js]] | 「ログを保存」のタブ選択ダイアログ。 | 1 | 1 |
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
-| [[js.main\|js/main.js]] | ルーム画面（combined_layout.html）のエントリポイント。チャットと画面全体の配線を持つ。 | 0 | 0 |
-| [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 5 | 2 |
+| [[js.main\|js/main.js]] |  | 0 | 0 |
+| [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 6 | 2 |
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
@@ -94,7 +94,7 @@ generated: 2026-08-07
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 7 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
-| [[server.index\|server/index.js]] | 静的ファイル配信と WebSocket 同期を同一ポートで提供するサーバー本体。 | 0 | 0 |
+| [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
 | [[server.r2\|server/r2.js]] | 音源・画像などファイルの実体を置くCloudflare R2への読み書きだけを担う薄いモジュール。 | 10 | 1 |
 
 ## 依存の要所

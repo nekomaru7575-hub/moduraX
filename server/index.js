@@ -38,6 +38,9 @@ const MAX_AUDIO_BYTES = (Number(process.env.MAX_AUDIO_MB) || 20) * 1024 * 1024;
 // 入室音のURL。音源はまだ無いので、環境変数が無ければ空文字のまま（クライアントは
 // 空文字/未設定ならnew Audio()自体を作らない。js/audio-player.jsのplayEntrySound参照）。
 const ENTRY_SOUND_URL = process.env.ENTRY_SOUND_URL || '';
+// チャット送信音のURL。入室音と同じ考え方で、環境変数が無ければ空文字のまま
+// （js/audio-player.jsのplayChatSendSound参照）。
+const CHAT_SEND_SOUND_URL = process.env.CHAT_SEND_SOUND_URL || '';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
@@ -1603,6 +1606,21 @@ wss.on('connection', async (ws, req) => {
           ws.send(JSON.stringify({ type: 'IDENTITY_REJECTED' }));
         }
       }
+      return;
+    }
+
+    // チャット送信音。素の発言か（コマンドやBCDiceへの判定でないか）はクライアント側
+    // （js/main.jsのsubmitChatText）が判断し、素の発言だったときだけこのメッセージを送ってくる。
+    // URLは入室音と同じ形で、サーバーの環境変数CHAT_SEND_SOUND_URLから読む（ハードコードしない）。
+    // 送信者を含む部屋の全員に配るため、入室音（ADD_ENTRY_MESSAGE）と同じくbroadcastToRoomの
+    // senderをnullにする。状態には何も乗せない一回きりの通知なので、store.dispatchは通さない
+    // （persistも不要）。
+    if (message.type === 'REQUEST_CHAT_SEND_SOUND') {
+      broadcastToRoom(entry, null, {
+        type: 'ACTION',
+        action: 'CHAT_SEND_SOUND',
+        payload: { chatSendSoundUrl: CHAT_SEND_SOUND_URL || null }
+      });
       return;
     }
 

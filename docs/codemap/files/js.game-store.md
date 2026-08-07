@@ -12,13 +12,13 @@ tags: [codemap]
 # js/game-store.js
 
 <!-- prose:summary -->
-状態遷移ロジックだけを持つ、DOM に一切依存しない単一のストア。
+状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。
 <!-- /prose:summary -->
 
 ## 役割
 
 <!-- prose:role -->
-部屋の全状態（コマ・パネル・チャット・シーン・バフ・ラウンド進行・音源・入室メッセージ設定）と、その遷移を担う `ImmutableStore` を持つ。DOM も window も参照しないためサーバー側（[[server.index]]）からも同じコードが使われ、クライアントとサーバーで状態の解釈がずれないようにしている。ID 生成・フェーズ階層・バフの失効判定などの純粋関数もここに集まっている。入室メッセージ（ADD_ENTRY_MESSAGE）はサーバーだけが dispatch し、ここではチャットログへの追記までを担う。入室音の再生自体は持たない（URL は [[js.net-sync]] が運び、鳴らすのは [[js.audio-player]]）。
+_(未記入)_
 <!-- /prose:role -->
 
 ## export（25）
@@ -89,5 +89,5 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-状態を変えるアクションはすべて `ImmutableStore` のメソッド経由で、クラスの中にあるためトップレベル関数の表には出てこない。`dispatch` は 1000 行超あり、ローカルLLM（`num_ctx=8192`）には渡せない。
+_(未記入)_
 <!-- /prose:notes -->

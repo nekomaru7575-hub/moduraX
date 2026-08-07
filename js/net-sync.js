@@ -26,7 +26,7 @@ import { adoptImportedState } from './state-import.js';
 import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
-import { playEntrySound } from './audio-player.js';
+import { playEntrySound, playChatSendSound } from './audio-player.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -157,6 +157,17 @@ function connect() {
     }
 
     if (message.type === 'ACTION') {
+      // チャット送信音。状態を変えない一回きりの通知なので、他のACTIONと違いlocalDispatchは
+      // 通さない（game-store.jsのdispatchは未知のactionを黙って無視するだけだが、通す意味がない）。
+      // URLはサーバーの環境変数CHAT_SEND_SOUND_URL由来で、このACTIONメッセージのpayloadだけで
+      // 運ぶ（js/audio-player.js参照。入室音と同じ作り）。
+      if (message.action === 'CHAT_SEND_SOUND') {
+        if (message.payload?.chatSendSoundUrl) {
+          playChatSendSound(message.payload.chatSendSoundUrl);
+        }
+        return;
+      }
+
       localDispatch(message.action, message.payload);
       // 入室メッセージに合わせた入室音。URLはサーバーの環境変数ENTRY_SOUND_URL由来で、
       // 状態には載せずこのACTIONメッセージのpayloadだけで運ぶ（js/audio-player.js参照）。
@@ -229,6 +240,16 @@ export function sendIdentify(participantId, authToken, name) {
   // 次に繋ぎ直したときに前の人として名乗り直してしまう。
   identityToSend = (participantId && authToken) ? { participantId, authToken, name } : null;
   flushIdentify();
+}
+
+// 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。URLの決定は
+// サーバー任せ（環境変数CHAT_SEND_SOUND_URL）で、ここでは要求を送るだけ。どの発言が「素」かの
+// 判断はjs/main.jsのsubmitChatText側が持つ。サーバーは送信者を含む部屋の全員にACTION
+// （action: 'CHAT_SEND_SOUND'）で配り直す（上のACTIONハンドラ参照）。
+export function requestChatSendSound() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'REQUEST_CHAT_SEND_SOUND' }));
+  }
 }
 
 // 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させ、

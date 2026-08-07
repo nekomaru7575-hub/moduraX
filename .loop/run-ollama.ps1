@@ -15,11 +15,36 @@ param(
     [string]$Endpoint = 'http://localhost:11434',
     # ローカルLLMはトークン課金が無いので、機械検査を通るまで多めに回す。
     # ただし壁時計時間は有限なのでユニットごとに上限秒数を設ける。
+    # 課金モデルを下請けに据える場合は -Billed を付けること（下で3回に抑える）。
     [int]$MaxAttempts = 12,
-    [int]$MaxSecondsPerUnit = 300
+    [int]$MaxSecondsPerUnit = 300,
+    # 下請けが課金モデル（Sonnet / Gemini の従量課金など）のときに立てる。
+    [switch]$Billed
 )
 
 $ErrorActionPreference = 'Stop'
+
+# ============================================================
+# 再試行回数の上限
+#
+# 既定の12回は「下請けが無料だから、通るまで回してよい」という前提に立っている。
+# 課金モデルを据えると同じ回数がそのまま請求になるため、3回で打ち切る。
+# 4回目以降で当たる見込みは薄く（.loop/README.md の実測では、直る症状は1〜2回で直り、
+# 直らない症状は12回回しても直らなかった）、払う価値がない。
+# ============================================================
+$BilledMaxAttempts = 3
+
+$isLocalEndpoint = $Endpoint -match '^https?://(localhost|127\.0\.0\.1|\[::1\])(:|/|$)'
+
+if ($Billed) {
+    if ($MaxAttempts -gt $BilledMaxAttempts) {
+        Write-Host "課金モデル指定のため、再試行を $MaxAttempts 回から $BilledMaxAttempts 回に抑えます。"
+        $MaxAttempts = $BilledMaxAttempts
+    }
+} elseif (-not $isLocalEndpoint) {
+    Write-Host "WARN: エンドポイントが localhost ではありません ($Endpoint)。"
+    Write-Host "      課金モデルなら -Billed を付けてください（再試行が $MaxAttempts 回のままです）。"
+}
 
 $LoopDir  = $PSScriptRoot
 $Repo     = Split-Path -Parent $LoopDir

@@ -6,7 +6,8 @@ import { pickFile } from './file-uploader.js';
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
 import { entryPasswordHeaders } from './room-entry.js';
 import {
-  getChannelVolume, setChannelVolume, isBlockedByAutoplayPolicy, isMuted, setMuted
+  getChannelVolume, setChannelVolume, getSystemVolume, setSystemVolume,
+  isBlockedByAutoplayPolicy, isMuted, setMuted
 } from './audio-player.js';
 import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 
@@ -242,6 +243,36 @@ export function showAudioDialog({
     row.appendChild(valueEl);
     container.appendChild(row);
   });
+
+  // システム音（入室音・チャット送信音）の音量。BGM/効果音のチャンネル音量とは別の設定で、
+  // 部屋の共有状態（room.audioPlayback / AUDIO_CHANNELS）には乗らない
+  // （js/audio-player.jsのgetSystemVolume/setSystemVolume参照）。
+  const systemVolumeRow = document.createElement('div');
+  systemVolumeRow.className = 'audio-volume-row';
+
+  const systemVolumeLabel = document.createElement('span');
+  systemVolumeLabel.className = 'audio-volume-label';
+  systemVolumeLabel.textContent = 'システム音（入室・チャット送信） 音量';
+
+  const systemVolumeSlider = document.createElement('input');
+  systemVolumeSlider.type = 'range';
+  systemVolumeSlider.min = '0';
+  systemVolumeSlider.max = '100';
+  systemVolumeSlider.value = String(Math.round(getSystemVolume() * 100));
+
+  const systemVolumeValueEl = document.createElement('span');
+  systemVolumeValueEl.className = 'audio-volume-value';
+  systemVolumeValueEl.textContent = systemVolumeSlider.value;
+
+  systemVolumeSlider.addEventListener('input', () => {
+    setSystemVolume(Number(systemVolumeSlider.value) / 100);
+    systemVolumeValueEl.textContent = systemVolumeSlider.value;
+  });
+
+  systemVolumeRow.appendChild(systemVolumeLabel);
+  systemVolumeRow.appendChild(systemVolumeSlider);
+  systemVolumeRow.appendChild(systemVolumeValueEl);
+  container.appendChild(systemVolumeRow);
 
   // ミュート（このブラウザだけ）。停止と違って部屋の再生状態には触れないので、GMでなくても押せる。
   const muteRow = document.createElement('div');

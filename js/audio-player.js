@@ -37,6 +37,22 @@ export function setChannelVolume(channel, value) {
   if (channels[channel]) channels[channel].audio.volume = clamped;
 }
 
+// システム音（入室音・チャット送信音）の音量。BGM/効果音のチャンネル音量（AUDIO_CHANNELS）とは
+// 別枠の設定として持つ（部屋の共有状態には乗らない。チャンネルにも追加しない）。
+// キーの付け方はgetChannelVolume/setChannelVolumeと同じ接頭辞に揃える。
+const SYSTEM_VOLUME_KEY = VOLUME_KEY_PREFIX + 'system';
+
+export function getSystemVolume() {
+  const saved = localStorage.getItem(SYSTEM_VOLUME_KEY);
+  const value = Number(saved);
+  return Number.isFinite(value) && saved !== null ? value : DEFAULT_VOLUME;
+}
+
+export function setSystemVolume(value) {
+  const clamped = Math.min(1, Math.max(0, Number(value) || 0));
+  localStorage.setItem(SYSTEM_VOLUME_KEY, String(clamped));
+}
+
 export function isMuted() {
   return localStorage.getItem(MUTED_KEY) === '1';
 }
@@ -98,10 +114,26 @@ function applyChannel(channel, entry, tracks) {
 export function playEntrySound(url) {
   if (!url) return;
   const audio = new Audio(url);
+  audio.volume = getSystemVolume();
   const played = audio.play();
   if (played && typeof played.catch === 'function') {
     played.catch(() => {
       console.warn('[audio] 入室音の自動再生がブラウザに拒否されました。');
+    });
+  }
+}
+
+// チャット送信音。入室音と同じく一回きりの再生で、チャンネルの音量・ミュート管理
+// （channels/getChannelVolume等）には乗せず、システム音量（getSystemVolume）だけを掛ける。
+// urlが無ければ（サーバーのCHAT_SEND_SOUND_URL未設定）何もしない＝Audio()自体を作らない。
+export function playChatSendSound(url) {
+  if (!url) return;
+  const audio = new Audio(url);
+  audio.volume = getSystemVolume();
+  const played = audio.play();
+  if (played && typeof played.catch === 'function') {
+    played.catch(() => {
+      console.warn('[audio] チャット送信音の自動再生がブラウザに拒否されました。');
     });
   }
 }

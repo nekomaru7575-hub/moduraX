@@ -34,18 +34,22 @@ if (-not (Test-Path $RunDir)) { New-Item -ItemType Directory -Path $RunDir -Forc
 # ============================================================
 # 発注書から ## LOCAL TASKS を読む
 #   ### <ファイルパス> :: <関数名>
-#   <英語の指示。次の ### か ## まで>
+#   <英語の指示。次の ### か #### CHECK か ## まで>
+#   #### CHECK
+#   <assert を並べたJS。任意。次の ### か ## まで>
 # ============================================================
 function Read-LocalTasks([string]$specPath) {
     $lines = Get-Content $specPath -Encoding UTF8
     $units = @()
     $inSection = $false
     $current = $null
+    $mode = 'instruction'
 
     foreach ($line in $lines) {
         if ($line -match '^##\s+(?!#)') {
             if ($current) { $units += $current; $current = $null }
             $inSection = ($line -match '^##\s+LOCAL\s+TASKS\s*$')
+            $mode = 'instruction'
             continue
         }
         if (-not $inSection) { continue }
@@ -56,10 +60,22 @@ function Read-LocalTasks([string]$specPath) {
                 File        = $Matches[1].Trim()
                 Function    = $Matches[2].Trim()
                 Instruction = ''
+                Check       = ''
             }
+            $mode = 'instruction'
             continue
         }
-        if ($current -and $line.Trim() -notlike '<!--*') {
+        # #### CHECK 以降はアサーション。指示文とは別に集める。
+        if ($line -match '^####\s+CHECK\s*$') { $mode = 'check'; continue }
+
+        if (-not $current) { continue }
+        if ($line.Trim() -like '<!--*') { continue }
+
+        if ($mode -eq 'check') {
+            # CHECK 本体はフェンスで囲んでも囲まなくてもよい
+            if ($line -match '^\s*```') { continue }
+            $current.Check += ($line + "`n")
+        } else {
             $current.Instruction += ($line + "`n")
         }
     }
@@ -232,6 +248,68 @@ function Test-SnippetSyntax([string]$code) {
     }
 }
 
+# 発注書の #### CHECK を実行する。
+#
+# 機械ゲートは構文しか見ないため、意味的な欠陥は素通りする（README の
+# `floor || -Infinity` の例）。ローカルLLMは再試行が無料なので、実行可能な
+# アサーションを当てて「構文が通るだけの推測」を「振る舞いが検証済み」に変える。
+#
+# ファイル全体を import せず、関数の断片とアサーションだけを .mjs に書き出して走らせる。
+# js/ の多くはブラウザ前提でトップレベルに DOM 参照を持ち、node では読み込みすら
+# 通らないため。孤立実行できる関数だけが CHECK の対象になる（成否は事前確認で判定する）。
+# node の stderr から意味のある部分だけを取り出す。
+# 素の出力は先頭3行が node 内部フレーム（`node:internal/...` / `triggerUncaughtException(`）で、
+# 肝心の `AssertionError` と `0 !== 99` はその後ろに来る。スタックは一時ファイルのパスばかりで
+# 7b モデルには雑音にしかならないので落とす。
+function Format-CheckError([string]$raw) {
+    $lines = @($raw -split "`r?`n" | Where-Object { $_.Trim() })
+    if ($lines.Count -eq 0) { return '' }
+    $head = 0
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^[A-Za-z]*Error[:\s\[]') { $head = $i; break }
+    }
+    $kept = @($lines[$head..($lines.Count - 1)] | Where-Object {
+        $_ -notmatch '^\s*at ' -and
+        $_ -notmatch '^node:internal' -and
+        $_ -notmatch '^\s*triggerUncaughtException' -and
+        $_ -notmatch '^\s*\^+\s*$' -and
+        $_ -notmatch '^Node\.js v'
+    })
+    if ($kept.Count -eq 0) { $kept = @($lines | Select-Object -First 8) }
+    return (($kept | Select-Object -First 12) -join "`n")
+}
+
+function Invoke-CheckHarness([string]$functionText, [string]$checkBody) {
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("loopchk_" + [guid]::NewGuid().ToString('N') + '.mjs')
+    $err = [System.IO.Path]::GetTempFileName()
+    $out = [System.IO.Path]::GetTempFileName()
+    $harness = "import assert from 'node:assert/strict';`n`n$functionText`n`n$checkBody`n"
+    try {
+        [System.IO.File]::WriteAllText($tmp, $harness, (New-Object System.Text.UTF8Encoding($false)))
+        # 生成コードが無限ループしうるので -Wait は使えない。時間を切って殺す。
+        $p = Start-Process -FilePath 'node' -ArgumentList @("`"$tmp`"") -NoNewWindow -PassThru `
+            -RedirectStandardError $err -RedirectStandardOutput $out
+        if (-not $p.WaitForExit(10000)) {
+            try { $p.Kill() } catch { }
+            return [pscustomobject]@{ Code = 124; Message = 'CHECK did not finish within 10 seconds (possible infinite loop).'; Assertion = $false }
+        }
+        $p.WaitForExit()
+        $raw = '' + (Get-Content $err -Raw -ErrorAction SilentlyContinue)
+        $msg = Format-CheckError $raw
+        $code = $p.ExitCode
+        if ($null -eq $code) { $code = if ($msg) { 1 } else { 0 } }
+        return [pscustomobject]@{
+            Code      = $code
+            Message   = $msg
+            # AssertionError = ハーネスは動いた上でアサーションが落ちた。
+            # それ以外のエラーは「関数が単体で動かない」ことを意味する。
+            Assertion = ($msg -match 'AssertionError')
+        }
+    } finally {
+        Remove-Item $tmp, $err, $out -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-LocalModel([string]$prompt, [double]$temperature, [int]$seed) {
     $body = @{
         model   = $Model
@@ -290,7 +368,39 @@ foreach ($u in $units) {
     }
 
     $original = $found.Text
-    $prompt = $template.Replace('{{FUNCTION}}', $original).Replace('{{INSTRUCTION}}', $u.Instruction.Trim())
+    $check = $u.Check.Trim()
+
+    # CHECK の事前確認。元コードで一度走らせて、ハーネス自体が成立するかを先に見る。
+    # ここを通しておくと、書き換え後に出たエラーはすべてモデルの責任だと確定できる。
+    if ($check) {
+        $pre = Invoke-CheckHarness $original $check
+        if ($pre.Code -eq 0) {
+            Write-Host "  警告: CHECK が元コードのままでも通ります。要求した変更を検証できていません。"
+            [void]$log.AppendLine('PREFLIGHT: check passes on the original function (non-discriminating)')
+        }
+        elseif (-not $pre.Assertion) {
+            # ReferenceError 等。関数が単体で動かないので、この関数に CHECK は付けられない。
+            Write-Host "  失敗: CHECK を孤立実行できません（関数単体では動きません）"
+            foreach ($l in ($pre.Message -split "`n" | Select-Object -First 3)) { Write-Host "      $l" }
+            [void]$log.AppendLine("PREFLIGHT FAILED: $($pre.Message)")
+            $results += [pscustomobject]@{
+                Unit   = "$($u.File)::$($u.Function)"
+                Status = 'fail'
+                Reason = 'CHECK を孤立実行できない（CHECK を外すか Sonnet へ回す）'
+            }
+            continue
+        }
+    }
+
+    $checkBlock = ''
+    if ($check) {
+        $fence = '```js'
+        $checkBlock = "`nYour rewritten function MUST make all of these assertions pass:`n" +
+                      $fence + "`n" + $check + "`n" + '```'
+    }
+    $prompt = $template.Replace('{{FUNCTION}}', $original).
+                        Replace('{{INSTRUCTION}}', $u.Instruction.Trim()).
+                        Replace('{{CHECK}}', $checkBlock)
     [void]$log.AppendLine($prompt)
 
     $applied = $false
@@ -316,6 +426,8 @@ foreach ($u in $units) {
 
         $raw = Invoke-LocalModel $attemptPrompt $temp $seed
         [void]$log.AppendLine("--- attempt $attempt (temp=$temp, seed=$seed) ---")
+        # 返した失敗理由も残す。ここが空だと、なぜ再試行が収束しないのかを後から追えない。
+        if ($feedback) { [void]$log.AppendLine("[feedback sent]`n$feedback`n") }
         [void]$log.AppendLine($raw)
 
         # 失敗したらここに理由と、モデルへ返す英語のフィードバックを入れて次の試行へ
@@ -370,16 +482,34 @@ foreach ($u in $units) {
             }
         }
 
+        # 最後に振る舞いを見る。構文が通っても意味が違うものはここで落ちる。
+        if (-not $fail -and $check) {
+            $chk = Invoke-CheckHarness $code $check
+            if ($chk.Code -ne 0) {
+                $fail = 'CHECK が通らない'
+                $feedback = "Your previous answer was rejected: it does not pass the required assertions. Fix the logic so every assertion passes. The test output was:`n$($chk.Message)"
+                Write-Host "  試行$attempt : $fail"
+                foreach ($l in ($chk.Message -split "`n" | Select-Object -First 2)) { Write-Host "      $l" }
+            }
+        }
+
         if ($fail) {
             $lastReason = $fail
             $reasonCounts[$fail] = 1 + [int]$reasonCounts[$fail]
-            if ($fail -notlike '既存コメント*' -and $fail -notlike '指示に無いコメント*') { Write-Host "  試行$attempt : $fail" }
+            if ($fail -notlike '既存コメント*' -and $fail -notlike '指示に無いコメント*' -and $fail -ne 'CHECK が通らない') {
+                Write-Host "  試行$attempt : $fail"
+            }
             continue
         }
 
         [System.IO.File]::WriteAllText($full, $next, (New-Object System.Text.UTF8Encoding($hadBom)))
-        Write-Host "  適用しました（試行$attempt, temp=$temp）"
-        $results += [pscustomobject]@{ Unit = "$($u.File)::$($u.Function)"; Status = 'applied'; Reason = "attempt=$attempt" }
+        $checkNote = if ($check) { ', check=pass' } else { ', check=なし' }
+        Write-Host "  適用しました（試行$attempt, temp=$temp$checkNote）"
+        $results += [pscustomobject]@{
+            Unit   = "$($u.File)::$($u.Function)"
+            Status = 'applied'
+            Reason = "attempt=$attempt$checkNote"
+        }
         $applied = $true
         break
     }

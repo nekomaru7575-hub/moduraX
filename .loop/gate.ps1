@@ -51,6 +51,13 @@ foreach ($line in $specLines) {
     if ($t -and -not $t.StartsWith('#') -and -not $t.StartsWith('<!--')) { $allow += $t }
 }
 
+# .loop/ 配下はループの運用ファイル（発注書・プロンプト・ハーネス・ログ）であって、
+# タスクの成果物ではない。ALLOW 照合と行数カウントの**両方**で同じ基準で除外すること。
+# 片方だけ除外すると、.loop/ を編集した回で無関係なタスクが diff-size 上限に当たって FAIL する。
+function Test-Excluded([string]$path) {
+    return $path -like '.loop/*'
+}
+
 function Test-Allowed([string]$path, [string[]]$patterns) {
     foreach ($p in $patterns) {
         if ($p.EndsWith('/')) { if ($path.StartsWith($p)) { return $true } }
@@ -69,7 +76,7 @@ try {
 } finally {
     Pop-Location
 }
-$changed = @($tracked + $untracked | Sort-Object -Unique) | Where-Object { $_ -notlike '.loop/*' }
+$changed = @($tracked + $untracked | Sort-Object -Unique) | Where-Object { -not (Test-Excluded $_) }
 
 if ($changed.Count -eq 0) {
     Add-Check 'changed-files' 'fail' @("$BaseRef からの変更が1件もありません。実装が行われていない可能性があります。")
@@ -92,7 +99,9 @@ if ($allow.Count -eq 0) {
 # ---------- 2. 差分サイズ ----------
 $lines = 0
 foreach ($row in $numstat) {
+    # numstat の1行は「追加<TAB>削除<TAB>パス」。パス列で除外を効かせる。
     $parts = $row -split "`t"
+    if ($parts.Count -ge 3 -and (Test-Excluded $parts[2])) { continue }
     if ($parts.Count -ge 2) {
         $a = 0; $d = 0
         [void][int]::TryParse($parts[0], [ref]$a)
@@ -101,6 +110,7 @@ foreach ($row in $numstat) {
     }
 }
 foreach ($f in $untracked) {
+    if (Test-Excluded $f) { continue }
     $full = Join-Path $Repo $f
     if (Test-Path $full -PathType Leaf) { $lines += @(Get-Content $full -ErrorAction SilentlyContinue).Count }
 }

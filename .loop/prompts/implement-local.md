@@ -16,3 +16,4 @@ Function:
 
 Instructions:
 {{INSTRUCTION}}
+{{CHECK}}

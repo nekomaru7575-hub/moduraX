@@ -83,8 +83,10 @@ function sendDX3CheckCommand(command) {
 // 判定コマンドの書式を1箇所にまとめる。「実行」ボタン（単発の能力値+技能値判定）と
 // 「判定をコピー」ボタン（設定済みの技能をまとめて出力）の両方から使うことで、
 // 同じ判定でも書式がずれないようにする。
-function buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue }) {
-  return `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue}`;
+// skillLabelは末尾に半角スペース区切りで「<技能名>判定」を付けるためのラベル
+// （実行・コピーの両方で同じ書式にするため、ここに集約する）。
+function buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel }) {
+  return `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue} ${skillLabel}判定`;
 }
 
 let dialogEl = null;
@@ -248,9 +250,11 @@ export function showAbilitySkillBox({
 
   checkSection.appendChild(checkRow);
 
-  const checkActionRow = document.createElement('div');
-  checkActionRow.className = 'dialog-button-row';
-  checkActionRow.style.marginTop = '8px';
+  // 「実行」「判定をコピー」「閉じる」（編集可の場合は「保存」も）をまとめて置く行。
+  // 3ボタンを同じ親要素の中に横並びで配置するため、checkSection側とその下の保存/閉じるを
+  // 1つの.dialog-button-rowにまとめる。
+  const btnRow = document.createElement('div');
+  btnRow.className = 'dialog-button-row';
 
   const executeBtn = document.createElement('button');
   executeBtn.type = 'button';
@@ -288,15 +292,17 @@ export function showAbilitySkillBox({
     const rawCriticalValue = 10 + acbValue;
     const criticalValue = Math.max(rawCriticalValue, DX3_ABILITY_BOX_CRITICAL_FLOOR);
 
-    const command = buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue });
+    const command = buildDX3CheckCommand({
+      abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel: skillParam.label
+    });
     sendDX3CheckCommand(command);
   });
 
-  checkActionRow.appendChild(executeBtn);
-
-  // 「判定をコピー」：技能値が設定されている（0でない）すべての技能について、上のexecuteBtnと
-  // 同じ書式の判定コマンドを1行1件でまとめてクリップボードへコピーする。能力値単体の判定
-  // （技能を伴わない行）は出さない。対応する能力値はDX3_ABILITY_SKILL_GROUPSの対応関係から解決する。
+  // 「判定をコピー」：DX3_ABILITY_SKILL_GROUPSに定義されている全技能（固定技能）と、
+  // ユーザーが追加した技能（使用中の可変スロット技能）の両方について、技能値が未設定
+  // （0・空・未定義）でも上のexecuteBtnと同じ書式の判定コマンドを1行1件でまとめて
+  // クリップボードへコピーする。能力値単体の判定（技能を伴わない行）は出さない。
+  // 対応する能力値はDX3_ABILITY_SKILL_GROUPSの対応関係から解決する。
   const copyCheckBtn = document.createElement('button');
   copyCheckBtn.type = 'button';
   copyCheckBtn.className = 'dialog-confirm-btn';
@@ -325,9 +331,11 @@ export function showAbilitySkillBox({
         .forEach(p => skillParams.push(p));
 
       skillParams.forEach(skillParam => {
+        if (!skillParam.label) return; // 技能名が空だとラベルが「判定」だけになるため行を出さない
         const skillValue = Number(skillParam.value) || 0;
-        if (!skillValue) return; // 未設定（0）の技能は行を出さない
-        lines.push(buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue }));
+        lines.push(buildDX3CheckCommand({
+          abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel: skillParam.label
+        }));
       });
     });
 
@@ -344,14 +352,15 @@ export function showAbilitySkillBox({
     }
     setTimeout(() => { copyCheckBtn.textContent = originalLabel; }, 1500);
   });
-  checkActionRow.appendChild(copyCheckBtn);
 
-  checkSection.appendChild(checkActionRow);
-
-  if (canSendToChat()) form.appendChild(checkSection);
-
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
+  // チャットへ送れない画面（部屋の外のコマ作成ツール）ではcheckSectionごと出さないため、
+  // 対応するabilitySelect/skillSelectが無い実行・コピーの2ボタンもここでまとめて出し分ける。
+  if (canSendToChat()) {
+    form.appendChild(checkSection);
+    btnRow.style.marginTop = '8px'; // checkSectionの直後に続くため、元のcheckActionRowと同じ間隔を保つ
+    btnRow.appendChild(executeBtn);
+    btnRow.appendChild(copyCheckBtn);
+  }
 
   // 保存はロイス・エフェクト・コンボの各ボックスと同じく、このボックス単独で完結させる
   // （更新ダイアログの「保存」を待たずに即時反映する）。

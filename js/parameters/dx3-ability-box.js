@@ -330,12 +330,15 @@ export function showAbilitySkillBox({
         .filter(p => p.source === 'DX3' && p.key?.startsWith(group.variablePrefix))
         .forEach(p => skillParams.push(p));
 
+      
       skillParams.forEach(skillParam => {
         if (!skillParam.label) return; // 技能名が空だとラベルが「判定」だけになるため行を出さない
         const skillValue = Number(skillParam.value) || 0;
-        lines.push(buildDX3CheckCommand({
-          abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel: skillParam.label
-        }));
+        lines.push(
+          //共通ファンクションに渡さず、参照形式で文字列化
+          `(${abilityValue}+{AdB}+{DB})DX(10+{AcB})+${skillValue}+{AnB} ${skillParam.label}`
+          
+        );
       });
     });
 

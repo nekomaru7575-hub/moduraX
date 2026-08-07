@@ -22,7 +22,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
-import { ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins } from '../js/game-store.js';
+import {
+  ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages
+} from '../js/game-store.js';
 import { adoptImportedState } from '../js/state-import.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
@@ -33,6 +35,9 @@ const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
 // 音源1ファイルの上限。MP3 192kbpsで20MB＝約14分。環境変数で調整できるようにしておく。
 const MAX_AUDIO_BYTES = (Number(process.env.MAX_AUDIO_MB) || 20) * 1024 * 1024;
+// 入室音のURL。音源はまだ無いので、環境変数が無ければ空文字のまま（クライアントは
+// 空文字/未設定ならnew Audio()自体を作らない。js/audio-player.jsのplayEntrySound参照）。
+const ENTRY_SOUND_URL = process.env.ENTRY_SOUND_URL || '';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
@@ -301,6 +306,12 @@ const GM_ONLY_ACTIONS = new Set([
   'ROUND_SET_ACTED',
   'ROUND_SET_INTERRUPT',
   'SET_ROUND_SETTINGS',
+  // 入室メッセージ表示の切り替え。イニシアチブ設定と同じ権限判定に揃える。
+  'SET_SHOW_ENTRY_MESSAGES',
+  // 入室メッセージ本体の追加はIDENTIFY処理からサーバーだけが直接dispatchする
+  // （下のGM_ONLY_ACTIONSチェックを経由しない）。ここに入れているのは、直接WebSocketで
+  // このACTIONを騙って偽の入室メッセージを流し込まれないようにする歯止め。
+  'ADD_ENTRY_MESSAGE',
   // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
   // 画像のアップロード側（下のIMAGE_PURPOSES.background）も同じくGM限定。
   'SET_BOARD_BACKGROUND',
@@ -1485,6 +1496,11 @@ wss.on('connection', async (ws, req) => {
   let verifiedParticipantId = null;
   // 開発用の合言葉での名乗りか（isDeveloperToken参照）。GMでなくてもGMと同じ操作ができる。
   let isDeveloper = false;
+  // この接続で入室メッセージを既に追加したか。ブラウザ側は同じWebSocket接続に対して
+  // open時・INIT受信時・NET_INITIALIZED経由と複数回IDENTIFYを送ってくる（既存の挙動）ため、
+  // 「他の接続に同じparticipantIdが無いか」だけでは自分自身の再送を弾けない。
+  // 接続ごとに一度追加したら二度と追加しないようにする。
+  let entryMessageSent = false;
 
   // 部屋を左右する操作をしてよいか。開発用の合言葉はGMの有無に関わらず通す。
   function mayOperateAsGm() {
@@ -1556,6 +1572,29 @@ wss.on('connection', async (ws, req) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'IDENTITY_ACCEPTED', developer: isDeveloper }));
         }
+
+        // 入室メッセージ。同じparticipantIdの接続がこの部屋にまだ1つも無い場合だけ、既定の
+        // チャットタブへ1件追加する（再接続・タブの複数開きでは増やさない）。この接続自身は
+        // admit()で既にentry.clientsへ入っているため、自分を除いて数える
+        // （client.participantIdは下でこの後に立てる。先に立てると常に1件ヒットしてしまう）。
+        if (showsEntryMessages(entry.store.state) && !entryMessageSent) {
+          const alreadyConnected = Array.from(entry.clients).some(
+            (client) => client !== ws && client.participantId === participantId
+          );
+          if (!alreadyConnected) {
+            // クライアントの丸めを信用せず、空文字・空白のみはサーバー側で「ゲスト」に丸める。
+            const rawName = typeof message.name === 'string' ? message.name.trim() : '';
+            const entryPayload = { name: rawName || 'ゲスト', entrySoundUrl: ENTRY_SOUND_URL || null };
+            entry.store.dispatch('ADD_ENTRY_MESSAGE', entryPayload);
+            schedulePersistForRoom(roomId, entry);
+            // senderをnullにして、名乗った本人（この接続）にも配る
+            broadcastToRoom(entry, null, { type: 'ACTION', action: 'ADD_ENTRY_MESSAGE', payload: entryPayload });
+          }
+          // この接続では以後IDENTIFYが何度来ても追加しない（alreadyConnected判定の結果に関わらず、
+          // 「この接続で1回試みた」時点で処理済み扱いにする）。
+          entryMessageSent = true;
+        }
+        ws.participantId = participantId;
       } else {
         verifiedParticipantId = null;
         isDeveloper = false;

@@ -1,10 +1,10 @@
 ---
 source: js/audio-player.js
-lines: 109
-exports: 6
-imported_by: 3
-api_sha: fd8f602654b2
-prose_sha: fd8f602654b2
+lines: 123
+exports: 7
+imported_by: 4
+api_sha: 247c15310e74
+prose_sha: 247c15310e74
 generated: 2026-08-07
 tags: [codemap]
 ---
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-音の再生エンジン。UI を一切持たず、チャンネルごとの音量・ミュート状態と、ブラウザの自動再生ポリシーによる再生ブロックの検出を担う。状態は [[js.game-store]] から取り、変化は [[js.EventBus]] 経由で受ける。操作 UI は [[js.audio-dialog]]。
+音の再生エンジン。UI を一切持たず、チャンネル（BGM/効果音）ごとの音量・ミュート状態と、ブラウザの自動再生ポリシーによる再生ブロックの検出を担う。チャンネルの状態は [[js.game-store]] から取り、変化は [[js.EventBus]] 経由で受ける。入室音（playEntrySound）はチャンネル管理の外にある一回きりの再生で、鳴らすかどうかの判断や URL の決定はせず、[[js.net-sync]] が受信した入室通知からそのまま渡された URL を鳴らすだけ。操作 UI は [[js.audio-dialog]]。
 <!-- /prose:role -->
 
-## export（6）
+## export（7）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -30,7 +30,8 @@ tags: [codemap]
 | 40 | fn | isMuted | `isMuted()` |  |
 | 46 | fn | setMuted | `setMuted(muted)` | ミュート中でも再生自体は続いている（音が出ないだけ）。 |
 | 55 | fn | isBlockedByAutoplayPolicy | `isBlockedByAutoplayPolicy()` | ページを一度もクリックしていない状態ではブラウザがplay()を拒否する。 |
-| 95 | fn | initAudioPlayer | `initAudioPlayer()` |  |
+| 98 | fn | playEntrySound | `playEntrySound(url)` | 入室音。 |
+| 109 | fn | initAudioPlayer | `initAudioPlayer()` |  |
 
 ## トップレベル関数・非export（1）
 
@@ -43,10 +44,10 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.EventBus]], [[js.game-store]]
-- imported by → [[js.audio-dialog]], [[js.dice-animation]], [[js.main]]
+- imported by → [[js.audio-dialog]], [[js.dice-animation]], [[js.main]], [[js.net-sync]]
 
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+入室音は `room.audioPlayback` には乗らない（BGM/効果音と違い同期対象の状態ではなく、ACTIONメッセージのpayloadだけで一回きり運ばれる）。状態を見ても入室音の再生履歴は追えない。
 <!-- /prose:notes -->

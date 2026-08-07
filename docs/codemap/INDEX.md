@@ -20,7 +20,7 @@ generated: 2026-08-07
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 68 | 219 | 493 | 0 | 0 |
+| 68 | 221 | 496 | 0 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -31,7 +31,7 @@ generated: 2026-08-07
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 5 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
 | [[js.audio-phrase\|js/audio-phrase.js]] | 音源に設定した「再生フレーズ」と発言の照合。 | 1 | 1 |
-| [[js.audio-player\|js/audio-player.js]] | 部屋の音楽の再生エンジン（UIは持たない。操作はjs/audio-dialog.js側）。 | 6 | 3 |
+| [[js.audio-player\|js/audio-player.js]] | 部屋の音楽の再生エンジン（UIは持たない。操作はjs/audio-dialog.js側）。 | 7 | 4 |
 | [[js.background-dialog\|js/background-dialog.js]] | 盤面の「背景設定」ダイアログ。 | 1 | 1 |
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
 | [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 2 |
@@ -50,7 +50,7 @@ generated: 2026-08-07
 | [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 9 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 3 | 5 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 3 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジックだけを持つ、DOM に一切依存しない単一のストア。 | 24 | 13 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジックだけを持つ、DOM に一切依存しない単一のストア。 | 25 | 13 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-upload\|js/image-upload.js]] | 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。 | 5 | 4 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
@@ -110,4 +110,4 @@ generated: 2026-08-07
 | [[js.file-uploader\|js/file-uploader.js]] | 5 |
 | [[js.read-only-form\|js/read-only-form.js]] | 5 |
 | [[js.room-entry\|js/room-entry.js]] | 5 |
-| [[js.board-data-driven\|js/board-data-driven.js]] | 4 |
+| [[js.audio-player\|js/audio-player.js]] | 4 |

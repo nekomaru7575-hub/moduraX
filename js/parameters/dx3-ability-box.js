@@ -80,6 +80,13 @@ function sendDX3CheckCommand(command) {
   sendBtn.click();
 }
 
+// 判定コマンドの書式を1箇所にまとめる。「実行」ボタン（単発の能力値+技能値判定）と
+// 「判定をコピー」ボタン（設定済みの技能をまとめて出力）の両方から使うことで、
+// 同じ判定でも書式がずれないようにする。
+function buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue }) {
+  return `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue}`;
+}
+
 let dialogEl = null;
 
 function ensureDialog() {
@@ -281,11 +288,64 @@ export function showAbilitySkillBox({
     const rawCriticalValue = 10 + acbValue;
     const criticalValue = Math.max(rawCriticalValue, DX3_ABILITY_BOX_CRITICAL_FLOOR);
 
-    const command = `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue}`;
+    const command = buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue });
     sendDX3CheckCommand(command);
   });
 
   checkActionRow.appendChild(executeBtn);
+
+  // 「判定をコピー」：技能値が設定されている（0でない）すべての技能について、上のexecuteBtnと
+  // 同じ書式の判定コマンドを1行1件でまとめてクリップボードへコピーする。能力値単体の判定
+  // （技能を伴わない行）は出さない。対応する能力値はDX3_ABILITY_SKILL_GROUPSの対応関係から解決する。
+  const copyCheckBtn = document.createElement('button');
+  copyCheckBtn.type = 'button';
+  copyCheckBtn.className = 'dialog-confirm-btn';
+  copyCheckBtn.textContent = '判定をコピー';
+  copyCheckBtn.addEventListener('click', async () => {
+    // 実行ボタンと同じ値の取り方（DB/AdB/AnB/AcBの解決、クリティカル値の下限クランプ）を使う。
+    const dbValue = Number(parameters['DX3:corDB']?.value) || 0;
+    const ctx = { parameters, token, getEffectiveParameterValue };
+    const adbValue = readEffectiveOrBaseValue('DX3:AdB', ctx);
+    const anbValue = readEffectiveOrBaseValue('DX3:AnB', ctx);
+    const acbValue = readEffectiveOrBaseValue('DX3:AcB', ctx);
+    const rawCriticalValue = 10 + acbValue;
+    const criticalValue = Math.max(rawCriticalValue, DX3_ABILITY_BOX_CRITICAL_FLOOR);
+
+    const lines = [];
+    DX3_ABILITY_SKILL_GROUPS.forEach(group => {
+      const abilityParam = parameters[`DX3:${group.paramKey}`];
+      if (!abilityParam) return;
+      const abilityValue = Number(abilityParam.value) || 0;
+
+      const skillParams = group.fixedSkills
+        .map(skillKey => parameters[`DX3:${skillKey}`])
+        .filter(Boolean);
+      Object.values(parameters)
+        .filter(p => p.source === 'DX3' && p.key?.startsWith(group.variablePrefix))
+        .forEach(p => skillParams.push(p));
+
+      skillParams.forEach(skillParam => {
+        const skillValue = Number(skillParam.value) || 0;
+        if (!skillValue) return; // 未設定（0）の技能は行を出さない
+        lines.push(buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue }));
+      });
+    });
+
+    // コピー処理はjs/parameters/dx3-combo-box.jsの「コマンドをコピー」と同じ方式
+    // （navigator.clipboard.writeText、失敗時はalert、成功時はボタン文言を一時的に変える）。
+    const text = lines.join('\n');
+    const originalLabel = copyCheckBtn.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      copyCheckBtn.textContent = 'コピーしました';
+    } catch (error) {
+      alert(`クリップボードへのコピーに失敗しました: ${error.message}`);
+      return;
+    }
+    setTimeout(() => { copyCheckBtn.textContent = originalLabel; }, 1500);
+  });
+  checkActionRow.appendChild(copyCheckBtn);
+
   checkSection.appendChild(checkActionRow);
 
   if (canSendToChat()) form.appendChild(checkSection);

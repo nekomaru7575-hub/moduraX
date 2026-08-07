@@ -336,7 +336,7 @@ export function showAbilitySkillBox({
         const skillValue = Number(skillParam.value) || 0;
         lines.push(
           //共通ファンクションに渡さず、参照形式で文字列化
-          `(${abilityValue}+{AdB}+{DB})DX(10+{AcB})+${skillValue}+{AnB} ${skillParam.label}`
+          `(${abilityValue}+{AdB}+{DB})DX(10+{AcB})+${skillValue}+{AnB} ${skillParam.label}判定`
           
         );
       });

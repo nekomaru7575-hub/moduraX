@@ -41,16 +41,31 @@ tags: [codemap]
 | 153 | fn | getCurrentParticipantId | `getCurrentParticipantId()` |  |
 | 159 | fn | getCurrentAuthToken | `getCurrentAuthToken()` | サーバーが「この公開IDを名乗ってよいか」を検証するための値。 |
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（18）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 9 | generateId | `generateId()` | 6 |
-| 66 | roomNameKey | `roomNameKey(roomId)` | 3 |
-| 70 | devPassphraseKey | `devPassphraseKey(roomId)` | 3 |
-| 107 | sha256Hex | `async sha256Hex(text)` | 6 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 9 | generateId | `generateId()` | 6 |  |
+| 18 | getLocalUserId | `getLocalUserId()` | 12 | ✓ |
+| 35 | getNickname | `getNickname()` | 3 | ✓ |
+| 39 | setNickname | `setNickname(name)` | 3 | ✓ |
+| 66 | roomNameKey | `roomNameKey(roomId)` | 3 |  |
+| 70 | devPassphraseKey | `devPassphraseKey(roomId)` | 3 |  |
+| 76 | normalizeRoomName | `normalizeRoomName(name)` | 3 | ✓ |
+| 81 | getStoredRoomName | `getStoredRoomName(roomId)` | 3 | ✓ |
+| 85 | setStoredRoomName | `setStoredRoomName(roomId, name)` | 5 | ✓ |
+| 91 | getStoredDevPassphrase | `getStoredDevPassphrase(roomId)` | 3 | ✓ |
+| 95 | setStoredDevPassphrase | `setStoredDevPassphrase(roomId, passphrase)` | 4 | ✓ |
+| 103 | isRoomIdentityAvailable | `isRoomIdentityAvailable()` | 3 | ✓ |
+| 107 | sha256Hex | `async sha256Hex(text)` | 6 |  |
+| 119 | deriveParticipantId | `async deriveParticipantId(authToken)` | 3 | ✓ |
+| 130 | deriveRoomIdentity | `async deriveRoomIdentity(roomId, seed)` | 9 | ✓ |
+| 148 | activateRoomIdentity | `async activateRoomIdentity(roomId, seed)` | 4 | ✓ |
+| 153 | getCurrentParticipantId | `getCurrentParticipantId()` | 3 | ✓ |
+| 159 | getCurrentAuthToken | `getCurrentAuthToken()` | 3 | ✓ |
 
 ## 依存
 

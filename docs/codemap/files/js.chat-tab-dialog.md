@@ -27,13 +27,15 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 27 | fn | showChatTabDialog | `showChatTabDialog({ mode = 'create', name = '', audience = null, participants, myParticipantId, onConfirm })` | mode?: 'create'\|'edit', name?: string, audience?: string[]\|null, participants: Record<string, {id:string, ni… |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 9 | ensureDialog | `ensureDialog()` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 9 | ensureDialog | `ensureDialog()` | 7 |  |
+| 27 | showChatTabDialog | `showChatTabDialog({ mode = 'create', name = '', audience = null, participants, myParticipantId, onConfirm })` | 72 | ✓ |
 
 ## 依存
 

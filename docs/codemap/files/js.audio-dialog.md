@@ -27,20 +27,22 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 195 | fn | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | 追加・再生・削除は即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
-## トップレベル関数・非export（8）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 37 | formatBytes | `formatBytes(bytes)` | 5 |
-| 44 | stripExtension | `stripExtension(filename)` | 3 |
-| 50 | ensureDialog | `ensureDialog()` | 7 |
-| 59 | currentRoomId | `currentRoomId()` | 3 |
-| 70 | currentMaxBytes | `currentMaxBytes()` | 3 |
-| 74 | fetchUploadCapability | `fetchUploadCapability(onResolved)` | 13 |
-| 94 | uploadAudioFile | `async uploadAudioFile(file)` | 21 |
-| 119 | buildAddRow | `buildAddRow(defaultName, onSubmit)` | 56 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 37 | formatBytes | `formatBytes(bytes)` | 5 |  |
+| 44 | stripExtension | `stripExtension(filename)` | 3 |  |
+| 50 | ensureDialog | `ensureDialog()` | 7 |  |
+| 59 | currentRoomId | `currentRoomId()` | 3 |  |
+| 70 | currentMaxBytes | `currentMaxBytes()` | 3 |  |
+| 74 | fetchUploadCapability | `fetchUploadCapability(onResolved)` | 13 |  |
+| 94 | uploadAudioFile | `async uploadAudioFile(file)` | 21 |  |
+| 119 | buildAddRow | `buildAddRow(defaultName, onSubmit)` | 56 |  |
+| 195 | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | **304** | ✓ |
 
 ## 依存
 

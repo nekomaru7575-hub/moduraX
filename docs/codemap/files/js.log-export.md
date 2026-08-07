@@ -27,15 +27,17 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 55 | fn | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 選択されたタブのログを、単体で開ける1枚のHTML文書にまとめて返す。 |
 
-## トップレベル関数・非export（3）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 14 | escapeHtml | `escapeHtml(text)` | 7 |
-| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null })` | 1 |
-| 37 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 14 | escapeHtml | `escapeHtml(text)` | 7 |  |
+| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null })` | 12 |  |
+| 37 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |  |
+| 55 | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 45 | ✓ |
 
 ## 依存
 

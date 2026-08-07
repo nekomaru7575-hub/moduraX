@@ -27,13 +27,15 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 24 | fn | showRoundSetupDialog | `showRoundSetupDialog({ title = '参加者を選択', tokens, currentParticipantIds = [], onConfirm })` | title?: string, tokens: Array<{id: string, name: string}>, currentParticipantIds?: string[], onConfirm: (res… |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 8 | ensureDialog | `ensureDialog()` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 8 | ensureDialog | `ensureDialog()` | 7 |  |
+| 24 | showRoundSetupDialog | `showRoundSetupDialog({ title = '参加者を選択', tokens, currentParticipantIds = [], onConfirm })` | 72 | ✓ |
 
 ## 依存
 

@@ -27,9 +27,9 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 3 | const | EventBus | `EventBus` | js/EventBus.js |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（0）
 
-なし。
+なし（`function 名(...) {}` 宣言がトップレベルに無い）。
 
 ## 依存
 

@@ -28,19 +28,22 @@ tags: [codemap]
 | 117 | fn | startRoundProgression | `startRoundProgression()` | ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。 |
 | 127 | fn | initRoundPanel | `initRoundPanel()` |  |
 
-## トップレベル関数・非export（7）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 27 | getTokenName | `getTokenName(state, tokenId)` | 3 |
-| 31 | currentPhase | `currentPhase(round)` | 3 |
-| 36 | isPreTurnStep | `isPreTurnStep(round)` | 3 |
-| 42 | listTurnOrderRows | `listTurnOrderRows(state, round)` | 11 |
-| 56 | shouldShowConfirmation | `shouldShowConfirmation(round)` | 4 |
-| 63 | buildTurnRow | `buildTurnRow(state, round, tokenId, canOperate)` | 44 |
-| 108 | listBoardTokens | `listBoardTokens(state)` | 5 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 27 | getTokenName | `getTokenName(state, tokenId)` | 3 |  |
+| 31 | currentPhase | `currentPhase(round)` | 3 |  |
+| 36 | isPreTurnStep | `isPreTurnStep(round)` | 3 |  |
+| 42 | listTurnOrderRows | `listTurnOrderRows(state, round)` | 11 |  |
+| 56 | shouldShowConfirmation | `shouldShowConfirmation(round)` | 4 |  |
+| 63 | buildTurnRow | `buildTurnRow(state, round, tokenId, canOperate)` | 44 |  |
+| 108 | listBoardTokens | `listBoardTokens(state)` | 5 |  |
+| 117 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
+| 127 | initRoundPanel | `initRoundPanel()` | 178 | ✓ |
 
 ## 依存
 

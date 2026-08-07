@@ -31,20 +31,26 @@ tags: [codemap]
 | 158 | fn | analyzeComboModFormula | `analyzeComboModFormula(rawMod, { effect, token, getEffectiveParameterValue })` | コンボ時修正1項目を数値へ解決し、あわせて「なぜその値になったか」を返す。 |
 | 191 | fn | resolveComboModFormula | `resolveComboModFormula(rawMod, context)` | エフェクトのコンボ時修正1項目（新形式の文字列、または旧形式{mode,value}）を、 使用者にとっての実際の数値へ解決する。 |
 
-## トップレベル関数・非export（8）
+## トップレベル関数（LOCAL TASKS 候補）（13）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 34 | normalizeNotation | `normalizeNotation(text)` | 3 |
-| 43 | normalizeName | `normalizeName(name)` | 3 |
-| 49 | tokenize | `tokenize(text)` | 13 |
-| 64 | parseExpression | `parseExpression(tokens, pos)` | 10 |
-| 76 | parseTerm | `parseTerm(tokens, pos)` | 10 |
-| 88 | parseFactor | `parseFactor(tokens, pos)` | 17 |
-| 107 | tryEvaluate | `tryEvaluate(text)` | 14 |
-| 129 | findParameterEntryByName | `findParameterEntryByName(parameters, name)` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 18 | normalizeComboModFormula | `normalizeComboModFormula(mod)` | 9 | ✓ |
+| 34 | normalizeNotation | `normalizeNotation(text)` | 3 |  |
+| 43 | normalizeName | `normalizeName(name)` | 3 |  |
+| 49 | tokenize | `tokenize(text)` | 13 |  |
+| 64 | parseExpression | `parseExpression(tokens, pos)` | 10 |  |
+| 76 | parseTerm | `parseTerm(tokens, pos)` | 10 |  |
+| 88 | parseFactor | `parseFactor(tokens, pos)` | 17 |  |
+| 107 | tryEvaluate | `tryEvaluate(text)` | 14 |  |
+| 124 | evaluateArithmeticExpression | `evaluateArithmeticExpression(text)` | 3 | ✓ |
+| 129 | findParameterEntryByName | `findParameterEntryByName(parameters, name)` | 7 |  |
+| 142 | listFormulaNames | `listFormulaNames(parameters)` | 6 | ✓ |
+| 158 | analyzeComboModFormula | `analyzeComboModFormula(rawMod, { effect, token, getEffectiveParameterValue })` | 25 | ✓ |
+| 191 | resolveComboModFormula | `resolveComboModFormula(rawMod, context)` | 3 | ✓ |
 
 ## 依存
 

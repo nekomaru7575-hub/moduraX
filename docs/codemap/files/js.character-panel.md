@@ -27,18 +27,20 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 160 | fn | initCharacterPanel | `initCharacterPanel()` |  |
 
-## トップレベル関数・非export（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 22 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |
-| 29 | listBoardTokens | `listBoardTokens(state)` | 9 |
-| 43 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 |
-| 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 1 |
-| 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 53 |
-| 143 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 22 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
+| 29 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
+| 43 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 |  |
+| 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 30 |  |
+| 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 53 |  |
+| 143 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
+| 160 | initCharacterPanel | `initCharacterPanel()` | 95 | ✓ |
 
 ## 依存
 

@@ -27,14 +27,16 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 46 | fn | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, gridSize, onConfirm })` | title?: string, initialImage?: string \| null, initialText?: string, initialCols?: number, initialRows?: numb… |
 
-## トップレベル関数・非export（2）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 12 | ensureDialog | `ensureDialog()` | 7 |
-| 21 | loadImageDimensions | `loadImageDimensions(dataUrl)` | 8 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 12 | ensureDialog | `ensureDialog()` | 7 |  |
+| 21 | loadImageDimensions | `loadImageDimensions(dataUrl)` | 8 |  |
+| 46 | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, gridSize, onConfirm })` | 189 | ✓ |
 
 ## 依存
 

@@ -32,16 +32,23 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 | 258 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
 | 267 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（10）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 51 | askEntryPassword | `askEntryPassword({ error })` | 1 |
-| 64 | sendJoin | `sendJoin()` | 10 |
-| 79 | flushIdentify | `flushIdentify()` | 5 |
-| 85 | connect | `connect()` | 130 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 45 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
+| 51 | askEntryPassword | `askEntryPassword({ error })` | 10 |  |
+| 64 | sendJoin | `sendJoin()` | 10 |  |
+| 79 | flushIdentify | `flushIdentify()` | 5 |  |
+| 85 | connect | `connect()` | 130 |  |
+| 216 | initNetSync | `initNetSync()` | 13 | ✓ |
+| 236 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
+| 249 | requestChatSendSound | `requestChatSendSound()` | 5 | ✓ |
+| 258 | requestRoomDeletion | `requestRoomDeletion()` | 5 | ✓ |
+| 267 | replaceState | `replaceState(newState)` | 11 | ✓ |
 
 ## 依存
 

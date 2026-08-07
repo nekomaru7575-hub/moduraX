@@ -29,9 +29,9 @@ tags: [codemap]
 | 20 | const | SHINOBIGAMI_ROWS | `SHINOBIGAMI_ROWS` | 2D6の出目。 |
 | 23 | const | SHINOBIGAMI_SKILL_CELLS | `SHINOBIGAMI_SKILL_CELLS` | SHINOBIGAMI_SKILL_CELLS[分野index][行index]。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（0）
 
-なし。
+なし（`function 名(...) {}` 宣言がトップレベルに無い）。
 
 ## 依存
 

@@ -27,13 +27,15 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 52 | fn | adoptImportedState | `adoptImportedState(importedState, { participants = {} } = {})` | 取り込んだ状態を、この部屋で使える形へ均す。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 28 | adoptInfoEntry | `adoptInfoEntry(entry)` | 15 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 28 | adoptInfoEntry | `adoptInfoEntry(entry)` | 15 |  |
+| 52 | adoptImportedState | `adoptImportedState(importedState, { participants = {} } = {})` | 9 | ✓ |
 
 ## 依存
 

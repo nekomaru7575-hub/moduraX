@@ -1,0 +1,49 @@
+---
+source: js/floating-panel.js
+lines: 212
+exports: 1
+imported_by: 3
+api_sha: 9e114663bedc
+prose_sha: 9e114663bedc
+generated: 2026-08-07
+tags: [codemap]
+---
+
+# js/floating-panel.js
+
+<!-- prose:summary -->
+ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。
+<!-- /prose:summary -->
+
+## 役割
+
+<!-- prose:role -->
+ドラッグ移動と拡縮ができる浮動パネルの枠だけを作る汎用部品。中身と表示制御は呼び出し側（チャットパレット・情報・キャラクター一覧）が持つ。
+<!-- /prose:role -->
+
+## export（1）
+
+| 行 | 種別 | 名前 | シグネチャ | 説明 |
+|---:|---|---|---|---|
+| 62 | fn | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | title: string, storageKey: string, defaultRect?: {x:number, y:number, w:number, h:number}, defaultVisible?: … |
+
+## トップレベル関数・非export（3）
+
+`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 |
+|---:|---|---|---:|
+| 16 | loadRect | `loadRect(storageKey)` | 9 |
+| 26 | saveRect | `saveRect(storageKey, rect)` | 7 |
+| 36 | clampRect | `clampRect(rect)` | 11 |
+
+## 依存
+
+- import → なし
+- imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]]
+
+## 注意
+
+<!-- prose:notes -->
+_(未記入)_
+<!-- /prose:notes -->

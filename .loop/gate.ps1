@@ -52,10 +52,12 @@ foreach ($line in $specLines) {
 }
 
 # .loop/ 配下はループの運用ファイル（発注書・プロンプト・ハーネス・ログ）であって、
-# タスクの成果物ではない。ALLOW 照合と行数カウントの**両方**で同じ基準で除外すること。
+# タスクの成果物ではない。docs/codemap/ も同様で、node .loop/codemap.mjs が機械生成する
+# インデックス（68ノート）なので、実装差分として数えると diff-size 上限を即座に超える。
+# ALLOW 照合と行数カウントの**両方**で同じ基準で除外すること。
 # 片方だけ除外すると、.loop/ を編集した回で無関係なタスクが diff-size 上限に当たって FAIL する。
 function Test-Excluded([string]$path) {
-    return $path -like '.loop/*'
+    return ($path -like '.loop/*') -or ($path -like 'docs/codemap/*')
 }
 
 function Test-Allowed([string]$path, [string[]]$patterns) {

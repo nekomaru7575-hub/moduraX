@@ -1,0 +1,54 @@
+---
+source: js/chat-palette.js
+lines: 377
+exports: 5
+imported_by: 1
+api_sha: 804066cafe14
+prose_sha: 804066cafe14
+generated: 2026-08-07
+tags: [codemap]
+---
+
+# js/chat-palette.js
+
+<!-- prose:summary -->
+チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、 クリックだけで即座に送信できるようにする機能。
+<!-- /prose:summary -->
+
+## 役割
+
+<!-- prose:role -->
+ブラウザごとに保存するよく使うフレーズ集。状態は localStorage にあり、部屋の共有状態（[[js.game-store]]）には入らない。テキストのパース規則（見出し行・コマンド行）はここが単独で持つ。
+<!-- /prose:role -->
+
+## export（5）
+
+| 行 | 種別 | 名前 | シグネチャ | 説明 |
+|---:|---|---|---|---|
+| 22 | const | CHAT_PALETTE_FORMAT | `CHAT_PALETTE_FORMAT` | パレットのファイル保存形式のマーカー。 |
+| 60 | fn | loadChatPaletteState | `loadChatPaletteState()` |  |
+| 77 | fn | saveChatPaletteState | `saveChatPaletteState(state)` |  |
+| 85 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
+| 102 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
+
+## トップレベル関数・非export（4）
+
+`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 |
+|---:|---|---|---:|
+| 25 | generateTabId | `generateTabId()` | 4 |
+| 30 | createTab | `createTab(name = '', text = '')` | 3 |
+| 34 | emptyState | `emptyState()` | 4 |
+| 41 | normalizeState | `normalizeState(raw)` | 18 |
+
+## 依存
+
+- import → [[js.character-snapshot]], [[js.file-uploader]]
+- imported by → [[js.main]]
+
+## 注意
+
+<!-- prose:notes -->
+_(未記入)_
+<!-- /prose:notes -->

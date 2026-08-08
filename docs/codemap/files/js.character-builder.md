@@ -5,7 +5,7 @@ exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -25,18 +25,19 @@ character-builder.html 専用のエントリポイント。部屋を作らずに
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数・非export（6）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 32 | resolveImport | `resolveImport(pluginId, json)` | 5 |
-| 40 | detectPluginFromSnapshot | `detectPluginFromSnapshot(snapshot)` | 5 |
-| 46 | renderLandingForm | `renderLandingForm()` | 64 |
-| 111 | startEditing | `startEditing(pluginId, json, errorEl)` | 29 |
-| 141 | openEditDialog | `openEditDialog(pluginId)` | 28 |
-| 170 | renderPostSaveActions | `renderPostSaveActions(pluginId, name)` | 34 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 32 | resolveImport | `resolveImport(pluginId, json)` | 5 |  |
+| 40 | detectPluginFromSnapshot | `detectPluginFromSnapshot(snapshot)` | 5 |  |
+| 46 | renderLandingForm | `renderLandingForm()` | 64 |  |
+| 111 | startEditing | `startEditing(pluginId, json, errorEl)` | 29 |  |
+| 141 | openEditDialog | `openEditDialog(pluginId)` | 28 |  |
+| 170 | renderPostSaveActions | `renderPostSaveActions(pluginId, name)` | 34 |  |
 
 ## 依存
 

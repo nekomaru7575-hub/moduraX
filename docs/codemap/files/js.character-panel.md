@@ -1,11 +1,11 @@
 ---
 source: js/character-panel.js
 lines: 255
-exports: 1
+exports: 2
 imported_by: 1
-api_sha: f9e75df193b0
-prose_sha: f9e75df193b0
-generated: 2026-08-07
+api_sha: 65b467f5f737
+prose_sha: 65b467f5f737
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -18,27 +18,30 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-盤面上のコマと、バックヤード（盤面からしまったコマの個人保管場所）をタブで並べる浮動パネル。パネルの枠は [[js.floating-panel]]、中身の操作は [[js.board-data-driven]] に委ねる。表示可否は [[js.visibility]] の判定に従う。
+盤面上のコマと、バックヤード（盤面からしまったコマの個人保管場所）をタブで並べる浮動パネル。パネルの枠は [[js.floating-panel]]、中身の操作は [[js.board-data-driven]] に委ねる。表示可否は [[js.visibility]] の判定に従う。自分のバックヤードを判定する `listMyBackyardTokens` は、パネル表示だけでなく状態の書き出し（[[js.main]]）でも同じ判定基準を使うためexportしている。
 <!-- /prose:role -->
 
-## export（1）
+## export（2）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
+| 43 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
 | 160 | fn | initCharacterPanel | `initCharacterPanel()` |  |
 
-## トップレベル関数・非export（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 22 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |
-| 29 | listBoardTokens | `listBoardTokens(state)` | 9 |
-| 43 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 |
-| 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 1 |
-| 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 53 |
-| 143 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 22 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
+| 29 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
+| 43 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
+| 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 30 |  |
+| 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 53 |  |
+| 143 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
+| 160 | initCharacterPanel | `initCharacterPanel()` | 95 | ✓ |
 
 ## 依存
 

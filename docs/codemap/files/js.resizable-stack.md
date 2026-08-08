@@ -5,7 +5,7 @@ exports: 1
 imported_by: 1
 api_sha: ac2f87b1df9a
 prose_sha: ac2f87b1df9a
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,15 +27,17 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 31 | fn | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` |  |
 
-## トップレベル関数・非export（3）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 6 | loadSizes | `loadSizes(storageKey)` | 9 |
-| 16 | saveSizes | `saveSizes(storageKey, sizes)` | 7 |
-| 24 | applySize | `applySize(section, size)` | 3 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 6 | loadSizes | `loadSizes(storageKey)` | 9 |  |
+| 16 | saveSizes | `saveSizes(storageKey, sizes)` | 7 |  |
+| 24 | applySize | `applySize(section, size)` | 3 |  |
+| 31 | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` | 50 | ✓ |
 
 ## 依存
 

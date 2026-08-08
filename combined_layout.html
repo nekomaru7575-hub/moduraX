@@ -557,14 +557,14 @@
       position: relative;
     }
 
-    /* チャット欄の予測変換候補。commandInputの直下に重ねて出す（見た目はチャットパレットの
+    /* チャット欄の予測変換候補。commandInputの直上に重ねて出す（見た目はチャットパレットの
        行一覧・.chat-palette-listに合わせ、新しい色は定義しない） */
     .chat-input-suggestions {
       position: absolute;
-      top: 100%;
+      bottom: 100%;
       left: 0;
       right: 0;
-      margin-top: 4px;
+      margin-bottom: 4px;
       max-height: 160px;
       overflow-y: auto;
       border: 1px solid #333;
@@ -586,6 +586,14 @@
       flex-shrink: 0;
       align-self: stretch;
       padding: 8px 16px;
+    }
+
+    /* 記入中の参加者一覧（T-013）。チャット入力欄の右下に小さく出す。誰も記入中でなければ
+       hidden属性で領域ごと消し、空の枠を残さない。 */
+    .typing-indicator {
+      text-align: right;
+      font-size: 0.75rem;
+      color: #999;
     }
 
     /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。枠と操作だけを持つ汎用スタイルで、
@@ -1377,6 +1385,8 @@
             <div id="commandInputSuggestions" class="chat-input-suggestions" style="display:none;"></div>
             <button class="btn-send" id="sendBtn">送信</button>
           </div>
+          <!-- 他の参加者の記入中一覧（T-013）。js/main.jsがTYPING_USERS_CHANGEDを受けて描画する -->
+          <div id="typingIndicator" class="typing-indicator" hidden></div>
         </div>
       </div>
     </div>

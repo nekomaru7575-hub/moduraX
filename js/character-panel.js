@@ -40,7 +40,7 @@ function listBoardTokens(state) {
 // 表示名を設定している人は所有者(ownerId)で判定するので、別の端末から入り直しても
 // 同じ棚が見える。ownerIdを持たないコマ（この機能より前にしまったもの・ゲストがしまった
 // もの）は、従来どおりブラウザ単位のIDで判定する。
-function listMyBackyardTokens(state) {
+export function listMyBackyardTokens(state) {
   const myParticipantId = getCurrentParticipantId();
   const myLocalUserId = getLocalUserId();
 

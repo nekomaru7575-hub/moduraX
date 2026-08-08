@@ -5,7 +5,7 @@ exports: 1
 imported_by: 2
 api_sha: 808f14485f64
 prose_sha: 808f14485f64
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,9 +27,14 @@ BCDice の公開 API を叩いてダイス判定を実行する唯一の口。
 |---:|---|---|---|---|
 | 2 | fn | rollBCDice | `async rollBCDice(system, command)` | BCdice.js の中身をこれに丸ごと差し替えてみてください |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 2 | rollBCDice | `async rollBCDice(system, command)` | 36 | ✓ |
 
 ## 依存
 

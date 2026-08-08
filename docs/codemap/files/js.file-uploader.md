@@ -5,7 +5,7 @@ exports: 3
 imported_by: 5
 api_sha: 932165771673
 prose_sha: 932165771673
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -29,9 +29,16 @@ tags: [codemap]
 | 33 | fn | pickFile | `pickFile({ accept = '*/*' } = {})` | ネイティブのファイル選択ダイアログを開き、選択されたFileをそのまま返す。 |
 | 58 | fn | pickFileAsText | `pickFileAsText({ accept = 'application/json' } = {})` | ネイティブのファイル選択ダイアログを開き、選択されたファイルをテキストとして読み込む。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 16 | readFileAsDataUrl | `readFileAsDataUrl(file)` | 8 | ✓ |
+| 33 | pickFile | `pickFile({ accept = '*/*' } = {})` | 17 | ✓ |
+| 58 | pickFileAsText | `pickFileAsText({ accept = 'application/json' } = {})` | 26 | ✓ |
 
 ## 依存
 

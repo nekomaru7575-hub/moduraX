@@ -5,7 +5,7 @@ exports: 2
 imported_by: 3
 api_sha: af9de3741cdf
 prose_sha: af9de3741cdf
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -28,13 +28,15 @@ tags: [codemap]
 | 20 | const | GM_ONLY_REASON | `GM_ONLY_REASON` | 無効化した項目のtitleに入れる共通の理由。 |
 | 33 | fn | canOperateAsGm | `canOperateAsGm()` | 部屋レベルの操作をしてよいか。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 24 | hasAnyGm | `hasAnyGm(participants)` | 3 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 24 | hasAnyGm | `hasAnyGm(participants)` | 3 |  |
+| 33 | canOperateAsGm | `canOperateAsGm()` | 9 | ✓ |
 
 ## 依存
 

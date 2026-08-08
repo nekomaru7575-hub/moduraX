@@ -1,11 +1,11 @@
 ---
 source: js/chat-palette.js
-lines: 377
+lines: 382
 exports: 5
 imported_by: 1
 api_sha: 804066cafe14
 prose_sha: 804066cafe14
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -29,18 +29,23 @@ tags: [codemap]
 | 60 | fn | loadChatPaletteState | `loadChatPaletteState()` |  |
 | 77 | fn | saveChatPaletteState | `saveChatPaletteState(state)` |  |
 | 85 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
-| 102 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
+| 103 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 25 | generateTabId | `generateTabId()` | 4 |
-| 30 | createTab | `createTab(name = '', text = '')` | 3 |
-| 34 | emptyState | `emptyState()` | 4 |
-| 41 | normalizeState | `normalizeState(raw)` | 18 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 25 | generateTabId | `generateTabId()` | 4 |  |
+| 30 | createTab | `createTab(name = '', text = '')` | 3 |  |
+| 34 | emptyState | `emptyState()` | 4 |  |
+| 41 | normalizeState | `normalizeState(raw)` | 18 |  |
+| 60 | loadChatPaletteState | `loadChatPaletteState()` | 16 | ✓ |
+| 77 | saveChatPaletteState | `saveChatPaletteState(state)` | 7 | ✓ |
+| 85 | parseChatPaletteLines | `parseChatPaletteLines(text)` | 6 | ✓ |
+| 103 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **279** | ✓ |
 
 ## 依存
 

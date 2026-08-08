@@ -1,11 +1,11 @@
 ---
 source: js/log-export.js
-lines: 100
+lines: 108
 exports: 1
 imported_by: 1
 api_sha: bb80684fee9d
 prose_sha: bb80684fee9d
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -25,17 +25,19 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 55 | fn | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 選択されたタブのログを、単体で開ける1枚のHTML文書にまとめて返す。 |
+| 62 | fn | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 選択されたタブのログを、単体で開ける1枚のHTML文書にまとめて返す。 |
 
-## トップレベル関数・非export（3）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 14 | escapeHtml | `escapeHtml(text)` | 7 |
-| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null })` | 1 |
-| 37 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 14 | escapeHtml | `escapeHtml(text)` | 7 |  |
+| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time })` | 19 |  |
+| 44 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |  |
+| 62 | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 46 | ✓ |
 
 ## 依存
 

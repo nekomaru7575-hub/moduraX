@@ -5,7 +5,7 @@ exports: 3
 imported_by: 1
 api_sha: 1277bef0c5dd
 prose_sha: 1277bef0c5dd
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -29,17 +29,18 @@ tags: [codemap]
 | 42 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` |  |
 | 177 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
-## トップレベル関数・非export（5）
+## トップレベル関数（LOCAL TASKS 候補）（5）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 35 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 1 |
-| 57 | readSkillTableState | `readSkillTableState(components)` | 3 |
-| 65 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, dispatch, rollBCDice })` | 3 |
-| 137 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 3 |
-| 147 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, { token, dispatch, rollBCDice })` | 1 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 35 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 6 |  |
+| 57 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
+| 65 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, dispatch, rollBCDice })` | 69 |  |
+| 137 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 3 |  |
+| 147 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, { token, dispatch, rollBCDice })` | 29 |  |
 
 ## 依存
 

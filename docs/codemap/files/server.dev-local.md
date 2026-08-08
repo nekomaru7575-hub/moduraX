@@ -5,7 +5,7 @@ exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -25,9 +25,9 @@ tags: [codemap]
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（0）
 
-なし。
+なし（`function 名(...) {}` 宣言がトップレベルに無い）。
 
 ## 依存
 

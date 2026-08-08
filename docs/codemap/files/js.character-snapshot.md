@@ -5,7 +5,7 @@ exports: 5
 imported_by: 3
 api_sha: 2a7d1ad3ea43
 prose_sha: 2a7d1ad3ea43
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -31,9 +31,17 @@ tags: [codemap]
 | 36 | fn | downloadJSON | `downloadJSON(filename, data)` | JSONデータをファイルとしてダウンロードさせる |
 | 50 | fn | parseJsonText | `parseJsonText(text)` | JSONテキストをパースする。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 12 | isTokenSnapshot | `isTokenSnapshot(json)` | 3 | ✓ |
+| 19 | buildTokenSnapshot | `buildTokenSnapshot(token)` | 15 | ✓ |
+| 36 | downloadJSON | `downloadJSON(filename, data)` | 11 | ✓ |
+| 50 | parseJsonText | `parseJsonText(text)` | 8 | ✓ |
 
 ## 依存
 

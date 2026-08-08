@@ -5,7 +5,7 @@ exports: 5
 imported_by: 2
 api_sha: 645d157cd910
 prose_sha: 645d157cd910
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -31,13 +31,18 @@ tags: [codemap]
 | 38 | fn | buildCheckCommand | `buildCheckCommand(spec, targetNumber, checkOptions)` | 実際にBCDiceへ投げるコマンド文字列。 |
 | 78 | fn | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, checkOptions, systemLabel = '特技判定', chatCommand })` | 特技判定を実行してメインチャットに結果を流す。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（5）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 49 | logToMain | `logToMain(dispatch, resultText, token, system, chatCommand)` | 13 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 17 | buildSkillCheckCommand | `buildSkillCheckCommand(skillName)` | 3 | ✓ |
+| 25 | describeSkillCheck | `describeSkillCheck(resolution)` | 6 | ✓ |
+| 38 | buildCheckCommand | `buildCheckCommand(spec, targetNumber, checkOptions)` | 6 | ✓ |
+| 49 | logToMain | `logToMain(dispatch, resultText, token, system, chatCommand)` | 13 |  |
+| 78 | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, checkOptions, systemLabel = '特技判定', chatCommand })` | 34 | ✓ |
 
 ## 依存
 

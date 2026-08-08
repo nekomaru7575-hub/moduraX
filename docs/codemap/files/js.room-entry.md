@@ -5,7 +5,7 @@ exports: 4
 imported_by: 5
 api_sha: a38562f0cbb7
 prose_sha: a38562f0cbb7
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -30,13 +30,18 @@ tags: [codemap]
 | 22 | fn | setStoredEntryPassword | `setStoredEntryPassword(roomId, password)` |  |
 | 30 | fn | entryPasswordHeaders | `entryPasswordHeaders(roomId = currentRoomId())` | アップロード等のHTTP経路に載せるヘッダ。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（5）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 10 | key | `key(roomId)` | 3 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 10 | key | `key(roomId)` | 3 |  |
+| 14 | currentRoomId | `currentRoomId()` | 3 | ✓ |
+| 18 | getStoredEntryPassword | `getStoredEntryPassword(roomId)` | 3 | ✓ |
+| 22 | setStoredEntryPassword | `setStoredEntryPassword(roomId, password)` | 4 | ✓ |
+| 30 | entryPasswordHeaders | `entryPasswordHeaders(roomId = currentRoomId())` | 4 | ✓ |
 
 ## 依存
 

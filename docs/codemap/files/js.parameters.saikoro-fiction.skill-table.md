@@ -5,7 +5,7 @@ exports: 16
 imported_by: 3
 api_sha: feb6d173b223
 prose_sha: feb6d173b223
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -42,9 +42,29 @@ tags: [codemap]
 | 284 | fn | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 目標のセルに一番近い「取得済み」のセルを探す。 |
 | 309 | fn | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 目標の特技に対する判定内容を解決する。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（16）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 44 | createSkillTableSpec | `createSkillTableSpec(definition)` | 52 | ✓ |
+| 102 | createCheckOptions | `createCheckOptions(spec)` | 5 | ✓ |
+| 112 | normalizeCheckOptions | `normalizeCheckOptions(spec, raw)` | 14 | ✓ |
+| 128 | makeCellId | `makeCellId(spec, columnIndex, rowIndex)` | 3 | ✓ |
+| 137 | getCell | `getCell(spec, cellId)` | 15 | ✓ |
+| 157 | findCellIdByName | `findCellIdByName(spec, rawText)` | 18 | ✓ |
+| 180 | createEmptySkillTableState | `createEmptySkillTableState()` | 3 | ✓ |
+| 189 | normalizeSkillTableState | `normalizeSkillTableState(spec, raw)` | 11 | ✓ |
+| 201 | isAcquired | `isAcquired(state, cellId)` | 3 | ✓ |
+| 205 | isGapFilled | `isGapFilled(state, gapIndex)` | 3 | ✓ |
+| 210 | toggleAcquired | `toggleAcquired(state, cellId)` | 6 | ✓ |
+| 218 | toggleGap | `toggleGap(state, gapIndex)` | 6 | ✓ |
+| 234 | columnDistance | `columnDistance(spec, filledGaps, colA, colB)` | 32 | ✓ |
+| 271 | cellDistance | `cellDistance(spec, state, cellIdA, cellIdB)` | 7 | ✓ |
+| 284 | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 17 | ✓ |
+| 309 | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 18 | ✓ |
 
 ## 依存
 

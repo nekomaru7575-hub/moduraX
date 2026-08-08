@@ -17,9 +17,21 @@
 //                  届いた時点でGMのものとして引き取られる（CLAIM_RESTORED_INFO・js/info-panel.js）。
 //                  安全側に倒しているのは、公開先を復元しようがない以上「うっかり全員に見える」
 //                  よりは「GMが配り直す」方が事故が小さいため。
+//   tokens       … バックヤードのコマのownerIdも同じ理由で失効し、誰の棚にも現れなくなる
+//                  （js/character-panel.jsのlistMyBackyardTokens参照）。ファイル側の
+//                  myBackyardTokenIds（js/main.jsのexportStateToFileが書き出す、保存した
+//                  利用者自身のバックヤードのコマID一覧）に載っているコマだけ、
+//                  options.myBackyardOwnerIdへownerIdを付け替えてバックヤードへ戻す。
+//                  myBackyardOwnerIdは呼び出し側（読み込んだ利用者がいるならその参加者ID）
+//                  が分かる場合だけ渡す省略可能な引数で、省略時は何もしない
+//                  （サーバー側には「読み込んだ利用者」という概念が無いため）。
+//                  表示名未設定などで参加者IDが無い（myBackyardOwnerIdがnull）場合は、
+//                  options.myBackyardOwnerLocalIdへ渡されたブラウザ単位のIDをbackyardOwnerId
+//                  として付け替える。これはlistMyBackyardTokensがownerId不在のコマを
+//                  backyardOwnerIdで判定するのと同じ規則。
 //
-// チャットタブのaudience・パネルのtextAudience・コマのownerId等も同じ理由で失効するが、
-// 今のところ手当てしているのは情報だけ。足すときはここへ足す。
+// チャットタブのaudience・パネルのtextAudience等も同じ理由で失効するが、
+// 今のところ手当てしているのは情報とバックヤードのコマだけ。足すときはここへ足す。
 
 import { normalizeInfoEntries } from './game-store.js';
 
@@ -41,19 +53,56 @@ function adoptInfoEntry(entry) {
   };
 }
 
+// myBackyardTokenIdsに載っているコマだけ、ownerId（参加者IDが分かる場合）または
+// backyardOwnerId（参加者IDが無く、ブラウザ単位のIDだけ分かる場合）を付け替えてバックヤードへ
+// 戻す。ownerId・localUserIdのどちらも無い（＝読み込んだ利用者が分からない）場合や、記録が
+// 無い・空・配列でない（新フィールドを持たない旧ファイル）場合はtokensをそのまま返す。
+// 載っているIDがtokensに無い（壊れたファイル・盤面へ出した後に保存し直した等）場合はそのIDだけ
+// 無視する。backyardTokenIdsは信用しないファイル由来の値なので、'__proto__'等がtokensの
+// own propertyでない限り読み書きしない（連想配列としての誤用・プロトタイプ汚染を避ける）。
+function restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId) {
+  if ((!ownerId && !localUserId) || !Array.isArray(backyardTokenIds) || backyardTokenIds.length === 0) {
+    return tokens;
+  }
+
+  const result = { ...tokens };
+  backyardTokenIds.forEach(id => {
+    if (!Object.prototype.hasOwnProperty.call(result, id)) return;
+    const token = result[id];
+    if (!token) return;
+    result[id] = ownerId
+      ? { ...token, inBackyard: true, ownerId }
+      // 参加者IDが無い場合、listMyBackyardTokensはownerIdが無いコマだけbackyardOwnerIdで
+      // 判定する。旧ownerId（元の部屋のもの）が残っていると誤って別人の棚扱いになるためnullで消す。
+      : { ...token, inBackyard: true, ownerId: null, backyardOwnerId: localUserId };
+  });
+  return result;
+}
+
 /**
  * 取り込んだ状態を、この部屋で使える形へ均す。何度通しても同じ結果になる（サーバーは
  * ブラウザ側で均された状態を受け取っても、自分の参加者一覧でもう一度通す）。
  * @param {object} importedState 読み込んだJSON（信用しない）
- * @param {{participants?: object}} options participants＝今この部屋にいる参加者一覧。
- *   部屋の新規作成と同時の読み込みでは誰もいないので空（＝最初に名乗った人がGMになる）。
+ * @param {{participants?: object, myBackyardOwnerId?: string, myBackyardOwnerLocalId?: string}} options
+ *   participants＝今この部屋にいる参加者一覧。部屋の新規作成と同時の読み込みでは誰もいないので
+ *   空（＝最初に名乗った人がGMになる）。
+ *   myBackyardOwnerId＝読み込んだ利用者の参加者ID。分かる場合だけ渡す。渡すと、ファイル側の
+ *   myBackyardTokenIdsに載っているコマがこの利用者のバックヤードへ入る。
+ *   myBackyardOwnerLocalId＝読み込んだ利用者のブラウザ単位のID（js/local-identity.jsの
+ *   getLocalUserId()）。myBackyardOwnerIdが無い（表示名未設定などで参加者IDが取れない）場合の
+ *   フォールバック先。両方省略時は何もしない。
  * @returns {object} hydrateへ渡せる状態
  */
-export function adoptImportedState(importedState, { participants = {} } = {}) {
+export function adoptImportedState(
+  importedState,
+  { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {}
+) {
   const state = (importedState && typeof importedState === 'object') ? importedState : {};
+  const { myBackyardTokenIds, ...rest } = state;
 
   return {
-    ...state,
+    ...rest,
+    tokens: restoreMyBackyardTokens(state.tokens, myBackyardTokenIds, myBackyardOwnerId, myBackyardOwnerLocalId),
     participants: participants || {},
     infoEntries: normalizeInfoEntries(state.infoEntries).map(adoptInfoEntry)
   };

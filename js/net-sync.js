@@ -27,6 +27,7 @@ import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
+import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -156,6 +157,14 @@ function connect() {
       return;
     }
 
+    // 記入中の参加者一覧。部屋の状態（ACTIONによる同期）とは別の揮発情報で、サーバーが
+    // 権威を持って配ってくる（{id, name}の配列）。ここではそのまま上へ流すだけで、
+    // 自分自身を除く等の描画判断はEventBus購読側（js/main.js）に委ねる。
+    if (message.type === 'TYPING_USERS') {
+      EventBus.emit('TYPING_USERS_CHANGED', message.users || []);
+      return;
+    }
+
     if (message.type === 'ACTION') {
       // チャット送信音。状態を変えない一回きりの通知なので、他のACTIONと違いlocalDispatchは
       // 通さない（game-store.jsのdispatchは未知のactionを黙って無視するだけだが、通す意味がない）。
@@ -216,11 +225,21 @@ function connect() {
 export function initNetSync() {
   // ローカルでの操作をサーバーへ転送する。サーバー由来のアクション適用はlocalDispatchを
   // 直接呼ぶため、ここは通らない（再送信ループにならない）。
+  //
+  // action発生源（＝ここ）で時刻を1回だけ確定させ、payload.timeとして乗せる。ローカル楽観適用
+  // （localDispatch）と送信（ws.send）の両方より前に確定させるので、送信者のローカル・
+  // サーバーの権威適用・他クライアントへの中継適用は全員この確定済みの値を見ることになり、
+  // 誰も自分の時計でDate.now()を呼び直さない（js/game-store.jsのwithChatEntry/withSystemLogが
+  // payload.timeを尊重する）。呼び出し側が渡したpayload自体は書き換えず、新しいオブジェクトを
+  // 作って使う（js/game-store.jsと同じく、渡された引数を破壊的に書き換えない流儀に揃える）。
   store.dispatch = (action, payload) => {
-    localDispatch(action, payload);
+    const time = Number.isFinite(payload?.time) ? payload.time : Date.now();
+    const stampedPayload = { ...(payload || {}), time };
+
+    localDispatch(action, stampedPayload);
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'ACTION', action, payload }));
+      ws.send(JSON.stringify({ type: 'ACTION', action, payload: stampedPayload }));
     }
   };
 
@@ -261,6 +280,21 @@ export function requestRoomDeletion() {
   }
 }
 
+// メイン入力欄が空→非空になった瞬間に呼ぶ。「記入中」を要求を送るだけの揮発的な通知で、
+// requestChatSendSoundと同じ流儀（状態は変えず、サーバーへ要求を送るのみ）。
+export function sendTypingStart() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'TYPING_START' }));
+  }
+}
+
+// メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。
+export function sendTypingStop() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'TYPING_STOP' }));
+  }
+}
+
 // ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと
 // 置き換える。ローカルには即座に反映し、サーバーには別途通知して他クライアントにも
 // ブロードキャストしてもらう（ADD_CHAT_MESSAGE等の通常アクションとは別経路）。
@@ -268,7 +302,15 @@ export function replaceState(newState) {
   // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。今の部屋の参加者一覧を
   // 引き継がないと、読み込んだ本人がその場でGM権限を失う。サーバー側も同じ関数を通すが、
   // ここで通しておかないと、送り返されるINITが届くまでの間だけ画面が食い違う。
-  const adopted = adoptImportedState(newState, { participants: store.state.participants });
+  // myBackyardOwnerId：ファイルに記録された「保存した利用者のバックヤードのコマ」を、
+  // 読み込んだこの利用者の棚へ付け替えるための宛先。表示名未設定などで参加者IDが
+  // 取れない場合は、listMyBackyardTokens（js/character-panel.js）のownerId不在時と同じ
+  // 判定基準に合わせるため、ブラウザ単位のIDをmyBackyardOwnerLocalIdとして渡す。
+  const adopted = adoptImportedState(newState, {
+    participants: store.state.participants,
+    myBackyardOwnerId: getCurrentParticipantId(),
+    myBackyardOwnerLocalId: getLocalUserId()
+  });
   store.hydrate(adopted);
 
   if (ws && ws.readyState === WebSocket.OPEN) {

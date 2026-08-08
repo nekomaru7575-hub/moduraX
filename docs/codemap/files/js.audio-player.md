@@ -5,7 +5,7 @@ exports: 10
 imported_by: 4
 api_sha: 571e45c043d8
 prose_sha: 571e45c043d8
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -36,13 +36,24 @@ room.audioPlayback（BGM・効果音のチャンネル）の再生をAUDIO_CHANN
 | 129 | fn | playChatSendSound | `playChatSendSound(url)` | チャット送信音。 |
 | 141 | fn | initAudioPlayer | `initAudioPlayer()` |  |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（11）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 75 | applyChannel | `applyChannel(channel, entry, tracks)` | 35 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 28 | getChannelVolume | `getChannelVolume(channel)` | 5 | ✓ |
+| 34 | setChannelVolume | `setChannelVolume(channel, value)` | 5 | ✓ |
+| 45 | getSystemVolume | `getSystemVolume()` | 5 | ✓ |
+| 51 | setSystemVolume | `setSystemVolume(value)` | 4 | ✓ |
+| 56 | isMuted | `isMuted()` | 3 | ✓ |
+| 62 | setMuted | `setMuted(muted)` | 6 | ✓ |
+| 71 | isBlockedByAutoplayPolicy | `isBlockedByAutoplayPolicy()` | 3 | ✓ |
+| 75 | applyChannel | `applyChannel(channel, entry, tracks)` | 35 |  |
+| 114 | playEntrySound | `playEntrySound(url)` | 11 | ✓ |
+| 129 | playChatSendSound | `playChatSendSound(url)` | 11 | ✓ |
+| 141 | initAudioPlayer | `initAudioPlayer()` | 14 | ✓ |
 
 ## 依存
 

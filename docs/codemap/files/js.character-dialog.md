@@ -5,7 +5,7 @@ exports: 5
 imported_by: 2
 api_sha: ba369104a126
 prose_sha: ba369104a126
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -31,23 +31,29 @@ tags: [codemap]
 | 437 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
 | 716 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
 
-## トップレベル関数・非export（11）
+## トップレベル関数（LOCAL TASKS 候補）（16）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false })` | 5 |
-| 154 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 1 |
-| 296 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |
-| 315 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |
-| 333 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |
-| 357 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |
-| 374 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 1 |
-| 407 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |
-| 414 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |
-| 423 | ensureDialog | `ensureDialog()` | 7 |
-| 673 | ensureEditDialog | `ensureEditDialog()` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 16 | defaultImageCrop | `defaultImageCrop()` | 3 | ✓ |
+| 23 | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | 9 | ✓ |
+| 46 | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | 67 | ✓ |
+| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false })` | 31 |  |
+| 154 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 140 |  |
+| 296 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
+| 315 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
+| 333 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
+| 357 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
+| 374 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 29 |  |
+| 407 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
+| 414 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
+| 423 | ensureDialog | `ensureDialog()` | 7 |  |
+| 437 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **233** | ✓ |
+| 673 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
+| 716 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **381** | ✓ |
 
 ## 依存
 

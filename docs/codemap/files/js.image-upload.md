@@ -5,7 +5,7 @@ exports: 5
 imported_by: 4
 api_sha: 7b008ae3d053
 prose_sha: 7b008ae3d053
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -31,13 +31,19 @@ tags: [codemap]
 | 116 | fn | uploadImageFile | `async uploadImageFile(file, purpose)` | 画像をアップロードして公開URLとキーを受け取る。 |
 | 146 | fn | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。 |
 
-## トップレベル関数・非export（1）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 18 | currentRoomId | `currentRoomId()` | 3 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 18 | currentRoomId | `currentRoomId()` | 3 |  |
+| 31 | isImageUploadAvailable | `async isImageUploadAvailable()` | 10 | ✓ |
+| 43 | imageUploadMaxBytes | `imageUploadMaxBytes()` | 3 | ✓ |
+| 63 | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | 45 | ✓ |
+| 116 | uploadImageFile | `async uploadImageFile(file, purpose)` | 18 | ✓ |
+| 146 | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 18 | ✓ |
 
 ## 依存
 

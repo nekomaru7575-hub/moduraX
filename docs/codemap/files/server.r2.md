@@ -5,7 +5,7 @@ exports: 10
 imported_by: 1
 api_sha: d8159d12e751
 prose_sha: d8159d12e751
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -36,16 +36,26 @@ Cloudflare R2 への読み書きだけを担う薄いモジュール。署名は
 | 132 | fn | listObjectKeys | `async listObjectKeys(prefix)` | 指定した接頭辞のオブジェクトキーを全件返す。 |
 | 165 | fn | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 指定した接頭辞のオブジェクトをまとめて消す（部屋を削除するときの後片付け）。 |
 
-## トップレベル関数・非export（4）
+## トップレベル関数（LOCAL TASKS 候補）（13）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 34 | getClient | `getClient()` | 11 |
-| 46 | objectUrl | `objectUrl(key)` | 3 |
-| 111 | unescapeXml | `unescapeXml(text)` | 6 |
-| 118 | parseListResponse | `parseListResponse(xml)` | 6 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 28 | isR2Configured | `isR2Configured()` | 3 | ✓ |
+| 34 | getClient | `getClient()` | 11 |  |
+| 46 | objectUrl | `objectUrl(key)` | 3 |  |
+| 52 | publicBaseUrl | `publicBaseUrl()` | 3 | ✓ |
+| 57 | publicUrlFor | `publicUrlFor(key)` | 3 | ✓ |
+| 63 | keyFromPublicUrl | `keyFromPublicUrl(url)` | 6 | ✓ |
+| 70 | putObject | `async putObject(key, body, contentType)` | 11 | ✓ |
+| 85 | getObject | `async getObject(key)` | 12 | ✓ |
+| 98 | deleteObject | `async deleteObject(key)` | 8 | ✓ |
+| 111 | unescapeXml | `unescapeXml(text)` | 6 |  |
+| 118 | parseListResponse | `parseListResponse(xml)` | 6 |  |
+| 132 | listObjectKeys | `async listObjectKeys(prefix)` | 22 | ✓ |
+| 165 | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 11 | ✓ |
 
 ## 依存
 

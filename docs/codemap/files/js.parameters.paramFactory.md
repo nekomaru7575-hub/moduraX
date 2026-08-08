@@ -5,7 +5,7 @@ exports: 1
 imported_by: 3
 api_sha: f1876c947914
 prose_sha: f1876c947914
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,9 +27,14 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 12 | fn | buildParameters | `buildParameters(source, definitions, defaults = {})` | このsource全体に適用するデフォルト値。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 12 | buildParameters | `buildParameters(source, definitions, defaults = {})` | 20 | ✓ |
 
 ## 依存
 

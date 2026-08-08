@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-07
+generated: 2026-08-08
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-08-07
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 68 | 225 | 500 | 3 | 0 |
+| 68 | 228 | 507 | 3 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -40,10 +40,10 @@ generated: 2026-08-07
 | [[js.character-builder\|js/character-builder.js]] | 部屋を作らずに、外部キャラクターシートツール（ゆとシート等）のJSON、または 本アプリのコマ丸ごとスナップショットJSONを読み込んで編集し、スナップショット JSONとして書き出す「コマ作成ツール」ページのロジック。 | 0 | 0 |
 | [[js.character-dialog\|js/character-dialog.js]] | キャラクター登録時に、名前・デフォルトパラメータ・カスタムパラメータを まとめて入力するためのモーダルダイアログ。 | 5 | 2 |
 | [[js.character-json-import\|js/character-json-import.js]] | 汎用（プラグイン未適用時）のキャラクターJSON読み込み。 | 1 | 2 |
-| [[js.character-panel\|js/character-panel.js]] | 「キャラクター一覧」：盤面にいるコマと、バックヤード（盤面からしまったコマの個人保管場所）を タブで切り替えて並べる浮動パネル。 | 1 | 1 |
+| [[js.character-panel\|js/character-panel.js]] | 「キャラクター一覧」：盤面にいるコマと、バックヤード（盤面からしまったコマの個人保管場所）を タブで切り替えて並べる浮動パネル。 | 2 | 1 |
 | [[js.character-snapshot\|js/character-snapshot.js]] | コマ丸ごとの保存/復元（バックアップ用途）に使うJSON形式のマーカー・組み立て・ ファイルI/Oをまとめた共有モジュール。 | 5 | 3 |
 | [[js.chat-palette\|js/chat-palette.js]] | チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、 クリックだけで即座に送信できるようにする機能。 | 5 | 1 |
-| [[js.chat-tab-dialog\|js/chat-tab-dialog.js]] | チャットタブの追加・公開先の変更ダイアログ。 | 1 | 1 |
+| [[js.chat-tab-dialog\|js/chat-tab-dialog.js]] | チャットタブの追加・公開先の変更・削除確認ダイアログ。 | 1 | 1 |
 | [[js.context-menu\|js/context-menu.js]] | 汎用の右クリックコンテキストメニュー。 | 1 | 4 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 2 |
@@ -55,12 +55,12 @@ generated: 2026-08-07
 | [[js.image-upload\|js/image-upload.js]] | 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。 | 5 | 4 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
-| [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 10 |
+| [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 11 |
 | [[js.log-clear-dialog\|js/log-clear-dialog.js]] | 全タブのログを消す前の確認ダイアログ。 | 1 | 1 |
 | [[js.log-export-dialog\|js/log-export-dialog.js]] | 「ログを保存」のタブ選択ダイアログ。 | 1 | 1 |
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
 | [[js.main\|js/main.js]] |  | 0 | 0 |
-| [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 6 | 2 |
+| [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 8 | 2 |
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
@@ -102,7 +102,7 @@ generated: 2026-08-07
 | ファイル | 被import |
 |---|---:|
 | [[js.game-store\|js/game-store.js]] | 13 |
-| [[js.local-identity\|js/local-identity.js]] | 10 |
+| [[js.local-identity\|js/local-identity.js]] | 11 |
 | [[js.EventBus\|js/EventBus.js]] | 9 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 7 |
 | [[js.visibility\|js/visibility.js]] | 7 |

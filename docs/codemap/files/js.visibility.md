@@ -5,7 +5,7 @@ exports: 5
 imported_by: 7
 api_sha: beb5c210042e
 prose_sha: beb5c210042e
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -31,9 +31,17 @@ tags: [codemap]
 | 40 | fn | canView | `canView(audience, participantId)` | 自分がそれを見てよいか。 |
 | 52 | fn | describeAudience | `describeAudience(audience, participants = {})` | 宛先を人間に読める形にする（タブのツールチップ等の表示用）。 |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
-なし。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
+
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 21 | isRestricted | `isRestricted(audience)` | 3 | ✓ |
+| 30 | isGm | `isGm(participants, participantId)` | 4 | ✓ |
+| 40 | canView | `canView(audience, participantId)` | 6 | ✓ |
+| 52 | describeAudience | `describeAudience(audience, participants = {})` | 7 | ✓ |
 
 ## 依存
 

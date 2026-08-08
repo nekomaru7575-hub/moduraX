@@ -5,7 +5,7 @@ exports: 3
 imported_by: 2
 api_sha: 2da1671b62e5
 prose_sha: 2da1671b62e5
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -29,14 +29,16 @@ DX3 のエフェクト一覧の表示・編集ボックス。コンボ時修正�
 | 33 | const | COMBO_MOD_FIELDS | `COMBO_MOD_FIELDS` | エフェクトを「コンボとして使用した場合」の修正値。 |
 | 54 | fn | showEffectBox | `showEffectBox({ effects = [], parameters = {}, readOnly = false, onSave })` | effects: Array<{ name:string, level:number, encroach:string, note:string, limits: Record<'scenario'\|'scene'\|… |
 
-## トップレベル関数・非export（2）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 10 | ensureDialog | `ensureDialog()` | 7 |
-| 25 | defaultLimit | `defaultLimit()` | 3 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 10 | ensureDialog | `ensureDialog()` | 7 |  |
+| 25 | defaultLimit | `defaultLimit()` | 3 |  |
+| 54 | showEffectBox | `showEffectBox({ effects = [], parameters = {}, readOnly = false, onSave })` | **315** | ✓ |
 
 ## 依存
 

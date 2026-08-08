@@ -5,7 +5,7 @@ exports: 1
 imported_by: 9
 api_sha: b4ae73ec975f
 prose_sha: b4ae73ec975f
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,9 +27,9 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 3 | const | EventBus | `EventBus` | js/EventBus.js |
 
-## トップレベル関数・非export（0）
+## トップレベル関数（LOCAL TASKS 候補）（0）
 
-なし。
+なし（`function 名(...) {}` 宣言がトップレベルに無い）。
 
 ## 依存
 

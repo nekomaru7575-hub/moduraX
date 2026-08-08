@@ -18,7 +18,8 @@ import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
 import { makeResizableStack } from './resizable-stack.js';
 import {
-  initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound
+  initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound,
+  sendTypingStart, sendTypingStop
 } from './net-sync.js';
 import {
   getNickname, normalizeRoomName, getStoredRoomName, setStoredRoomName,
@@ -47,7 +48,7 @@ import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
-import { initCharacterPanel } from './character-panel.js';
+import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -65,6 +66,7 @@ const currentChatPortrait = document.getElementById('currentChatPortrait');
 const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
 const netStatusEl = document.getElementById('netStatus');
+const typingIndicatorEl = document.getElementById('typingIndicator');
 
 // ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
 if (controlArea) {
@@ -103,13 +105,13 @@ function renderChatTabs(state) {
     tabBtn.textContent = isRestricted(tab.audience) ? `🔒${tab.name}` : tab.name;
     tabBtn.title = describeAudience(tab.audience, state.participants);
     tabBtn.addEventListener('click', () => switchChatTab(tab.id));
-    // 公開先の変更は、そのタブが見えている人だけができる（Mainタブは常に全員向け）
-    if (tab.id !== MAIN_TAB_ID) {
-      tabBtn.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-        openChatTabAudienceDialog(tab);
-      });
-    }
+    // 設定ダイアログ（名前変更・公開先変更・削除）は、そのタブが見えている人なら誰でも開ける。
+    // Mainタブも名前変更はできるようにするが、削除・公開先変更は従来通りできない
+    // （openChatTabAudienceDialog側でMainタブを特別扱いする）。
+    tabBtn.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      openChatTabAudienceDialog(tab);
+    });
     chatTabsEl.appendChild(tabBtn);
   });
 
@@ -134,15 +136,29 @@ function addChatTab() {
   });
 }
 
+// Mainタブ（先頭タブ）は常に存在する既定タブなので削除できないし、公開先も常に全員向けの
+// ままにする（withSystemLog等がMainタブへ無条件に流し込む設計を壊さないため）。
+// 名前変更だけはMainタブでも行える：canDelete: falseで削除の導線を出さず、
+// audienceEditable: falseで公開先の選択欄自体を出さない（js/chat-tab-dialog.js側が
+// 固定表示に切り替える）ことで、「選べるのに反映されない」状態を避ける。
+// SET_CHAT_TAB_AUDIENCEのdispatchをMainタブでは行わない既存の判断はそのまま残す
+// （保険。UI側で選択できなくなった後も、この分岐だけで安全側に倒れる）。
 function openChatTabAudienceDialog(tab) {
+  const isMainTab = tab.id === MAIN_TAB_ID;
   showChatTabDialog({
     mode: 'edit',
     name: tab.name,
     audience: tab.audience ?? null,
     participants: store.state.participants || {},
     myParticipantId: getCurrentParticipantId(),
-    onConfirm: ({ audience }) => {
-      store.dispatch('SET_CHAT_TAB_AUDIENCE', { id: tab.id, audience });
+    canDelete: !isMainTab,
+    audienceEditable: !isMainTab,
+    onConfirm: ({ name, audience }) => {
+      if (name !== tab.name) store.dispatch('RENAME_CHAT_TAB', { id: tab.id, name });
+      if (!isMainTab) store.dispatch('SET_CHAT_TAB_AUDIENCE', { id: tab.id, audience });
+    },
+    onDelete: () => {
+      store.dispatch('REMOVE_CHAT_TAB', { id: tab.id });
     }
   });
 }
@@ -224,7 +240,7 @@ function renderMainChatMirror(state) {
     currentChatLog.innerHTML = '';
     const item = document.createElement('div');
     item.className = 'current-chat-log-item';
-    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true });
+    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true, hideTime: true });
     currentChatLog.appendChild(item);
 
     if ('characterId' in latestEntry) {
@@ -623,8 +639,18 @@ function downloadBlob(blob, filename) {
 // セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
 // 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
 // 部屋削除前の「部屋を保存し削除」からも使うため、関数として切り出してある。
+//
+// state.tokensには盤面・バックヤードのコマが両方入っているが、バックヤードのコマは
+// ownerId（またはbackyardOwnerId）が今この部屋限りの値なので、別の部屋・別のタイミングで
+// 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。保存した本人のぶんだけは
+// myBackyardTokenIdsとしてIDを別に記録しておき、読み込み側（state-import.js）で
+// 読み込んだ利用者の棚へ付け替える。
 function exportStateToFile() {
-  const json = JSON.stringify(store.state, null, 2);
+  const exportedState = {
+    ...store.state,
+    myBackyardTokenIds: listMyBackyardTokens(store.state).map(token => token.id)
+  };
+  const json = JSON.stringify(exportedState, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
 
   downloadBlob(new Blob([json], { type: 'application/json' }), `trpg-room-${dateStr}.json`);
@@ -879,8 +905,9 @@ function shouldMaskParameterValue(param) {
 }
 
 // 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
-// 1件のログにまとめて記録する。
-function applyParameterChanges({ character, targets, amount, diceResultText, command }) {
+// 1件のログにまとめて記録する。diceDetailは通常のチャットロールと同じ形の出目内訳文字列
+// （js/main.js:777付近のDICE_ROLL_REQUESTEDハンドラと同じ作り方）で、ダイスでない場合は空。
+function applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId }) {
   const changeLines = targets.map(({ operator, paramId, param, before }) => {
     const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
     store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
@@ -895,13 +922,14 @@ function applyParameterChanges({ character, targets, amount, diceResultText, com
     characterId: character.id,
     color: character.textColor,
     command,
+    diceDetail,
     resultText: diceResultText
       ? `${changeLines.join('\n')}\n${diceResultText}`
       : changeLines.join('\n')
-  });
+  }, tabId);
 }
 
-function tryHandleParameterCommand(rawInput, character) {
+function tryHandleParameterCommand(rawInput, character, tabId = activeTabId) {
   const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
   if (!match) return false;
 
@@ -948,7 +976,7 @@ function tryHandleParameterCommand(rawInput, character) {
   if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
     // （combo.chk等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
-    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText }) => {
+    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText, diceValues }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
         return;
@@ -958,8 +986,18 @@ function tryHandleParameterCommand(rawInput, character) {
         alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
         return;
       }
+
+      // 通常のチャットロール（js/main.js:783付近）と同じ形で3Dダイス演出を出す。
+      // tabIdはBCDice呼び出し前（await前）に確定させた値を使う。応答待ちの間に
+      // ユーザーが別タブへ切り替えても、演出とログはコマンド送信時点のタブに出す。
+      if (diceValues?.length) {
+        store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+      }
+      const diceDetail = diceValues && diceValues.length > 0 ?
+        diceValues.map(d => d.value).join(', ') : "";
+
       applyParameterChanges({
-        character, targets: resolvedTargets, amount, diceResultText: resultText, command: rawInput
+        character, targets: resolvedTargets, amount, diceResultText: resultText, diceDetail, command: rawInput, tabId
       });
     }).catch(error => {
       alert(`ダイスロールでエラーが発生しました: ${error.message}`);
@@ -968,7 +1006,7 @@ function tryHandleParameterCommand(rawInput, character) {
   }
 
   applyParameterChanges({
-    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput
+    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput, tabId
   });
 
   return true;
@@ -991,7 +1029,10 @@ function tryHandleParameterCommand(rawInput, character) {
 // パラメータ名はラベルに（）を含むもの（「クリティカル修正(AcB)」等）があるため、
 // この位置ではキー名（AcB）で指定する。
 const BUFF_COMMAND_PATTERN =
-  /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)(?:,([^,)]+))?\)$/;
+  /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?|[+-]?\d+[Dd]\d+),([^,)]+)(?:,([^,)]+))?\)$/;
+
+// 増減値がダイス式（符号つきも可。符号はBCDiceへ渡さず、結果に後から適用する）かどうかの判定。
+const BUFF_DELTA_DICE_PATTERN = /^([+-]?)(\d+[Dd]\d+)$/;
 
 const BUFF_PHASE_TEXT_TO_KEY = {
   'シーン': 'scene', 'シーン終了': 'scene',
@@ -1002,14 +1043,13 @@ const BUFF_PHASE_TEXT_TO_KEY = {
   '手動': null, '手動のみ': null
 };
 
-function tryHandleBuffCommand(rawInput, character) {
+function tryHandleBuffCommand(rawInput, character, tabId = activeTabId) {
   const match = rawInput.match(BUFF_COMMAND_PATTERN);
   if (!match) return false;
 
   const [, rawTargetName, rawName, rawParamName, rawDelta, rawPhase, rawExtra] = match;
   const name = rawName.trim();
   const paramName = rawParamName.trim();
-  const delta = Number(rawDelta);
   const phaseText = rawPhase.trim();
 
   let targetCharacter = character;
@@ -1040,27 +1080,68 @@ function tryHandleBuffCommand(rawInput, character) {
     ? parsePluginBuffExtra(activePluginId, paramId, rawExtra.trim())
     : null;
 
-  store.dispatch('ADD_BUFF', {
-    tokenId: targetCharacter.id,
-    id: generateBuffId(),
-    name,
-    paramId,
-    delta,
-    expirePhase,
-    meta
-  });
+  // ADD_BUFFのdispatchとログ追記は、素の数値・ダイスのどちらの経路でも同じ形で行う。
+  // diceResultText/diceDetailはダイス経路のときだけ渡される（省略時は従来どおりの本文）。
+  const finishBuffCommand = (delta, diceResultText = '', diceDetail = '') => {
+    store.dispatch('ADD_BUFF', {
+      tokenId: targetCharacter.id,
+      id: generateBuffId(),
+      name,
+      paramId,
+      delta,
+      expirePhase,
+      meta
+    });
 
-  const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
-  const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
-  const metaText = describePluginBuffMeta(activePluginId, { meta });
-  applyLog({
-    character: targetCharacter.name,
-    characterId: targetCharacter.id,
-    color: targetCharacter.textColor,
-    command: rawInput,
-    resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`
-  });
+    const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
+    const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
+    const metaText = describePluginBuffMeta(activePluginId, { meta });
+    const summary = `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`;
+    applyLog({
+      character: targetCharacter.name,
+      characterId: targetCharacter.id,
+      color: targetCharacter.textColor,
+      command: rawInput,
+      diceDetail,
+      resultText: diceResultText ? `${summary}\n${diceResultText}` : summary
+    }, tabId);
+  };
 
+  const diceMatch = rawDelta.match(BUFF_DELTA_DICE_PATTERN);
+  if (diceMatch) {
+    const [, sign, diceExpr] = diceMatch;
+    // ステータス変更コマンド（tryHandleParameterCommand）と同様、BCDiceへは符号なしの
+    // ダイス式だけを渡し、符号（増減の向き）はこちら側でロール結果に適用する。
+    // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンドと同様に
+    // 結果を待たずtrueを返し、完了時にバフ付与・ログ追記を行う。
+    rollBCDice(store.state.room.bcdiceSystem, diceExpr).then(({ success, resultText, diceValues }) => {
+      if (!success) {
+        alert(`ダイスロールに失敗しました: ${resultText}`);
+        return;
+      }
+      const rolled = parseFinalDiceNumber(resultText);
+      if (rolled === null) {
+        alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
+        return;
+      }
+      const delta = sign === '-' ? -rolled : rolled;
+
+      // 通常のチャットロール（js/main.js:783付近）と同じ形で3Dダイス演出を出す。
+      // tabIdはBCDice呼び出し前（await前）に確定させた値を使う（ステータス変更コマンドと同様）。
+      if (diceValues?.length) {
+        store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+      }
+      const diceDetail = diceValues && diceValues.length > 0 ?
+        diceValues.map(d => d.value).join(', ') : "";
+
+      finishBuffCommand(delta, resultText, diceDetail);
+    }).catch(error => {
+      alert(`ダイスロールでエラーが発生しました: ${error.message}`);
+    });
+    return true;
+  }
+
+  finishBuffCommand(Number(rawDelta));
   return true;
 }
 
@@ -1226,8 +1307,8 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
   const substituted = substituteCharacterParameters(text, character);
 
-  if (tryHandleBuffCommand(substituted, character)) { onSent?.(); return; }
-  if (tryHandleParameterCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandleBuffCommand(substituted, character, tabId)) { onSent?.(); return; }
+  if (tryHandleParameterCommand(substituted, character, tabId)) { onSent?.(); return; }
   if (tryHandlePluginChatCommand(substituted, character)) { onSent?.(); return; }
   if (tryHandleOriginalTableCommand(substituted, character, tabId)) { onSent?.(); return; }
 
@@ -1308,7 +1389,12 @@ if (sendBtn) {
     submitChatText({
       rawInput,
       character: selectedCharacter,
-      onSent: () => { commandInput.value = ""; hideCommandInputSuggestions(); }
+      onSent: () => {
+        commandInput.value = "";
+        hideCommandInputSuggestions();
+        // value代入は'input'イベントを発火しないため、記入中の解除はここで明示的に行う
+        updateTypingIndicatorState();
+      }
     });
   });
 }
@@ -1376,8 +1462,49 @@ function updateCommandInputSuggestions() {
   commandInputSuggestions.style.display = '';
 }
 
+// メイン入力欄の記入中通知（T-013）。空⇔非空に変わった瞬間だけサーバーへ送る（打鍵毎ではない）。
+// チャットパレット付随の入力欄（js/chat-palette.jsが動的に作る.chat-palette-send-input）は
+// このcommandInputの'input'イベントを通らないため、ここでは対象にならない（受入条件どおり）。
+let commandInputHasText = false;
+
+function updateTypingIndicatorState() {
+  if (!commandInput) return;
+  const hasText = commandInput.value.trim() !== '';
+  if (hasText === commandInputHasText) return;
+  commandInputHasText = hasText;
+  if (hasText) sendTypingStart(); else sendTypingStop();
+}
+
+// 記入中はサーバー側の揮発情報（接続ごと）なので、再接続すると失われる。書きかけのまま
+// 繋がり直した場合は、繋がり直した直後に自分の記入中を送り直す。
+EventBus.subscribe('NET_INITIALIZED', () => {
+  if (commandInputHasText) sendTypingStart();
+});
+
+// 他の参加者の記入中一覧（チャット欄右下、T-013）。一覧そのものはサーバーが権威を持って
+// 配ってくる（T-011の教訓どおり、クライアントごとに計算し直さない）。自分自身を除く処理だけ
+// ここで行う（「他ユーザの」記入中表示なので）。
+EventBus.subscribe('TYPING_USERS_CHANGED', (users) => {
+  if (!typingIndicatorEl) return;
+  const myId = getCurrentParticipantId();
+  const others = (users || []).filter((u) => u.id !== myId);
+
+  if (others.length === 0) {
+    typingIndicatorEl.hidden = true;
+    typingIndicatorEl.textContent = '';
+    return;
+  }
+  typingIndicatorEl.hidden = false;
+  typingIndicatorEl.textContent = `${others.map((u) => u.name).join('、')} が入力中...`;
+});
+
 if (commandInput) {
-  commandInput.addEventListener('input', updateCommandInputSuggestions);
+  // 予測変換候補の更新（既存）と記入中通知（T-013）は、どちらもcommandInputの同じ'input'
+  // イベントに相乗りさせる（新しいイベントの仕組みを増やさない）。
+  commandInput.addEventListener('input', () => {
+    updateCommandInputSuggestions();
+    updateTypingIndicatorState();
+  });
   commandInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') hideCommandInputSuggestions();
   });
@@ -1703,7 +1830,7 @@ function escapeHtml(text) {
 // 発言テキスト自体は常に既定色（白）のまま変えない。
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
   const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
@@ -1717,7 +1844,10 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
 
   // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
   // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
-  const headerLine = [systemTag, characterTag, commentTag].filter(Boolean).join(' ');
+  // タイムスタンプはヘッダー行の末尾（システム名・キャラ名・コメントの後）に置く。
+  // hideTime: カレントチャット欄など、時刻の表示が不要な場所ではtrueにする（hideSystemと同じ流儀）。
+  const timestamp = (!hideTime && typeof time === 'number' && isFinite(time)) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
+  const headerLine = [systemTag, characterTag, commentTag, timestamp].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `

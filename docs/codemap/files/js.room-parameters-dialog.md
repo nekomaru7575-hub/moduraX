@@ -5,7 +5,7 @@ exports: 1
 imported_by: 1
 api_sha: 1814e24bd1b5
 prose_sha: 1814e24bd1b5
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,14 +27,16 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 38 | fn | showRoomParametersDialog | `showRoomParametersDialog({ parameters, onConfirm })` | 「編集不可(editable:false)」な変数は値の変更を受け付けず、 「削除不可(locked:true)」な変数は削除ボタンを出さない（character-dialogの編集ダイアログと同じ規約）。 |
 
-## トップレベル関数・非export（2）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 8 | parseRoomParameterValue | `parseRoomParameterValue(raw)` | 6 |
-| 17 | ensureDialog | `ensureDialog()` | 7 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 8 | parseRoomParameterValue | `parseRoomParameterValue(raw)` | 6 |  |
+| 17 | ensureDialog | `ensureDialog()` | 7 |  |
+| 38 | showRoomParametersDialog | `showRoomParametersDialog({ parameters, onConfirm })` | 149 | ✓ |
 
 ## 依存
 

@@ -5,7 +5,7 @@ exports: 1
 imported_by: 1
 api_sha: 371e92102ddc
 prose_sha: 371e92102ddc
-generated: 2026-08-07
+generated: 2026-08-08
 tags: [codemap]
 ---
 
@@ -27,18 +27,20 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 123 | fn | initDiceAnimation | `initDiceAnimation()` |  |
 
-## トップレベル関数・非export（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
-`## LOCAL TASKS` の候補。行数が大きいものはローカルLLMに渡せない。
+トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
+行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
-| 行 | 名前 | シグネチャ | 行数 |
-|---:|---|---|---:|
-| 48 | getStage | `getStage()` | 3 |
-| 55 | applyVolume | `applyVolume(box)` | 5 |
-| 63 | observeStageResize | `observeStageResize(box, stage)` | 8 |
-| 72 | getBox | `async getBox()` | 20 |
-| 93 | hide | `hide()` | 7 |
-| 101 | roll | `async roll(dice)` | 21 |
+| 行 | 名前 | シグネチャ | 行数 | export |
+|---:|---|---|---:|:-:|
+| 48 | getStage | `getStage()` | 3 |  |
+| 55 | applyVolume | `applyVolume(box)` | 5 |  |
+| 63 | observeStageResize | `observeStageResize(box, stage)` | 8 |  |
+| 72 | getBox | `async getBox()` | 20 |  |
+| 93 | hide | `hide()` | 7 |  |
+| 101 | roll | `async roll(dice)` | 21 |  |
+| 123 | initDiceAnimation | `initDiceAnimation()` | 16 | ✓ |
 
 ## 依存
 

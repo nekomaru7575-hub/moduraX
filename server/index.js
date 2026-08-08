@@ -137,6 +137,67 @@ async function deleteRoomState(roomId) {
   await unlink(roomFilePath(roomId)).catch(() => {});
 }
 
+// --- 部屋一覧用の要約 ---
+// 一覧（GET /api/rooms）が要るのは名前とプラグイン名など数項目だけなのに、以前は
+// そのためだけに全部屋の状態を丸ごと読んでいた。無料枠のPaaSはアイドルでスピンダウン
+// するので、インデックスページを開くたびにこの全読みが起きる。要約だけを別のキーに
+// 持たせて、一覧はそちらを見るようにする（1部屋あたり数十バイト）。
+function roomSummaryKey(roomId) {
+  return `roomMeta:${roomId}`;
+}
+
+function roomSummaryFilePath(roomId) {
+  return path.join(ROOMS_DIR, `${roomId}.meta.json`);
+}
+
+function roomSummaryOf(entry) {
+  const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
+  // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは載せない。
+  return { name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword };
+}
+
+async function readRoomSummary(roomId) {
+  if (USE_REDIS) return (await redis.get(roomSummaryKey(roomId))) || null;
+
+  try {
+    return JSON.parse(await readFile(roomSummaryFilePath(roomId), 'utf-8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  }
+}
+
+async function writeRoomSummary(roomId, summary) {
+  if (USE_REDIS) {
+    await redis.set(roomSummaryKey(roomId), summary);
+    return;
+  }
+  await mkdir(ROOMS_DIR, { recursive: true });
+  await writeFile(roomSummaryFilePath(roomId), JSON.stringify(summary));
+}
+
+async function deleteRoomSummary(roomId) {
+  if (USE_REDIS) {
+    await redis.del(roomSummaryKey(roomId));
+  }
+  await unlink(roomSummaryFilePath(roomId)).catch(() => {});
+}
+
+// 要約が前回書いたものと変わっていれば書き直す。名前やプラグインの変更はめったに
+// 起きないので、ここでの書き込みは実質ゼロに近い。
+async function syncRoomSummary(roomId, entry) {
+  if (entry.pendingDelete) return;
+  const summary = roomSummaryOf(entry);
+  const json = JSON.stringify(summary);
+  if (json === entry.lastSummaryJson) return;
+  try {
+    await writeRoomSummary(roomId, summary);
+    entry.lastSummaryJson = json;
+  } catch (error) {
+    console.warn(`[server] ${roomId} の一覧用の要約の保存に失敗しました:`, error.message);
+  }
+}
+
 // --- 参加者の名乗りの検証 ---
 // ブラウザは表示名から2つの値を導出する（js/local-identity.js参照）。
 //   authToken     … 状態には載らない値。名乗りとアップロードのヘッダにだけ載る
@@ -478,7 +539,7 @@ function readBinaryBody(req, maxBytes) {
 
 // --- 部屋管理 ---
 // roomId -> { store, clients: Set<ws>, saveTimer, saveDeadline, lastPersistedJson,
-//             entryPassword, pendingDelete?, deletion? }
+//             lastSummaryJson, entryPassword, pendingDelete?, deletion? }
 // 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
 const rooms = new Map();
 
@@ -559,7 +620,7 @@ async function getOrLoadRoom(roomId) {
     // 走るので、補完後の形が確実に保存先へ載る。
     return {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
-      lastPersistedJson: null, entryPassword: meta.entryPassword || null
+      lastPersistedJson: null, lastSummaryJson: null, entryPassword: meta.entryPassword || null
     };
   }
 
@@ -636,6 +697,8 @@ async function persistRoomNow(roomId, entry) {
   } catch (error) {
     console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
   }
+  // 一覧用の要約も追随させる。中身が変わっていなければ何も書かない（syncRoomSummary参照）。
+  await syncRoomSummary(roomId, entry);
 }
 
 // 操作が続いている間は保存を先送りし、途切れてから書く（末尾デバウンス）。
@@ -781,6 +844,13 @@ async function deleteRoomData(roomId) {
     await deleteAuthMeta(roomId);
   } catch (error) {
     console.warn(`[server] ${roomId} の認証情報の削除に失敗しました:`, error.message);
+  }
+
+  // 一覧用の要約も消す。残すと、消したはずの部屋が一覧に出続ける
+  try {
+    await deleteRoomSummary(roomId);
+  } catch (error) {
+    console.warn(`[server] ${roomId} の一覧用の要約の削除に失敗しました:`, error.message);
   }
 
   // Redis運用でも、移行前のローカルファイルが残っていれば一緒に消す
@@ -1211,17 +1281,33 @@ async function handleImageCopy(req, res) {
 async function handleListRooms(req, res) {
   const list = [];
   for (let n = 1; n <= MAX_ROOMS; n++) {
-    const id = `room-${n}`;
-    const entry = await getOrLoadRoom(id);
-    if (!entry) {
-      list.push({ id, occupied: false });
-      continue;
-    }
-    const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
-    // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは返さない。
-    list.push({ id, occupied: true, name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword });
+    list.push(await summarizeRoomSlot(`room-${n}`));
   }
   sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list });
+}
+
+// 一覧1スロット分。安い順に3段構え：
+//   1. メモリに載っている部屋はそこから（保存先を見ない）
+//   2. 要約のキーがあればそれだけを読む（数十バイト）
+//   3. どちらも無ければ従来どおり状態を丸ごと読み、ついでに要約を作っておく
+// 3に落ちるのは、この機能より前に作られた部屋の初回だけ。以後は2で済む。
+async function summarizeRoomSlot(id) {
+  const cached = rooms.get(id);
+  if (cached && !cached.pendingDelete) return { id, occupied: true, ...roomSummaryOf(cached) };
+  // 削除中の部屋は「もう無い部屋」として扱う（getOrLoadRoomと同じ約束）
+  if (cached) return { id, occupied: false };
+
+  try {
+    const summary = await readRoomSummary(id);
+    if (summary) return { id, occupied: true, ...summary };
+  } catch (error) {
+    console.warn(`[server] ${id} の一覧用の要約の読み込みに失敗しました:`, error.message);
+  }
+
+  const entry = await getOrLoadRoom(id);
+  if (!entry) return { id, occupied: false };
+  await syncRoomSummary(id, entry);
+  return { id, occupied: true, ...roomSummaryOf(entry) };
 }
 
 // POST /api/rooms：空きスロットに新しい部屋を作成する。
@@ -1332,10 +1418,14 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  rooms.set(id, {
+  const entry = {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
-    lastPersistedJson: null, entryPassword: entryPasswordRecord
-  });
+    lastPersistedJson: null, lastSummaryJson: null, entryPassword: entryPasswordRecord
+  };
+  rooms.set(id, entry);
+  // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、
+  // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
+  await syncRoomSummary(id, entry);
   sendJson(res, 201, { id });
 }
 
@@ -1395,6 +1485,8 @@ async function handleSetEntryPassword(req, res, roomId) {
   }
 
   entry.entryPassword = record;
+  // 鍵マークは一覧用の要約にも載っているので、そちらも追随させる
+  await syncRoomSummary(roomId, entry);
   console.log(`[server] ${roomId}: 入室パスワードを${record ? '設定' : '解除'}しました`);
   sendJson(res, 200, { locked: !!record });
 }

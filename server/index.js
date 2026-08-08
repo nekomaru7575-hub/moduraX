@@ -52,6 +52,9 @@ const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 // 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
 const SAVE_DEBOUNCE_MS = 1000;
 const SAVE_MAX_WAIT_MS = 5000;
+// 1タブあたり、保存先に残すチャットログの件数（stateForPersist参照）。
+// 実測で1件あたり約150バイトなので、1000件で約150KB分。
+const PERSISTED_CHAT_ENTRIES = 1000;
 
 // 部屋データの保存先。Upstashの接続情報があればRedis、無ければローカルファイル
 // （server/rooms/room-N.json）だけで動く「ローカルモード」になる。検証用の起動
@@ -123,7 +126,7 @@ async function writeRoomStateJson(roomId, json) {
 }
 
 async function writeRoomState(roomId, state) {
-  await writeRoomStateJson(roomId, JSON.stringify(state));
+  await writeRoomStateJson(roomId, JSON.stringify(stateForPersist(state)));
 }
 
 async function deleteRoomState(roomId) {
@@ -597,10 +600,33 @@ async function getOrLoadRoom(roomId) {
   }
 }
 
+// 保存する形へ整える。チャットログは上限なしに伸び続けるので（game-store.jsのwithChatEntry
+// は追記しかしない）、放っておくと「毎回の書き込みサイズ」がセッションの間ずっと増え続ける。
+// 保存するぶんだけを直近PERSISTED_CHAT_ENTRIES件に切り詰める。
+//
+// メモリ上の状態には手を付けない。したがってセッション中の表示・ブロードキャスト・
+// 途中入室者へ配る初期状態は今までどおり全件のまま。切り詰めが影響するのは
+// 「サーバーの再起動やコールドスタートを跨いだあとの、上限より古いログ」だけ。
+function stateForPersist(state) {
+  const chatLogs = state.chatLogs || {};
+  const tabIds = Object.keys(chatLogs);
+  if (!tabIds.some((id) => (chatLogs[id]?.length || 0) > PERSISTED_CHAT_ENTRIES)) return state;
+
+  // store.stateは凍結されたプロキシなので、必ず新しい素のオブジェクトを組み立てる
+  const trimmed = {};
+  tabIds.forEach((id) => {
+    const entries = chatLogs[id] || [];
+    trimmed[id] = entries.length > PERSISTED_CHAT_ENTRIES
+      ? entries.slice(-PERSISTED_CHAT_ENTRIES)
+      : entries;
+  });
+  return { ...state, chatLogs: trimmed };
+}
+
 // 実際に1回保存する。デバウンスの待ちは見ないので、呼ぶ側が頃合いを決めること。
 async function persistRoomNow(roomId, entry) {
   try {
-    const json = JSON.stringify(entry.store.state);
+    const json = JSON.stringify(stateForPersist(entry.store.state));
     // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
     // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
     // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。

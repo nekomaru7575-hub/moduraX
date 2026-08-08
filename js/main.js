@@ -889,8 +889,9 @@ function shouldMaskParameterValue(param) {
 }
 
 // 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
-// 1件のログにまとめて記録する。
-function applyParameterChanges({ character, targets, amount, diceResultText, command }) {
+// 1件のログにまとめて記録する。diceDetailは通常のチャットロールと同じ形の出目内訳文字列
+// （js/main.js:777付近のDICE_ROLL_REQUESTEDハンドラと同じ作り方）で、ダイスでない場合は空。
+function applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId }) {
   const changeLines = targets.map(({ operator, paramId, param, before }) => {
     const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
     store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
@@ -905,13 +906,14 @@ function applyParameterChanges({ character, targets, amount, diceResultText, com
     characterId: character.id,
     color: character.textColor,
     command,
+    diceDetail,
     resultText: diceResultText
       ? `${changeLines.join('\n')}\n${diceResultText}`
       : changeLines.join('\n')
-  });
+  }, tabId);
 }
 
-function tryHandleParameterCommand(rawInput, character) {
+function tryHandleParameterCommand(rawInput, character, tabId = activeTabId) {
   const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
   if (!match) return false;
 
@@ -958,7 +960,7 @@ function tryHandleParameterCommand(rawInput, character) {
   if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
     // （combo.chk等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
-    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText }) => {
+    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText, diceValues }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
         return;
@@ -968,8 +970,18 @@ function tryHandleParameterCommand(rawInput, character) {
         alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
         return;
       }
+
+      // 通常のチャットロール（js/main.js:783付近）と同じ形で3Dダイス演出を出す。
+      // tabIdはBCDice呼び出し前（await前）に確定させた値を使う。応答待ちの間に
+      // ユーザーが別タブへ切り替えても、演出とログはコマンド送信時点のタブに出す。
+      if (diceValues?.length) {
+        store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+      }
+      const diceDetail = diceValues && diceValues.length > 0 ?
+        diceValues.map(d => d.value).join(', ') : "";
+
       applyParameterChanges({
-        character, targets: resolvedTargets, amount, diceResultText: resultText, command: rawInput
+        character, targets: resolvedTargets, amount, diceResultText: resultText, diceDetail, command: rawInput, tabId
       });
     }).catch(error => {
       alert(`ダイスロールでエラーが発生しました: ${error.message}`);
@@ -978,7 +990,7 @@ function tryHandleParameterCommand(rawInput, character) {
   }
 
   applyParameterChanges({
-    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput
+    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput, tabId
   });
 
   return true;
@@ -1001,7 +1013,10 @@ function tryHandleParameterCommand(rawInput, character) {
 // パラメータ名はラベルに（）を含むもの（「クリティカル修正(AcB)」等）があるため、
 // この位置ではキー名（AcB）で指定する。
 const BUFF_COMMAND_PATTERN =
-  /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?),([^,)]+)(?:,([^,)]+))?\)$/;
+  /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?|[+-]?\d+[Dd]\d+),([^,)]+)(?:,([^,)]+))?\)$/;
+
+// 増減値がダイス式（符号つきも可。符号はBCDiceへ渡さず、結果に後から適用する）かどうかの判定。
+const BUFF_DELTA_DICE_PATTERN = /^([+-]?)(\d+[Dd]\d+)$/;
 
 const BUFF_PHASE_TEXT_TO_KEY = {
   'シーン': 'scene', 'シーン終了': 'scene',
@@ -1012,14 +1027,13 @@ const BUFF_PHASE_TEXT_TO_KEY = {
   '手動': null, '手動のみ': null
 };
 
-function tryHandleBuffCommand(rawInput, character) {
+function tryHandleBuffCommand(rawInput, character, tabId = activeTabId) {
   const match = rawInput.match(BUFF_COMMAND_PATTERN);
   if (!match) return false;
 
   const [, rawTargetName, rawName, rawParamName, rawDelta, rawPhase, rawExtra] = match;
   const name = rawName.trim();
   const paramName = rawParamName.trim();
-  const delta = Number(rawDelta);
   const phaseText = rawPhase.trim();
 
   let targetCharacter = character;
@@ -1050,27 +1064,68 @@ function tryHandleBuffCommand(rawInput, character) {
     ? parsePluginBuffExtra(activePluginId, paramId, rawExtra.trim())
     : null;
 
-  store.dispatch('ADD_BUFF', {
-    tokenId: targetCharacter.id,
-    id: generateBuffId(),
-    name,
-    paramId,
-    delta,
-    expirePhase,
-    meta
-  });
+  // ADD_BUFFのdispatchとログ追記は、素の数値・ダイスのどちらの経路でも同じ形で行う。
+  // diceResultText/diceDetailはダイス経路のときだけ渡される（省略時は従来どおりの本文）。
+  const finishBuffCommand = (delta, diceResultText = '', diceDetail = '') => {
+    store.dispatch('ADD_BUFF', {
+      tokenId: targetCharacter.id,
+      id: generateBuffId(),
+      name,
+      paramId,
+      delta,
+      expirePhase,
+      meta
+    });
 
-  const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
-  const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
-  const metaText = describePluginBuffMeta(activePluginId, { meta });
-  applyLog({
-    character: targetCharacter.name,
-    characterId: targetCharacter.id,
-    color: targetCharacter.textColor,
-    command: rawInput,
-    resultText: `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`
-  });
+    const expireLabel = expirePhase ? `${BUFF_PHASE_LABELS[expirePhase]}終了で消滅` : '手動のみ';
+    const targetLabel = entry ? entry[1].label : `${paramName}（対象なし）`;
+    const metaText = describePluginBuffMeta(activePluginId, { meta });
+    const summary = `バフ/デバフ付与: ${name}　${targetLabel}${delta >= 0 ? '+' : ''}${delta}　（${expireLabel}）${metaText}`;
+    applyLog({
+      character: targetCharacter.name,
+      characterId: targetCharacter.id,
+      color: targetCharacter.textColor,
+      command: rawInput,
+      diceDetail,
+      resultText: diceResultText ? `${summary}\n${diceResultText}` : summary
+    }, tabId);
+  };
 
+  const diceMatch = rawDelta.match(BUFF_DELTA_DICE_PATTERN);
+  if (diceMatch) {
+    const [, sign, diceExpr] = diceMatch;
+    // ステータス変更コマンド（tryHandleParameterCommand）と同様、BCDiceへは符号なしの
+    // ダイス式だけを渡し、符号（増減の向き）はこちら側でロール結果に適用する。
+    // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンドと同様に
+    // 結果を待たずtrueを返し、完了時にバフ付与・ログ追記を行う。
+    rollBCDice(store.state.room.bcdiceSystem, diceExpr).then(({ success, resultText, diceValues }) => {
+      if (!success) {
+        alert(`ダイスロールに失敗しました: ${resultText}`);
+        return;
+      }
+      const rolled = parseFinalDiceNumber(resultText);
+      if (rolled === null) {
+        alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
+        return;
+      }
+      const delta = sign === '-' ? -rolled : rolled;
+
+      // 通常のチャットロール（js/main.js:783付近）と同じ形で3Dダイス演出を出す。
+      // tabIdはBCDice呼び出し前（await前）に確定させた値を使う（ステータス変更コマンドと同様）。
+      if (diceValues?.length) {
+        store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+      }
+      const diceDetail = diceValues && diceValues.length > 0 ?
+        diceValues.map(d => d.value).join(', ') : "";
+
+      finishBuffCommand(delta, resultText, diceDetail);
+    }).catch(error => {
+      alert(`ダイスロールでエラーが発生しました: ${error.message}`);
+    });
+    return true;
+  }
+
+  finishBuffCommand(Number(rawDelta));
   return true;
 }
 
@@ -1236,8 +1291,8 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
   const substituted = substituteCharacterParameters(text, character);
 
-  if (tryHandleBuffCommand(substituted, character)) { onSent?.(); return; }
-  if (tryHandleParameterCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandleBuffCommand(substituted, character, tabId)) { onSent?.(); return; }
+  if (tryHandleParameterCommand(substituted, character, tabId)) { onSent?.(); return; }
   if (tryHandlePluginChatCommand(substituted, character)) { onSent?.(); return; }
   if (tryHandleOriginalTableCommand(substituted, character, tabId)) { onSent?.(); return; }
 

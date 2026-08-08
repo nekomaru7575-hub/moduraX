@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 1756
+lines: 1811
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -60,28 +60,28 @@ _(未記入)_
 | 865 | parseFinalDiceNumber | `parseFinalDiceNumber(resultText)` | 7 |  |
 | 875 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 |  |
 | 887 | shouldMaskParameterValue | `shouldMaskParameterValue(param)` | 3 |  |
-| 893 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, command })` | 20 |  |
-| 914 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character)` | 72 |  |
-| 1015 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character)` | 61 |  |
-| 1088 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
-| 1100 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
-| 1141 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 13 |  |
-| 1159 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 25 |  |
-| 1189 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
-| 1228 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 37 |  |
-| 1268 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
-| 1341 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
-| 1347 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 41 |  |
-| 1430 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 1527 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 1535 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 1584 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 1588 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 1605 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 1700 | splitForSpace | `splitForSpace(string)` | 3 |  |
-| 1704 | escapeHtml | `escapeHtml(text)` | 6 |  |
-| 1716 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {})` | 23 |  |
-| 1743 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 894 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId })` | 21 |  |
+| 916 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character, tabId = activeTabId)` | 82 |  |
+| 1030 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character, tabId = activeTabId)` | 101 |  |
+| 1143 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
+| 1155 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
+| 1196 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 13 |  |
+| 1214 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 25 |  |
+| 1244 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
+| 1283 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 37 |  |
+| 1323 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
+| 1396 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
+| 1402 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 41 |  |
+| 1485 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 1582 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 1590 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 1639 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 1643 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 1660 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 1755 | splitForSpace | `splitForSpace(string)` | 3 |  |
+| 1759 | escapeHtml | `escapeHtml(text)` | 6 |  |
+| 1771 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {})` | 23 |  |
+| 1798 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

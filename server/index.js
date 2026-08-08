@@ -508,7 +508,9 @@ async function getOrLoadRoom(roomId) {
 
     // 入室パスワードは接続のたびに参照するので、部屋と一緒にメモリへ載せておく
     // （変更時はhandleSetEntryPasswordがこちらも書き換える）。
-    return { store, clients: new Set(), saveTimer: null, entryPassword: meta.entryPassword || null };
+    // typing: 記入中の参加者一覧（participantId -> 表示名）。T-013。揮発情報なので
+    // entry.store（部屋の状態＝保存・配信対象）には入れず、ここに直接持たせる。
+    return { store, clients: new Set(), saveTimer: null, entryPassword: meta.entryPassword || null, typing: new Map() };
   }
 
   try {
@@ -570,6 +572,12 @@ function broadcastToRoom(entry, sender, message) {
       client.send(outgoing);
     }
   });
+}
+
+// entry.typing（Map）をTYPING_USERSメッセージのpayload用配列に変換する。呼ぶたびに作り直す
+// （Mapはそのままだと空オブジェクトとしてJSON化されてしまうため）。T-013。
+function typingUsersList(entry) {
+  return Array.from(entry.typing, ([id, name]) => ({ id, name }));
 }
 
 // このアプリがR2に実体を持っている音源だけがキーを返す。外部URL指定のものはnull。
@@ -1482,6 +1490,10 @@ wss.on('connection', async (ws, req) => {
     entry.clients.add(ws);
     console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
     ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
+    // 記入中はentry.store（INITの中身）に乗らない揮発情報なので別送りする。T-013。
+    // 誰も記入中でなくても送る：省くと、再接続した本人の画面に切断前の古い一覧が
+    // 残ったままになってしまう（空の一覧で必ず上書きする）。
+    ws.send(JSON.stringify({ type: 'TYPING_USERS', users: typingUsersList(entry) }));
   }
 
   if (entryAuthorized) {
@@ -1576,6 +1588,12 @@ wss.on('connection', async (ws, req) => {
           ws.send(JSON.stringify({ type: 'IDENTITY_ACCEPTED', developer: isDeveloper }));
         }
 
+        // クライアントの丸めを信用せず、空文字・空白のみはサーバー側で「ゲスト」に丸める。
+        // 入室メッセージと記入中一覧（T-013）の両方でこの表記に揃えるため、この接続の
+        // 表示名としてここで一度だけ決める。
+        const rawName = typeof message.name === 'string' ? message.name.trim() : '';
+        ws.participantName = rawName || 'ゲスト';
+
         // 入室メッセージ。同じparticipantIdの接続がこの部屋にまだ1つも無い場合だけ、既定の
         // チャットタブへ1件追加する（再接続・タブの複数開きでは増やさない）。この接続自身は
         // admit()で既にentry.clientsへ入っているため、自分を除いて数える
@@ -1585,9 +1603,7 @@ wss.on('connection', async (ws, req) => {
             (client) => client !== ws && client.participantId === participantId
           );
           if (!alreadyConnected) {
-            // クライアントの丸めを信用せず、空文字・空白のみはサーバー側で「ゲスト」に丸める。
-            const rawName = typeof message.name === 'string' ? message.name.trim() : '';
-            const entryPayload = { name: rawName || 'ゲスト', entrySoundUrl: ENTRY_SOUND_URL || null };
+            const entryPayload = { name: ws.participantName, entrySoundUrl: ENTRY_SOUND_URL || null };
             entry.store.dispatch('ADD_ENTRY_MESSAGE', entryPayload);
             schedulePersistForRoom(roomId, entry);
             // senderをnullにして、名乗った本人（この接続）にも配る
@@ -1606,6 +1622,27 @@ wss.on('connection', async (ws, req) => {
           ws.send(JSON.stringify({ type: 'IDENTITY_REJECTED' }));
         }
       }
+      return;
+    }
+
+    // 記入中の通知（T-013）。メイン入力欄が空⇔非空に変わった瞬間だけクライアントから届く
+    // （打鍵毎ではない）。部屋の状態（entry.store）には乗せない揮発情報なので、entry直下の
+    // typing（Map）で直接持つ。ADD_ENTRY_MESSAGEと同じく本人確認が済んだ参加者だけを対象にする
+    // （ゲストは名前も参加者IDも安定しないため対象外）。
+    if (message.type === 'TYPING_START' || message.type === 'TYPING_STOP') {
+      if (!verifiedParticipantId) return;
+      ws.isTyping = message.type === 'TYPING_START';
+      if (ws.isTyping) {
+        entry.typing.set(verifiedParticipantId, ws.participantName || 'ゲスト');
+      } else {
+        // 同じ参加者が複数タブを開いていて、片方だけ記入をやめた場合に一覧から
+        // 消してしまわないよう、他の接続がまだ記入中でないかを確かめてから消す。
+        const stillTypingElsewhere = Array.from(entry.clients).some(
+          (client) => client !== ws && client.participantId === verifiedParticipantId && client.isTyping
+        );
+        if (!stillTypingElsewhere) entry.typing.delete(verifiedParticipantId);
+      }
+      broadcastToRoom(entry, null, { type: 'TYPING_USERS', users: typingUsersList(entry) });
       return;
     }
 
@@ -1712,6 +1749,17 @@ wss.on('connection', async (ws, req) => {
     clearTimeout(entryTimer);
     // 入室パスワードを通らないまま切れた接続はclientsに入っていない（deleteは空振りでよい）
     entry.clients.delete(ws);
+    // 記入中のまま切断された場合、一覧に残り続けないようここで落とす（T-013）。
+    // 同じ参加者の別タブがまだ記入中なら（TYPING_STOP同様）消さない。
+    if (verifiedParticipantId && entry.typing.has(verifiedParticipantId)) {
+      const stillTypingElsewhere = Array.from(entry.clients).some(
+        (client) => client.participantId === verifiedParticipantId && client.isTyping
+      );
+      if (!stillTypingElsewhere) {
+        entry.typing.delete(verifiedParticipantId);
+        broadcastToRoom(entry, null, { type: 'TYPING_USERS', users: typingUsersList(entry) });
+      }
+    }
     console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
   });
 });

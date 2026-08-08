@@ -157,6 +157,14 @@ function connect() {
       return;
     }
 
+    // 記入中の参加者一覧。部屋の状態（ACTIONによる同期）とは別の揮発情報で、サーバーが
+    // 権威を持って配ってくる（{id, name}の配列）。ここではそのまま上へ流すだけで、
+    // 自分自身を除く等の描画判断はEventBus購読側（js/main.js）に委ねる。
+    if (message.type === 'TYPING_USERS') {
+      EventBus.emit('TYPING_USERS_CHANGED', message.users || []);
+      return;
+    }
+
     if (message.type === 'ACTION') {
       // チャット送信音。状態を変えない一回きりの通知なので、他のACTIONと違いlocalDispatchは
       // 通さない（game-store.jsのdispatchは未知のactionを黙って無視するだけだが、通す意味がない）。
@@ -269,6 +277,21 @@ export function requestChatSendSound() {
 export function requestRoomDeletion() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'DELETE_ROOM' }));
+  }
+}
+
+// メイン入力欄が空→非空になった瞬間に呼ぶ。「記入中」を要求を送るだけの揮発的な通知で、
+// requestChatSendSoundと同じ流儀（状態は変えず、サーバーへ要求を送るのみ）。
+export function sendTypingStart() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'TYPING_START' }));
+  }
+}
+
+// メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。
+export function sendTypingStop() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'TYPING_STOP' }));
   }
 }
 

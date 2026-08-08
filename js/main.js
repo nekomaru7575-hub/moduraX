@@ -18,7 +18,8 @@ import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
 import { makeResizableStack } from './resizable-stack.js';
 import {
-  initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound
+  initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound,
+  sendTypingStart, sendTypingStop
 } from './net-sync.js';
 import {
   getNickname, normalizeRoomName, getStoredRoomName, setStoredRoomName,
@@ -65,6 +66,7 @@ const currentChatPortrait = document.getElementById('currentChatPortrait');
 const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
 const netStatusEl = document.getElementById('netStatus');
+const typingIndicatorEl = document.getElementById('typingIndicator');
 
 // ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
 if (controlArea) {
@@ -1387,7 +1389,12 @@ if (sendBtn) {
     submitChatText({
       rawInput,
       character: selectedCharacter,
-      onSent: () => { commandInput.value = ""; hideCommandInputSuggestions(); }
+      onSent: () => {
+        commandInput.value = "";
+        hideCommandInputSuggestions();
+        // value代入は'input'イベントを発火しないため、記入中の解除はここで明示的に行う
+        updateTypingIndicatorState();
+      }
     });
   });
 }
@@ -1455,8 +1462,49 @@ function updateCommandInputSuggestions() {
   commandInputSuggestions.style.display = '';
 }
 
+// メイン入力欄の記入中通知（T-013）。空⇔非空に変わった瞬間だけサーバーへ送る（打鍵毎ではない）。
+// チャットパレット付随の入力欄（js/chat-palette.jsが動的に作る.chat-palette-send-input）は
+// このcommandInputの'input'イベントを通らないため、ここでは対象にならない（受入条件どおり）。
+let commandInputHasText = false;
+
+function updateTypingIndicatorState() {
+  if (!commandInput) return;
+  const hasText = commandInput.value.trim() !== '';
+  if (hasText === commandInputHasText) return;
+  commandInputHasText = hasText;
+  if (hasText) sendTypingStart(); else sendTypingStop();
+}
+
+// 記入中はサーバー側の揮発情報（接続ごと）なので、再接続すると失われる。書きかけのまま
+// 繋がり直した場合は、繋がり直した直後に自分の記入中を送り直す。
+EventBus.subscribe('NET_INITIALIZED', () => {
+  if (commandInputHasText) sendTypingStart();
+});
+
+// 他の参加者の記入中一覧（チャット欄右下、T-013）。一覧そのものはサーバーが権威を持って
+// 配ってくる（T-011の教訓どおり、クライアントごとに計算し直さない）。自分自身を除く処理だけ
+// ここで行う（「他ユーザの」記入中表示なので）。
+EventBus.subscribe('TYPING_USERS_CHANGED', (users) => {
+  if (!typingIndicatorEl) return;
+  const myId = getCurrentParticipantId();
+  const others = (users || []).filter((u) => u.id !== myId);
+
+  if (others.length === 0) {
+    typingIndicatorEl.hidden = true;
+    typingIndicatorEl.textContent = '';
+    return;
+  }
+  typingIndicatorEl.hidden = false;
+  typingIndicatorEl.textContent = `${others.map((u) => u.name).join('、')} が入力中...`;
+});
+
 if (commandInput) {
-  commandInput.addEventListener('input', updateCommandInputSuggestions);
+  // 予測変換候補の更新（既存）と記入中通知（T-013）は、どちらもcommandInputの同じ'input'
+  // イベントに相乗りさせる（新しいイベントの仕組みを増やさない）。
+  commandInput.addEventListener('input', () => {
+    updateCommandInputSuggestions();
+    updateTypingIndicatorState();
+  });
   commandInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') hideCommandInputSuggestions();
   });

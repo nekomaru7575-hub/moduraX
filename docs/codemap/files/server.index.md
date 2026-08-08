@@ -1,6 +1,6 @@
 ---
 source: server/index.js
-lines: 1745
+lines: 1793
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -25,7 +25,7 @@ _(未記入)_
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（50）
+## トップレベル関数（LOCAL TASKS 候補）（51）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -60,28 +60,29 @@ _(未記入)_
 | 449 | waitForRoomDeletion | `waitForRoomDeletion(roomId)` | 4 |  |
 | 454 | isValidRoomId | `isValidRoomId(id)` | 7 |  |
 | 462 | roomFilePath | `roomFilePath(roomId)` | 3 |  |
-| 471 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 79 |  |
-| 551 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 14 |  |
-| 566 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |  |
-| 576 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |  |
-| 582 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |  |
-| 588 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |  |
-| 604 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 28 |  |
-| 648 | deleteRoomData | `async deleteRoomData(roomId)` | 29 |  |
-| 681 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |  |
-| 750 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 97 |  |
-| 849 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |  |
-| 878 | decodeDataUrl | `decodeDataUrl(dataUrl)` | 12 |  |
-| 895 | adoptImage | `async adoptImage(roomId, image)` | 33 |  |
-| 933 | adoptStateImages | `async adoptStateImages(roomId, state)` | 43 |  |
-| 990 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
-| 1019 | handleImageCopy | `async handleImageCopy(req, res)` | 67 |  |
-| 1088 | handleListRooms | `async handleListRooms(req, res)` | 15 |  |
-| 1106 | handleCreateRoom | `async handleCreateRoom(req, res)` | 109 |  |
-| 1219 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 56 |  |
-| 1289 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 38 |  |
-| 1329 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
-| 1345 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
+| 471 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 81 |  |
+| 553 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 14 |  |
+| 568 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |  |
+| 579 | typingUsersList | `typingUsersList(entry)` | 3 |  |
+| 584 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |  |
+| 590 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |  |
+| 596 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |  |
+| 612 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 28 |  |
+| 656 | deleteRoomData | `async deleteRoomData(roomId)` | 29 |  |
+| 689 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |  |
+| 758 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 97 |  |
+| 857 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |  |
+| 886 | decodeDataUrl | `decodeDataUrl(dataUrl)` | 12 |  |
+| 903 | adoptImage | `async adoptImage(roomId, image)` | 33 |  |
+| 941 | adoptStateImages | `async adoptStateImages(roomId, state)` | 43 |  |
+| 998 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
+| 1027 | handleImageCopy | `async handleImageCopy(req, res)` | 67 |  |
+| 1096 | handleListRooms | `async handleListRooms(req, res)` | 15 |  |
+| 1114 | handleCreateRoom | `async handleCreateRoom(req, res)` | 109 |  |
+| 1227 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 56 |  |
+| 1297 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 38 |  |
+| 1337 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
+| 1353 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
 
 ## 依存
 

@@ -20,6 +20,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { readFile, writeFile, mkdir, access, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import {
@@ -63,9 +65,39 @@ function roomKey(roomId) {
   return `room:${roomId}`;
 }
 
+// --- Redisに載せる部屋データの符号化 ---
+// Upstashの課金は帯域幅で効いてくる。部屋データは操作のたびに丸ごと書き直されるため
+// （schedulePersistForRoom参照）、ここを縮めるのが一番効く。実測では17KBの部屋が
+// brotli+base64で3.5KB（-80%）まで落ち、圧縮にかかる時間は1回0.6ms程度。
+// base64は英数字と + / = しか使わないので、Upstashクライアントが値をJSON文字列へ
+// 入れ直すときのエスケープ増加（平文JSONだと1.12倍になる）も同時に消える。
+//
+// 接頭辞は「この値は圧縮済みである」という目印。圧縮前の平文（＝この変更より前に
+// 保存された部屋）は素通しで読めるので、移行作業は要らない。次の保存で自動的に
+// 圧縮形式へ移る。逆に、この変更を巻き戻すときはdecodeRoomStateを残すこと
+// （旧コードは 'B1:...' という文字列をそのまま状態として読み込んでしまう）。
+const COMPRESSED_PREFIX = 'B1:';
+const brotliCompress = promisify(zlib.brotliCompress);
+const brotliDecompress = promisify(zlib.brotliDecompress);
+// 品質5は圧縮率と速度の釣り合いが良い（q4より10%小さく、q11より桁違いに速い）。
+const BROTLI_OPTIONS = { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } };
+
+async function encodeRoomState(json) {
+  const compressed = await brotliCompress(Buffer.from(json, 'utf-8'), BROTLI_OPTIONS);
+  return COMPRESSED_PREFIX + compressed.toString('base64');
+}
+
+async function decodeRoomState(value) {
+  if (typeof value !== 'string' || !value.startsWith(COMPRESSED_PREFIX)) return value;
+  const compressed = Buffer.from(value.slice(COMPRESSED_PREFIX.length), 'base64');
+  return JSON.parse((await brotliDecompress(compressed)).toString('utf-8'));
+}
+
 // --- 部屋データの読み書き（保存先の違いをここだけに閉じ込める） ---
+// ローカルモード（server/rooms/*.json）は平文のまま。npm run devで中身を目で読めることに
+// 価値があり、ファイルには帯域幅の制約が無いため。
 async function readRoomState(roomId) {
-  if (USE_REDIS) return redis.get(roomKey(roomId));
+  if (USE_REDIS) return decodeRoomState(await redis.get(roomKey(roomId)));
 
   try {
     return JSON.parse(await readFile(roomFilePath(roomId), 'utf-8'));
@@ -75,13 +107,19 @@ async function readRoomState(roomId) {
   }
 }
 
-async function writeRoomState(roomId, state) {
+// 直列化済みのJSON文字列を保存する。呼び出し側が「前回と同じ内容か」を判定するために
+// 既に文字列を作っているので、それを受け取って二度手間を避ける（schedulePersistForRoom参照）。
+async function writeRoomStateJson(roomId, json) {
   if (USE_REDIS) {
-    await redis.set(roomKey(roomId), state);
+    await redis.set(roomKey(roomId), await encodeRoomState(json));
     return;
   }
   await mkdir(ROOMS_DIR, { recursive: true });
-  await writeFile(roomFilePath(roomId), JSON.stringify(state));
+  await writeFile(roomFilePath(roomId), json);
+}
+
+async function writeRoomState(roomId, state) {
+  await writeRoomStateJson(roomId, JSON.stringify(state));
 }
 
 async function deleteRoomState(roomId) {
@@ -432,7 +470,8 @@ function readBinaryBody(req, maxBytes) {
 }
 
 // --- 部屋管理 ---
-// roomId -> { store, clients: Set<ws>, saveTimer, entryPassword, pendingDelete?, deletion? }
+// roomId -> { store, clients: Set<ws>, saveTimer, lastPersistedJson, entryPassword,
+//             pendingDelete?, deletion? }
 // 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
 const rooms = new Map();
 
@@ -508,7 +547,13 @@ async function getOrLoadRoom(roomId) {
 
     // 入室パスワードは接続のたびに参照するので、部屋と一緒にメモリへ載せておく
     // （変更時はhandleSetEntryPasswordがこちらも書き換える）。
-    return { store, clients: new Set(), saveTimer: null, entryPassword: meta.entryPassword || null };
+    // lastPersistedJsonはnullで始める。hydrate()が古い保存データに欠けたキーを補うため、
+    // 読み込んだJSONとstore.stateの直列化結果は一致しない。nullなら初回の保存だけは必ず
+    // 走るので、補完後の形が確実に保存先へ載る。
+    return {
+      store, clients: new Set(), saveTimer: null,
+      lastPersistedJson: null, entryPassword: meta.entryPassword || null
+    };
   }
 
   try {
@@ -535,7 +580,7 @@ async function getOrLoadRoom(roomId) {
     // Redisへの移行はあくまで「ついで」の処理。ここが失敗しても、ディスクからの
     // 読み込み自体は成功しているので、awaitで待って巻き込み失敗にはしない
     // （待ってしまうと、Redisが一時的に落ちているだけで部屋が見つからない扱いになる）。
-    redis.set(roomKey(roomId), entry.store.state)
+    writeRoomState(roomId, entry.store.state)
       .then(() => console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`))
       .catch((error) => console.warn(`[server] ${roomId} のRedisへの移行に失敗しました:`, error.message));
 
@@ -556,7 +601,13 @@ function schedulePersistForRoom(roomId, entry) {
   entry.saveTimer = setTimeout(async () => {
     entry.saveTimer = null;
     try {
-      await writeRoomState(roomId, entry.store.state);
+      const json = JSON.stringify(entry.store.state);
+      // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
+      // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
+      // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
+      if (json === entry.lastPersistedJson) return;
+      await writeRoomStateJson(roomId, json);
+      entry.lastPersistedJson = json;
     } catch (error) {
       console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
     }
@@ -1209,7 +1260,10 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  rooms.set(id, { store, clients: new Set(), saveTimer: null, entryPassword: entryPasswordRecord });
+  rooms.set(id, {
+    store, clients: new Set(), saveTimer: null,
+    lastPersistedJson: null, entryPassword: entryPasswordRecord
+  });
   sendJson(res, 201, { id });
 }
 

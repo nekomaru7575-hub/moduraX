@@ -628,9 +628,15 @@ async function getOrLoadRoom(roomId) {
     // lastPersistedJsonはnullで始める。hydrate()が古い保存データに欠けたキーを補うため、
     // 読み込んだJSONとstore.stateの直列化結果は一致しない。nullなら初回の保存だけは必ず
     // 走るので、補完後の形が確実に保存先へ載る。
+    // typing: 記入中の参加者一覧（participantId -> 表示名）。T-013。揮発情報なので
+    // 保存はせず、部屋がメモリに載っている間だけ持つ。
+    // ※entryを組み立てる場所はここと handleCreateRoom の2か所しかない。
+    //   片方に足し忘れると、その経路で作られた部屋は接続のたびに例外を投げる
+    //   （typingUsersListがArray.from(undefined)になる）ので、必ず両方に入れること。
     return {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
-      lastPersistedJson: null, lastSummaryJson: null, entryPassword: meta.entryPassword || null
+      lastPersistedJson: null, lastSummaryJson: null,
+      entryPassword: meta.entryPassword || null, typing: new Map()
     };
 
   }
@@ -1439,9 +1445,11 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
+  // typingを忘れないこと（理由はgetOrLoadRoom側の同じ組み立てのコメント参照）
   const entry = {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
-    lastPersistedJson: null, lastSummaryJson: null, entryPassword: entryPasswordRecord
+    lastPersistedJson: null, lastSummaryJson: null,
+    entryPassword: entryPasswordRecord, typing: new Map()
   };
   rooms.set(id, entry);
   // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、

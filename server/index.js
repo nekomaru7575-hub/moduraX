@@ -47,7 +47,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
 const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
+// 操作が途切れてから保存するまでの待ち時間と、操作が続いている場合でも必ず保存する上限。
+// 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
+// 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
 const SAVE_DEBOUNCE_MS = 1000;
+const SAVE_MAX_WAIT_MS = 5000;
 
 // 部屋データの保存先。Upstashの接続情報があればRedis、無ければローカルファイル
 // （server/rooms/room-N.json）だけで動く「ローカルモード」になる。検証用の起動
@@ -470,8 +474,8 @@ function readBinaryBody(req, maxBytes) {
 }
 
 // --- 部屋管理 ---
-// roomId -> { store, clients: Set<ws>, saveTimer, lastPersistedJson, entryPassword,
-//             pendingDelete?, deletion? }
+// roomId -> { store, clients: Set<ws>, saveTimer, saveDeadline, lastPersistedJson,
+//             entryPassword, pendingDelete?, deletion? }
 // 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
 const rooms = new Map();
 
@@ -551,7 +555,7 @@ async function getOrLoadRoom(roomId) {
     // 読み込んだJSONとstore.stateの直列化結果は一致しない。nullなら初回の保存だけは必ず
     // 走るので、補完後の形が確実に保存先へ載る。
     return {
-      store, clients: new Set(), saveTimer: null,
+      store, clients: new Set(), saveTimer: null, saveDeadline: null,
       lastPersistedJson: null, entryPassword: meta.entryPassword || null
     };
   }
@@ -593,25 +597,66 @@ async function getOrLoadRoom(roomId) {
   }
 }
 
+// 実際に1回保存する。デバウンスの待ちは見ないので、呼ぶ側が頃合いを決めること。
+async function persistRoomNow(roomId, entry) {
+  try {
+    const json = JSON.stringify(entry.store.state);
+    // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
+    // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
+    // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
+    if (json === entry.lastPersistedJson) return;
+    await writeRoomStateJson(roomId, json);
+    entry.lastPersistedJson = json;
+  } catch (error) {
+    console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
+  }
+}
+
+// 操作が続いている間は保存を先送りし、途切れてから書く（末尾デバウンス）。
+// 以前は「最初の操作から1秒ごとに書く」方式だったため、トークンをドラッグしている間は
+// mousemoveのたびに届く操作に対して毎秒フルサイズの書き込みが飛んでいた。5秒のドラッグ＝
+// 5回の書き込みで、実際に変わるのは座標2つだけ。先送りにすればこれが1〜2回で済む。
+//
+// ただし操作が途切れないまま延々と続く場合に一度も書かないのは困るので、最初の未保存の
+// 変更からSAVE_MAX_WAIT_MSが経ったら、途切れていなくてもそこで一度書く。
+// 単発の操作（チャット1行など）は以前と同じく約1秒後に1回だけ保存される。
 function schedulePersistForRoom(roomId, entry) {
   // 削除中の部屋は保存しない。ここを通すと、片付けの最中に届いた（あるいは処理中だった）
   // 操作の結果がRedisへ書き戻され、消したはずの部屋が復活する。
   if (entry.pendingDelete) return;
-  if (entry.saveTimer) return;
-  entry.saveTimer = setTimeout(async () => {
+
+  const now = Date.now();
+  if (!entry.saveDeadline) entry.saveDeadline = now + SAVE_MAX_WAIT_MS;
+  if (entry.saveTimer) clearTimeout(entry.saveTimer);
+
+  const delay = Math.max(0, Math.min(now + SAVE_DEBOUNCE_MS, entry.saveDeadline) - now);
+  entry.saveTimer = setTimeout(() => {
     entry.saveTimer = null;
-    try {
-      const json = JSON.stringify(entry.store.state);
-      // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
-      // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
-      // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
-      if (json === entry.lastPersistedJson) return;
-      await writeRoomStateJson(roomId, json);
-      entry.lastPersistedJson = json;
-    } catch (error) {
-      console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
-    }
-  }, SAVE_DEBOUNCE_MS);
+    entry.saveDeadline = null;
+    persistRoomNow(roomId, entry);
+  }, delay);
+}
+
+// 待機中の保存を今すぐ実行する。終了時（flushAllPendingSaves）に使う。
+function flushPendingSave(roomId, entry) {
+  if (!entry.saveTimer) return null;
+  clearTimeout(entry.saveTimer);
+  entry.saveTimer = null;
+  entry.saveDeadline = null;
+  if (entry.pendingDelete) return null;
+  return persistRoomNow(roomId, entry);
+}
+
+// 終了シグナルを受けたときに、待機中の保存をすべて書き出してから落ちる。
+// これが無いと、デバウンスの待ち時間ぶんの操作がプロセスの停止のたびに失われる
+// （Renderはデプロイやスピンダウンのたびにここを通る）。
+function flushAllPendingSaves() {
+  const pending = [];
+  rooms.forEach((entry, roomId) => {
+    const saving = flushPendingSave(roomId, entry);
+    if (saving) pending.push(saving);
+  });
+  return Promise.all(pending);
 }
 
 function broadcastToRoom(entry, sender, message) {
@@ -662,6 +707,7 @@ function startRoomDeletion(roomId, entry) {
     clearTimeout(entry.saveTimer);
     entry.saveTimer = null;
   }
+  entry.saveDeadline = null;
 
   // 削除を要求した本人を含む全員を退室させる。切断の完了は待たない（待つ必要がない）。
   // 集合を先に空にしておくのは、この後に届く操作を確実に配らないため。
@@ -1261,7 +1307,7 @@ async function handleCreateRoom(req, res) {
   }
 
   rooms.set(id, {
-    store, clients: new Set(), saveTimer: null,
+    store, clients: new Set(), saveTimer: null, saveDeadline: null,
     lastPersistedJson: null, entryPassword: entryPasswordRecord
   });
   sendJson(res, 201, { id });
@@ -1792,6 +1838,38 @@ const heartbeatTimer = setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on('close', () => clearInterval(heartbeatTimer));
+
+// --- 終了時の後始末 ---
+// 保存はデバウンスしているので、待機中の変更を書き出さずに落ちるとその分が失われる。
+// Renderはデプロイやスピンダウンのたびにここ（SIGTERM）を通るため、放っておくと
+// 「最後の操作だけ戻っている」が日常的に起きる。
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] ${signal} を受け取りました。保存待ちの部屋を書き出します…`);
+
+  // 書き出しが何らかの理由で終わらないときに、いつまでも落ちないのは困る
+  // （PaaSは待たされた末に強制終了させるので、かえって失われる幅が広がる）。
+  const timeout = setTimeout(() => {
+    console.warn('[server] 保存の完了を待てませんでした。そのまま終了します');
+    process.exit(1);
+  }, 8000);
+  timeout.unref();
+
+  flushAllPendingSaves()
+    .catch((error) => console.warn('[server] 終了時の保存に失敗しました:', error.message))
+    .finally(() => {
+      clearInterval(heartbeatTimer);
+      wss.close();
+      httpServer.close(() => process.exit(0));
+      // 接続中のWebSocketが残っているとhttpServer.closeは返らないので、明示的に切る
+      wss.clients.forEach((client) => client.close(1001, 'server shutting down'));
+    });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);

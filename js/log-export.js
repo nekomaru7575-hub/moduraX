@@ -31,12 +31,14 @@ function buildEntryHtml({ character = '', comment = '', resultText = '', diceDet
     ? `\n    <div class="log-detail">出目内訳: [${escapeHtml(diceDetail)}]</div>`
     : '';
 
+  // タイムスタンプは行の末尾（名前・本文・コメントの後）に置く。出目内訳（detailHtml）は
+  // log-line divの外側・後ろに続く別行なので、そちらより手前（同じdiv内の末尾）にとどめる。
   let timeHtml = "";
   if (typeof time === "number" && isFinite(time)) {
-    timeHtml = `<span class="log-time">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })} </span>`;
+    timeHtml = ` <span class="log-time">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`;
   }
 
-  return `    <div class="log-line">${timeHtml}${nameHtml}${bodyHtml}${commentHtml}</div>${detailHtml}`;
+  return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}${timeHtml}</div>${detailHtml}`;
 }
 
 function buildTabHtml(tab, entries) {

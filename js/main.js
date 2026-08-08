@@ -238,7 +238,7 @@ function renderMainChatMirror(state) {
     currentChatLog.innerHTML = '';
     const item = document.createElement('div');
     item.className = 'current-chat-log-item';
-    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true });
+    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true, hideTime: true });
     currentChatLog.appendChild(item);
 
     if ('characterId' in latestEntry) {
@@ -1782,7 +1782,7 @@ function escapeHtml(text) {
 // 発言テキスト自体は常に既定色（白）のまま変えない。
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false } = {}) {
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
   const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
@@ -1796,8 +1796,10 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
 
   // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
   // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
-  const timestamp = typeof time === 'number' && isFinite(time) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
-  const headerLine = [timestamp, systemTag, characterTag, commentTag].filter(Boolean).join(' ');
+  // タイムスタンプはヘッダー行の末尾（システム名・キャラ名・コメントの後）に置く。
+  // hideTime: カレントチャット欄など、時刻の表示が不要な場所ではtrueにする（hideSystemと同じ流儀）。
+  const timestamp = (!hideTime && typeof time === 'number' && isFinite(time)) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
+  const headerLine = [systemTag, characterTag, commentTag, timestamp].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `

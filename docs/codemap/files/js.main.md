@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 1826
+lines: 1828
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -80,8 +80,8 @@ _(未記入)_
 | 1674 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
 | 1769 | splitForSpace | `splitForSpace(string)` | 3 |  |
 | 1773 | escapeHtml | `escapeHtml(text)` | 6 |  |
-| 1785 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false } = {})` | 24 |  |
-| 1813 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 1785 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {})` | 26 |  |
+| 1815 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

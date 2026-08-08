@@ -96,7 +96,8 @@ export function parseChatPaletteLines(text) {
  *   onSend: (options: { text: string, name: string, onSent?: () => void }) => void,
  *   findTokenByName: (name: string) => object | null
  * }} options
- *   onSend: 1行クリック・パレット内チャット欄からの送信。発言者の解決は呼び出し元に委ねる。
+ *   onSend: パレット内チャット欄からの送信。発言者の解決は呼び出し元に委ねる。
+ *     行クリックは送信せず、パレット内チャット欄へ文面を入れるだけなのでここは通らない。
  *   findTokenByName: 名前欄の下に「このコマとして送る／この名前で発言」を出すための照会。
  */
 export function renderChatPalette({ container, onSend, findTokenByName }) {
@@ -276,7 +277,11 @@ export function renderChatPalette({ container, onSend, findTokenByName }) {
       row.textContent = line;
       row.title = line;
       row.addEventListener('click', () => {
-        onSend({ text: line, name: nameInput.value });
+        // 即送信はしない。パレット内チャット欄（sendInput）へ文面を入れるだけにし、
+        // 送信は利用者の操作（送信ボタン／Enter）に委ねる。打ちかけの文字は上書きする。
+        sendInput.value = line;
+        sendInput.focus();
+        sendInput.setSelectionRange(sendInput.value.length, sendInput.value.length);
       });
       listEl.appendChild(row);
     });

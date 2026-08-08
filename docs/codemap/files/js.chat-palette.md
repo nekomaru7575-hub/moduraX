@@ -1,6 +1,6 @@
 ---
 source: js/chat-palette.js
-lines: 377
+lines: 382
 exports: 5
 imported_by: 1
 api_sha: 804066cafe14
@@ -29,7 +29,7 @@ tags: [codemap]
 | 60 | fn | loadChatPaletteState | `loadChatPaletteState()` |  |
 | 77 | fn | saveChatPaletteState | `saveChatPaletteState(state)` |  |
 | 85 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
-| 102 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
+| 103 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（8）
 
@@ -45,7 +45,7 @@ tags: [codemap]
 | 60 | loadChatPaletteState | `loadChatPaletteState()` | 16 | ✓ |
 | 77 | saveChatPaletteState | `saveChatPaletteState(state)` | 7 | ✓ |
 | 85 | parseChatPaletteLines | `parseChatPaletteLines(text)` | 6 | ✓ |
-| 102 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **275** | ✓ |
+| 103 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **279** | ✓ |
 
 ## 依存
 

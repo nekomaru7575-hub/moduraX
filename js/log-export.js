@@ -21,7 +21,7 @@ function escapeHtml(text) {
 
 // ログ1件を行のHTMLへ。キャラ名が無いエントリ（システム通知など）は本文だけの行にする。
 // システム名（[Cthulhu7th]等）は読み物としては不要なので出さない。
-function buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null }) {
+function buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time }) {
   const bodyHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   const nameHtml = character
     ? `<span class="log-name" style="color: ${color || DEFAULT_NAME_COLOR};">${escapeHtml(character)}</span>：`
@@ -31,7 +31,14 @@ function buildEntryHtml({ character = '', comment = '', resultText = '', diceDet
     ? `\n    <div class="log-detail">出目内訳: [${escapeHtml(diceDetail)}]</div>`
     : '';
 
-  return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}</div>${detailHtml}`;
+  // タイムスタンプは行の末尾（名前・本文・コメントの後）に置く。出目内訳（detailHtml）は
+  // log-line divの外側・後ろに続く別行なので、そちらより手前（同じdiv内の末尾）にとどめる。
+  let timeHtml = "";
+  if (typeof time === "number" && isFinite(time)) {
+    timeHtml = ` <span class="log-time">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`;
+  }
+
+  return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}${timeHtml}</div>${detailHtml}`;
 }
 
 function buildTabHtml(tab, entries) {
@@ -82,6 +89,7 @@ export function buildLogExportHtml({ roomName, tabs, chatLogs }) {
   }
   .export-date { color: #888; font-size: 0.85rem; margin-top: 0; }
   .log-line { margin: 4px 0; }
+  .log-time { color: #888; font-size: 0.85rem; }
   .log-name { font-weight: bold; }
   .log-detail { color: #888; font-size: 0.85rem; margin: 0 0 4px 2em; }
   .log-comment { color: #888; font-size: 0.9rem; }

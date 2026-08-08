@@ -217,11 +217,21 @@ function connect() {
 export function initNetSync() {
   // ローカルでの操作をサーバーへ転送する。サーバー由来のアクション適用はlocalDispatchを
   // 直接呼ぶため、ここは通らない（再送信ループにならない）。
+  //
+  // action発生源（＝ここ）で時刻を1回だけ確定させ、payload.timeとして乗せる。ローカル楽観適用
+  // （localDispatch）と送信（ws.send）の両方より前に確定させるので、送信者のローカル・
+  // サーバーの権威適用・他クライアントへの中継適用は全員この確定済みの値を見ることになり、
+  // 誰も自分の時計でDate.now()を呼び直さない（js/game-store.jsのwithChatEntry/withSystemLogが
+  // payload.timeを尊重する）。呼び出し側が渡したpayload自体は書き換えず、新しいオブジェクトを
+  // 作って使う（js/game-store.jsと同じく、渡された引数を破壊的に書き換えない流儀に揃える）。
   store.dispatch = (action, payload) => {
-    localDispatch(action, payload);
+    const time = Number.isFinite(payload?.time) ? payload.time : Date.now();
+    const stampedPayload = { ...(payload || {}), time };
+
+    localDispatch(action, stampedPayload);
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'ACTION', action, payload }));
+      ws.send(JSON.stringify({ type: 'ACTION', action, payload: stampedPayload }));
     }
   };
 

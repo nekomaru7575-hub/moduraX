@@ -265,17 +265,28 @@ function freezePanelMap(panels) {
   ));
 }
 
-// 指定タブのログへ1件追記した新しいchatLogsを返す。
-function withChatEntry(chatLogs, tabId, entry) {
-  const nextEntries = Object.freeze([...(chatLogs[tabId] || []), Object.freeze({ ...entry })]);
+// 指定タブのログへ1件追記した新しいchatLogsを返す。チャットログへ入る経路は全てここを通る
+// （ADD_CHAT_MESSAGE・withSystemLog経由の各種システムログ）。
+//
+// timeは呼び出し側（dispatchのcase分岐）がpayload.timeから渡す値。js/net-sync.jsのdispatch
+// ラッパが、送信者のローカル楽観適用・サーバーへの送信の両方より前にpayload.timeを一度だけ
+// 確定させているため、送信者のローカル適用・サーバーの権威適用・他クライアントへの中継適用の
+// どこでこの関数が呼ばれても、同じactionのpayloadが運ぶ同じ値をここで受け取ることになり、
+// 参加者・サーバー全員で同じ時刻になる（entry自体やpayloadを書き換えて後段へ引き継ぐような
+// 副作用には頼らない。game-store.jsは状態遷移ロジックだけを持つ純粋なモジュールとして保つ）。
+// timeが渡されない（=confirmed値が無い）場合だけ、ここで一度Date.now()を補う。
+function withChatEntry(chatLogs, tabId, entry, time) {
+  const finalTime = Number.isFinite(time) ? time : Date.now();
+  const nextEntries = Object.freeze([...(chatLogs[tabId] || []), Object.freeze({ ...entry, time: finalTime })]);
   return withMapEntry(chatLogs, tabId, nextEntries);
 }
 
 // Mainタブへシステム発言を1件追記する。ラウンド進行・バフ期限切れの通知に使う
 // （EventBus経由の副作用にすると、同期される全クライアントでそれぞれ「受信→追記dispatch→
 // 再送信」が走ってクライアント数だけログが重複するため、1回のdispatchで完結させている）。
-function withSystemLog(chatLogs, text) {
-  return withChatEntry(chatLogs, MAIN_CHAT_TAB_ID, { system: 'システム', resultText: text });
+// timeはwithChatEntryと同じ扱い（呼び出し側のpayload.timeをそのまま渡す）。
+function withSystemLog(chatLogs, text, time) {
+  return withChatEntry(chatLogs, MAIN_CHAT_TAB_ID, { system: 'システム', resultText: text }, time);
 }
 
 // パラメータマップ（コマのparameters / room.parameters）の1件を差し替える。
@@ -978,7 +989,7 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           tokens,
-          chatLogs: withSystemLog(prevState.chatLogs, logText)
+          chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
         });
         return;
       }
@@ -1021,7 +1032,7 @@ export class ImmutableStore {
             step,
             currentActorId
           },
-          chatLogs: withSystemLog(prevState.chatLogs, logText)
+          chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
         });
         return;
       }
@@ -1043,7 +1054,7 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           round: { ...round, participants, acted, currentActorId, interruptId },
-          chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`)
+          chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`, payload?.time)
         });
         return;
       }
@@ -1159,7 +1170,7 @@ export class ImmutableStore {
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
-          chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'))
+          chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'), payload?.time)
         });
         return;
       }
@@ -1183,7 +1194,8 @@ export class ImmutableStore {
           round: { ...round, acted: nextActed },
           chatLogs: withSystemLog(
             prevState.chatLogs,
-            acted ? `${name}を行動済みにしました。` : `${name}の行動済みを解除しました。`
+            acted ? `${name}を行動済みにしました。` : `${name}の行動済みを解除しました。`,
+            payload?.time
           )
         });
         return;
@@ -1206,7 +1218,7 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           round: { ...round, interruptId: tokenId, acted },
-          chatLogs: withSystemLog(prevState.chatLogs, logText)
+          chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
         });
         return;
       }
@@ -1226,7 +1238,8 @@ export class ImmutableStore {
             prevState.chatLogs,
             next
               ? 'キャラクターの手番の前にイニシアチブプロセスを挟むようにしました。'
-              : 'イニシアチブプロセスを挟まないようにしました。'
+              : 'イニシアチブプロセスを挟まないようにしました。',
+            payload?.time
           )
         });
         return;
@@ -1256,7 +1269,7 @@ export class ImmutableStore {
         const escapedName = escapeForEntryMessage(name);
 
         this.#commit(prevState, {
-          chatLogs: withSystemLog(prevState.chatLogs, `${escapedName}が入室しました。`)
+          chatLogs: withSystemLog(prevState.chatLogs, `${escapedName}が入室しました。`, payload?.time)
         });
         return;
       }
@@ -1267,7 +1280,7 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           round: createInitialRoundState(),
-          chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`)
+          chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, payload?.time)
         });
         return;
       }
@@ -1531,8 +1544,9 @@ export class ImmutableStore {
           panels: freezePanelMap({ ...scene.panels, ...keptPanels }),
           tokens,
           chatLogs: withSystemLog(
-            withSystemLog(prevState.chatLogs, logText),
-            `シーン「${scene.name}」を開始しました。`
+            withSystemLog(prevState.chatLogs, logText, payload.time),
+            `シーン「${scene.name}」を開始しました。`,
+            payload.time
           )
         });
         return;
@@ -1736,12 +1750,41 @@ export class ImmutableStore {
         return;
       }
 
+      // 既存タブの名前を変える。追加・公開先変更と同じく、誰でも呼べる（GM限定にしていない）。
+      case 'RENAME_CHAT_TAB': {
+        const { id, name } = payload;
+        if (!id || !name) return;
+        if (!prevState.chatTabs.some(tab => tab.id === id)) return;
+
+        this.#commit(prevState, {
+          chatTabs: prevState.chatTabs.map(tab => (
+            tab.id === id ? Object.freeze({ ...tab, name }) : tab
+          ))
+        });
+        return;
+      }
+
+      // チャットタブを削除する。既定タブ（Main）は先頭に常に存在する前提のタブなので削除できない。
+      // タブに紐づくログ（chatLogs）も一緒に消す。表示中タブが消えた場合の切り替えは
+      // 呼び出し側（js/main.jsのensureActiveTabVisible、STATE_CHANGED購読で自動的に走る）に任せる。
+      case 'REMOVE_CHAT_TAB': {
+        const { id } = payload;
+        if (!id || id === MAIN_CHAT_TAB_ID) return;
+        if (!prevState.chatTabs.some(tab => tab.id === id)) return;
+
+        this.#commit(prevState, {
+          chatTabs: prevState.chatTabs.filter(tab => tab.id !== id),
+          chatLogs: withoutMapEntry(prevState.chatLogs, id)
+        });
+        return;
+      }
+
       // 指定タブのログにメッセージを1件追加する。存在しないタブIDは無視する。
       case 'ADD_CHAT_MESSAGE': {
         const { tabId, entry } = payload;
         if (!tabId || !entry || !prevState.chatLogs[tabId]) return;
 
-        this.#commit(prevState, { chatLogs: withChatEntry(prevState.chatLogs, tabId, entry) });
+        this.#commit(prevState, { chatLogs: withChatEntry(prevState.chatLogs, tabId, entry, payload.time) });
         return;
       }
 
@@ -1763,7 +1806,7 @@ export class ImmutableStore {
         ));
 
         this.#commit(prevState, {
-          chatLogs: withSystemLog(emptied, 'ログを消去しました。')
+          chatLogs: withSystemLog(emptied, 'ログを消去しました。', payload?.time)
         });
         return;
       }

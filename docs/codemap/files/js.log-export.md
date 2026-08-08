@@ -1,6 +1,6 @@
 ---
 source: js/log-export.js
-lines: 100
+lines: 106
 exports: 1
 imported_by: 1
 api_sha: bb80684fee9d
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 55 | fn | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 選択されたタブのログを、単体で開ける1枚のHTML文書にまとめて返す。 |
+| 60 | fn | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 選択されたタブのログを、単体で開ける1枚のHTML文書にまとめて返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -35,9 +35,9 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 14 | escapeHtml | `escapeHtml(text)` | 7 |  |
-| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null })` | 12 |  |
-| 37 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |  |
-| 55 | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 45 | ✓ |
+| 24 | buildEntryHtml | `buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time })` | 17 |  |
+| 42 | buildTabHtml | `buildTabHtml(tab, entries)` | 7 |  |
+| 60 | buildLogExportHtml | `buildLogExportHtml({ roomName, tabs, chatLogs })` | 46 | ✓ |
 
 ## 依存
 

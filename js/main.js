@@ -103,13 +103,13 @@ function renderChatTabs(state) {
     tabBtn.textContent = isRestricted(tab.audience) ? `🔒${tab.name}` : tab.name;
     tabBtn.title = describeAudience(tab.audience, state.participants);
     tabBtn.addEventListener('click', () => switchChatTab(tab.id));
-    // 公開先の変更は、そのタブが見えている人だけができる（Mainタブは常に全員向け）
-    if (tab.id !== MAIN_TAB_ID) {
-      tabBtn.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-        openChatTabAudienceDialog(tab);
-      });
-    }
+    // 設定ダイアログ（名前変更・公開先変更・削除）は、そのタブが見えている人なら誰でも開ける。
+    // Mainタブも名前変更はできるようにするが、削除・公開先変更は従来通りできない
+    // （openChatTabAudienceDialog側でMainタブを特別扱いする）。
+    tabBtn.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      openChatTabAudienceDialog(tab);
+    });
     chatTabsEl.appendChild(tabBtn);
   });
 
@@ -134,15 +134,29 @@ function addChatTab() {
   });
 }
 
+// Mainタブ（先頭タブ）は常に存在する既定タブなので削除できないし、公開先も常に全員向けの
+// ままにする（withSystemLog等がMainタブへ無条件に流し込む設計を壊さないため）。
+// 名前変更だけはMainタブでも行える：canDelete: falseで削除の導線を出さず、
+// audienceEditable: falseで公開先の選択欄自体を出さない（js/chat-tab-dialog.js側が
+// 固定表示に切り替える）ことで、「選べるのに反映されない」状態を避ける。
+// SET_CHAT_TAB_AUDIENCEのdispatchをMainタブでは行わない既存の判断はそのまま残す
+// （保険。UI側で選択できなくなった後も、この分岐だけで安全側に倒れる）。
 function openChatTabAudienceDialog(tab) {
+  const isMainTab = tab.id === MAIN_TAB_ID;
   showChatTabDialog({
     mode: 'edit',
     name: tab.name,
     audience: tab.audience ?? null,
     participants: store.state.participants || {},
     myParticipantId: getCurrentParticipantId(),
-    onConfirm: ({ audience }) => {
-      store.dispatch('SET_CHAT_TAB_AUDIENCE', { id: tab.id, audience });
+    canDelete: !isMainTab,
+    audienceEditable: !isMainTab,
+    onConfirm: ({ name, audience }) => {
+      if (name !== tab.name) store.dispatch('RENAME_CHAT_TAB', { id: tab.id, name });
+      if (!isMainTab) store.dispatch('SET_CHAT_TAB_AUDIENCE', { id: tab.id, audience });
+    },
+    onDelete: () => {
+      store.dispatch('REMOVE_CHAT_TAB', { id: tab.id });
     }
   });
 }
@@ -1768,7 +1782,7 @@ function escapeHtml(text) {
 // 発言テキスト自体は常に既定色（白）のまま変えない。
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null }, { hideSystem = false } = {}) {
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
   const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
@@ -1782,7 +1796,8 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
 
   // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
   // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
-  const headerLine = [systemTag, characterTag, commentTag].filter(Boolean).join(' ');
+  const timestamp = typeof time === 'number' && isFinite(time) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
+  const headerLine = [timestamp, systemTag, characterTag, commentTag].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `

@@ -47,7 +47,7 @@ import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
-import { initCharacterPanel } from './character-panel.js';
+import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -623,8 +623,18 @@ function downloadBlob(blob, filename) {
 // セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
 // 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
 // 部屋削除前の「部屋を保存し削除」からも使うため、関数として切り出してある。
+//
+// state.tokensには盤面・バックヤードのコマが両方入っているが、バックヤードのコマは
+// ownerId（またはbackyardOwnerId）が今この部屋限りの値なので、別の部屋・別のタイミングで
+// 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。保存した本人のぶんだけは
+// myBackyardTokenIdsとしてIDを別に記録しておき、読み込み側（state-import.js）で
+// 読み込んだ利用者の棚へ付け替える。
 function exportStateToFile() {
-  const json = JSON.stringify(store.state, null, 2);
+  const exportedState = {
+    ...store.state,
+    myBackyardTokenIds: listMyBackyardTokens(store.state).map(token => token.id)
+  };
+  const json = JSON.stringify(exportedState, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
 
   downloadBlob(new Blob([json], { type: 'application/json' }), `trpg-room-${dateStr}.json`);

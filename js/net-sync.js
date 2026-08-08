@@ -27,6 +27,7 @@ import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
+import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -268,7 +269,15 @@ export function replaceState(newState) {
   // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。今の部屋の参加者一覧を
   // 引き継がないと、読み込んだ本人がその場でGM権限を失う。サーバー側も同じ関数を通すが、
   // ここで通しておかないと、送り返されるINITが届くまでの間だけ画面が食い違う。
-  const adopted = adoptImportedState(newState, { participants: store.state.participants });
+  // myBackyardOwnerId：ファイルに記録された「保存した利用者のバックヤードのコマ」を、
+  // 読み込んだこの利用者の棚へ付け替えるための宛先。表示名未設定などで参加者IDが
+  // 取れない場合は、listMyBackyardTokens（js/character-panel.js）のownerId不在時と同じ
+  // 判定基準に合わせるため、ブラウザ単位のIDをmyBackyardOwnerLocalIdとして渡す。
+  const adopted = adoptImportedState(newState, {
+    participants: store.state.participants,
+    myBackyardOwnerId: getCurrentParticipantId(),
+    myBackyardOwnerLocalId: getLocalUserId()
+  });
   store.hydrate(adopted);
 
   if (ws && ws.readyState === WebSocket.OPEN) {

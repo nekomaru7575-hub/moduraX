@@ -20,6 +20,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { readFile, writeFile, mkdir, access, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import {
@@ -45,14 +47,28 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
 const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
+// 操作が途切れてから保存するまでの待ち時間と、操作が続いている場合でも必ず保存する上限。
+// 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
+// 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
 const SAVE_DEBOUNCE_MS = 1000;
+const SAVE_MAX_WAIT_MS = 5000;
+// 1タブあたり、保存先に残すチャットログの件数（stateForPersist参照）。
+// 実測で1件あたり約150バイトなので、1000件で約150KB分。
+const PERSISTED_CHAT_ENTRIES = 1000;
 
 // 部屋データの保存先。Upstashの接続情報があればRedis、無ければローカルファイル
 // （server/rooms/room-N.json）だけで動く「ローカルモード」になる。検証用の起動
 // （server/dev-local.js）は接続情報を渡さないことでこのモードに入り、本番のデータへ
 // 一切触れずに動作確認できる。
 const USE_REDIS = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
-const redis = USE_REDIS ? Redis.fromEnv() : null;
+// responseEncoding: クライアントの既定はbase64で、GETのレスポンスが1.33倍に膨らむ。
+// これは値に不正なUTF-8が混じっていても壊れないようにするための保険で、このアプリが
+// 入れるのはJSONに載る値だけなので要らない。実データ（日本語・絵文字・サロゲートペア・
+// 制御文字）で往復を確かめたうえで切っている。読み込みが12〜24%減る。
+// enableTelemetry: 毎リクエストに付く計測用ヘッダを止める。
+const redis = USE_REDIS
+  ? Redis.fromEnv({ responseEncoding: false, enableTelemetry: false })
+  : null;
 
 // Redis運用へ移る前のローカルファイルを、Redisに無い部屋の代わりとして読むかどうか。
 // 既定はオフ。オンにすると「Redis側で削除した部屋が、古いローカルファイルから勝手に
@@ -63,9 +79,39 @@ function roomKey(roomId) {
   return `room:${roomId}`;
 }
 
+// --- Redisに載せる部屋データの符号化 ---
+// Upstashの課金は帯域幅で効いてくる。部屋データは操作のたびに丸ごと書き直されるため
+// （schedulePersistForRoom参照）、ここを縮めるのが一番効く。実測では17KBの部屋が
+// brotli+base64で3.5KB（-80%）まで落ち、圧縮にかかる時間は1回0.6ms程度。
+// base64は英数字と + / = しか使わないので、Upstashクライアントが値をJSON文字列へ
+// 入れ直すときのエスケープ増加（平文JSONだと1.12倍になる）も同時に消える。
+//
+// 接頭辞は「この値は圧縮済みである」という目印。圧縮前の平文（＝この変更より前に
+// 保存された部屋）は素通しで読めるので、移行作業は要らない。次の保存で自動的に
+// 圧縮形式へ移る。逆に、この変更を巻き戻すときはdecodeRoomStateを残すこと
+// （旧コードは 'B1:...' という文字列をそのまま状態として読み込んでしまう）。
+const COMPRESSED_PREFIX = 'B1:';
+const brotliCompress = promisify(zlib.brotliCompress);
+const brotliDecompress = promisify(zlib.brotliDecompress);
+// 品質5は圧縮率と速度の釣り合いが良い（q4より10%小さく、q11より桁違いに速い）。
+const BROTLI_OPTIONS = { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } };
+
+async function encodeRoomState(json) {
+  const compressed = await brotliCompress(Buffer.from(json, 'utf-8'), BROTLI_OPTIONS);
+  return COMPRESSED_PREFIX + compressed.toString('base64');
+}
+
+async function decodeRoomState(value) {
+  if (typeof value !== 'string' || !value.startsWith(COMPRESSED_PREFIX)) return value;
+  const compressed = Buffer.from(value.slice(COMPRESSED_PREFIX.length), 'base64');
+  return JSON.parse((await brotliDecompress(compressed)).toString('utf-8'));
+}
+
 // --- 部屋データの読み書き（保存先の違いをここだけに閉じ込める） ---
+// ローカルモード（server/rooms/*.json）は平文のまま。npm run devで中身を目で読めることに
+// 価値があり、ファイルには帯域幅の制約が無いため。
 async function readRoomState(roomId) {
-  if (USE_REDIS) return redis.get(roomKey(roomId));
+  if (USE_REDIS) return decodeRoomState(await redis.get(roomKey(roomId)));
 
   try {
     return JSON.parse(await readFile(roomFilePath(roomId), 'utf-8'));
@@ -75,13 +121,19 @@ async function readRoomState(roomId) {
   }
 }
 
-async function writeRoomState(roomId, state) {
+// 直列化済みのJSON文字列を保存する。呼び出し側が「前回と同じ内容か」を判定するために
+// 既に文字列を作っているので、それを受け取って二度手間を避ける（schedulePersistForRoom参照）。
+async function writeRoomStateJson(roomId, json) {
   if (USE_REDIS) {
-    await redis.set(roomKey(roomId), state);
+    await redis.set(roomKey(roomId), await encodeRoomState(json));
     return;
   }
   await mkdir(ROOMS_DIR, { recursive: true });
-  await writeFile(roomFilePath(roomId), JSON.stringify(state));
+  await writeFile(roomFilePath(roomId), json);
+}
+
+async function writeRoomState(roomId, state) {
+  await writeRoomStateJson(roomId, JSON.stringify(stateForPersist(state)));
 }
 
 async function deleteRoomState(roomId) {
@@ -90,6 +142,67 @@ async function deleteRoomState(roomId) {
     return;
   }
   await unlink(roomFilePath(roomId)).catch(() => {});
+}
+
+// --- 部屋一覧用の要約 ---
+// 一覧（GET /api/rooms）が要るのは名前とプラグイン名など数項目だけなのに、以前は
+// そのためだけに全部屋の状態を丸ごと読んでいた。無料枠のPaaSはアイドルでスピンダウン
+// するので、インデックスページを開くたびにこの全読みが起きる。要約だけを別のキーに
+// 持たせて、一覧はそちらを見るようにする（1部屋あたり数十バイト）。
+function roomSummaryKey(roomId) {
+  return `roomMeta:${roomId}`;
+}
+
+function roomSummaryFilePath(roomId) {
+  return path.join(ROOMS_DIR, `${roomId}.meta.json`);
+}
+
+function roomSummaryOf(entry) {
+  const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
+  // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは載せない。
+  return { name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword };
+}
+
+async function readRoomSummary(roomId) {
+  if (USE_REDIS) return (await redis.get(roomSummaryKey(roomId))) || null;
+
+  try {
+    return JSON.parse(await readFile(roomSummaryFilePath(roomId), 'utf-8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  }
+}
+
+async function writeRoomSummary(roomId, summary) {
+  if (USE_REDIS) {
+    await redis.set(roomSummaryKey(roomId), summary);
+    return;
+  }
+  await mkdir(ROOMS_DIR, { recursive: true });
+  await writeFile(roomSummaryFilePath(roomId), JSON.stringify(summary));
+}
+
+async function deleteRoomSummary(roomId) {
+  if (USE_REDIS) {
+    await redis.del(roomSummaryKey(roomId));
+  }
+  await unlink(roomSummaryFilePath(roomId)).catch(() => {});
+}
+
+// 要約が前回書いたものと変わっていれば書き直す。名前やプラグインの変更はめったに
+// 起きないので、ここでの書き込みは実質ゼロに近い。
+async function syncRoomSummary(roomId, entry) {
+  if (entry.pendingDelete) return;
+  const summary = roomSummaryOf(entry);
+  const json = JSON.stringify(summary);
+  if (json === entry.lastSummaryJson) return;
+  try {
+    await writeRoomSummary(roomId, summary);
+    entry.lastSummaryJson = json;
+  } catch (error) {
+    console.warn(`[server] ${roomId} の一覧用の要約の保存に失敗しました:`, error.message);
+  }
 }
 
 // --- 参加者の名乗りの検証 ---
@@ -432,7 +545,8 @@ function readBinaryBody(req, maxBytes) {
 }
 
 // --- 部屋管理 ---
-// roomId -> { store, clients: Set<ws>, saveTimer, entryPassword, pendingDelete?, deletion? }
+// roomId -> { store, clients: Set<ws>, saveTimer, saveDeadline, lastPersistedJson,
+//             lastSummaryJson, entryPassword, pendingDelete?, deletion? }
 // 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
 const rooms = new Map();
 
@@ -508,9 +622,15 @@ async function getOrLoadRoom(roomId) {
 
     // 入室パスワードは接続のたびに参照するので、部屋と一緒にメモリへ載せておく
     // （変更時はhandleSetEntryPasswordがこちらも書き換える）。
-    // typing: 記入中の参加者一覧（participantId -> 表示名）。T-013。揮発情報なので
-    // entry.store（部屋の状態＝保存・配信対象）には入れず、ここに直接持たせる。
-    return { store, clients: new Set(), saveTimer: null, entryPassword: meta.entryPassword || null, typing: new Map() };
+
+    // lastPersistedJsonはnullで始める。hydrate()が古い保存データに欠けたキーを補うため、
+    // 読み込んだJSONとstore.stateの直列化結果は一致しない。nullなら初回の保存だけは必ず
+    // 走るので、補完後の形が確実に保存先へ載る。
+    return {
+      store, clients: new Set(), saveTimer: null, saveDeadline: null,
+      lastPersistedJson: null, lastSummaryJson: null, entryPassword: meta.entryPassword || null
+    };
+
   }
 
   try {
@@ -537,7 +657,7 @@ async function getOrLoadRoom(roomId) {
     // Redisへの移行はあくまで「ついで」の処理。ここが失敗しても、ディスクからの
     // 読み込み自体は成功しているので、awaitで待って巻き込み失敗にはしない
     // （待ってしまうと、Redisが一時的に落ちているだけで部屋が見つからない扱いになる）。
-    redis.set(roomKey(roomId), entry.store.state)
+    writeRoomState(roomId, entry.store.state)
       .then(() => console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`))
       .catch((error) => console.warn(`[server] ${roomId} のRedisへの移行に失敗しました:`, error.message));
 
@@ -550,19 +670,91 @@ async function getOrLoadRoom(roomId) {
   }
 }
 
+// 保存する形へ整える。チャットログは上限なしに伸び続けるので（game-store.jsのwithChatEntry
+// は追記しかしない）、放っておくと「毎回の書き込みサイズ」がセッションの間ずっと増え続ける。
+// 保存するぶんだけを直近PERSISTED_CHAT_ENTRIES件に切り詰める。
+//
+// メモリ上の状態には手を付けない。したがってセッション中の表示・ブロードキャスト・
+// 途中入室者へ配る初期状態は今までどおり全件のまま。切り詰めが影響するのは
+// 「サーバーの再起動やコールドスタートを跨いだあとの、上限より古いログ」だけ。
+function stateForPersist(state) {
+  const chatLogs = state.chatLogs || {};
+  const tabIds = Object.keys(chatLogs);
+  if (!tabIds.some((id) => (chatLogs[id]?.length || 0) > PERSISTED_CHAT_ENTRIES)) return state;
+
+  // store.stateは凍結されたプロキシなので、必ず新しい素のオブジェクトを組み立てる
+  const trimmed = {};
+  tabIds.forEach((id) => {
+    const entries = chatLogs[id] || [];
+    trimmed[id] = entries.length > PERSISTED_CHAT_ENTRIES
+      ? entries.slice(-PERSISTED_CHAT_ENTRIES)
+      : entries;
+  });
+  return { ...state, chatLogs: trimmed };
+}
+
+// 実際に1回保存する。デバウンスの待ちは見ないので、呼ぶ側が頃合いを決めること。
+async function persistRoomNow(roomId, entry) {
+  try {
+    const json = JSON.stringify(stateForPersist(entry.store.state));
+    // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
+    // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
+    // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
+    if (json === entry.lastPersistedJson) return;
+    await writeRoomStateJson(roomId, json);
+    entry.lastPersistedJson = json;
+  } catch (error) {
+    console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
+  }
+  // 一覧用の要約も追随させる。中身が変わっていなければ何も書かない（syncRoomSummary参照）。
+  await syncRoomSummary(roomId, entry);
+}
+
+// 操作が続いている間は保存を先送りし、途切れてから書く（末尾デバウンス）。
+// 以前は「最初の操作から1秒ごとに書く」方式だったため、トークンをドラッグしている間は
+// mousemoveのたびに届く操作に対して毎秒フルサイズの書き込みが飛んでいた。5秒のドラッグ＝
+// 5回の書き込みで、実際に変わるのは座標2つだけ。先送りにすればこれが1〜2回で済む。
+//
+// ただし操作が途切れないまま延々と続く場合に一度も書かないのは困るので、最初の未保存の
+// 変更からSAVE_MAX_WAIT_MSが経ったら、途切れていなくてもそこで一度書く。
+// 単発の操作（チャット1行など）は以前と同じく約1秒後に1回だけ保存される。
 function schedulePersistForRoom(roomId, entry) {
   // 削除中の部屋は保存しない。ここを通すと、片付けの最中に届いた（あるいは処理中だった）
   // 操作の結果がRedisへ書き戻され、消したはずの部屋が復活する。
   if (entry.pendingDelete) return;
-  if (entry.saveTimer) return;
-  entry.saveTimer = setTimeout(async () => {
+
+  const now = Date.now();
+  if (!entry.saveDeadline) entry.saveDeadline = now + SAVE_MAX_WAIT_MS;
+  if (entry.saveTimer) clearTimeout(entry.saveTimer);
+
+  const delay = Math.max(0, Math.min(now + SAVE_DEBOUNCE_MS, entry.saveDeadline) - now);
+  entry.saveTimer = setTimeout(() => {
     entry.saveTimer = null;
-    try {
-      await writeRoomState(roomId, entry.store.state);
-    } catch (error) {
-      console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
-    }
-  }, SAVE_DEBOUNCE_MS);
+    entry.saveDeadline = null;
+    persistRoomNow(roomId, entry);
+  }, delay);
+}
+
+// 待機中の保存を今すぐ実行する。終了時（flushAllPendingSaves）に使う。
+function flushPendingSave(roomId, entry) {
+  if (!entry.saveTimer) return null;
+  clearTimeout(entry.saveTimer);
+  entry.saveTimer = null;
+  entry.saveDeadline = null;
+  if (entry.pendingDelete) return null;
+  return persistRoomNow(roomId, entry);
+}
+
+// 終了シグナルを受けたときに、待機中の保存をすべて書き出してから落ちる。
+// これが無いと、デバウンスの待ち時間ぶんの操作がプロセスの停止のたびに失われる
+// （Renderはデプロイやスピンダウンのたびにここを通る）。
+function flushAllPendingSaves() {
+  const pending = [];
+  rooms.forEach((entry, roomId) => {
+    const saving = flushPendingSave(roomId, entry);
+    if (saving) pending.push(saving);
+  });
+  return Promise.all(pending);
 }
 
 function broadcastToRoom(entry, sender, message) {
@@ -619,6 +811,7 @@ function startRoomDeletion(roomId, entry) {
     clearTimeout(entry.saveTimer);
     entry.saveTimer = null;
   }
+  entry.saveDeadline = null;
 
   // 削除を要求した本人を含む全員を退室させる。切断の完了は待たない（待つ必要がない）。
   // 集合を先に空にしておくのは、この後に届く操作を確実に配らないため。
@@ -666,6 +859,13 @@ async function deleteRoomData(roomId) {
     await deleteAuthMeta(roomId);
   } catch (error) {
     console.warn(`[server] ${roomId} の認証情報の削除に失敗しました:`, error.message);
+  }
+
+  // 一覧用の要約も消す。残すと、消したはずの部屋が一覧に出続ける
+  try {
+    await deleteRoomSummary(roomId);
+  } catch (error) {
+    console.warn(`[server] ${roomId} の一覧用の要約の削除に失敗しました:`, error.message);
   }
 
   // Redis運用でも、移行前のローカルファイルが残っていれば一緒に消す
@@ -1096,17 +1296,33 @@ async function handleImageCopy(req, res) {
 async function handleListRooms(req, res) {
   const list = [];
   for (let n = 1; n <= MAX_ROOMS; n++) {
-    const id = `room-${n}`;
-    const entry = await getOrLoadRoom(id);
-    if (!entry) {
-      list.push({ id, occupied: false });
-      continue;
-    }
-    const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
-    // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは返さない。
-    list.push({ id, occupied: true, name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword });
+    list.push(await summarizeRoomSlot(`room-${n}`));
   }
   sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list });
+}
+
+// 一覧1スロット分。安い順に3段構え：
+//   1. メモリに載っている部屋はそこから（保存先を見ない）
+//   2. 要約のキーがあればそれだけを読む（数十バイト）
+//   3. どちらも無ければ従来どおり状態を丸ごと読み、ついでに要約を作っておく
+// 3に落ちるのは、この機能より前に作られた部屋の初回だけ。以後は2で済む。
+async function summarizeRoomSlot(id) {
+  const cached = rooms.get(id);
+  if (cached && !cached.pendingDelete) return { id, occupied: true, ...roomSummaryOf(cached) };
+  // 削除中の部屋は「もう無い部屋」として扱う（getOrLoadRoomと同じ約束）
+  if (cached) return { id, occupied: false };
+
+  try {
+    const summary = await readRoomSummary(id);
+    if (summary) return { id, occupied: true, ...summary };
+  } catch (error) {
+    console.warn(`[server] ${id} の一覧用の要約の読み込みに失敗しました:`, error.message);
+  }
+
+  const entry = await getOrLoadRoom(id);
+  if (!entry) return { id, occupied: false };
+  await syncRoomSummary(id, entry);
+  return { id, occupied: true, ...roomSummaryOf(entry) };
 }
 
 // POST /api/rooms：空きスロットに新しい部屋を作成する。
@@ -1217,7 +1433,14 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  rooms.set(id, { store, clients: new Set(), saveTimer: null, entryPassword: entryPasswordRecord });
+  const entry = {
+    store, clients: new Set(), saveTimer: null, saveDeadline: null,
+    lastPersistedJson: null, lastSummaryJson: null, entryPassword: entryPasswordRecord
+  };
+  rooms.set(id, entry);
+  // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、
+  // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
+  await syncRoomSummary(id, entry);
   sendJson(res, 201, { id });
 }
 
@@ -1277,6 +1500,8 @@ async function handleSetEntryPassword(req, res, roomId) {
   }
 
   entry.entryPassword = record;
+  // 鍵マークは一覧用の要約にも載っているので、そちらも追随させる
+  await syncRoomSummary(roomId, entry);
   console.log(`[server] ${roomId}: 入室パスワードを${record ? '設定' : '解除'}しました`);
   sendJson(res, 200, { locked: !!record });
 }
@@ -1786,6 +2011,38 @@ const heartbeatTimer = setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on('close', () => clearInterval(heartbeatTimer));
+
+// --- 終了時の後始末 ---
+// 保存はデバウンスしているので、待機中の変更を書き出さずに落ちるとその分が失われる。
+// Renderはデプロイやスピンダウンのたびにここ（SIGTERM）を通るため、放っておくと
+// 「最後の操作だけ戻っている」が日常的に起きる。
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] ${signal} を受け取りました。保存待ちの部屋を書き出します…`);
+
+  // 書き出しが何らかの理由で終わらないときに、いつまでも落ちないのは困る
+  // （PaaSは待たされた末に強制終了させるので、かえって失われる幅が広がる）。
+  const timeout = setTimeout(() => {
+    console.warn('[server] 保存の完了を待てませんでした。そのまま終了します');
+    process.exit(1);
+  }, 8000);
+  timeout.unref();
+
+  flushAllPendingSaves()
+    .catch((error) => console.warn('[server] 終了時の保存に失敗しました:', error.message))
+    .finally(() => {
+      clearInterval(heartbeatTimer);
+      wss.close();
+      httpServer.close(() => process.exit(0));
+      // 接続中のWebSocketが残っているとhttpServer.closeは返らないので、明示的に切る
+      wss.clients.forEach((client) => client.close(1001, 'server shutting down'));
+    });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);

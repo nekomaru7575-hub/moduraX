@@ -2027,15 +2027,49 @@ const httpServer = http.createServer(async (req, res) => {
   await serveStaticFile(req, res);
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+// 1フレームの上限。wsの既定は100MiBで、Renderの小さいインスタンスでは数接続分を
+// 同時に受け取るだけでメモリを使い切る。取り込み（REPLACE_STATE）が最大のメッセージ
+// なので、その枠に少しの余裕を足した値にする。超えたフレームはws側が接続を閉じる。
+const WS_MAX_PAYLOAD_BYTES = MAX_IMPORT_BYTES + 1024 * 1024;
+
+// 1接続あたりのメッセージ流量。1操作ごとに状態の保存（Redisへの書き込み）が走るため、
+// 連打されると課金と帯域がそのまま伸びる。人間の操作としてはこれで十分足りる。
+// 溢れた分は黙って捨てる（切断はしない。取りこぼしはRESYNCで直せるほうが親切なため）。
+const WS_MESSAGE_WINDOW_MS = 10 * 1000;
+const WS_MAX_MESSAGES_PER_WINDOW = 300;
+
+// 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
+const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
+
+const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
+
+// EventEmitterの'error'は聞き手がいないと同期的に例外を投げ、そのままプロセスが終了する。
+// WebSocketは「上限を超えたフレーム」「壊れたフレーム」「相手が急に切った」だけでも
+// errorを出すので、聞いていないと誰でもこのサーバーを落とせる（＝全部屋が巻き添えで
+// 一斉に切断される）。接続ごとと、ハンドシェイク中の分の両方で受け止める。
+// 受け止めた後の後始末（人数の減算など）は、続いて出るcloseイベントが面倒を見る。
+wss.on('error', (error) => {
+  console.warn('[server] WebSocketサーバーでエラーが発生しました（続行します）:', error.message);
+});
 
 wss.on('connection', async (ws, req) => {
+  ws.on('error', (error) => {
+    console.warn('[server] WebSocket接続でエラーが発生しました（この接続だけ切ります）:', error.message);
+  });
+
   const url = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room');
 
   // 生存確認の初期値。以後はpongが返るたびに立て直す（下のheartbeatTimer参照）。
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+
+  // 自分自身もwss.clientsに含まれた状態でここへ来る
+  if (wss.clients.size > WS_MAX_CONNECTIONS) {
+    console.warn(`[server] 同時接続数の上限（${WS_MAX_CONNECTIONS}）に達したため接続を断りました`);
+    ws.close(4008, 'too many connections');
+    return;
+  }
 
   if (!isValidRoomId(roomId)) {
     ws.close(4000, 'invalid room');
@@ -2107,6 +2141,38 @@ wss.on('connection', async (ws, req) => {
   // 接続ごとに一度追加したら二度と追加しないようにする。
   let entryMessageSent = false;
 
+  // 名乗った回数。開発用の合言葉（isDeveloperToken）を当てた人はこの部屋どころか全部屋で
+  // GMと同じ操作を通せるため、1本の接続で延々と試せる状態にしておかない。
+  //
+  // 数えるのは失敗回数ではなく回数そのもの。合言葉の総当たりはブラウザ側と同じ計算を
+  // 手元でやるだけなので、verifyIdentity（公開IDとトークンの辻褄）は必ず通ってしまい、
+  // 「失敗」として現れない。合言葉かどうかの判定だけがサーバー側にある。
+  //
+  // ブラウザは1接続につきopen時・INIT受信時・NET_INITIALIZED経由と複数回送り、
+  // 表示名を変えるたびにも送り直す。普通に使う分には二桁に届かない。
+  // 超えた分は黙って捨てる（切断すると、名前を何度も変えただけの人が部屋から落ちる）。
+  const MAX_IDENTIFY_PER_CONNECTION = 50;
+  let identifyCount = 0;
+
+  // メッセージ流量の窓（WS_MAX_MESSAGES_PER_WINDOW参照）
+  let messageWindowStart = Date.now();
+  let messagesInWindow = 0;
+
+  // 溢れていたらtrue。窓をまたいだら数え直す。
+  function exceedsMessageRate() {
+    const now = Date.now();
+    if (now - messageWindowStart >= WS_MESSAGE_WINDOW_MS) {
+      messageWindowStart = now;
+      messagesInWindow = 0;
+    }
+    messagesInWindow += 1;
+    // 窓の中で最初に超えた1回だけ記録する（溢れ続けているとログ自体が負荷になるため）
+    if (messagesInWindow === WS_MAX_MESSAGES_PER_WINDOW + 1) {
+      console.warn(`[server] ${roomId}: メッセージが多すぎるため以後この窓の分を捨てます`);
+    }
+    return messagesInWindow > WS_MAX_MESSAGES_PER_WINDOW;
+  }
+
   // 部屋を左右する操作をしてよいか。開発用の合言葉はGMの有無に関わらず通す。
   function mayOperateAsGm() {
     return isDeveloper || canOperateAsGm(entry.store.state, verifiedParticipantId);
@@ -2124,6 +2190,8 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.on('message', (data) => {
+    if (exceedsMessageRate()) return;
+
     let message;
     try {
       message = parseUntrustedJson(data.toString());
@@ -2163,6 +2231,14 @@ wss.on('connection', async (ws, req) => {
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
     if (message.type === 'IDENTIFY') {
+      identifyCount += 1;
+      if (identifyCount > MAX_IDENTIFY_PER_CONNECTION) {
+        if (identifyCount === MAX_IDENTIFY_PER_CONNECTION + 1) {
+          console.warn(`[server] ${roomId}: 名乗りが多すぎるため以後この接続の分を捨てます`);
+        }
+        return;
+      }
+
       const participantId = String(message.participantId || '');
       const authToken = String(message.authToken || '');
 

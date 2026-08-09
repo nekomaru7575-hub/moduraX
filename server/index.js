@@ -25,7 +25,8 @@ import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import {
-  ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages
+  ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
+  MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
 import { adoptImportedState } from '../js/state-import.js';
 import {
@@ -1095,11 +1096,12 @@ function handleAudioUpload(req, res) {
 const DATA_URL_PATTERN = /^data:([^;,]+)[^,]*,/;
 
 // データURL（base64のみ。base64でないものはこのアプリが作らない）を実体に戻す。
-function decodeDataUrl(dataUrl) {
+// 受け入れる形式はextensionsで渡す（画像なら IMAGE_EXTENSIONS）。
+function decodeDataUrl(dataUrl, extensions) {
   const match = String(dataUrl).match(DATA_URL_PATTERN);
   if (!match) return null;
   const contentType = match[1];
-  if (!IMAGE_EXTENSIONS[contentType]) return null; // 想定外の形式は触らない
+  if (!extensions[contentType]) return null; // 想定外の形式は受け取らない
   const base64 = String(dataUrl).slice(match[0].length);
   try {
     return { body: Buffer.from(base64, 'base64'), contentType };
@@ -1109,88 +1111,178 @@ function decodeDataUrl(dataUrl) {
 }
 
 /**
- * 画像1つをこの部屋の持ち物にする。変換が要らなければ元の値をそのまま返す。
- * @returns {Promise<string>} 置き換え後の画像文字列
+ * ファイル1つ（画像・音源）をこの部屋の持ち物にする。
+ *
+ * 「復元できるものは復元し、復元できないものは取り込まない」という方針に従う。
+ * 実体が見つからないURLをそのまま残すと、読み込んだ本人のブラウザだけがHTTPキャッシュで
+ * 表示できてしまい、他の人には壊れて見える——という分かりにくい壊れ方をするため、
+ * 復元できないものは null を返して呼び出し側に落としてもらう。
+ *
+ * @returns {Promise<{ url: string|null, changed: boolean, dropped: boolean }>}
+ *   url … 置き換え後の値（dropped時はnull） / changed … 値が変わったか
  */
-async function adoptImage(roomId, image) {
-  if (!image || typeof image !== 'string' || !isR2Configured()) return image;
+async function adoptMediaUrl(roomId, url, { extensions, maxBytes, label }) {
+  const keep = { url, changed: false, dropped: false };
+  if (!url || typeof url !== 'string' || !isR2Configured()) return keep;
 
   const prefix = roomObjectPrefix(roomId);
-  let source = null;
+  const drop = (reason) => {
+    console.warn(`[server] ${roomId}: 取り込んだ${label}を復元できませんでした（取り込みません）: ${reason}`);
+    return { url: null, changed: true, dropped: true };
+  };
 
-  if (image.startsWith('data:')) {
-    source = decodeDataUrl(image);
+  let source = null;
+  if (url.startsWith('data:')) {
+    source = decodeDataUrl(url, extensions);
+    if (!source) return drop('データURLの形式を扱えません');
   } else {
-    const key = keyFromPublicUrl(image);
-    if (!key) return image;              // 自分のR2ではない外部URL → 触らない
-    if (key.startsWith(prefix)) return image; // 既にこの部屋の持ち物
+    const key = keyFromPublicUrl(url);
+    if (!key) return keep;                  // 自分のR2ではない外部URL → そのまま使える
+    if (key.startsWith(prefix)) return keep; // 既にこの部屋の持ち物
     try {
       source = await getObject(key);
     } catch (error) {
-      // 元が消えている等。取り込み自体は続ける（画像はURLのまま残り、表示だけ壊れる）
-      console.warn(`[server] ${roomId}: 取り込んだ画像を複製できませんでした (${key}):`, error.message);
-      return image;
+      return drop(`${key} … ${error.message}`);
     }
   }
 
-  if (!source || source.body.length > MAX_IMAGE_BYTES) return image;
+  if (source.body.length > maxBytes) return drop(`大きすぎます (${source.body.length}バイト)`);
 
-  const ext = IMAGE_EXTENSIONS[source.contentType] || 'bin';
+  const ext = extensions[source.contentType] || 'bin';
   const newKey = `${prefix}${randomUUID()}.${ext}`;
   try {
     await putObject(newKey, source.body, source.contentType);
   } catch (error) {
-    console.warn(`[server] ${roomId}: 取り込んだ画像を保存できませんでした:`, error.message);
-    return image;
+    return drop(`保存に失敗しました … ${error.message}`);
   }
-  return publicUrlFor(newKey);
+  return { url: publicUrlFor(newKey), key: newKey, changed: true, dropped: false };
 }
 
 /**
- * 状態に含まれる画像をまとめてこの部屋の持ち物にする（部屋の作成時・全データ読み込み時）。
- * 同じ画像が何度も出てくる場合は1回だけ複製して使い回す。
+ * 状態に含まれる画像と音源をまとめてこの部屋の持ち物にする
+ * （部屋の作成時・全データ読み込み時）。同じファイルが何度も出てくる場合は1回だけ複製して使い回す。
+ *
+ * 復元できなかったものは状態から取り除く（画像は外し、音源はトラックごと落とす）。
+ * 落としたトラックを指したままの参照（audioPlayback・シーンのbgmTrackId）もここで片付ける。
+ *
+ * @returns {Promise<{ state: object, dropped: { images: number, audio: number } }>}
  */
-async function adoptStateImages(roomId, state) {
-  if (!isR2Configured() || !state || typeof state !== 'object') return state;
+async function adoptStateMedia(roomId, state) {
+  const dropped = { images: 0, audio: 0 };
+  if (!isR2Configured() || !state || typeof state !== 'object') return { state, dropped };
 
-  const cache = new Map();
-  const adopt = async (image) => {
+  // 画像は「落ちたら null」。同じURLは1回だけ複製する。
+  const imageCache = new Map();
+  const adoptImage = async (image) => {
     if (!image || typeof image !== 'string') return image;
-    if (!cache.has(image)) cache.set(image, await adoptImage(roomId, image));
-    return cache.get(image);
+    if (!imageCache.has(image)) {
+      const result = await adoptMediaUrl(roomId, image, {
+        extensions: IMAGE_EXTENSIONS, maxBytes: MAX_IMAGE_BYTES, label: '画像'
+      });
+      if (result.dropped) dropped.images += 1;
+      imageCache.set(image, result.url);
+    }
+    return imageCache.get(image);
+  };
+
+  // 背景は画像URLと、その実体のキー（backgroundImageKey）が対になっている。
+  // 片方だけ書き換えると、部屋の削除時にキーだけが旧部屋のものとして残ってしまう。
+  const adoptBackground = async (holder) => {
+    const image = await adoptImage(holder?.backgroundImage);
+    return {
+      backgroundImage: image,
+      backgroundImageKey: image ? (keyFromPublicUrl(image) || null) : null
+    };
   };
 
   const adoptPanels = async (panels) => {
     const next = {};
     for (const [id, panel] of Object.entries(panels || {})) {
-      next[id] = { ...panel, image: await adopt(panel?.image) };
+      next[id] = { ...panel, image: await adoptImage(panel?.image) };
     }
     return next;
   };
 
   const tokens = {};
   for (const [id, token] of Object.entries(state.tokens || {})) {
-    tokens[id] = { ...token, image: await adopt(token?.image) };
+    tokens[id] = { ...token, image: await adoptImage(token?.image) };
+  }
+
+  // 音源。外部URL指定のものは持ち物ではないので触らない（adoptMediaUrlが素通しする）。
+  // 復元できなかったトラックは丸ごと落とす（音の出ないトラックだけ残っても仕方がない）。
+  const audioTracks = {};
+  for (const [id, track] of Object.entries(state.room?.audioTracks || {})) {
+    if (!track || typeof track !== 'object') continue;
+    const result = await adoptMediaUrl(roomId, track.url, {
+      extensions: AUDIO_EXTENSIONS, maxBytes: MAX_AUDIO_BYTES, label: `音源「${track.name || id}」`
+    });
+    if (result.dropped) {
+      dropped.audio += 1;
+      continue;
+    }
+    // keyはこのアプリがR2に持っている実体を指すときだけ意味を持つ（pickOwnedAudioKey参照）
+    audioTracks[id] = result.changed
+      ? { ...track, url: result.url, key: result.key || null }
+      : track;
   }
 
   const scenes = {};
   for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
+    // 落とした音源を指したままだと、シーン遷移時に鳴らない曲を指し続ける。
+    // SCENE_BGM_STOPは「BGMを止める」という特別な値なので残す（js/game-store.js参照）。
+    const bgmTrackId = scene?.bgmTrackId;
+    const keepBgm = !bgmTrackId || bgmTrackId === SCENE_BGM_STOP || audioTracks[bgmTrackId];
     scenes[id] = {
       ...scene,
-      backgroundImage: await adopt(scene?.backgroundImage),
+      ...(await adoptBackground(scene)),
+      bgmTrackId: keepBgm ? (bgmTrackId || null) : null,
       panels: await adoptPanels(scene?.panels)
     };
   }
 
+  // 再生中の指定も同じく、落とした音源を指していたら止める
+  const playback = state.room?.audioPlayback || { bgm: null, se: null };
+  const audioPlayback = {};
+  for (const [channel, current] of Object.entries(playback)) {
+    audioPlayback[channel] = current?.trackId && !audioTracks[current.trackId] ? null : current;
+  }
+
+  return {
+    dropped,
+    state: {
+      ...state,
+      tokens,
+      panels: await adoptPanels(state.panels),
+      room: {
+        ...(state.room || {}),
+        ...(await adoptBackground(state.room)),
+        audioTracks,
+        audioPlayback,
+        scenes
+      }
+    }
+  };
+}
+
+// 取り込みで落としたものの報告文。何も落ちていなければnull。
+function droppedMediaMessage(dropped) {
+  const parts = [];
+  if (dropped.images > 0) parts.push(`画像${dropped.images}件`);
+  if (dropped.audio > 0) parts.push(`音源${dropped.audio}件`);
+  if (parts.length === 0) return null;
+  return `読み込んだデータのうち、実体が見つからなかった${parts.join('・')}は取り込みませんでした。`
+    + '（部屋を削除するとR2上のファイルも消えるため、削除前に書き出したデータからは復元できません）';
+}
+
+// 取り込みの報告を、状態のMainタブへシステム発言として直接足す。
+// hydrate前の素のオブジェクトに対して使う（storeのdispatchはまだ通せないため）。
+function withImportNotice(state, text) {
+  if (!text) return state;
+  const chatLogs = state.chatLogs || {};
+  const entries = chatLogs[MAIN_CHAT_TAB_ID] || [];
   return {
     ...state,
-    tokens,
-    panels: await adoptPanels(state.panels),
-    room: {
-      ...(state.room || {}),
-      backgroundImage: await adopt(state.room?.backgroundImage),
-      scenes
-    }
+    chatLogs: { ...chatLogs, [MAIN_CHAT_TAB_ID]: [...entries, { system: 'システム', resultText: text }] }
   };
 }
 
@@ -1294,14 +1386,17 @@ async function handleImageCopy(req, res) {
     return;
   }
 
-  const adopted = await adoptImage(roomId, sourceUrl);
-  if (adopted === sourceUrl) {
+  const adopted = await adoptMediaUrl(roomId, sourceUrl, {
+    extensions: IMAGE_EXTENSIONS, maxBytes: MAX_IMAGE_BYTES, label: '画像'
+  });
+  if (adopted.dropped) {
     // 元が消えている等で複製できなかった。呼び出し側は元のURLのまま続行する。
     sendJson(res, 502, { error: '画像の複製に失敗しました' });
     return;
   }
 
-  sendJson(res, 200, { url: adopted });
+  // 既にこの部屋の画像だった場合は複製せず、そのURLをそのまま返す（changedがfalse）。
+  sendJson(res, 200, { url: adopted.url });
 }
 
 // GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
@@ -1422,10 +1517,12 @@ async function handleCreateRoom(req, res) {
   // prevState.round.activeへのアクセスで例外を投げてサーバーごと落ちる（getOrLoadRoomで
   // 修正済みなのと同じ原因）。hydrate()を通して欠けているキーを補ってから使う。
   const store = new ImmutableStore(createInitialGameState());
-  // 取り込んだデータに混ざっている画像（データURL・他の部屋のURL）を、この部屋の
-  // 持ち物へ複製し直す（adoptStateImages参照）。部屋はまだ誰にも配っていないので、
-  // ここで直しておけば以後は普通の画像として扱える。
-  store.hydrate(await adoptStateImages(id, initialState));
+  // 取り込んだデータに混ざっている画像・音源（データURL・他の部屋のURL）を、この部屋の
+  // 持ち物へ複製し直す（adoptStateMedia参照）。部屋はまだ誰にも配っていないので、
+  // ここで直しておけば以後は普通の画像・音源として扱える。
+  // 実体が見つからず復元できなかったものは取り込まず、その旨をMainタブへ残す。
+  const adoptedMedia = await adoptStateMedia(id, initialState);
+  store.hydrate(withImportNotice(adoptedMedia.state, droppedMediaMessage(adoptedMedia.dropped)));
 
   try {
     await writeRoomState(id, store.state);
@@ -1906,8 +2003,8 @@ wss.on('connection', async (ws, req) => {
         rejectAndResync('REPLACE_STATE');
         return;
       }
-      // 読み込んだファイルに混ざっている画像（データURL・他の部屋のURL）をこの部屋の
-      // 持ち物へ複製し直す（adoptStateImages参照）。複製には時間がかかるので、
+      // 読み込んだファイルに混ざっている画像・音源（データURL・他の部屋のURL）をこの部屋の
+      // 持ち物へ複製し直す（adoptStateMedia参照）。複製には時間がかかるので、
       // その間に届いた他の操作は先に適用され、この置き換えで上書きされる——が、
       // 全データの読み込みは元々そういう操作なので問題にしない。
       // 送り手側でも通しているが、ここでも必ず通す（js/state-import.js）。今この部屋にいる
@@ -1915,14 +2012,19 @@ wss.on('connection', async (ws, req) => {
       const importedState = adoptImportedState(message.state, {
         participants: entry.store.state.participants
       });
-      adoptStateImages(roomId, importedState).then((adopted) => {
-        entry.store.hydrate(adopted);
+      adoptStateMedia(roomId, importedState).then(({ state: adopted, dropped }) => {
+        entry.store.hydrate(withImportNotice(adopted, droppedMediaMessage(dropped)));
         schedulePersistForRoom(roomId, entry);
         // 送り手にも配る。送り手の画面には複製前（データURL等）が入っているため、
         // ここで配り直さないと画面とサーバーで画像の持ち方が食い違ったままになる。
         broadcastToRoom(entry, null, { type: 'INIT', state: entry.store.state });
       }).catch((error) => {
         console.warn(`[server] ${roomId}: 読み込んだ状態の取り込みに失敗しました:`, error.message);
+        // 送り手のタブは既にローカルで置き換え済み（js/net-sync.jsのreplaceState）。
+        // ここで戻さないと、送り手だけが取り込んだ内容・他は元のまま、という食い違いが残る。
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'RESYNC', state: entry.store.state }));
+        }
       });
       return;
     }

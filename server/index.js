@@ -514,13 +514,18 @@ function isPublicPath(filePath) {
 // - img-src/media-srcでhttps:を広く許すのは、外部URLの画像・音源を貼れる機能があるため
 //   （R2の公開ドメインもここに含まれる）。data:は、R2未設定時にデータURLへ退避する経路用。
 // - connect-srcの'self'には、同じホスト・同じポートへのWebSocketも含まれる。
+//   BCDiceを併記しているのは、ダイスを振る経路（js/BCdice.js）と、サーバー側の
+//   キャッシュが使えないときの取得（js/bcdice-catalog.js）だけはブラウザから
+//   BCDiceのAPIを直接叩くため。ここを'self'だけにするとダイスが一切振れなくなる。
+const BCDICE_ORIGIN = 'https://bcdice.onlinesession.app';
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
-  "connect-src 'self'",
+  `connect-src 'self' ${BCDICE_ORIGIN}`,
   "font-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
@@ -1870,7 +1875,9 @@ async function handleSetEntryPassword(req, res, roomId) {
 // ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
 // 負荷になる。サーバーで一度取ってRedisへ置き、既定30日を過ぎた後の最初のリクエストの
 // ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
-const BCDICE_BASE_URL = 'https://bcdice.onlinesession.app';
+// 上のCSPで許可しているのと同じ相手（BCDICE_ORIGIN）。片方だけ変えるとダイスが
+// 振れなくなるので、住所は1つだけ持つ。
+const BCDICE_BASE_URL = BCDICE_ORIGIN;
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
 // 「そのシステムは無い」と分かった答えを覚えておく時間。本来のキャッシュよりずっと
 // 短くしているのは、上流にシステムが増えたときに「無い」と言い続ける時間を短くするため。

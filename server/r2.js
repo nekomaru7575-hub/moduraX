@@ -104,8 +104,8 @@ export async function deleteObject(key) {
   }
 }
 
-// ListObjectsV2の応答（XML）からキーだけを取り出す。
-// XMLパーサを足すほどの内容ではない（欲しいのは<Key>と、続きがあるかの2つだけ）ので、
+// ListObjectsV2の応答（XML）から、必要な分だけを取り出す。
+// XMLパーサを足すほどの内容ではない（欲しいのは<Key>と<Size>、続きがあるかの3つだけ）ので、
 // 必要な範囲を正規表現で拾う。キーの実体は rooms/room-N/<UUID>.<拡張子> で英数字と
 // ハイフン・ドット・スラッシュしか含まないが、XMLとして正しく読むため実体参照は戻す。
 function unescapeXml(text) {
@@ -115,22 +115,31 @@ function unescapeXml(text) {
     .replace(/&amp;/g, '&'); // &amp;は最後（先に戻すと二重復元になる）
 }
 
+// <Contents>ごとに読むのは、キーとサイズの対応を取り違えないため
+// （<Key>だけ・<Size>だけを別々に集めると、片方が欠けた要素があったときにずれる）。
 function parseListResponse(xml) {
-  const keys = Array.from(xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)).map(m => unescapeXml(m[1]));
+  const objects = Array.from(xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)).map((match) => {
+    const body = match[1];
+    const key = body.match(/<Key>([\s\S]*?)<\/Key>/);
+    const size = body.match(/<Size>\s*(\d+)\s*<\/Size>/);
+    return { key: key ? unescapeXml(key[1]) : null, size: size ? Number(size[1]) : 0 };
+  }).filter(object => object.key !== null);
+
   const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
   const tokenMatch = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
-  return { keys, nextToken: truncated && tokenMatch ? unescapeXml(tokenMatch[1]) : null };
+  return { objects, nextToken: truncated && tokenMatch ? unescapeXml(tokenMatch[1]) : null };
 }
 
 // テスト用にparseListResponseだけ切り出して公開する（R2に繋がずXMLの読み取りを確かめられる）。
 export const __test__ = { parseListResponse, unescapeXml };
 
 /**
- * 指定した接頭辞のオブジェクトキーを全件返す。1回のListObjectsV2は最大1000件なので、
+ * 指定した接頭辞のオブジェクトを全件返す。1回のListObjectsV2は最大1000件なので、
  * 続きがある間はcontinuation-tokenで辿る。
+ * @returns {Promise<{key: string, size: number}[]>}
  */
-export async function listObjectKeys(prefix) {
-  const keys = [];
+export async function listObjects(prefix) {
+  const objects = [];
   let token = null;
 
   do {
@@ -145,11 +154,20 @@ export async function listObjectKeys(prefix) {
     }
 
     const parsed = parseListResponse(await response.text());
-    keys.push(...parsed.keys);
+    objects.push(...parsed.objects);
     token = parsed.nextToken;
   } while (token);
 
-  return keys;
+  return objects;
+}
+
+/**
+ * 指定した接頭辞のオブジェクトが使っている合計バイト数。
+ * 部屋ごとの使い過ぎを見張るのに使う（server/index.jsのroomStorageBytes）。
+ */
+export async function totalBytesByPrefix(prefix) {
+  const objects = await listObjects(prefix);
+  return objects.reduce((sum, object) => sum + object.size, 0);
 }
 
 /**
@@ -163,13 +181,13 @@ export async function listObjectKeys(prefix) {
  * @returns {Promise<{deleted: number, failed: number}>}
  */
 export async function deleteObjectsByPrefix(prefix) {
-  const keys = await listObjectKeys(prefix);
+  const objects = await listObjects(prefix);
 
   let failed = 0;
-  await Promise.all(keys.map(key => deleteObject(key).catch((error) => {
+  await Promise.all(objects.map(({ key }) => deleteObject(key).catch((error) => {
     failed += 1;
     console.warn(`[r2] ${key} の削除に失敗しました:`, error.message);
   })));
 
-  return { deleted: keys.length - failed, failed };
+  return { deleted: objects.length - failed, failed };
 }

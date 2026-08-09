@@ -32,7 +32,7 @@ import { adoptImportedState } from '../js/state-import.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
-  publicUrlFor, publicBaseUrl, keyFromPublicUrl
+  publicUrlFor, publicBaseUrl, keyFromPublicUrl, totalBytesByPrefix
 } from './r2.js';
 
 const PORT = Number(process.env.PORT) || 8081;
@@ -918,6 +918,63 @@ function isOwnKeyOfRoom(roomId, key) {
   return typeof key === 'string' && key.startsWith(roomObjectPrefix(roomId));
 }
 
+// --- 部屋ごとの置き場の上限 ---
+// 呼び出し回数の制限（exceedsRateLimit）はIPごとに数えるので、回線を変えられると
+// すり抜ける。R2は保存量がそのまま課金なので、IPを何個使われようと超えられない天井を
+// 別に置く。回数ではなく「その部屋が今いくら使っているか」で見るのが要点。
+//
+// 8MBの画像なら約60枚、20MBの音源なら約25曲ぶん。1セッションには十分な余裕がある。
+const MAX_ROOM_STORAGE_BYTES = (Number(process.env.MAX_ROOM_STORAGE_MB) || 500) * 1024 * 1024;
+
+// roomId -> { bytes, checkedAt }
+// アップロードのたびにR2へ一覧を取りに行くと往復が増えるので、一度数えたら手元で
+// 足し引きし、しばらく経ったら数え直す。数え直しを入れているのは、手元の足し引きだけだと
+// 別経路（部屋の削除・複数プロセス）で減った分を取り込めず、実際より多く見積もったまま
+// アップロードを断り続けてしまうため。
+const ROOM_STORAGE_RECHECK_MS = 10 * 60 * 1000;
+const roomStorageUsage = new Map();
+
+async function roomStorageBytes(roomId) {
+  const cached = roomStorageUsage.get(roomId);
+  if (cached && Date.now() - cached.checkedAt < ROOM_STORAGE_RECHECK_MS) return cached.bytes;
+
+  const bytes = await totalBytesByPrefix(roomObjectPrefix(roomId));
+  roomStorageUsage.set(roomId, { bytes, checkedAt: Date.now() });
+  return bytes;
+}
+
+// 置いた分・消した分を手元の集計へ反映する（次の数え直しまでの間に効かせるため）。
+function addRoomStorageBytes(roomId, delta) {
+  const cached = roomStorageUsage.get(roomId);
+  if (cached) cached.bytes = Math.max(0, cached.bytes + delta);
+}
+
+function forgetRoomStorage(roomId) {
+  roomStorageUsage.delete(roomId);
+}
+
+/**
+ * この部屋にあと`bytes`だけ置いてよいか。置けないなら断り文句を返す。
+ * R2への問い合わせに失敗した場合は通す：使用量が読めないことを理由に、正規の利用者の
+ * アップロードまで止めてしまうほうが困る（回数制限のほうは効いたままになる）。
+ */
+async function refuseIfRoomStorageFull(roomId, bytes) {
+  let used;
+  try {
+    used = await roomStorageBytes(roomId);
+  } catch (error) {
+    console.warn(`[server] ${roomId} の使用量を確認できませんでした（通します）:`, error.message);
+    return null;
+  }
+
+  if (used + bytes <= MAX_ROOM_STORAGE_BYTES) return null;
+
+  const limitMb = Math.floor(MAX_ROOM_STORAGE_BYTES / 1024 / 1024);
+  console.warn(`[server] ${roomId}: 置き場の上限に達しました（${used}バイト使用中 / 上限${MAX_ROOM_STORAGE_BYTES}バイト）`);
+  return `この部屋に置けるファイルの合計が上限（${limitMb}MB）に達しました。`
+    + '使わない画像・音源を消してからお試しください。';
+}
+
 // 部屋を削除する。要求を受けたその場で「削除中」の印を付け、全員を退室させ、実データの
 // 片付けを始める。切断イベントは待たない。
 //
@@ -1005,6 +1062,8 @@ async function deleteRoomData(roomId) {
       const { deleted, failed } = await deleteObjectsByPrefix(roomObjectPrefix(roomId));
       console.log(`[server] ${roomId} のファイルを${deleted}件削除しました`
         + (failed > 0 ? `（${failed}件は失敗）` : ''));
+      // 空になったので集計も捨てる（次に使うときはR2から数え直す）
+      forgetRoomStorage(roomId);
     } catch (error) {
       // 一覧が取れなくても部屋データの削除自体は止めない（残るのは孤児だけ）
       console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
@@ -1168,6 +1227,13 @@ async function handleMediaUpload(req, res, {
     return;
   }
 
+  // 1ファイルの大きさが上限内でも、積み上がった合計で断ることがある
+  const full = await refuseIfRoomStorageFull(roomId, body.length);
+  if (full) {
+    sendJson(res, 507, { error: full });
+    return;
+  }
+
   // 部屋の削除時に接頭辞でまとめて消せるよう、必ず部屋のフォルダの下に置く
   const key = `${roomObjectPrefix(roomId)}${randomUUID()}.${ext}`;
 
@@ -1179,6 +1245,7 @@ async function handleMediaUpload(req, res, {
     return;
   }
 
+  addRoomStorageBytes(roomId, body.length);
   sendJson(res, 200, { key, url: publicUrlFor(key) });
 }
 
@@ -1264,6 +1331,11 @@ async function adoptMediaUrl(roomId, url, { extensions, maxBytes, label }) {
 
   if (source.body.length > maxBytes) return drop(`大きすぎます (${source.body.length}バイト)`);
 
+  // 1件ずつは上限内でも、部屋の合計では超えることがある。取り込みは何十件も続けて
+  // 通るので、ここを見ないと「1件8MBまで」の制限をいくらでも積み上げられてしまう。
+  const full = await refuseIfRoomStorageFull(roomId, source.body.length);
+  if (full) return drop('この部屋の置き場が上限に達しています');
+
   const ext = extensions[source.contentType] || 'bin';
   const newKey = `${prefix}${randomUUID()}.${ext}`;
   try {
@@ -1271,6 +1343,7 @@ async function adoptMediaUrl(roomId, url, { extensions, maxBytes, label }) {
   } catch (error) {
     return drop(`保存に失敗しました … ${error.message}`);
   }
+  addRoomStorageBytes(roomId, source.body.length);
   return { url: publicUrlFor(newKey), key: newKey, changed: true, dropped: false };
 }
 
@@ -2024,10 +2097,45 @@ function clientIpOf(req) {
   return req.socket.remoteAddress || 'unknown';
 }
 
+// IPv6アドレスを8つの組に開く。`::` は省略された0の並びなので、その分を埋め直す。
+function expandIpv6Groups(address) {
+  if (!address.includes('::')) return address.split(':');
+
+  const [head, tail = ''] = address.split('::');
+  const headGroups = head ? head.split(':') : [];
+  const tailGroups = tail ? tail.split(':') : [];
+  const zeros = Array(Math.max(0, 8 - headGroups.length - tailGroups.length)).fill('0');
+  return [...headGroups, ...zeros, ...tailGroups];
+}
+
+// 数える単位。IPv4はアドレスそのものだが、IPv6は前半64ビット（/64）でまとめる。
+//
+// IPv6では利用者1人にまるごと/64の範囲が割り当たるのが普通で、その中のアドレスは
+// 好きなだけ作れる。アドレス完全一致で数えると、1人が何個でも別人として数えられて
+// 回数制限が意味を失う。プロバイダが配る単位で数えれば、そこは1人分になる。
+//
+// 表記ゆれ（先頭の0の有無・大文字小文字・`::` の省略）で別人にならないよう、
+// 開いて揃えてから組み立てる。
+function rateLimitScopeOf(rawIp) {
+  // [2001:db8::1]:443 のような括弧付きの表記を素のアドレスに戻す
+  const bracketed = rawIp.match(/^\[(.+)\](?::\d+)?$/);
+  const address = (bracketed ? bracketed[1] : rawIp).split('%')[0].trim();
+
+  // IPv4射影アドレス（::ffff:192.0.2.1）は中身のIPv4として扱う
+  const mapped = address.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (mapped) return mapped[1];
+
+  if (!address.includes(':')) return address; // IPv4、または解釈できない値はそのまま
+
+  const groups = expandIpv6Groups(address.toLowerCase());
+  const prefix = groups.slice(0, 4).map(group => (group || '0').replace(/^0+(?=.)/, ''));
+  return `${prefix.join(':')}::/64`;
+}
+
 // 上限を超えていたらtrue。超えた場合は呼び出し側が429を返す。
 function exceedsRateLimit(req, kind) {
   const limit = RATE_LIMITS[kind];
-  const key = `${kind}:${clientIpOf(req)}`;
+  const key = `${kind}:${rateLimitScopeOf(clientIpOf(req))}`;
   const now = Date.now();
   const counter = rateCounters.get(key);
 
@@ -2519,6 +2627,10 @@ wss.on('connection', async (ws, req) => {
     // キーは状態経由でクライアントが書ける値なので、自分の部屋のものだけを消す
     if (removedAudioKey && isOwnKeyOfRoom(roomId, removedAudioKey)) {
       deleteObject(removedAudioKey)
+        // 音源トラックは大きさを持たないので、何バイト減ったかはここでは分からない。
+        // 集計を捨てて、次のアップロードでR2から数え直させる（消したのに「上限に達して
+        // います」と言われ続けるのを防ぐ）。
+        .then(() => forgetRoomStorage(roomId))
         .catch((error) => console.warn(`[server] 音源の削除に失敗しました (${removedAudioKey}):`, error.message));
     }
     schedulePersistForRoom(roomId, entry);
@@ -2611,4 +2723,9 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);
+  // 置き場の上限は環境変数で変えられるので、実際に効いている値を起動時に出しておく
+  // （課金に直結する設定なので、本番のログで確かめられるようにする）。
+  if (isR2Configured()) {
+    console.log(`[server] 1部屋あたりのファイル合計の上限: ${Math.floor(MAX_ROOM_STORAGE_BYTES / 1024 / 1024)}MB`);
+  }
 });

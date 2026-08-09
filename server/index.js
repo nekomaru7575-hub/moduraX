@@ -29,6 +29,7 @@ import {
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
 import { adoptImportedState } from '../js/state-import.js';
+import { parseUntrustedJson } from '../js/untrusted-json.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
   publicUrlFor, publicBaseUrl, keyFromPublicUrl
@@ -611,7 +612,7 @@ function readJsonBody(req, maxBytes) {
     req.on('end', () => {
       try {
         const text = Buffer.concat(chunks).toString('utf-8');
-        resolve(text ? JSON.parse(text) : {});
+        resolve(text ? parseUntrustedJson(text) : {});
       } catch (error) {
         reject(error);
       }
@@ -2125,7 +2126,7 @@ wss.on('connection', async (ws, req) => {
   ws.on('message', (data) => {
     let message;
     try {
-      message = JSON.parse(data.toString());
+      message = parseUntrustedJson(data.toString());
     } catch {
       return;
     }

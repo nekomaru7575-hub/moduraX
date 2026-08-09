@@ -8,6 +8,7 @@
 import { listPlugins } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
+import { parseUntrustedJson } from './untrusted-json.js';
 
 const roomListEl = document.getElementById('roomList');
 
@@ -192,7 +193,7 @@ function buildVacantCard(room) {
     const file = fileInput.files?.[0];
     if (file) {
       try {
-        importedState = JSON.parse(await file.text());
+        importedState = parseUntrustedJson(await file.text());
       } catch (error) {
         errorText.textContent = `ファイルの読み込みに失敗しました: ${error.message}`;
         errorText.style.display = 'block';

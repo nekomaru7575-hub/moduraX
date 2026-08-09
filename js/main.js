@@ -1,6 +1,7 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
+import { parseUntrustedJson } from './untrusted-json.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
@@ -733,7 +734,7 @@ if (importStateBtn && importStateInput) {
 
     let state;
     try {
-      state = JSON.parse(await file.text());
+      state = parseUntrustedJson(await file.text());
     } catch (error) {
       alert(`ファイルの読み込みに失敗しました: ${error.message}`);
       return;

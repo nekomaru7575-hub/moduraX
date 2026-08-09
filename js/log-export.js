@@ -5,26 +5,18 @@
 // アプリのログ欄（main.jsのbuildLogHtml）は暗背景前提のインラインstyleを吐くため流用せず、
 // 白背景・黒文字のテキストログに「キャラ名だけコマのチャット色を付ける」形式で組み立てる。
 
+import { escapeHtml, safeCssColor } from './html-escape.js';
+
 // キャラ名の色が未設定のログ用の既定色。白背景でも読める濃さにしてある
 // （画面側の既定色#4caf50は白背景だと薄い）。
 const DEFAULT_NAME_COLOR = '#2e7d32';
-
-// 書き出したHTMLは他人にも渡すファイルなので、発言内容はエスケープしてから埋め込む
-// （画面側は従来どおり生のまま扱うが、ここでは崩れ・混入を避ける）。
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 // ログ1件を行のHTMLへ。キャラ名が無いエントリ（システム通知など）は本文だけの行にする。
 // システム名（[Cthulhu7th]等）は読み物としては不要なので出さない。
 function buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time }) {
   const bodyHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   const nameHtml = character
-    ? `<span class="log-name" style="color: ${color || DEFAULT_NAME_COLOR};">${escapeHtml(character)}</span>：`
+    ? `<span class="log-name" style="color: ${safeCssColor(color, DEFAULT_NAME_COLOR)};">${escapeHtml(character)}</span>：`
     : '';
   const commentHtml = comment ? ` <span class="log-comment">(${escapeHtml(comment)})</span>` : '';
   const detailHtml = diceDetail

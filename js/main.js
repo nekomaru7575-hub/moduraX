@@ -1,6 +1,8 @@
 // js/main.js
 
 import { rollBCDice } from './BCdice.js';
+import { parseUntrustedJson } from './untrusted-json.js';
+import { escapeHtml, safeCssColor } from './html-escape.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
@@ -645,11 +647,39 @@ function downloadBlob(blob, filename) {
 // 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。保存した本人のぶんだけは
 // myBackyardTokenIdsとしてIDを別に記録しておき、読み込み側（state-import.js）で
 // 読み込んだ利用者の棚へ付け替える。
-function exportStateToFile() {
-  const exportedState = {
-    ...store.state,
-    myBackyardTokenIds: listMyBackyardTokens(store.state).map(token => token.id)
-  };
+// 画像はサーバーに頼んでデータURLとして埋め込んでもらう（サーバー側のhandleExportRoom）。
+// ブラウザからR2の画像を読むことはできないため（公開ドメインがCORSヘッダを返さない）、
+// ここで埋め込みを自前でやることはできない。
+// 埋め込めればファイルだけで画像を復元できるので、「部屋を保存し削除」で書き出したデータからも
+// 画像が戻る。サーバーに繋がらない・R2が無い場合は、今までどおり手元の状態から書き出す
+// （書き出せなくなるくらいなら、画像がURL参照のままでも書き出せた方がよい）。
+async function exportStateToFile() {
+  const myBackyardTokenIds = listMyBackyardTokens(store.state).map(token => token.id);
+  const roomId = new URLSearchParams(location.search).get('room') || '';
+
+  let exportedState = { ...store.state, myBackyardTokenIds };
+  if (roomId) {
+    try {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...entryPasswordHeaders() },
+        body: JSON.stringify({ myBackyardTokenIds })
+      });
+      if (response.ok) {
+        const result = await response.json();
+        exportedState = result.state;
+        if (result.skipped > 0) {
+          alert(`画像${result.skipped}件はファイルに埋め込めませんでした（実体が見つからないか、合計サイズの上限を超えています）。`
+            + '\nこのぶんは、部屋を削除すると復元できなくなります。');
+        }
+      } else {
+        console.warn('[export] 画像を埋め込めませんでした。手元の状態から書き出します:', response.status);
+      }
+    } catch (error) {
+      console.warn('[export] 画像の埋め込みに失敗しました。手元の状態から書き出します:', error.message);
+    }
+  }
+
   const json = JSON.stringify(exportedState, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
 
@@ -705,7 +735,7 @@ if (importStateBtn && importStateInput) {
 
     let state;
     try {
-      state = JSON.parse(await file.text());
+      state = parseUntrustedJson(await file.text());
     } catch (error) {
       alert(`ファイルの読み込みに失敗しました: ${error.message}`);
       return;
@@ -728,8 +758,10 @@ if (deleteRoomBtn) {
     roomSettingsDialog?.close();
     showRoomDeleteConfirmDialog({
       onDelete: () => requestRoomDeletion(),
-      onSaveAndDelete: () => {
-        exportStateToFile();
+      onSaveAndDelete: async () => {
+        // 書き出しが終わるまで削除を待つこと。削除はR2上のファイルをフォルダごと消すので、
+        // 待たずに走らせると、画像を埋め込んでいる最中に実体が消えて中身の無いデータになる。
+        await exportStateToFile();
         requestRoomDeletion();
       }
     });
@@ -1818,24 +1850,26 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function escapeHtml(text) {
-  return String(text)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
 // color: 発言キャラクターの文字色設定（未設定なら既定の緑）。キャラ名にのみ適用し、
 // 発言テキスト自体は常に既定色（白）のまま変えない。
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
+//
+// ここへ来る値は、発言本文もキャラ名もコメントも色も、すべて部屋にいる誰かが決めたもの。
+// 組み立てたHTMLはinnerHTMLで挿入され、しかもチャットログは部屋データとして保存されて
+// 後から入った人の画面でも再生されるため、素のまま埋めると一度の書き込みでその部屋を
+// 開いた全員にマークアップを流し込めてしまう。全部エスケープしてから埋める
+// （書き出し側のjs/log-export.jsは元からそうしていた。表示側もこれで揃う）。
+// 色はエスケープでは守れない文脈（style属性の中）なので、形そのもので絞る。
 function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {}) {
-  const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
-  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
-  const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
-  const commentTag = comment ? `<span style="color: #aaa;">(${comment})</span>` : '';
-  const resultHtml = String(resultText).replace(/\n/g, '<br>');
+  const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
+  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${escapeHtml(system)}]</strong>` : '';
+  const nameColor = safeCssColor(color, '#4caf50');
+  const characterTag = character ? `<span style="color: ${nameColor};">${escapeHtml(character)}</span>` : '';
+  const commentTag = comment ? `<span style="color: #aaa;">(${escapeHtml(comment)})</span>` : '';
+  // 改行だけは<br>として通す（発言の見た目に必要）。それ以外はマークアップにしない。
+  const resultHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   // コマンドは利用者の入力そのままなので、記号がマークアップとして解釈されないようにする
   // （+HP(1)<2 のような入力で以降の行が消えてしまうため）。
   const commandHtml = command

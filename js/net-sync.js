@@ -23,6 +23,7 @@ const ENTRY_CLOSE_CODE = 4006;
 
 import { store } from './game-store.js';
 import { adoptImportedState } from './state-import.js';
+import { parseUntrustedJson } from './untrusted-json.js';
 import { EventBus } from './EventBus.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
@@ -98,7 +99,8 @@ function connect() {
   ws.addEventListener('message', (event) => {
     let message;
     try {
-      message = JSON.parse(event.data);
+      // サーバーは他の参加者の操作をそのまま中継するため、ここも自分が書いたJSONではない
+      message = parseUntrustedJson(event.data);
     } catch {
       return;
     }

@@ -5,6 +5,8 @@
 // マーカー文字列やスナップショットの形の定義をここ1箇所にまとめることで、
 // 「保存側」と「読み込み側」の形式がズレて読み込めなくなる事故を防ぐ。
 
+import { parseUntrustedJson } from './untrusted-json.js';
+
 // 外部キャラクターシートツールのJSONや、本アプリの汎用インポート形式（{name, parameters}）とは
 // 区別が必要なため、読み込み時はまずこのマーカーの有無で判定する。
 export const TOKEN_SNAPSHOT_FORMAT = 'mojuraX-token-snapshot-v1';
@@ -47,9 +49,11 @@ export function downloadJSON(filename, data) {
 
 // JSONテキストをパースする。失敗時はアラートを出してnullを返す（右クリックメニュー・D&D・
 // コマ作成ページ共通）
+// 外部シートやよそから貰ったファイルが入ってくる口なので、危険なキーを落として読む
+// （parseUntrustedJson参照）。
 export function parseJsonText(text) {
   try {
-    return JSON.parse(text);
+    return parseUntrustedJson(text);
   } catch (error) {
     alert(`JSONの解析に失敗しました: ${error.message}`);
     return null;

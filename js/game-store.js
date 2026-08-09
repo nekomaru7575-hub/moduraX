@@ -144,16 +144,6 @@ export function showsEntryMessages(state) {
   return state?.room?.showEntryMessages !== false;
 }
 
-// 入室メッセージ本文に名前を埋め込む前のHTMLエスケープ。ログ表示側（main.jsのbuildLogHtml）は
-// resultTextをエスケープせずinnerHTMLへ挿入するため、他人が自由に設定できる名前はここで
-// 必ずエスケープしてから埋め込む。
-function escapeForEntryMessage(text) {
-  return String(text)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
 // トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
 // フェーズを1段ずつ渡すことで表現する）。
@@ -221,7 +211,9 @@ export function getEffectiveParameterValue(token, paramId) {
   return param.value + buffTotal;
 }
 
-const MAIN_CHAT_TAB_ID = 'main';
+// 既定のチャットタブ。システム発言の宛先でもある（withSystemLog参照）。
+// サーバーも取り込みの報告を入れるために使う（server/index.jsのwithImportNotice）。
+export const MAIN_CHAT_TAB_ID = 'main';
 
 // 音楽のチャンネル。BGMを流したまま効果音を重ねられるよう2枠に分けてある
 // （js/audio-player.jsが枠ごとに1つずつAudio要素を持つ）。
@@ -1261,15 +1253,15 @@ export class ImmutableStore {
 
       // 入室メッセージ本体の追加。identify（名乗り）完了時にサーバーだけがdispatchする
       // （server/index.jsのIDENTIFYメッセージ処理）。フラグが無効な部屋では何もしない。
-      // 名前は他人が自由に設定できるニックネームなので、ログ表示（main.jsのbuildLogHtml）が
-      // innerHTMLで挿入する前提に合わせてここでHTMLエスケープしてから埋め込む。
+      // 名前は他人が自由に設定できるニックネームだが、ここではエスケープしない。
+      // 表示側（main.jsのbuildLogHtml）が発言本文をエスケープしてから挿入するので、
+      // ここでも掛けると画面に &lt; がそのまま出てしまう。エスケープは表示する側の仕事。
       case 'ADD_ENTRY_MESSAGE': {
         if (!showsEntryMessages(prevState)) return;
         const name = (typeof payload?.name === 'string' && payload.name.trim()) || 'ゲスト';
-        const escapedName = escapeForEntryMessage(name);
 
         this.#commit(prevState, {
-          chatLogs: withSystemLog(prevState.chatLogs, `${escapedName}が入室しました。`, payload?.time)
+          chatLogs: withSystemLog(prevState.chatLogs, `${name}が入室しました。`, payload?.time)
         });
         return;
       }

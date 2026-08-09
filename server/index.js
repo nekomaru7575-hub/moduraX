@@ -25,9 +25,11 @@ import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import {
-  ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages
+  ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
+  MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
 import { adoptImportedState } from '../js/state-import.js';
+import { parseUntrustedJson } from '../js/untrusted-json.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
   publicUrlFor, publicBaseUrl, keyFromPublicUrl
@@ -37,6 +39,9 @@ const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
 // 音源1ファイルの上限。MP3 192kbpsで20MB＝約14分。環境変数で調整できるようにしておく。
 const MAX_AUDIO_BYTES = (Number(process.env.MAX_AUDIO_MB) || 20) * 1024 * 1024;
+// 部屋データの取り込み以外のJSONボディの上限。パスワード・URL・IDの配列しか来ないので
+// 1MBあれば足りる。取り込みだけは桁が違うので別枠（MAX_IMPORT_BYTES参照）。
+const MAX_SMALL_JSON_BYTES = 1024 * 1024;
 // 入室音のURL。音源はまだ無いので、環境変数が無ければ空文字のまま（クライアントは
 // 空文字/未設定ならnew Audio()自体を作らない。js/audio-player.jsのplayEntrySound参照）。
 const ENTRY_SOUND_URL = process.env.ENTRY_SOUND_URL || '';
@@ -474,44 +479,145 @@ const MIME_TYPES = {
   '.m4a': 'audio/mp4'
 };
 
-// 盤面のHTML/JS/画像などをそのままファイルシステムから配信する。
+// --- 公開してよいファイルの範囲 ---
+// リポジトリのルートには、配ってはいけないものがブラウザ向けのファイルと同居している
+// （.env・server/・.git/・.loop/・.claude/・txt/・旧ファイル/）。「ROOT_DIRの中なら
+// 何でも配る」ままだと、GET /.env だけでR2の鍵・Upstashのトークン・DEVELOPER_PASSPHRASEが
+// まとめて抜ける。そこで「配ってよいものだけを挙げる」方式にし、既定を塞ぐ側へ倒す。
+// 増やすときは必ずここに明示的に足すこと。
+const PUBLIC_FILES = new Set(['index.html', 'combined_layout.html', 'character-builder.html']);
+const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
+// 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の
+// 無いファイル）。以前のapplication/octet-streamへの取りこぼしはもう作らない。
+const PUBLIC_EXTENSIONS = new Set(Object.keys(MIME_TYPES));
+
+// このパスを配ってよいか。ROOT_DIRの外・許可リスト外はすべてfalse。
+function isPublicPath(filePath) {
+  // ROOT_DIRの外を指していないか。以前のstartsWithによる前方一致では、ROOT_DIRの「兄弟」
+  // （…/trpg-app-backup のような名前）まで通ってしまうため、path.relativeで判定する。
+  const relative = path.relative(ROOT_DIR, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false;
+
+  if (!PUBLIC_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return false;
+
+  const segments = relative.split(path.sep);
+  // ルート直下のファイルは3つのHTMLだけ。それ以外は許可したディレクトリの中だけ。
+  return segments.length === 1 ? PUBLIC_FILES.has(segments[0]) : PUBLIC_DIRS.has(segments[0]);
+}
+
+// --- 応答に付ける防御 ---
+// script-srcを'self'に絞るのが要点。万一、表示名やチャット本文からタグを差し込まれても、
+// そこに書かれたスクリプトもインラインのonclick等も動かない（画面側のtextContent化と
+// 二重に守る）。この方針が成り立つのは、3つのHTMLがどれも外部ファイルの<script>しか
+// 持たず、vendorのdice-boxもeval・WebAssembly・Workerを使っていないため。
+// - style-srcに'unsafe-inline'が要るのは、3つのHTMLがインラインの<style>を持つため。
+// - img-src/media-srcでhttps:を広く許すのは、外部URLの画像・音源を貼れる機能があるため
+//   （R2の公開ドメインもここに含まれる）。data:は、R2未設定時にデータURLへ退避する経路用。
+// - connect-srcの'self'には、同じホスト・同じポートへのWebSocketも含まれる。
+//   BCDiceを併記しているのは、ダイスを振る経路（js/BCdice.js）と、サーバー側の
+//   キャッシュが使えないときの取得（js/bcdice-catalog.js）だけはブラウザから
+//   BCDiceのAPIを直接叩くため。ここを'self'だけにするとダイスが一切振れなくなる。
+const BCDICE_ORIGIN = 'https://bcdice.onlinesession.app';
+
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob: https:",
+  `connect-src 'self' ${BCDICE_ORIGIN}`,
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+  // Content-Typeを無視した推測を止める（画像として上げたものがHTMLとして解釈されるのを防ぐ）
+  'X-Content-Type-Options': 'nosniff',
+  // 部屋のURLにはroomクエリが入る。外部へ送らない。
+  'Referrer-Policy': 'no-referrer',
+  // frame-ancestorsを解さない古いブラウザ向けの重ね掛け
+  'X-Frame-Options': 'DENY'
+};
+
+// 盤面のHTML/JS/画像などをファイルシステムから配信する。配れるのは上の許可リストの範囲だけ。
 // ルート（/）は部屋一覧のindex.htmlを返す。盤面自体はcombined_layout.html?room=room-Nで開く。
 async function serveStaticFile(req, res) {
-  const requestedPath = decodeURIComponent(req.url.split('?')[0]);
+  let requestedPath;
+  try {
+    requestedPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    // 壊れたパーセントエンコーディング（%zz等）でdecodeURIComponentは例外を投げる
+    res.writeHead(400, SECURITY_HEADERS);
+    res.end('Bad Request');
+    return;
+  }
+
   const relativePath = requestedPath === '/' ? '/index.html' : requestedPath;
   const filePath = path.join(ROOT_DIR, relativePath);
 
-  // パストラバーサル対策：ROOT_DIRの外を指すリクエストは拒否する
-  if (!filePath.startsWith(ROOT_DIR)) {
-    res.writeHead(403);
-    res.end('Forbidden');
+  // 許可リスト外は、存在の有無を明かさないよう404で揃える（403だと「そこに何かある」と分かる）
+  if (!isPublicPath(filePath)) {
+    res.writeHead(404, SECURITY_HEADERS);
+    res.end('Not Found');
     return;
   }
 
   try {
     const data = await readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': MIME_TYPES[ext] });
     res.end(data);
   } catch {
-    res.writeHead(404);
+    res.writeHead(404, SECURITY_HEADERS);
     res.end('Not Found');
   }
 }
 
 function sendJson(res, statusCode, body) {
   const json = JSON.stringify(body);
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(statusCode, { ...SECURITY_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
   res.end(json);
 }
 
-function readJsonBody(req) {
+// JSONのボディにも必ず上限を渡す。上限が無いと、認証の要らないPOST /api/rooms へ
+// 巨大なボディを流し込むだけでサーバーのメモリを食い潰せる（そこで落ちると、
+// 同居している他の部屋も全部巻き添えで切断される）。
+// 読み方をreadBinaryBodyと揃えてBufferで溜めるのは、チャンクごとにtoString()すると
+// 日本語のようなマルチバイト文字がチャンクの境目で壊れるため。
+function readJsonBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => { data += chunk; });
+    const chunks = [];
+    let total = 0;
+
+    // Content-Lengthで分かる場合はボディを一切読まずに断る（これが通常の経路）
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      const error = new Error('payload too large');
+      error.code = 'TOO_LARGE';
+      reject(error);
+      return;
+    }
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        // readBinaryBodyと同じ理由でdestroyせず、受信だけ止めて呼び出し元に返す
+        req.pause();
+        const error = new Error('payload too large');
+        error.code = 'TOO_LARGE';
+        reject(error);
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
       try {
-        resolve(data ? JSON.parse(data) : {});
+        const text = Buffer.concat(chunks).toString('utf-8');
+        resolve(text ? parseUntrustedJson(text) : {});
       } catch (error) {
         reject(error);
       }
@@ -520,8 +626,19 @@ function readJsonBody(req) {
   });
 }
 
-// リクエストボディをバイナリのまま読む（音源のアップロード用）。readJsonBodyは文字列連結の
-// ためバイナリが壊れるので別に用意している。上限を超えた時点で接続を切り、巨大なボディを
+// readJsonBodyが失敗したときの返し方。大きすぎたときだけ413にし、応答を書き終えてから
+// 接続を切る（受信を止めたまま放っておくと、送り手は最後まで送り続けてしまう）。
+function sendJsonBodyError(req, res, error) {
+  if (error?.code === 'TOO_LARGE') {
+    res.on('finish', () => req.destroy());
+    sendJson(res, 413, { error: 'データが大きすぎます。' });
+    return;
+  }
+  sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+}
+
+// リクエストボディをバイナリのまま読む（音源のアップロード用）。JSONとして解釈せず
+// そのまま扱いたいので別に用意している。上限を超えた時点で接続を切り、巨大なボディを
 // 最後まで受け取らないようにする。
 function readBinaryBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
@@ -1095,11 +1212,12 @@ function handleAudioUpload(req, res) {
 const DATA_URL_PATTERN = /^data:([^;,]+)[^,]*,/;
 
 // データURL（base64のみ。base64でないものはこのアプリが作らない）を実体に戻す。
-function decodeDataUrl(dataUrl) {
+// 受け入れる形式はextensionsで渡す（画像なら IMAGE_EXTENSIONS）。
+function decodeDataUrl(dataUrl, extensions) {
   const match = String(dataUrl).match(DATA_URL_PATTERN);
   if (!match) return null;
   const contentType = match[1];
-  if (!IMAGE_EXTENSIONS[contentType]) return null; // 想定外の形式は触らない
+  if (!extensions[contentType]) return null; // 想定外の形式は受け取らない
   const base64 = String(dataUrl).slice(match[0].length);
   try {
     return { body: Buffer.from(base64, 'base64'), contentType };
@@ -1109,88 +1227,178 @@ function decodeDataUrl(dataUrl) {
 }
 
 /**
- * 画像1つをこの部屋の持ち物にする。変換が要らなければ元の値をそのまま返す。
- * @returns {Promise<string>} 置き換え後の画像文字列
+ * ファイル1つ（画像・音源）をこの部屋の持ち物にする。
+ *
+ * 「復元できるものは復元し、復元できないものは取り込まない」という方針に従う。
+ * 実体が見つからないURLをそのまま残すと、読み込んだ本人のブラウザだけがHTTPキャッシュで
+ * 表示できてしまい、他の人には壊れて見える——という分かりにくい壊れ方をするため、
+ * 復元できないものは null を返して呼び出し側に落としてもらう。
+ *
+ * @returns {Promise<{ url: string|null, changed: boolean, dropped: boolean }>}
+ *   url … 置き換え後の値（dropped時はnull） / changed … 値が変わったか
  */
-async function adoptImage(roomId, image) {
-  if (!image || typeof image !== 'string' || !isR2Configured()) return image;
+async function adoptMediaUrl(roomId, url, { extensions, maxBytes, label }) {
+  const keep = { url, changed: false, dropped: false };
+  if (!url || typeof url !== 'string' || !isR2Configured()) return keep;
 
   const prefix = roomObjectPrefix(roomId);
-  let source = null;
+  const drop = (reason) => {
+    console.warn(`[server] ${roomId}: 取り込んだ${label}を復元できませんでした（取り込みません）: ${reason}`);
+    return { url: null, changed: true, dropped: true };
+  };
 
-  if (image.startsWith('data:')) {
-    source = decodeDataUrl(image);
+  let source = null;
+  if (url.startsWith('data:')) {
+    source = decodeDataUrl(url, extensions);
+    if (!source) return drop('データURLの形式を扱えません');
   } else {
-    const key = keyFromPublicUrl(image);
-    if (!key) return image;              // 自分のR2ではない外部URL → 触らない
-    if (key.startsWith(prefix)) return image; // 既にこの部屋の持ち物
+    const key = keyFromPublicUrl(url);
+    if (!key) return keep;                  // 自分のR2ではない外部URL → そのまま使える
+    if (key.startsWith(prefix)) return keep; // 既にこの部屋の持ち物
     try {
       source = await getObject(key);
     } catch (error) {
-      // 元が消えている等。取り込み自体は続ける（画像はURLのまま残り、表示だけ壊れる）
-      console.warn(`[server] ${roomId}: 取り込んだ画像を複製できませんでした (${key}):`, error.message);
-      return image;
+      return drop(`${key} … ${error.message}`);
     }
   }
 
-  if (!source || source.body.length > MAX_IMAGE_BYTES) return image;
+  if (source.body.length > maxBytes) return drop(`大きすぎます (${source.body.length}バイト)`);
 
-  const ext = IMAGE_EXTENSIONS[source.contentType] || 'bin';
+  const ext = extensions[source.contentType] || 'bin';
   const newKey = `${prefix}${randomUUID()}.${ext}`;
   try {
     await putObject(newKey, source.body, source.contentType);
   } catch (error) {
-    console.warn(`[server] ${roomId}: 取り込んだ画像を保存できませんでした:`, error.message);
-    return image;
+    return drop(`保存に失敗しました … ${error.message}`);
   }
-  return publicUrlFor(newKey);
+  return { url: publicUrlFor(newKey), key: newKey, changed: true, dropped: false };
 }
 
 /**
- * 状態に含まれる画像をまとめてこの部屋の持ち物にする（部屋の作成時・全データ読み込み時）。
- * 同じ画像が何度も出てくる場合は1回だけ複製して使い回す。
+ * 状態に含まれる画像と音源をまとめてこの部屋の持ち物にする
+ * （部屋の作成時・全データ読み込み時）。同じファイルが何度も出てくる場合は1回だけ複製して使い回す。
+ *
+ * 復元できなかったものは状態から取り除く（画像は外し、音源はトラックごと落とす）。
+ * 落としたトラックを指したままの参照（audioPlayback・シーンのbgmTrackId）もここで片付ける。
+ *
+ * @returns {Promise<{ state: object, dropped: { images: number, audio: number } }>}
  */
-async function adoptStateImages(roomId, state) {
-  if (!isR2Configured() || !state || typeof state !== 'object') return state;
+async function adoptStateMedia(roomId, state) {
+  const dropped = { images: 0, audio: 0 };
+  if (!isR2Configured() || !state || typeof state !== 'object') return { state, dropped };
 
-  const cache = new Map();
-  const adopt = async (image) => {
+  // 画像は「落ちたら null」。同じURLは1回だけ複製する。
+  const imageCache = new Map();
+  const adoptImage = async (image) => {
     if (!image || typeof image !== 'string') return image;
-    if (!cache.has(image)) cache.set(image, await adoptImage(roomId, image));
-    return cache.get(image);
+    if (!imageCache.has(image)) {
+      const result = await adoptMediaUrl(roomId, image, {
+        extensions: IMAGE_EXTENSIONS, maxBytes: MAX_IMAGE_BYTES, label: '画像'
+      });
+      if (result.dropped) dropped.images += 1;
+      imageCache.set(image, result.url);
+    }
+    return imageCache.get(image);
+  };
+
+  // 背景は画像URLと、その実体のキー（backgroundImageKey）が対になっている。
+  // 片方だけ書き換えると、部屋の削除時にキーだけが旧部屋のものとして残ってしまう。
+  const adoptBackground = async (holder) => {
+    const image = await adoptImage(holder?.backgroundImage);
+    return {
+      backgroundImage: image,
+      backgroundImageKey: image ? (keyFromPublicUrl(image) || null) : null
+    };
   };
 
   const adoptPanels = async (panels) => {
     const next = {};
     for (const [id, panel] of Object.entries(panels || {})) {
-      next[id] = { ...panel, image: await adopt(panel?.image) };
+      next[id] = { ...panel, image: await adoptImage(panel?.image) };
     }
     return next;
   };
 
   const tokens = {};
   for (const [id, token] of Object.entries(state.tokens || {})) {
-    tokens[id] = { ...token, image: await adopt(token?.image) };
+    tokens[id] = { ...token, image: await adoptImage(token?.image) };
+  }
+
+  // 音源。外部URL指定のものは持ち物ではないので触らない（adoptMediaUrlが素通しする）。
+  // 復元できなかったトラックは丸ごと落とす（音の出ないトラックだけ残っても仕方がない）。
+  const audioTracks = {};
+  for (const [id, track] of Object.entries(state.room?.audioTracks || {})) {
+    if (!track || typeof track !== 'object') continue;
+    const result = await adoptMediaUrl(roomId, track.url, {
+      extensions: AUDIO_EXTENSIONS, maxBytes: MAX_AUDIO_BYTES, label: `音源「${track.name || id}」`
+    });
+    if (result.dropped) {
+      dropped.audio += 1;
+      continue;
+    }
+    // keyはこのアプリがR2に持っている実体を指すときだけ意味を持つ（pickOwnedAudioKey参照）
+    audioTracks[id] = result.changed
+      ? { ...track, url: result.url, key: result.key || null }
+      : track;
   }
 
   const scenes = {};
   for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
+    // 落とした音源を指したままだと、シーン遷移時に鳴らない曲を指し続ける。
+    // SCENE_BGM_STOPは「BGMを止める」という特別な値なので残す（js/game-store.js参照）。
+    const bgmTrackId = scene?.bgmTrackId;
+    const keepBgm = !bgmTrackId || bgmTrackId === SCENE_BGM_STOP || audioTracks[bgmTrackId];
     scenes[id] = {
       ...scene,
-      backgroundImage: await adopt(scene?.backgroundImage),
+      ...(await adoptBackground(scene)),
+      bgmTrackId: keepBgm ? (bgmTrackId || null) : null,
       panels: await adoptPanels(scene?.panels)
     };
   }
 
+  // 再生中の指定も同じく、落とした音源を指していたら止める
+  const playback = state.room?.audioPlayback || { bgm: null, se: null };
+  const audioPlayback = {};
+  for (const [channel, current] of Object.entries(playback)) {
+    audioPlayback[channel] = current?.trackId && !audioTracks[current.trackId] ? null : current;
+  }
+
+  return {
+    dropped,
+    state: {
+      ...state,
+      tokens,
+      panels: await adoptPanels(state.panels),
+      room: {
+        ...(state.room || {}),
+        ...(await adoptBackground(state.room)),
+        audioTracks,
+        audioPlayback,
+        scenes
+      }
+    }
+  };
+}
+
+// 取り込みで落としたものの報告文。何も落ちていなければnull。
+function droppedMediaMessage(dropped) {
+  const parts = [];
+  if (dropped.images > 0) parts.push(`画像${dropped.images}件`);
+  if (dropped.audio > 0) parts.push(`音源${dropped.audio}件`);
+  if (parts.length === 0) return null;
+  return `読み込んだデータのうち、実体が見つからなかった${parts.join('・')}は取り込みませんでした。`
+    + '（部屋を削除するとR2上のファイルも消えるため、削除前に書き出したデータからは復元できません）';
+}
+
+// 取り込みの報告を、状態のMainタブへシステム発言として直接足す。
+// hydrate前の素のオブジェクトに対して使う（storeのdispatchはまだ通せないため）。
+function withImportNotice(state, text) {
+  if (!text) return state;
+  const chatLogs = state.chatLogs || {};
+  const entries = chatLogs[MAIN_CHAT_TAB_ID] || [];
   return {
     ...state,
-    tokens,
-    panels: await adoptPanels(state.panels),
-    room: {
-      ...(state.room || {}),
-      backgroundImage: await adopt(state.room?.backgroundImage),
-      scenes
-    }
+    chatLogs: { ...chatLogs, [MAIN_CHAT_TAB_ID]: [...entries, { system: 'システム', resultText: text }] }
   };
 }
 
@@ -1275,9 +1483,9 @@ async function handleImageCopy(req, res) {
 
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 
@@ -1294,14 +1502,17 @@ async function handleImageCopy(req, res) {
     return;
   }
 
-  const adopted = await adoptImage(roomId, sourceUrl);
-  if (adopted === sourceUrl) {
+  const adopted = await adoptMediaUrl(roomId, sourceUrl, {
+    extensions: IMAGE_EXTENSIONS, maxBytes: MAX_IMAGE_BYTES, label: '画像'
+  });
+  if (adopted.dropped) {
     // 元が消えている等で複製できなかった。呼び出し側は元のURLのまま続行する。
     sendJson(res, 502, { error: '画像の複製に失敗しました' });
     return;
   }
 
-  sendJson(res, 200, { url: adopted });
+  // 既にこの部屋の画像だった場合は複製せず、そのURLをそのまま返す（changedがfalse）。
+  sendJson(res, 200, { url: adopted.url });
 }
 
 // GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
@@ -1342,9 +1553,10 @@ async function summarizeRoomSlot(id) {
 async function handleCreateRoom(req, res) {
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    // importedStateを載せて部屋を作れるため、ここだけは取り込みの枠で受け取る
+    body = await readJsonBody(req, MAX_IMPORT_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 
@@ -1422,10 +1634,12 @@ async function handleCreateRoom(req, res) {
   // prevState.round.activeへのアクセスで例外を投げてサーバーごと落ちる（getOrLoadRoomで
   // 修正済みなのと同じ原因）。hydrate()を通して欠けているキーを補ってから使う。
   const store = new ImmutableStore(createInitialGameState());
-  // 取り込んだデータに混ざっている画像（データURL・他の部屋のURL）を、この部屋の
-  // 持ち物へ複製し直す（adoptStateImages参照）。部屋はまだ誰にも配っていないので、
-  // ここで直しておけば以後は普通の画像として扱える。
-  store.hydrate(await adoptStateImages(id, initialState));
+  // 取り込んだデータに混ざっている画像・音源（データURL・他の部屋のURL）を、この部屋の
+  // 持ち物へ複製し直す（adoptStateMedia参照）。部屋はまだ誰にも配っていないので、
+  // ここで直しておけば以後は普通の画像・音源として扱える。
+  // 実体が見つからず復元できなかったものは取り込まず、その旨をMainタブへ残す。
+  const adoptedMedia = await adoptStateMedia(id, initialState);
+  store.hydrate(withImportNotice(adoptedMedia.state, droppedMediaMessage(adoptedMedia.dropped)));
 
   try {
     await writeRoomState(id, store.state);
@@ -1456,6 +1670,142 @@ async function handleCreateRoom(req, res) {
   // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
   await syncRoomSummary(id, entry);
   sendJson(res, 201, { id });
+}
+
+// POST /api/rooms/<id>/export：書き出し用に、画像を埋め込んだ自己完結の状態を返す。
+// body: { myBackyardTokenIds }　… どのコマが自分のバックヤードかはブラウザしか知らない
+//
+// 画像の埋め込みをサーバーで行う理由：R2の公開ドメインはAccess-Control-Allow-Originを
+// 返さないため、ブラウザからfetchして実体を読むことができない（server/r2.jsの方針どおり、
+// R2側にCORS設定を持たせていない）。サーバーは署名付きで直接取りに行けるので、ここで行う。
+//
+// これが無いと「部屋を保存し削除」で書き出したデータからは画像が二度と戻らない。
+// 削除はその部屋のR2オブジェクトをフォルダごと消すので、URLだけを書き出しても
+// 指す先が空になるため（deleteRoomData参照）。
+//
+// 音源は埋め込まない。1曲20MBまで許しているので、数曲あるだけでファイルが桁違いに
+// 大きくなり、読み込み時のWebSocket送信も重くなる。
+//
+// 権限は複製（/api/image/copy）と同じく入室パスワードのみ。GM限定にはしない
+// （書き出しボタンは元から誰でも押せる）。返すのは全員がINITで既に持っている状態と、
+// 公開URLで誰でも取得できる画像なので、ここで見える範囲は増えない。
+const MAX_EXPORT_EMBED_BYTES = (Number(process.env.MAX_EXPORT_EMBED_MB) || 64) * 1024 * 1024;
+
+// 取り込み（POST /api/roomsのimportedStateと、WebSocketのREPLACE_STATE）で受け取ってよい
+// 大きさ。上の書き出しと必ず対で決める：埋め込んだ画像はデータURL（base64）になって元の
+// バイト数の約4/3に膨らむので、その分の余裕を見ないと「自分が書き出したものを取り込めない」
+// ことになる。残りは画像以外の状態（チャットログ・コマ・情報）の取り分。
+const MAX_IMPORT_BYTES = Math.ceil(MAX_EXPORT_EMBED_BYTES * 4 / 3) + 8 * 1024 * 1024;
+
+async function handleExportRoom(req, res, roomId) {
+  if (!isValidRoomId(roomId)) {
+    sendJson(res, 400, { error: '部屋IDが不正です' });
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  // アップロードや複製と同じく、入室していない人からの要求は受け付けない
+  if (!verifyEntryPassword(entry.entryPassword, entryPasswordFromHeaders(req))) {
+    sendJson(res, 403, { error: 'この部屋の入室パスワードが必要です' });
+    return;
+  }
+
+  let body = {};
+  try {
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
+  } catch {
+    // バックヤードの情報が無くても書き出し自体はできる（付け替えができなくなるだけ）
+  }
+  const myBackyardTokenIds = Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : [];
+
+  const { state, embedded, skipped } = await embedStateImages(roomId, entry.store.state);
+  sendJson(res, 200, { state: { ...state, myBackyardTokenIds }, embedded, skipped });
+}
+
+/**
+ * 状態に含まれる「自分のR2の画像」をデータURLとして埋め込み、自己完結にする。
+ * 外部URLは他所の持ち物なので触らない（埋め込んでも復元先が変わるだけで意味がない）。
+ * 同じ画像が何度も出てくる場合は1回だけ読む。
+ *
+ * 合計の上限を超えたぶんはURLのまま残す（巨大なファイルを書き出せなくするより、
+ * 戻せるものだけでも戻せる方がよい）。
+ *
+ * @returns {Promise<{ state: object, embedded: number, skipped: number }>}
+ */
+async function embedStateImages(roomId, state) {
+  let embedded = 0;
+  let skipped = 0;
+  if (!isR2Configured() || !state || typeof state !== 'object') return { state, embedded, skipped };
+
+  const cache = new Map();
+  let totalBytes = 0;
+
+  const embed = async (image) => {
+    if (!image || typeof image !== 'string' || image.startsWith('data:')) return image;
+    const key = keyFromPublicUrl(image);
+    if (!key) return image;   // 自分のR2ではない外部URL → そのまま
+    if (!cache.has(image)) {
+      let value = image;
+      try {
+        const object = await getObject(key);
+        if (totalBytes + object.body.length > MAX_EXPORT_EMBED_BYTES) {
+          skipped += 1;
+        } else {
+          totalBytes += object.body.length;
+          embedded += 1;
+          value = `data:${object.contentType};base64,${object.body.toString('base64')}`;
+        }
+      } catch (error) {
+        // 実体が無い（既に消えている等）。URLのまま残す＝読み込み側が落とす
+        console.warn(`[server] ${roomId}: 書き出しに画像を埋め込めませんでした (${key}):`, error.message);
+        skipped += 1;
+      }
+      cache.set(image, value);
+    }
+    return cache.get(image);
+  };
+
+  const embedPanels = async (panels) => {
+    const next = {};
+    for (const [id, panel] of Object.entries(panels || {})) {
+      next[id] = { ...panel, image: await embed(panel?.image) };
+    }
+    return next;
+  };
+
+  const tokens = {};
+  for (const [id, token] of Object.entries(state.tokens || {})) {
+    tokens[id] = { ...token, image: await embed(token?.image) };
+  }
+
+  const scenes = {};
+  for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
+    scenes[id] = {
+      ...scene,
+      backgroundImage: await embed(scene?.backgroundImage),
+      panels: await embedPanels(scene?.panels)
+    };
+  }
+
+  return {
+    embedded,
+    skipped,
+    state: {
+      ...state,
+      tokens,
+      panels: await embedPanels(state.panels),
+      room: {
+        ...(state.room || {}),
+        backgroundImage: await embed(state.room?.backgroundImage),
+        scenes
+      }
+    }
+  };
 }
 
 // PUT /api/rooms/<id>/entry-password：入室パスワードの変更・解除（GM限定）。
@@ -1491,9 +1841,9 @@ async function handleSetEntryPassword(req, res, roomId) {
 
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 
@@ -1525,10 +1875,27 @@ async function handleSetEntryPassword(req, res, roomId) {
 // ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
 // 負荷になる。サーバーで一度取ってRedisへ置き、既定30日を過ぎた後の最初のリクエストの
 // ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
-const BCDICE_BASE_URL = 'https://bcdice.onlinesession.app';
+// 上のCSPで許可しているのと同じ相手（BCDICE_ORIGIN）。片方だけ変えるとダイスが
+// 振れなくなるので、住所は1つだけ持つ。
+const BCDICE_BASE_URL = BCDICE_ORIGIN;
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
+// 「そのシステムは無い」と分かった答えを覚えておく時間。本来のキャッシュよりずっと
+// 短くしているのは、上流にシステムが増えたときに「無い」と言い続ける時間を短くするため。
+const BCDICE_MISS_CACHE_MS = 60 * 60 * 1000;
 // cacheKey -> { fetchedAt, payload }。Redisへの往復すら省くためのプロセス内キャッシュ。
+// 件数に上限を設けているのは、キーがリクエストのパス（システムID）由来で、実在しない
+// IDを次々に投げられると際限なく育つため。溢れたら一番古い登録から落とす（Mapは
+// 登録順を保つので、先頭が一番古い）。実際に使うシステムは多くても数十なので、
+// 普段の利用でここに触れることはない。
+const BCDICE_MEMORY_CACHE_MAX = 500;
 const bcdiceMemoryCache = new Map();
+
+function rememberBcdice(cacheKey, entry) {
+  bcdiceMemoryCache.set(cacheKey, entry);
+  while (bcdiceMemoryCache.size > BCDICE_MEMORY_CACHE_MAX) {
+    bcdiceMemoryCache.delete(bcdiceMemoryCache.keys().next().value);
+  }
+}
 
 // キャッシュ（メモリ→Redis）を読み、無いか期限切れなら上流から取り直して両方へ書き戻す。
 // 期限切れでも上流が落ちている場合は古いままのキャッシュを返し、ダイス判定やヘルプ表示が
@@ -1541,22 +1908,37 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
   if (!cached && USE_REDIS) {
     try {
       cached = await redis.get(`bcdice:${cacheKey}`);
-      if (cached) bcdiceMemoryCache.set(cacheKey, cached);
+      if (cached) rememberBcdice(cacheKey, cached);
     } catch (error) {
       console.warn(`[server] BCDiceキャッシュの読み込みに失敗しました (${cacheKey}):`, error.message);
     }
   }
 
-  if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
+  // 「そんなシステムは無い」の記録（下で覚える）。覚えている間は上流へ行かずに断る。
+  // 有効期限を本来のキャッシュよりずっと短くしているのは、上流にシステムが増えたときに
+  // 「無い」と言い続ける時間を短くするため。
+  if (cached?.missing) {
+    if (now - cached.fetchedAt < BCDICE_MISS_CACHE_MS) throw new Error('HTTP 404');
+  } else if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
     return { ...cached.payload, fetchedAt: cached.fetchedAt };
   }
 
   try {
     const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
+      // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
+      // 覚えるのは4xx（＝上流がはっきり「無い」と答えた場合）だけ。5xxや通信の失敗まで
+      // 覚えると、上流の一時的な不調をこちらで長引かせることになる。
+      // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
+      if (response.status >= 400 && response.status < 500) {
+        rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
+      }
+      throw new Error(`HTTP ${response.status}`);
+    }
     const payload = transform(await response.json());
     const entry = { fetchedAt: now, payload };
-    bcdiceMemoryCache.set(cacheKey, entry);
+    rememberBcdice(cacheKey, entry);
     // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
     if (USE_REDIS) {
       redis.set(`bcdice:${cacheKey}`, entry)
@@ -1564,7 +1946,8 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     }
     return { ...payload, fetchedAt: now };
   } catch (error) {
-    if (cached) {
+    // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
+    if (cached && !cached.missing) {
       console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
       return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
     }
@@ -1609,6 +1992,71 @@ async function handleBcdiceSystemInfo(req, res, systemId) {
   }
 }
 
+// --- 呼び出し回数の制限 ---
+// 誰でもURLを踏める前提だと、認証の要らない・あるいは入室できれば通るAPIは、そのまま
+// 連打の的になる。困るのは落ちることより、こちらの財布と居場所が削られること：
+//   部屋作成      … 部屋は5つしかない。連打で埋められると正規の利用者が入れない
+//   アップロード  … R2の保存容量と転送量がそのまま課金になる
+//   書き出し      … 1回で最大64MBぶんの画像をR2から読み直す（MAX_EXPORT_EMBED_BYTES）
+//   BCDice        … キャッシュに無いIDは上流へ転送される。踏み台にされると相手に迷惑がかかる
+//
+// 窓を区切って数えるだけの素朴な方式にする。人間の操作としてはどれも十分な余裕があり、
+// 厳密さより「壊れないこと・依存を増やさないこと」を優先する。
+const RATE_LIMITS = {
+  createRoom: { windowMs: 10 * 60 * 1000, max: 10 },
+  upload: { windowMs: 10 * 60 * 1000, max: 60 },
+  export: { windowMs: 10 * 60 * 1000, max: 20 },
+  bcdice: { windowMs: 10 * 60 * 1000, max: 120 }
+};
+
+// `種別:IP` -> { windowStart, count }
+const rateCounters = new Map();
+
+// 呼び出し元のIP。Renderのようにプロキシの後ろに置くと、実際の接続元は常にプロキシに
+// なるためX-Forwarded-Forを見る必要がある。ただしこのヘッダは送り手が偽装できるので、
+// 一番右（信用できるプロキシが最後に足した値）を取る。ヘッダが無ければ素の接続元。
+function clientIpOf(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const parts = forwarded.split(',');
+    return parts[parts.length - 1].trim();
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+// 上限を超えていたらtrue。超えた場合は呼び出し側が429を返す。
+function exceedsRateLimit(req, kind) {
+  const limit = RATE_LIMITS[kind];
+  const key = `${kind}:${clientIpOf(req)}`;
+  const now = Date.now();
+  const counter = rateCounters.get(key);
+
+  if (!counter || now - counter.windowStart >= limit.windowMs) {
+    rateCounters.set(key, { windowStart: now, count: 1 });
+    return false;
+  }
+
+  counter.count += 1;
+  return counter.count > limit.max;
+}
+
+// 使われなくなった数え札を片付ける。放っておくと、IPを変えながら叩かれた分だけ
+// このMapが育ち続ける（それ自体がメモリを食う攻撃になる）。
+const RATE_SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+const rateSweepTimer = setInterval(() => {
+  const now = Date.now();
+  const longestWindow = Math.max(...Object.values(RATE_LIMITS).map(l => l.windowMs));
+  for (const [key, counter] of rateCounters) {
+    if (now - counter.windowStart >= longestWindow) rateCounters.delete(key);
+  }
+}, RATE_SWEEP_INTERVAL_MS);
+// 掃除のためだけにプロセスを生かし続けない
+rateSweepTimer.unref();
+
+function rejectTooManyRequests(res) {
+  sendJson(res, 429, { error: '短い時間に何度も呼び出されています。しばらく待ってからお試しください。' });
+}
+
 await migrateLegacyStateIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
@@ -1620,6 +2068,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/rooms' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'createRoom')) { rejectTooManyRequests(res); return; }
     await handleCreateRoom(req, res);
     return;
   }
@@ -1630,18 +2079,27 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/export') && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'export')) { rejectTooManyRequests(res); return; }
+    const roomId = url.pathname.slice('/api/rooms/'.length, -'/export'.length);
+    await handleExportRoom(req, res, decodeURIComponent(roomId));
+    return;
+  }
+
   if (url.pathname === '/api/bcdice/game_system' && req.method === 'GET') {
     await handleBcdiceSystems(req, res);
     return;
   }
 
   if (url.pathname.startsWith('/api/bcdice/game_system/') && req.method === 'GET') {
+    if (exceedsRateLimit(req, 'bcdice')) { rejectTooManyRequests(res); return; }
     const systemId = decodeURIComponent(url.pathname.slice('/api/bcdice/game_system/'.length));
     await handleBcdiceSystemInfo(req, res, systemId);
     return;
   }
 
   if (url.pathname === '/api/audio' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleAudioUpload(req, res);
     return;
   }
@@ -1653,11 +2111,13 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/image' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleImageUpload(req, res);
     return;
   }
 
   if (url.pathname === '/api/image/copy' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleImageCopy(req, res);
     return;
   }
@@ -1676,15 +2136,49 @@ const httpServer = http.createServer(async (req, res) => {
   await serveStaticFile(req, res);
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+// 1フレームの上限。wsの既定は100MiBで、Renderの小さいインスタンスでは数接続分を
+// 同時に受け取るだけでメモリを使い切る。取り込み（REPLACE_STATE）が最大のメッセージ
+// なので、その枠に少しの余裕を足した値にする。超えたフレームはws側が接続を閉じる。
+const WS_MAX_PAYLOAD_BYTES = MAX_IMPORT_BYTES + 1024 * 1024;
+
+// 1接続あたりのメッセージ流量。1操作ごとに状態の保存（Redisへの書き込み）が走るため、
+// 連打されると課金と帯域がそのまま伸びる。人間の操作としてはこれで十分足りる。
+// 溢れた分は黙って捨てる（切断はしない。取りこぼしはRESYNCで直せるほうが親切なため）。
+const WS_MESSAGE_WINDOW_MS = 10 * 1000;
+const WS_MAX_MESSAGES_PER_WINDOW = 300;
+
+// 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
+const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
+
+const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
+
+// EventEmitterの'error'は聞き手がいないと同期的に例外を投げ、そのままプロセスが終了する。
+// WebSocketは「上限を超えたフレーム」「壊れたフレーム」「相手が急に切った」だけでも
+// errorを出すので、聞いていないと誰でもこのサーバーを落とせる（＝全部屋が巻き添えで
+// 一斉に切断される）。接続ごとと、ハンドシェイク中の分の両方で受け止める。
+// 受け止めた後の後始末（人数の減算など）は、続いて出るcloseイベントが面倒を見る。
+wss.on('error', (error) => {
+  console.warn('[server] WebSocketサーバーでエラーが発生しました（続行します）:', error.message);
+});
 
 wss.on('connection', async (ws, req) => {
+  ws.on('error', (error) => {
+    console.warn('[server] WebSocket接続でエラーが発生しました（この接続だけ切ります）:', error.message);
+  });
+
   const url = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room');
 
   // 生存確認の初期値。以後はpongが返るたびに立て直す（下のheartbeatTimer参照）。
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+
+  // 自分自身もwss.clientsに含まれた状態でここへ来る
+  if (wss.clients.size > WS_MAX_CONNECTIONS) {
+    console.warn(`[server] 同時接続数の上限（${WS_MAX_CONNECTIONS}）に達したため接続を断りました`);
+    ws.close(4008, 'too many connections');
+    return;
+  }
 
   if (!isValidRoomId(roomId)) {
     ws.close(4000, 'invalid room');
@@ -1756,6 +2250,38 @@ wss.on('connection', async (ws, req) => {
   // 接続ごとに一度追加したら二度と追加しないようにする。
   let entryMessageSent = false;
 
+  // 名乗った回数。開発用の合言葉（isDeveloperToken）を当てた人はこの部屋どころか全部屋で
+  // GMと同じ操作を通せるため、1本の接続で延々と試せる状態にしておかない。
+  //
+  // 数えるのは失敗回数ではなく回数そのもの。合言葉の総当たりはブラウザ側と同じ計算を
+  // 手元でやるだけなので、verifyIdentity（公開IDとトークンの辻褄）は必ず通ってしまい、
+  // 「失敗」として現れない。合言葉かどうかの判定だけがサーバー側にある。
+  //
+  // ブラウザは1接続につきopen時・INIT受信時・NET_INITIALIZED経由と複数回送り、
+  // 表示名を変えるたびにも送り直す。普通に使う分には二桁に届かない。
+  // 超えた分は黙って捨てる（切断すると、名前を何度も変えただけの人が部屋から落ちる）。
+  const MAX_IDENTIFY_PER_CONNECTION = 50;
+  let identifyCount = 0;
+
+  // メッセージ流量の窓（WS_MAX_MESSAGES_PER_WINDOW参照）
+  let messageWindowStart = Date.now();
+  let messagesInWindow = 0;
+
+  // 溢れていたらtrue。窓をまたいだら数え直す。
+  function exceedsMessageRate() {
+    const now = Date.now();
+    if (now - messageWindowStart >= WS_MESSAGE_WINDOW_MS) {
+      messageWindowStart = now;
+      messagesInWindow = 0;
+    }
+    messagesInWindow += 1;
+    // 窓の中で最初に超えた1回だけ記録する（溢れ続けているとログ自体が負荷になるため）
+    if (messagesInWindow === WS_MAX_MESSAGES_PER_WINDOW + 1) {
+      console.warn(`[server] ${roomId}: メッセージが多すぎるため以後この窓の分を捨てます`);
+    }
+    return messagesInWindow > WS_MAX_MESSAGES_PER_WINDOW;
+  }
+
   // 部屋を左右する操作をしてよいか。開発用の合言葉はGMの有無に関わらず通す。
   function mayOperateAsGm() {
     return isDeveloper || canOperateAsGm(entry.store.state, verifiedParticipantId);
@@ -1773,9 +2299,11 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.on('message', (data) => {
+    if (exceedsMessageRate()) return;
+
     let message;
     try {
-      message = JSON.parse(data.toString());
+      message = parseUntrustedJson(data.toString());
     } catch {
       return;
     }
@@ -1812,6 +2340,14 @@ wss.on('connection', async (ws, req) => {
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
     if (message.type === 'IDENTIFY') {
+      identifyCount += 1;
+      if (identifyCount > MAX_IDENTIFY_PER_CONNECTION) {
+        if (identifyCount === MAX_IDENTIFY_PER_CONNECTION + 1) {
+          console.warn(`[server] ${roomId}: 名乗りが多すぎるため以後この接続の分を捨てます`);
+        }
+        return;
+      }
+
       const participantId = String(message.participantId || '');
       const authToken = String(message.authToken || '');
 
@@ -1906,8 +2442,8 @@ wss.on('connection', async (ws, req) => {
         rejectAndResync('REPLACE_STATE');
         return;
       }
-      // 読み込んだファイルに混ざっている画像（データURL・他の部屋のURL）をこの部屋の
-      // 持ち物へ複製し直す（adoptStateImages参照）。複製には時間がかかるので、
+      // 読み込んだファイルに混ざっている画像・音源（データURL・他の部屋のURL）をこの部屋の
+      // 持ち物へ複製し直す（adoptStateMedia参照）。複製には時間がかかるので、
       // その間に届いた他の操作は先に適用され、この置き換えで上書きされる——が、
       // 全データの読み込みは元々そういう操作なので問題にしない。
       // 送り手側でも通しているが、ここでも必ず通す（js/state-import.js）。今この部屋にいる
@@ -1915,14 +2451,19 @@ wss.on('connection', async (ws, req) => {
       const importedState = adoptImportedState(message.state, {
         participants: entry.store.state.participants
       });
-      adoptStateImages(roomId, importedState).then((adopted) => {
-        entry.store.hydrate(adopted);
+      adoptStateMedia(roomId, importedState).then(({ state: adopted, dropped }) => {
+        entry.store.hydrate(withImportNotice(adopted, droppedMediaMessage(dropped)));
         schedulePersistForRoom(roomId, entry);
         // 送り手にも配る。送り手の画面には複製前（データURL等）が入っているため、
         // ここで配り直さないと画面とサーバーで画像の持ち方が食い違ったままになる。
         broadcastToRoom(entry, null, { type: 'INIT', state: entry.store.state });
       }).catch((error) => {
         console.warn(`[server] ${roomId}: 読み込んだ状態の取り込みに失敗しました:`, error.message);
+        // 送り手のタブは既にローカルで置き換え済み（js/net-sync.jsのreplaceState）。
+        // ここで戻さないと、送り手だけが取り込んだ内容・他は元のまま、という食い違いが残る。
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'RESYNC', state: entry.store.state }));
+        }
       });
       return;
     }

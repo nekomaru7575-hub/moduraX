@@ -193,11 +193,13 @@ async function deleteRoomSummary(roomId) {
 // 要約が前回書いたものと変わっていれば書き直す。名前やプラグインの変更はめったに
 // 起きないので、ここでの書き込みは実質ゼロに近い。
 async function syncRoomSummary(roomId, entry) {
-  if (entry.pendingDelete) return;
-  const summary = roomSummaryOf(entry);
-  const json = JSON.stringify(summary);
-  if (json === entry.lastSummaryJson) return;
+  // 要約の組み立て（roomSummaryOf）もtryの内側に置く。ここから例外が漏れると、
+  // 呼び出し元をたどってタイマーの中の未処理のPromise拒否になり、プロセスごと落ちる。
   try {
+    if (entry.pendingDelete) return;
+    const summary = roomSummaryOf(entry);
+    const json = JSON.stringify(summary);
+    if (json === entry.lastSummaryJson) return;
     await writeRoomSummary(roomId, summary);
     entry.lastSummaryJson = json;
   } catch (error) {
@@ -626,9 +628,15 @@ async function getOrLoadRoom(roomId) {
     // lastPersistedJsonはnullで始める。hydrate()が古い保存データに欠けたキーを補うため、
     // 読み込んだJSONとstore.stateの直列化結果は一致しない。nullなら初回の保存だけは必ず
     // 走るので、補完後の形が確実に保存先へ載る。
+    // typing: 記入中の参加者一覧（participantId -> 表示名）。T-013。揮発情報なので
+    // 保存はせず、部屋がメモリに載っている間だけ持つ。
+    // ※entryを組み立てる場所はここと handleCreateRoom の2か所しかない。
+    //   片方に足し忘れると、その経路で作られた部屋は接続のたびに例外を投げる
+    //   （typingUsersListがArray.from(undefined)になる）ので、必ず両方に入れること。
     return {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
-      lastPersistedJson: null, lastSummaryJson: null, entryPassword: meta.entryPassword || null
+      lastPersistedJson: null, lastSummaryJson: null,
+      entryPassword: meta.entryPassword || null, typing: new Map()
     };
 
   }
@@ -731,7 +739,11 @@ function schedulePersistForRoom(roomId, entry) {
   entry.saveTimer = setTimeout(() => {
     entry.saveTimer = null;
     entry.saveDeadline = null;
-    persistRoomNow(roomId, entry);
+    // タイマーの中なので、ここで拾わないと未処理のPromise拒否になりプロセスごと落ちる
+    // （＝同居する他の全部屋も巻き添えで切断される）。保存の失敗は次の操作で書き直せる
+    // ので、この1回を諦めるだけでよい。
+    persistRoomNow(roomId, entry)
+      .catch((error) => console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message));
   }, delay);
 }
 
@@ -1433,9 +1445,11 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
+  // typingを忘れないこと（理由はgetOrLoadRoom側の同じ組み立てのコメント参照）
   const entry = {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
-    lastPersistedJson: null, lastSummaryJson: null, entryPassword: entryPasswordRecord
+    lastPersistedJson: null, lastSummaryJson: null,
+    entryPassword: entryPasswordRecord, typing: new Map()
   };
   rooms.set(id, entry);
   // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、
@@ -2011,6 +2025,16 @@ const heartbeatTimer = setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on('close', () => clearInterval(heartbeatTimer));
+
+// --- 最後の受け皿 ---
+// このサーバーは全部屋を1プロセスで受け持っているので、どこか1か所の取りこぼしで
+// プロセスが落ちると、無関係な部屋のセッションまで一斉に切断される（wsのmessageイベントで
+// 同じ心配をしているのと同じ理由。ACTION処理のtryのコメントを参照）。
+// 非同期の取りこぼしはNodeの既定ではプロセス終了になるため、ここで受け止めて記録だけ残す。
+// 握りつぶすのが目的ではないので、内容ごと出して気づけるようにしておく。
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] 取りこぼした非同期エラー（プロセスは継続します）:', reason);
+});
 
 // --- 終了時の後始末 ---
 // 保存はデバウンスしているので、待機中の変更を書き出さずに落ちるとその分が失われる。

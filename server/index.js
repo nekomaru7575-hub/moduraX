@@ -1872,8 +1872,23 @@ async function handleSetEntryPassword(req, res, roomId) {
 // ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
 const BCDICE_BASE_URL = 'https://bcdice.onlinesession.app';
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
+// 「そのシステムは無い」と分かった答えを覚えておく時間。本来のキャッシュよりずっと
+// 短くしているのは、上流にシステムが増えたときに「無い」と言い続ける時間を短くするため。
+const BCDICE_MISS_CACHE_MS = 60 * 60 * 1000;
 // cacheKey -> { fetchedAt, payload }。Redisへの往復すら省くためのプロセス内キャッシュ。
+// 件数に上限を設けているのは、キーがリクエストのパス（システムID）由来で、実在しない
+// IDを次々に投げられると際限なく育つため。溢れたら一番古い登録から落とす（Mapは
+// 登録順を保つので、先頭が一番古い）。実際に使うシステムは多くても数十なので、
+// 普段の利用でここに触れることはない。
+const BCDICE_MEMORY_CACHE_MAX = 500;
 const bcdiceMemoryCache = new Map();
+
+function rememberBcdice(cacheKey, entry) {
+  bcdiceMemoryCache.set(cacheKey, entry);
+  while (bcdiceMemoryCache.size > BCDICE_MEMORY_CACHE_MAX) {
+    bcdiceMemoryCache.delete(bcdiceMemoryCache.keys().next().value);
+  }
+}
 
 // キャッシュ（メモリ→Redis）を読み、無いか期限切れなら上流から取り直して両方へ書き戻す。
 // 期限切れでも上流が落ちている場合は古いままのキャッシュを返し、ダイス判定やヘルプ表示が
@@ -1886,22 +1901,37 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
   if (!cached && USE_REDIS) {
     try {
       cached = await redis.get(`bcdice:${cacheKey}`);
-      if (cached) bcdiceMemoryCache.set(cacheKey, cached);
+      if (cached) rememberBcdice(cacheKey, cached);
     } catch (error) {
       console.warn(`[server] BCDiceキャッシュの読み込みに失敗しました (${cacheKey}):`, error.message);
     }
   }
 
-  if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
+  // 「そんなシステムは無い」の記録（下で覚える）。覚えている間は上流へ行かずに断る。
+  // 有効期限を本来のキャッシュよりずっと短くしているのは、上流にシステムが増えたときに
+  // 「無い」と言い続ける時間を短くするため。
+  if (cached?.missing) {
+    if (now - cached.fetchedAt < BCDICE_MISS_CACHE_MS) throw new Error('HTTP 404');
+  } else if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
     return { ...cached.payload, fetchedAt: cached.fetchedAt };
   }
 
   try {
     const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
+      // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
+      // 覚えるのは4xx（＝上流がはっきり「無い」と答えた場合）だけ。5xxや通信の失敗まで
+      // 覚えると、上流の一時的な不調をこちらで長引かせることになる。
+      // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
+      if (response.status >= 400 && response.status < 500) {
+        rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
+      }
+      throw new Error(`HTTP ${response.status}`);
+    }
     const payload = transform(await response.json());
     const entry = { fetchedAt: now, payload };
-    bcdiceMemoryCache.set(cacheKey, entry);
+    rememberBcdice(cacheKey, entry);
     // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
     if (USE_REDIS) {
       redis.set(`bcdice:${cacheKey}`, entry)
@@ -1909,7 +1939,8 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     }
     return { ...payload, fetchedAt: now };
   } catch (error) {
-    if (cached) {
+    // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
+    if (cached && !cached.missing) {
       console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
       return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
     }
@@ -1954,6 +1985,71 @@ async function handleBcdiceSystemInfo(req, res, systemId) {
   }
 }
 
+// --- 呼び出し回数の制限 ---
+// 誰でもURLを踏める前提だと、認証の要らない・あるいは入室できれば通るAPIは、そのまま
+// 連打の的になる。困るのは落ちることより、こちらの財布と居場所が削られること：
+//   部屋作成      … 部屋は5つしかない。連打で埋められると正規の利用者が入れない
+//   アップロード  … R2の保存容量と転送量がそのまま課金になる
+//   書き出し      … 1回で最大64MBぶんの画像をR2から読み直す（MAX_EXPORT_EMBED_BYTES）
+//   BCDice        … キャッシュに無いIDは上流へ転送される。踏み台にされると相手に迷惑がかかる
+//
+// 窓を区切って数えるだけの素朴な方式にする。人間の操作としてはどれも十分な余裕があり、
+// 厳密さより「壊れないこと・依存を増やさないこと」を優先する。
+const RATE_LIMITS = {
+  createRoom: { windowMs: 10 * 60 * 1000, max: 10 },
+  upload: { windowMs: 10 * 60 * 1000, max: 60 },
+  export: { windowMs: 10 * 60 * 1000, max: 20 },
+  bcdice: { windowMs: 10 * 60 * 1000, max: 120 }
+};
+
+// `種別:IP` -> { windowStart, count }
+const rateCounters = new Map();
+
+// 呼び出し元のIP。Renderのようにプロキシの後ろに置くと、実際の接続元は常にプロキシに
+// なるためX-Forwarded-Forを見る必要がある。ただしこのヘッダは送り手が偽装できるので、
+// 一番右（信用できるプロキシが最後に足した値）を取る。ヘッダが無ければ素の接続元。
+function clientIpOf(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const parts = forwarded.split(',');
+    return parts[parts.length - 1].trim();
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+// 上限を超えていたらtrue。超えた場合は呼び出し側が429を返す。
+function exceedsRateLimit(req, kind) {
+  const limit = RATE_LIMITS[kind];
+  const key = `${kind}:${clientIpOf(req)}`;
+  const now = Date.now();
+  const counter = rateCounters.get(key);
+
+  if (!counter || now - counter.windowStart >= limit.windowMs) {
+    rateCounters.set(key, { windowStart: now, count: 1 });
+    return false;
+  }
+
+  counter.count += 1;
+  return counter.count > limit.max;
+}
+
+// 使われなくなった数え札を片付ける。放っておくと、IPを変えながら叩かれた分だけ
+// このMapが育ち続ける（それ自体がメモリを食う攻撃になる）。
+const RATE_SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+const rateSweepTimer = setInterval(() => {
+  const now = Date.now();
+  const longestWindow = Math.max(...Object.values(RATE_LIMITS).map(l => l.windowMs));
+  for (const [key, counter] of rateCounters) {
+    if (now - counter.windowStart >= longestWindow) rateCounters.delete(key);
+  }
+}, RATE_SWEEP_INTERVAL_MS);
+// 掃除のためだけにプロセスを生かし続けない
+rateSweepTimer.unref();
+
+function rejectTooManyRequests(res) {
+  sendJson(res, 429, { error: '短い時間に何度も呼び出されています。しばらく待ってからお試しください。' });
+}
+
 await migrateLegacyStateIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
@@ -1965,6 +2061,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/rooms' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'createRoom')) { rejectTooManyRequests(res); return; }
     await handleCreateRoom(req, res);
     return;
   }
@@ -1976,6 +2073,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/export') && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'export')) { rejectTooManyRequests(res); return; }
     const roomId = url.pathname.slice('/api/rooms/'.length, -'/export'.length);
     await handleExportRoom(req, res, decodeURIComponent(roomId));
     return;
@@ -1987,12 +2085,14 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith('/api/bcdice/game_system/') && req.method === 'GET') {
+    if (exceedsRateLimit(req, 'bcdice')) { rejectTooManyRequests(res); return; }
     const systemId = decodeURIComponent(url.pathname.slice('/api/bcdice/game_system/'.length));
     await handleBcdiceSystemInfo(req, res, systemId);
     return;
   }
 
   if (url.pathname === '/api/audio' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleAudioUpload(req, res);
     return;
   }
@@ -2004,11 +2104,13 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/image' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleImageUpload(req, res);
     return;
   }
 
   if (url.pathname === '/api/image/copy' && req.method === 'POST') {
+    if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
     await handleImageCopy(req, res);
     return;
   }

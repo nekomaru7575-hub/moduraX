@@ -38,6 +38,9 @@ const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
 // 音源1ファイルの上限。MP3 192kbpsで20MB＝約14分。環境変数で調整できるようにしておく。
 const MAX_AUDIO_BYTES = (Number(process.env.MAX_AUDIO_MB) || 20) * 1024 * 1024;
+// 部屋データの取り込み以外のJSONボディの上限。パスワード・URL・IDの配列しか来ないので
+// 1MBあれば足りる。取り込みだけは桁が違うので別枠（MAX_IMPORT_BYTES参照）。
+const MAX_SMALL_JSON_BYTES = 1024 * 1024;
 // 入室音のURL。音源はまだ無いので、環境変数が無ければ空文字のまま（クライアントは
 // 空文字/未設定ならnew Audio()自体を作らない。js/audio-player.jsのplayEntrySound参照）。
 const ENTRY_SOUND_URL = process.env.ENTRY_SOUND_URL || '';
@@ -475,44 +478,140 @@ const MIME_TYPES = {
   '.m4a': 'audio/mp4'
 };
 
-// 盤面のHTML/JS/画像などをそのままファイルシステムから配信する。
+// --- 公開してよいファイルの範囲 ---
+// リポジトリのルートには、配ってはいけないものがブラウザ向けのファイルと同居している
+// （.env・server/・.git/・.loop/・.claude/・txt/・旧ファイル/）。「ROOT_DIRの中なら
+// 何でも配る」ままだと、GET /.env だけでR2の鍵・Upstashのトークン・DEVELOPER_PASSPHRASEが
+// まとめて抜ける。そこで「配ってよいものだけを挙げる」方式にし、既定を塞ぐ側へ倒す。
+// 増やすときは必ずここに明示的に足すこと。
+const PUBLIC_FILES = new Set(['index.html', 'combined_layout.html', 'character-builder.html']);
+const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
+// 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の
+// 無いファイル）。以前のapplication/octet-streamへの取りこぼしはもう作らない。
+const PUBLIC_EXTENSIONS = new Set(Object.keys(MIME_TYPES));
+
+// このパスを配ってよいか。ROOT_DIRの外・許可リスト外はすべてfalse。
+function isPublicPath(filePath) {
+  // ROOT_DIRの外を指していないか。以前のstartsWithによる前方一致では、ROOT_DIRの「兄弟」
+  // （…/trpg-app-backup のような名前）まで通ってしまうため、path.relativeで判定する。
+  const relative = path.relative(ROOT_DIR, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false;
+
+  if (!PUBLIC_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return false;
+
+  const segments = relative.split(path.sep);
+  // ルート直下のファイルは3つのHTMLだけ。それ以外は許可したディレクトリの中だけ。
+  return segments.length === 1 ? PUBLIC_FILES.has(segments[0]) : PUBLIC_DIRS.has(segments[0]);
+}
+
+// --- 応答に付ける防御 ---
+// script-srcを'self'に絞るのが要点。万一、表示名やチャット本文からタグを差し込まれても、
+// そこに書かれたスクリプトもインラインのonclick等も動かない（画面側のtextContent化と
+// 二重に守る）。この方針が成り立つのは、3つのHTMLがどれも外部ファイルの<script>しか
+// 持たず、vendorのdice-boxもeval・WebAssembly・Workerを使っていないため。
+// - style-srcに'unsafe-inline'が要るのは、3つのHTMLがインラインの<style>を持つため。
+// - img-src/media-srcでhttps:を広く許すのは、外部URLの画像・音源を貼れる機能があるため
+//   （R2の公開ドメインもここに含まれる）。data:は、R2未設定時にデータURLへ退避する経路用。
+// - connect-srcの'self'には、同じホスト・同じポートへのWebSocketも含まれる。
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+  // Content-Typeを無視した推測を止める（画像として上げたものがHTMLとして解釈されるのを防ぐ）
+  'X-Content-Type-Options': 'nosniff',
+  // 部屋のURLにはroomクエリが入る。外部へ送らない。
+  'Referrer-Policy': 'no-referrer',
+  // frame-ancestorsを解さない古いブラウザ向けの重ね掛け
+  'X-Frame-Options': 'DENY'
+};
+
+// 盤面のHTML/JS/画像などをファイルシステムから配信する。配れるのは上の許可リストの範囲だけ。
 // ルート（/）は部屋一覧のindex.htmlを返す。盤面自体はcombined_layout.html?room=room-Nで開く。
 async function serveStaticFile(req, res) {
-  const requestedPath = decodeURIComponent(req.url.split('?')[0]);
+  let requestedPath;
+  try {
+    requestedPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    // 壊れたパーセントエンコーディング（%zz等）でdecodeURIComponentは例外を投げる
+    res.writeHead(400, SECURITY_HEADERS);
+    res.end('Bad Request');
+    return;
+  }
+
   const relativePath = requestedPath === '/' ? '/index.html' : requestedPath;
   const filePath = path.join(ROOT_DIR, relativePath);
 
-  // パストラバーサル対策：ROOT_DIRの外を指すリクエストは拒否する
-  if (!filePath.startsWith(ROOT_DIR)) {
-    res.writeHead(403);
-    res.end('Forbidden');
+  // 許可リスト外は、存在の有無を明かさないよう404で揃える（403だと「そこに何かある」と分かる）
+  if (!isPublicPath(filePath)) {
+    res.writeHead(404, SECURITY_HEADERS);
+    res.end('Not Found');
     return;
   }
 
   try {
     const data = await readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': MIME_TYPES[ext] });
     res.end(data);
   } catch {
-    res.writeHead(404);
+    res.writeHead(404, SECURITY_HEADERS);
     res.end('Not Found');
   }
 }
 
 function sendJson(res, statusCode, body) {
   const json = JSON.stringify(body);
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(statusCode, { ...SECURITY_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
   res.end(json);
 }
 
-function readJsonBody(req) {
+// JSONのボディにも必ず上限を渡す。上限が無いと、認証の要らないPOST /api/rooms へ
+// 巨大なボディを流し込むだけでサーバーのメモリを食い潰せる（そこで落ちると、
+// 同居している他の部屋も全部巻き添えで切断される）。
+// 読み方をreadBinaryBodyと揃えてBufferで溜めるのは、チャンクごとにtoString()すると
+// 日本語のようなマルチバイト文字がチャンクの境目で壊れるため。
+function readJsonBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => { data += chunk; });
+    const chunks = [];
+    let total = 0;
+
+    // Content-Lengthで分かる場合はボディを一切読まずに断る（これが通常の経路）
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      const error = new Error('payload too large');
+      error.code = 'TOO_LARGE';
+      reject(error);
+      return;
+    }
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        // readBinaryBodyと同じ理由でdestroyせず、受信だけ止めて呼び出し元に返す
+        req.pause();
+        const error = new Error('payload too large');
+        error.code = 'TOO_LARGE';
+        reject(error);
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
       try {
-        resolve(data ? JSON.parse(data) : {});
+        const text = Buffer.concat(chunks).toString('utf-8');
+        resolve(text ? JSON.parse(text) : {});
       } catch (error) {
         reject(error);
       }
@@ -521,8 +620,19 @@ function readJsonBody(req) {
   });
 }
 
-// リクエストボディをバイナリのまま読む（音源のアップロード用）。readJsonBodyは文字列連結の
-// ためバイナリが壊れるので別に用意している。上限を超えた時点で接続を切り、巨大なボディを
+// readJsonBodyが失敗したときの返し方。大きすぎたときだけ413にし、応答を書き終えてから
+// 接続を切る（受信を止めたまま放っておくと、送り手は最後まで送り続けてしまう）。
+function sendJsonBodyError(req, res, error) {
+  if (error?.code === 'TOO_LARGE') {
+    res.on('finish', () => req.destroy());
+    sendJson(res, 413, { error: 'データが大きすぎます。' });
+    return;
+  }
+  sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+}
+
+// リクエストボディをバイナリのまま読む（音源のアップロード用）。JSONとして解釈せず
+// そのまま扱いたいので別に用意している。上限を超えた時点で接続を切り、巨大なボディを
 // 最後まで受け取らないようにする。
 function readBinaryBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
@@ -1367,9 +1477,9 @@ async function handleImageCopy(req, res) {
 
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 
@@ -1437,9 +1547,10 @@ async function summarizeRoomSlot(id) {
 async function handleCreateRoom(req, res) {
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    // importedStateを載せて部屋を作れるため、ここだけは取り込みの枠で受け取る
+    body = await readJsonBody(req, MAX_IMPORT_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 
@@ -1574,6 +1685,12 @@ async function handleCreateRoom(req, res) {
 // 公開URLで誰でも取得できる画像なので、ここで見える範囲は増えない。
 const MAX_EXPORT_EMBED_BYTES = (Number(process.env.MAX_EXPORT_EMBED_MB) || 64) * 1024 * 1024;
 
+// 取り込み（POST /api/roomsのimportedStateと、WebSocketのREPLACE_STATE）で受け取ってよい
+// 大きさ。上の書き出しと必ず対で決める：埋め込んだ画像はデータURL（base64）になって元の
+// バイト数の約4/3に膨らむので、その分の余裕を見ないと「自分が書き出したものを取り込めない」
+// ことになる。残りは画像以外の状態（チャットログ・コマ・情報）の取り分。
+const MAX_IMPORT_BYTES = Math.ceil(MAX_EXPORT_EMBED_BYTES * 4 / 3) + 8 * 1024 * 1024;
+
 async function handleExportRoom(req, res, roomId) {
   if (!isValidRoomId(roomId)) {
     sendJson(res, 400, { error: '部屋IDが不正です' });
@@ -1594,7 +1711,7 @@ async function handleExportRoom(req, res, roomId) {
 
   let body = {};
   try {
-    body = await readJsonBody(req);
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
   } catch {
     // バックヤードの情報が無くても書き出し自体はできる（付け替えができなくなるだけ）
   }
@@ -1718,9 +1835,9 @@ async function handleSetEntryPassword(req, res, roomId) {
 
   let body;
   try {
-    body = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: 'リクエストの形式が不正です。' });
+    body = await readJsonBody(req, MAX_SMALL_JSON_BYTES);
+  } catch (error) {
+    sendJsonBodyError(req, res, error);
     return;
   }
 

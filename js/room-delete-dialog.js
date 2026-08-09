@@ -15,7 +15,9 @@ function ensureDialog() {
 /**
  * @param {{
  *   onDelete: () => void,
- *   onSaveAndDelete: () => void
+ *   onSaveAndDelete: () => void | Promise<void>
+ *     （書き出しにサーバーへの問い合わせが要るため非同期になりうる。ダイアログは待たないが、
+ *       削除を書き出しより先に走らせないのは呼び出し側の責任。js/main.js参照）
  * }} options
  */
 export function showRoomDeleteConfirmDialog({ onDelete, onSaveAndDelete }) {

@@ -1555,6 +1555,136 @@ async function handleCreateRoom(req, res) {
   sendJson(res, 201, { id });
 }
 
+// POST /api/rooms/<id>/export：書き出し用に、画像を埋め込んだ自己完結の状態を返す。
+// body: { myBackyardTokenIds }　… どのコマが自分のバックヤードかはブラウザしか知らない
+//
+// 画像の埋め込みをサーバーで行う理由：R2の公開ドメインはAccess-Control-Allow-Originを
+// 返さないため、ブラウザからfetchして実体を読むことができない（server/r2.jsの方針どおり、
+// R2側にCORS設定を持たせていない）。サーバーは署名付きで直接取りに行けるので、ここで行う。
+//
+// これが無いと「部屋を保存し削除」で書き出したデータからは画像が二度と戻らない。
+// 削除はその部屋のR2オブジェクトをフォルダごと消すので、URLだけを書き出しても
+// 指す先が空になるため（deleteRoomData参照）。
+//
+// 音源は埋め込まない。1曲20MBまで許しているので、数曲あるだけでファイルが桁違いに
+// 大きくなり、読み込み時のWebSocket送信も重くなる。
+//
+// 権限は複製（/api/image/copy）と同じく入室パスワードのみ。GM限定にはしない
+// （書き出しボタンは元から誰でも押せる）。返すのは全員がINITで既に持っている状態と、
+// 公開URLで誰でも取得できる画像なので、ここで見える範囲は増えない。
+const MAX_EXPORT_EMBED_BYTES = (Number(process.env.MAX_EXPORT_EMBED_MB) || 64) * 1024 * 1024;
+
+async function handleExportRoom(req, res, roomId) {
+  if (!isValidRoomId(roomId)) {
+    sendJson(res, 400, { error: '部屋IDが不正です' });
+    return;
+  }
+
+  const entry = await getOrLoadRoom(roomId);
+  if (!entry) {
+    sendJson(res, 404, { error: 'その部屋はまだ作成されていません' });
+    return;
+  }
+
+  // アップロードや複製と同じく、入室していない人からの要求は受け付けない
+  if (!verifyEntryPassword(entry.entryPassword, entryPasswordFromHeaders(req))) {
+    sendJson(res, 403, { error: 'この部屋の入室パスワードが必要です' });
+    return;
+  }
+
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    // バックヤードの情報が無くても書き出し自体はできる（付け替えができなくなるだけ）
+  }
+  const myBackyardTokenIds = Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : [];
+
+  const { state, embedded, skipped } = await embedStateImages(roomId, entry.store.state);
+  sendJson(res, 200, { state: { ...state, myBackyardTokenIds }, embedded, skipped });
+}
+
+/**
+ * 状態に含まれる「自分のR2の画像」をデータURLとして埋め込み、自己完結にする。
+ * 外部URLは他所の持ち物なので触らない（埋め込んでも復元先が変わるだけで意味がない）。
+ * 同じ画像が何度も出てくる場合は1回だけ読む。
+ *
+ * 合計の上限を超えたぶんはURLのまま残す（巨大なファイルを書き出せなくするより、
+ * 戻せるものだけでも戻せる方がよい）。
+ *
+ * @returns {Promise<{ state: object, embedded: number, skipped: number }>}
+ */
+async function embedStateImages(roomId, state) {
+  let embedded = 0;
+  let skipped = 0;
+  if (!isR2Configured() || !state || typeof state !== 'object') return { state, embedded, skipped };
+
+  const cache = new Map();
+  let totalBytes = 0;
+
+  const embed = async (image) => {
+    if (!image || typeof image !== 'string' || image.startsWith('data:')) return image;
+    const key = keyFromPublicUrl(image);
+    if (!key) return image;   // 自分のR2ではない外部URL → そのまま
+    if (!cache.has(image)) {
+      let value = image;
+      try {
+        const object = await getObject(key);
+        if (totalBytes + object.body.length > MAX_EXPORT_EMBED_BYTES) {
+          skipped += 1;
+        } else {
+          totalBytes += object.body.length;
+          embedded += 1;
+          value = `data:${object.contentType};base64,${object.body.toString('base64')}`;
+        }
+      } catch (error) {
+        // 実体が無い（既に消えている等）。URLのまま残す＝読み込み側が落とす
+        console.warn(`[server] ${roomId}: 書き出しに画像を埋め込めませんでした (${key}):`, error.message);
+        skipped += 1;
+      }
+      cache.set(image, value);
+    }
+    return cache.get(image);
+  };
+
+  const embedPanels = async (panels) => {
+    const next = {};
+    for (const [id, panel] of Object.entries(panels || {})) {
+      next[id] = { ...panel, image: await embed(panel?.image) };
+    }
+    return next;
+  };
+
+  const tokens = {};
+  for (const [id, token] of Object.entries(state.tokens || {})) {
+    tokens[id] = { ...token, image: await embed(token?.image) };
+  }
+
+  const scenes = {};
+  for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
+    scenes[id] = {
+      ...scene,
+      backgroundImage: await embed(scene?.backgroundImage),
+      panels: await embedPanels(scene?.panels)
+    };
+  }
+
+  return {
+    embedded,
+    skipped,
+    state: {
+      ...state,
+      tokens,
+      panels: await embedPanels(state.panels),
+      room: {
+        ...(state.room || {}),
+        backgroundImage: await embed(state.room?.backgroundImage),
+        scenes
+      }
+    }
+  };
+}
+
 // PUT /api/rooms/<id>/entry-password：入室パスワードの変更・解除（GM限定）。
 // body: { password }　空欄なら解除。現在のパスワードは要求しない（既に入室しているGMが行う操作のため）。
 // 変更しても入室中の接続は切らない。次に繋ぐときから新しいパスワードが要る。
@@ -1724,6 +1854,12 @@ const httpServer = http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/entry-password') && req.method === 'PUT') {
     const roomId = url.pathname.slice('/api/rooms/'.length, -'/entry-password'.length);
     await handleSetEntryPassword(req, res, decodeURIComponent(roomId));
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/export') && req.method === 'POST') {
+    const roomId = url.pathname.slice('/api/rooms/'.length, -'/export'.length);
+    await handleExportRoom(req, res, decodeURIComponent(roomId));
     return;
   }
 

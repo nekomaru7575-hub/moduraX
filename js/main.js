@@ -645,11 +645,39 @@ function downloadBlob(blob, filename) {
 // 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。保存した本人のぶんだけは
 // myBackyardTokenIdsとしてIDを別に記録しておき、読み込み側（state-import.js）で
 // 読み込んだ利用者の棚へ付け替える。
-function exportStateToFile() {
-  const exportedState = {
-    ...store.state,
-    myBackyardTokenIds: listMyBackyardTokens(store.state).map(token => token.id)
-  };
+// 画像はサーバーに頼んでデータURLとして埋め込んでもらう（サーバー側のhandleExportRoom）。
+// ブラウザからR2の画像を読むことはできないため（公開ドメインがCORSヘッダを返さない）、
+// ここで埋め込みを自前でやることはできない。
+// 埋め込めればファイルだけで画像を復元できるので、「部屋を保存し削除」で書き出したデータからも
+// 画像が戻る。サーバーに繋がらない・R2が無い場合は、今までどおり手元の状態から書き出す
+// （書き出せなくなるくらいなら、画像がURL参照のままでも書き出せた方がよい）。
+async function exportStateToFile() {
+  const myBackyardTokenIds = listMyBackyardTokens(store.state).map(token => token.id);
+  const roomId = new URLSearchParams(location.search).get('room') || '';
+
+  let exportedState = { ...store.state, myBackyardTokenIds };
+  if (roomId) {
+    try {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...entryPasswordHeaders() },
+        body: JSON.stringify({ myBackyardTokenIds })
+      });
+      if (response.ok) {
+        const result = await response.json();
+        exportedState = result.state;
+        if (result.skipped > 0) {
+          alert(`画像${result.skipped}件はファイルに埋め込めませんでした（実体が見つからないか、合計サイズの上限を超えています）。`
+            + '\nこのぶんは、部屋を削除すると復元できなくなります。');
+        }
+      } else {
+        console.warn('[export] 画像を埋め込めませんでした。手元の状態から書き出します:', response.status);
+      }
+    } catch (error) {
+      console.warn('[export] 画像の埋め込みに失敗しました。手元の状態から書き出します:', error.message);
+    }
+  }
+
   const json = JSON.stringify(exportedState, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
 
@@ -728,8 +756,10 @@ if (deleteRoomBtn) {
     roomSettingsDialog?.close();
     showRoomDeleteConfirmDialog({
       onDelete: () => requestRoomDeletion(),
-      onSaveAndDelete: () => {
-        exportStateToFile();
+      onSaveAndDelete: async () => {
+        // 書き出しが終わるまで削除を待つこと。削除はR2上のファイルをフォルダごと消すので、
+        // 待たずに走らせると、画像を埋め込んでいる最中に実体が消えて中身の無いデータになる。
+        await exportStateToFile();
         requestRoomDeletion();
       }
     });

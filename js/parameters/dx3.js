@@ -7,6 +7,7 @@ import {
   showLoisBox, countActiveLois, normalizeLoisList, LOIS_COMPONENT_KEY, LOIS_MAX
 } from './dx3-lois-box.js';
 import { lockFormControls } from '../read-only-form.js';
+import { escapeHtml } from '../html-escape.js';
 
 export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
@@ -125,7 +126,8 @@ function renderDX3CharacterPanel({
     if (!param) return;
     const field = document.createElement('div');
     field.className = 'dx3-compact-field';
-    field.innerHTML = `<label>${param.label}</label><span class="dx3-compact-value">${param.value}</span>`;
+    // 値は取り込んだキャラクターシート由来（＝よそから来た文字列）でもありうるのでエスケープする
+    field.innerHTML = `<label>${escapeHtml(param.label)}</label><span class="dx3-compact-value">${escapeHtml(param.value)}</span>`;
     compactRow.appendChild(field);
   });
 
@@ -178,7 +180,7 @@ function renderDX3CharacterPanel({
       const cell = document.createElement('div');
       cell.className = 'dx3-buff-register-cell';
       cell.title = param.label;
-      cell.innerHTML = `<span class="dx3-buff-register-label">${param.key}</span><span class="dx3-buff-register-value">${effectiveValue ?? param.value}</span>`;
+      cell.innerHTML = `<span class="dx3-buff-register-label">${escapeHtml(param.key)}</span><span class="dx3-buff-register-value">${escapeHtml(effectiveValue ?? param.value)}</span>`;
       buffGrid.appendChild(cell);
     });
     buffSection.appendChild(buffGrid);

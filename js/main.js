@@ -2,6 +2,7 @@
 
 import { rollBCDice } from './BCdice.js';
 import { parseUntrustedJson } from './untrusted-json.js';
+import { escapeHtml, safeCssColor } from './html-escape.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
@@ -1849,24 +1850,26 @@ function splitForSpace(string) {
   return string.trim().replaceAll(" ", " ").split(" ");
 }
 
-function escapeHtml(text) {
-  return String(text)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。
 // color: 発言キャラクターの文字色設定（未設定なら既定の緑）。キャラ名にのみ適用し、
 // 発言テキスト自体は常に既定色（白）のまま変えない。
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
+//
+// ここへ来る値は、発言本文もキャラ名もコメントも色も、すべて部屋にいる誰かが決めたもの。
+// 組み立てたHTMLはinnerHTMLで挿入され、しかもチャットログは部屋データとして保存されて
+// 後から入った人の画面でも再生されるため、素のまま埋めると一度の書き込みでその部屋を
+// 開いた全員にマークアップを流し込めてしまう。全部エスケープしてから埋める
+// （書き出し側のjs/log-export.jsは元からそうしていた。表示側もこれで揃う）。
+// 色はエスケープでは守れない文脈（style属性の中）なので、形そのもので絞る。
 function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {}) {
-  const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${diceDetail}]</small>` : "";
-  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${system}]</strong>` : '';
-  const characterTag = character ? `<span style="color: ${color || '#4caf50'};">${character}</span>` : '';
-  const commentTag = comment ? `<span style="color: #aaa;">(${comment})</span>` : '';
-  const resultHtml = String(resultText).replace(/\n/g, '<br>');
+  const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
+  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${escapeHtml(system)}]</strong>` : '';
+  const nameColor = safeCssColor(color, '#4caf50');
+  const characterTag = character ? `<span style="color: ${nameColor};">${escapeHtml(character)}</span>` : '';
+  const commentTag = comment ? `<span style="color: #aaa;">(${escapeHtml(comment)})</span>` : '';
+  // 改行だけは<br>として通す（発言の見た目に必要）。それ以外はマークアップにしない。
+  const resultHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   // コマンドは利用者の入力そのままなので、記号がマークアップとして解釈されないようにする
   // （+HP(1)<2 のような入力で以降の行が消えてしまうため）。
   const commandHtml = command

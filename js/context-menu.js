@@ -9,7 +9,7 @@ function closeContextMenu() {
   if (currentMenuEl) {
     currentMenuEl.remove();
     currentMenuEl = null;
-    document.removeEventListener('mousedown', onOutsideClick);
+    document.removeEventListener('pointerdown', onOutsideClick);
     document.removeEventListener('keydown', onEscape);
   }
 }
@@ -68,9 +68,11 @@ export function showContextMenu(x, y, items) {
     menu.style.top = `${window.innerHeight - rect.height - 8}px`;
   }
 
-  // 開いた瞬間のclickで即閉じないよう、少し遅らせて監視開始
+  // 開いた瞬間のclickで即閉じないよう、少し遅らせて監視開始。
+  // mousedownではなくpointerdownで見るのは、タッチでは前者が発火せず
+  // 「外側をタップしてもメニューが閉じない」状態になるため。
   setTimeout(() => {
-    document.addEventListener('mousedown', onOutsideClick);
+    document.addEventListener('pointerdown', onOutsideClick);
     document.addEventListener('keydown', onEscape);
   }, 0);
 }

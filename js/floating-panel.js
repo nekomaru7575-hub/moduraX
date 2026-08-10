@@ -5,6 +5,11 @@
 //
 // position:fixedでbody直下に置くので、盤面の外（ログ欄やチャット欄の上）へも動かせる。
 // 中身の描画は呼び出し元に委ね、このモジュールは枠と操作だけを担当する。
+//
+// 狭幅（スマホ）では浮かせる場所が無いので、js/mobile-layout.jsがdock()を呼んで
+// 中央スペースへはめ込む。dock中は移動・拡縮・位置の保存を止め、大きさはCSSに任せる。
+
+import { bindDragGesture } from './drag-gesture.js';
 
 const MIN_WIDTH = 200;
 const MIN_HEIGHT = 120;
@@ -69,6 +74,7 @@ export function createFloatingPanel({
   const saved = loadRect(storageKey);
   let rect = clampRect({ ...defaultRect, ...(saved || {}) });
   let visible = saved?.visible ?? defaultVisible;
+  let docked = false;
 
   const panel = document.createElement('div');
   panel.className = 'floating-panel';
@@ -99,6 +105,10 @@ export function createFloatingPanel({
   panel.appendChild(resizeHandle);
 
   function applyRect() {
+    // dock中は中央スペースいっぱいに広げるのがCSSの役目。ここでインラインの
+    // 位置・大きさを書くと、PCへ戻したときの元の矩形まで巻き添えで壊れる。
+    if (docked) return;
+
     panel.style.left = `${rect.x}px`;
     panel.style.top = `${rect.y}px`;
     panel.style.width = `${rect.w}px`;
@@ -106,6 +116,9 @@ export function createFloatingPanel({
   }
 
   function applyVisibility() {
+    // dock中の表示切り替えはタブ（js/mobile-layout.js）が持つ
+    if (docked) return;
+
     panel.style.display = visible ? '' : 'none';
   }
 
@@ -115,69 +128,56 @@ export function createFloatingPanel({
 
   // ヘッダーのドラッグで移動。ボタンの上から始まったドラッグは無視する（閉じるボタンを
   // 押したつもりでパネルが動かないように）。
-  header.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('button')) return;
-    event.preventDefault();
+  bindDragGesture(header, {
+    onStart: (event) => {
+      if (docked) return false;
+      if (event.target.closest('button')) return false;
 
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const originX = rect.x;
-    const originY = rect.y;
-    header.setPointerCapture(event.pointerId);
+      return {
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: rect.x,
+        originY: rect.y
+      };
+    },
 
-    const onMove = (moveEvent) => {
+    onMove: (event, { startX, startY, originX, originY }) => {
       rect = clampRect({
         ...rect,
-        x: originX + (moveEvent.clientX - startX),
-        y: originY + (moveEvent.clientY - startY)
+        x: originX + (event.clientX - startX),
+        y: originY + (event.clientY - startY)
       });
       applyRect();
-    };
+    },
 
-    const onUp = (upEvent) => {
-      header.removeEventListener('pointermove', onMove);
-      header.removeEventListener('pointerup', onUp);
-      header.removeEventListener('pointercancel', onUp);
-      try { header.releasePointerCapture(upEvent.pointerId); } catch { /* 解放済みは無視 */ }
-      persist();
-    };
-
-    header.addEventListener('pointermove', onMove);
-    header.addEventListener('pointerup', onUp);
-    header.addEventListener('pointercancel', onUp);
+    onEnd: () => persist()
   });
 
   // 右下のつまみで拡縮
-  resizeHandle.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+  bindDragGesture(resizeHandle, {
+    stopPropagation: true,
 
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const originW = rect.w;
-    const originH = rect.h;
-    resizeHandle.setPointerCapture(event.pointerId);
+    onStart: (event) => {
+      if (docked) return false;
 
-    const onMove = (moveEvent) => {
+      return {
+        startX: event.clientX,
+        startY: event.clientY,
+        originW: rect.w,
+        originH: rect.h
+      };
+    },
+
+    onMove: (event, { startX, startY, originW, originH }) => {
       rect = clampRect({
         ...rect,
-        w: originW + (moveEvent.clientX - startX),
-        h: originH + (moveEvent.clientY - startY)
+        w: originW + (event.clientX - startX),
+        h: originH + (event.clientY - startY)
       });
       applyRect();
-    };
+    },
 
-    const onUp = (upEvent) => {
-      resizeHandle.removeEventListener('pointermove', onMove);
-      resizeHandle.removeEventListener('pointerup', onUp);
-      resizeHandle.removeEventListener('pointercancel', onUp);
-      try { resizeHandle.releasePointerCapture(upEvent.pointerId); } catch { /* 解放済みは無視 */ }
-      persist();
-    };
-
-    resizeHandle.addEventListener('pointermove', onMove);
-    resizeHandle.addEventListener('pointerup', onUp);
-    resizeHandle.addEventListener('pointercancel', onUp);
+    onEnd: () => persist()
   });
 
   function setVisible(next) {
@@ -190,8 +190,47 @@ export function createFloatingPanel({
 
   closeBtn.addEventListener('click', () => setVisible(false));
 
+  // 狭幅レイアウトで中央スペースへはめ込む。大きさはCSS（#mobileStage側）に委ねるので、
+  // 移動用に書いてあったインラインの位置・大きさを消しておく。
+  function dock(container) {
+    if (docked) return;
+    docked = true;
+
+    panel.classList.add('is-docked');
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.width = '';
+    panel.style.height = '';
+    panel.style.display = '';
+    // タブで切り替えるので、はめ込み中は閉じる導線を出さない
+    closeBtn.style.display = 'none';
+
+    container.appendChild(panel);
+  }
+
+  // PC幅へ戻す。
+  function undock() {
+    if (!docked) return;
+    docked = false;
+
+    panel.classList.remove('is-docked');
+    closeBtn.style.display = '';
+    document.body.appendChild(panel);
+
+    // 保存値から位置・大きさを取り直す。スマホ幅でページを開くと、生成時のclampRectが
+    // 狭い画面に合わせて位置を丸めてしまっている。dock中は保存側を一切書き換えないので、
+    // ここで読み直せばPC幅での本来の置き場所に戻る。
+    rect = clampRect({ ...defaultRect, ...(loadRect(storageKey) || {}) });
+
+    applyRect();
+    applyVisibility();
+  }
+
   // ウィンドウを縮めた結果パネルが画面外へ取り残されるのを防ぐ
   window.addEventListener('resize', () => {
+    // dock中に丸めると、スマホ幅を基準にした矩形がPCへ戻ったあとも残ってしまう
+    if (docked) return;
+
     rect = clampRect(rect);
     applyRect();
   });
@@ -206,6 +245,9 @@ export function createFloatingPanel({
     show: () => setVisible(true),
     hide: () => setVisible(false),
     toggle: () => setVisible(!visible),
-    isVisible: () => visible
+    isVisible: () => visible,
+    isDocked: () => docked,
+    dock,
+    undock
   };
 }

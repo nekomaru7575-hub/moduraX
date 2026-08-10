@@ -353,4 +353,7 @@ export function initInfoPanel() {
     lastRenderedParticipantsRef = null;
     render(store.state);
   });
+
+  // 狭幅レイアウトで中央スペースへはめ込むため、パネル本体をjs/main.jsへ返す
+  return panel;
 }

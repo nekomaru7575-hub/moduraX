@@ -2,6 +2,7 @@
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
+import { bindDragGesture } from './drag-gesture.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
@@ -49,6 +50,21 @@ let characterPanelController = null;
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
 export function setCharacterPanelController(controller) {
   characterPanelController = controller;
+}
+
+// 進行中のドラッグ（コマ・パネル・視点移動のうち1つ）。2本指になったら
+// ピンチズームへ操作を明け渡すため、ここから打ち切れるようにしておく。
+let activeBoardDrag = null;
+
+// 盤外メニューの「〇〇を表示/隠す」1項目。狭幅レイアウトでは3つのパネルが中央スペースへ
+// はめ込まれ、切り替えはタブが持つので、この項目自体を出さない（js/mobile-layout.js）。
+function panelToggleItem(controller, label) {
+  if (!controller || controller.isDocked?.()) return [];
+
+  return [{
+    label: controller.isVisible() ? `${label}を隠す` : `${label}を表示`,
+    onSelect: () => controller.toggle()
+  }];
 }
 
 const GRID_SIZE = 25;
@@ -191,31 +207,36 @@ function applyBoardBackground(board, room) {
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
 
 function bindTokenDrag(element) {
-  element.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
+  const gesture = bindDragGesture(element, {
+    stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
-    const tokenId = element.id;
-    const currentTokenState = store.state.tokens[tokenId];
-    if (!currentTokenState) return;
+    onStart: (event) => {
+      const tokenId = element.id;
+      const currentTokenState = store.state.tokens[tokenId];
+      if (!currentTokenState) return false;
 
-    const startClientX = event.clientX;
-    const startClientY = event.clientY;
-    const startX = currentTokenState.x;
-    const startY = currentTokenState.y;
+      activeBoardDrag = gesture;
 
-    function onMouseMove(e) {
-      // マウスの移動量はスケールの影響を受けるので、盤面のローカル座標に変換する
-      const deltaX = (e.clientX - startClientX) / scale;
-      const deltaY = (e.clientY - startClientY) / scale;
+      return {
+        tokenId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: currentTokenState.x,
+        startY: currentTokenState.y
+      };
+    },
+
+    onMove: (event, { tokenId, startClientX, startClientY, startX, startY }) => {
+      // ポインタの移動量はスケールの影響を受けるので、盤面のローカル座標に変換する
+      const deltaX = (event.clientX - startClientX) / scale;
+      const deltaY = (event.clientY - startClientY) / scale;
 
       // 置ける範囲は制限しない（盤面の外にも自由に動かせる）
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: startX + deltaX, y: startY + deltaY });
-    }
+    },
 
-    function onMouseUp() {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+    onEnd: (event, { tokenId }) => {
+      activeBoardDrag = null;
 
       const latestState = store.state.tokens[tokenId];
       if (!latestState) return;
@@ -224,13 +245,15 @@ function bindTokenDrag(element) {
       const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE;
 
       store.dispatch('MOVE_TOKEN', { id: tokenId, x: snappedX, y: snappedY });
-    }
+    },
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    // タッチには右クリックが無いので、長押しからも同じメニューを開く
+    onLongPress: (event) => openTokenMenu(event)
   });
 
-  element.addEventListener('contextmenu', (event) => {
+  // 右クリックと長押しの共通の入口。長押しから来る場合はpointerdownイベントが
+  // そのまま渡る（clientX/clientY・preventDefaultの有無に差が無いのでこのまま使える）。
+  function openTokenMenu(event) {
     event.preventDefault();
     event.stopPropagation();
 
@@ -392,7 +415,9 @@ function bindTokenDrag(element) {
         }
       }
     ]);
-  });
+  }
+
+  element.addEventListener('contextmenu', openTokenMenu);
 }
 
 // コマの見た目（色・画像・トリミング・大きさ）をStateに合わせて反映する。
@@ -475,32 +500,37 @@ function applyPanelAppearance(el, panelData) {
 // パネルのドラッグ移動。ドロップ時にグリッドへ吸着させるだけで、置ける場所は制限しない
 // （盤面から離れた位置にも置ける）。
 function bindPanelDrag(element) {
-  element.addEventListener('mousedown', (event) => {
-    const panelId = element.id;
-    const currentPanelState = store.state.panels[panelId];
-    if (!currentPanelState) return;
+  const gesture = bindDragGesture(element, {
+    stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
-    // 固定中は移動しない。preventDefault/stopPropagationもせず、mousedownを
-    // 盤面(viewport)へ伝播させて、その上のドラッグを盤面パンに委ねる。
-    if (currentPanelState.locked) return;
+    onStart: (event) => {
+      const panelId = element.id;
+      const currentPanelState = store.state.panels[panelId];
+      if (!currentPanelState) return false;
 
-    event.preventDefault();
-    event.stopPropagation(); // 盤面パン用のmousedownに伝播させない
+      // 固定中は移動しない。stopPropagationもされないので、その上のドラッグは
+      // 盤面(viewport)へ伝播して盤面パンとして扱われる。
+      if (currentPanelState.locked) return false;
 
-    const startClientX = event.clientX;
-    const startClientY = event.clientY;
-    const startX = currentPanelState.x;
-    const startY = currentPanelState.y;
+      activeBoardDrag = gesture;
 
-    function onMouseMove(e) {
-      const deltaX = (e.clientX - startClientX) / scale;
-      const deltaY = (e.clientY - startClientY) / scale;
+      return {
+        panelId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: currentPanelState.x,
+        startY: currentPanelState.y
+      };
+    },
+
+    onMove: (event, { panelId, startClientX, startClientY, startX, startY }) => {
+      const deltaX = (event.clientX - startClientX) / scale;
+      const deltaY = (event.clientY - startClientY) / scale;
       store.dispatch('MOVE_PANEL', { id: panelId, x: startX + deltaX, y: startY + deltaY });
-    }
+    },
 
-    function onMouseUp() {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+    onEnd: (event, { panelId }) => {
+      activeBoardDrag = null;
 
       const latest = store.state.panels[panelId];
       if (!latest) return;
@@ -509,20 +539,34 @@ function bindPanelDrag(element) {
       const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
 
       store.dispatch('MOVE_PANEL', { id: panelId, x: snappedX, y: snappedY });
-    }
+    },
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    onLongPress: (event) => openPanelMenu(event)
   });
 
-  element.addEventListener('contextmenu', (event) => {
+  // 右クリックと長押しの共通の入口
+  function openPanelMenu(event) {
     event.preventDefault();
     event.stopPropagation();
 
     const panelId = element.id;
-    const isLocked = !!store.state.panels[panelId]?.locked;
+    const panelState = store.state.panels[panelId];
+    const isLocked = !!panelState?.locked;
+
+    // 本文はマウスオーバーのツールチップ（title属性）で読ませているが、タッチには
+    // ホバーが無い。読める人にはメニューの先頭に冒頭を出して、指だけでも辿れるようにする。
+    const readableText = (panelState?.text && canView(panelState.textAudience, getCurrentParticipantId()))
+      ? panelState.text.replace(/\s+/g, ' ').trim()
+      : '';
+    const textPreviewItem = readableText ? [{
+      label: readableText.length > 40 ? `${readableText.slice(0, 40)}…` : readableText,
+      disabled: true,
+      title: panelState.text,
+      onSelect: () => {}
+    }] : [];
 
     showContextMenu(event.clientX, event.clientY, [
+      ...textPreviewItem,
       {
         label: 'パネルを編集',
         onSelect: () => {
@@ -590,7 +634,9 @@ function bindPanelDrag(element) {
         }
       }
     ]);
-  });
+  }
+
+  element.addEventListener('contextmenu', openPanelMenu);
 }
 
 // パネルは盤面直下ではなく専用の層（#panel-layer）へ入れる。層がz-indexを持つことで、
@@ -658,63 +704,130 @@ window.addEventListener('DOMContentLoaded', () => {
     scheduleBoardTransform(board);
   });
 
+  // 指定した画面座標を固定点にして拡大率を掛ける。scale/panX/panYを書き換えるだけで、
+  // clampPanと画面への反映は呼び出し側に任せる（ホイールとピンチの両方から使う）。
+  function zoomAt(clientX, clientY, zoomFactor) {
+    const viewportRect = viewport.getBoundingClientRect();
+    const cx = clientX - viewportRect.left;
+    const cy = clientY - viewportRect.top;
+
+    const oldScale = scale;
+    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
+
+    // 固定点の下にある盤面上の点が、ズーム後も同じ画面位置に来るようパンを再計算
+    panX = cx - (cx - panX) * (scale / oldScale);
+    panY = cy - (cy - panY) * (scale / oldScale);
+  }
+
   // Ctrl+ホイール：マウス位置を中心にズーム
   viewport.addEventListener('wheel', (event) => {
     if (!event.ctrlKey) return;
     event.preventDefault();
 
-    const viewportRect = viewport.getBoundingClientRect();
-    const cx = event.clientX - viewportRect.left;
-    const cy = event.clientY - viewportRect.top;
-
-    const oldScale = scale;
     const ZOOM_SENSITIVITY = 0.0015;
-    const zoomFactor = Math.exp(-event.deltaY * ZOOM_SENSITIVITY);
-    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
-
-    // マウスの下にある盤面上の点が、ズーム後も同じ画面位置に来るようパンを再計算
-    panX = cx - (cx - panX) * (scale / oldScale);
-    panY = cy - (cy - panY) * (scale / oldScale);
+    zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * ZOOM_SENSITIVITY));
 
     clampPan(viewport, board);
     scheduleBoardTransform(board);
   }, { passive: false });
 
-  // 左ドラッグ：視点移動（パン）。コマ／パネルの上から始めた場合は無視して各自の移動に任せる。
-  viewport.addEventListener('mousedown', (event) => {
-    if (event.button !== 0) return;
-    if (event.target.closest('.token')) return;
-    // 未固定のパネル上から始めた場合はパネル移動に任せる。固定パネルは背景扱いなので
-    // その上のドラッグは通常どおり盤面パンとして処理する。
-    const panelEl = event.target.closest('.panel-object');
-    if (panelEl && !store.state.panels[panelEl.id]?.locked) return;
+  // --- 2本指のピンチズーム ---
+  // 盤面の上にある指をすべて数える。コマ・パネルがpointerdownをstopPropagationするので、
+  // キャプチャ段階で受けて「コマに指を置いたままもう1本でピンチ」も取りこぼさない。
+  const activePointers = new Map();
+  let pinch = null;
 
-    const panStartClientX = event.clientX;
-    const panStartClientY = event.clientY;
-    const panStartX = panX;
-    const panStartY = panY;
+  // 2本の指の間隔と中点。間隔の変化を拡大率に、中点の移動をパンに割り当てる。
+  function measurePinch() {
+    const [a, b] = [...activePointers.values()];
+    return {
+      distance: Math.hypot(b.x - a.x, b.y - a.y),
+      centerX: (a.x + b.x) / 2,
+      centerY: (a.y + b.y) / 2
+    };
+  }
 
-    viewport.style.cursor = 'grabbing';
+  viewport.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse') return;
 
-    function onMouseMove(e) {
-      panX = panStartX + (e.clientX - panStartClientX);
-      panY = panStartY + (e.clientY - panStartClientY);
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePointers.size !== 2) return;
+
+    // 1本指で始まっていたコマ移動・パネル移動・パンを畳んでピンチへ引き継ぐ
+    activeBoardDrag?.cancel();
+    activeBoardDrag = null;
+    pinch = measurePinch();
+  }, true);
+
+  viewport.addEventListener('pointermove', (event) => {
+    if (!activePointers.has(event.pointerId)) return;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (!pinch || activePointers.size !== 2) return;
+
+    const next = measurePinch();
+    if (pinch.distance > 0) {
+      zoomAt(next.centerX, next.centerY, next.distance / pinch.distance);
+    }
+    panX += next.centerX - pinch.centerX;
+    panY += next.centerY - pinch.centerY;
+    pinch = next;
+
+    clampPan(viewport, board);
+    applyBoardTransform(board);
+  }, true);
+
+  // 指が離れたら数え直す。ビューポートの外で離した場合も拾えるようwindowでも見る
+  // （盤面の上で離せばキャプチャ段階のviewport側が先に受ける。二重に消しても害はない）。
+  function releasePointer(event) {
+    if (!activePointers.delete(event.pointerId)) return;
+    if (activePointers.size < 2) pinch = null;
+  }
+
+  viewport.addEventListener('pointerup', releasePointer, true);
+  viewport.addEventListener('pointercancel', releasePointer, true);
+  window.addEventListener('pointerup', releasePointer);
+  window.addEventListener('pointercancel', releasePointer);
+
+  // ドラッグ：視点移動（パン）。コマ／パネルの上から始めた場合は無視して各自の移動に任せる。
+  const panGesture = bindDragGesture(viewport, {
+    onStart: (event) => {
+      if (event.target.closest('.token')) return false;
+      // 未固定のパネル上から始めた場合はパネル移動に任せる。固定パネルは背景扱いなので
+      // その上のドラッグは通常どおり盤面パンとして処理する。
+      const panelEl = event.target.closest('.panel-object');
+      if (panelEl && !store.state.panels[panelEl.id]?.locked) return false;
+      // 既に2本指ならピンチが操作を持つ
+      if (activePointers.size >= 2) return false;
+
+      viewport.style.cursor = 'grabbing';
+      activeBoardDrag = panGesture;
+
+      return {
+        panStartClientX: event.clientX,
+        panStartClientY: event.clientY,
+        panStartX: panX,
+        panStartY: panY
+      };
+    },
+
+    onMove: (event, { panStartClientX, panStartClientY, panStartX, panStartY }) => {
+      panX = panStartX + (event.clientX - panStartClientX);
+      panY = panStartY + (event.clientY - panStartClientY);
       clampPan(viewport, board);
       applyBoardTransform(board);
-    }
+    },
 
-    function onMouseUp() {
+    onEnd: () => {
       viewport.style.cursor = 'grab';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    }
+      activeBoardDrag = null;
+    },
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    onLongPress: (event) => openBoardMenu(event)
   });
 
-  // 盤面の何もない場所を右クリック → キャラクター追加メニュー
-  viewport.addEventListener('contextmenu', (event) => {
+  // 盤面の何もない場所を右クリック／長押し → キャラクター追加メニュー
+  function openBoardMenu(event) {
     event.preventDefault();
 
     const viewportRect = viewport.getBoundingClientRect();
@@ -816,23 +929,16 @@ window.addEventListener('DOMContentLoaded', () => {
       },
       // チャットパレットは浮動パネルなので、閉じたあと戻す手段がここだけになる。
       // パネルの生成はjs/main.js側なので、実体はsetChatPaletteControllerで受け取る。
-      ...(chatPaletteController ? [{
-        label: chatPaletteController.isVisible() ? 'チャットパレットを隠す' : 'チャットパレットを表示',
-        onSelect: () => chatPaletteController.toggle()
-      }] : []),
+      ...panelToggleItem(chatPaletteController, 'チャットパレット'),
       // 情報パネルは既定で非表示なので、ここが唯一の出しどころになる（生成はjs/info-panel.js）。
-      ...(infoPanelController ? [{
-        label: infoPanelController.isVisible() ? '情報を隠す' : '情報を表示',
-        onSelect: () => infoPanelController.toggle()
-      }] : []),
+      ...panelToggleItem(infoPanelController, '情報'),
       // キャラクター一覧も浮動パネル（生成はjs/character-panel.js）。バックヤードは
       // このパネルのタブに統合したので、しまったコマを取り出す導線もここから辿る。
-      ...(characterPanelController ? [{
-        label: characterPanelController.isVisible() ? 'キャラクター一覧を隠す' : 'キャラクター一覧を表示',
-        onSelect: () => characterPanelController.toggle()
-      }] : [])
+      ...panelToggleItem(characterPanelController, 'キャラクター一覧')
     ]);
-  });
+  }
+
+  viewport.addEventListener('contextmenu', openBoardMenu);
 
   // JSONファイルをD&D：コマの上にドロップした場合はそのキャラクターへ読み込み、
   // 盤面の何もない場所にドロップした場合はその位置に新規キャラクターとして読み込む。

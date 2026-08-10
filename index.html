@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>もじゅらX - 部屋一覧</title>
 <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
 <style>
@@ -172,6 +173,45 @@
     color: #f28b82;
     font-size: 0.85rem;
     margin: 4px 0 0;
+  }
+
+  /* 狭幅（スマホ）。1カラムなので大きくは崩れないが、余白と当たり判定を詰め直す */
+  @media (max-width: 900px) {
+    body {
+      padding: 12px;
+    }
+
+    .room-card-header {
+      flex-wrap: wrap;
+    }
+
+    /* 部屋名と入室ボタンが同じ行に収まらない幅では、ボタンを次の行いっぱいに置く。
+       .btnはcontent-boxなので、border-boxにしないと左右のpaddingの分だけはみ出す。 */
+    .room-card-header .btn {
+      flex: 1 0 100%;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    /* 「盤面サイズ 横×縦」のような横並びは、指では狭すぎるので縦に積む */
+    .vacant-form-row {
+      flex-direction: column;
+    }
+  }
+
+  /* 指で操作する環境では、押せるものを44px前後まで持ち上げる */
+  @media (pointer: coarse) {
+    .btn {
+      padding: 12px 18px;
+      font-size: 1rem;
+    }
+
+    .vacant-form input[type="text"],
+    .vacant-form select {
+      padding: 10px 8px;
+      /* iOS Safariは16px未満の入力欄にフォーカスすると画面を勝手に拡大する */
+      font-size: 16px;
+    }
   }
 </style>
 </head>

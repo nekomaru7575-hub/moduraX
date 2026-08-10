@@ -51,6 +51,8 @@ import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
+import { initMobileLayout } from './mobile-layout.js';
+import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -1900,10 +1902,24 @@ function applyLog(entry, tabId = activeTabId) {
 
 // 初期化処理
 window.addEventListener('DOMContentLoaded', () => {
+  // 盤面が自前でズームを持っているので、ブラウザのページズームとは競合させない
+  initNoBrowserZoom();
+
   initNetSync();
   initRoundPanel();
-  initInfoPanel();
-  initCharacterPanel();
+  const infoPanel = initInfoPanel();
+  const characterPanel = initCharacterPanel();
+
+  // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル3枚を
+  // 中央スペースのタブに切り替える。PC幅では何も起きない。
+  initMobileLayout({
+    panels: [
+      { id: 'characters', label: 'キャラ', panel: characterPanel },
+      { id: 'palette', label: 'パレット', panel: chatPalettePanel },
+      { id: 'info', label: '情報', panel: infoPanel }
+    ]
+  });
+
   initAudioPlayer();
   initDiceAnimation();
   store.init();

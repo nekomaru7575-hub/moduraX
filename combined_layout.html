@@ -2,22 +2,49 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 盤面が自前でズームを持つので、ブラウザのページズームは殺す（js/no-browser-zoom.js）。
+       maximum-scale=1.0は「入力欄をタップすると勝手に拡大する」（iOS Safari）にも効く。 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>もじゅらX</title>
   <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
   <link rel="stylesheet" href="/css/character-dialog.css">
   <style>
+    /* ピンチズーム／ダブルタップズームを外す（スクロールは残す）。
+       #board-viewport等のtouch-action:noneは要素側が優先されるので盤面の自前ピンチは動く。 */
+    html {
+      touch-action: pan-x pan-y;
+    }
+
     body {
       background-color: #1a1a1a;
       color: #e0e0e0;
       font-family: 'Helvetica Neue', Arial, sans-serif;
       margin: 0;
       padding: 20px;
+      touch-action: pan-x pan-y;
+      /* 文字選択を止める。長押しでメニューを出すたびにコピーの選択が始まって邪魔になるため
+         （盤面だけでなく、長押しメニューを出すところ全般で起きる）。
+         入力欄だけは下で選択可に戻す。ログの書き出しは「ログを保存」が担う。 */
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
       display: flex;
       flex-direction: column;
       align-items: center;
       height: 100vh;
+      /* スマホはアドレスバーの出入りで100vhが画面より大きくなり、下端のチャット欄が
+         隠れてしまう。dvhは実際に見えている高さを指すので、対応ブラウザではこちらが勝つ。 */
+      height: 100dvh;
       box-sizing: border-box;
+    }
+
+    /* 入力中の文を選び直す・貼り付けるは残す必要があるので、フォーム部品だけ選択可に戻す */
+    input,
+    textarea,
+    select,
+    [contenteditable] {
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .app-header {
@@ -78,10 +105,14 @@
       background-color: #3a3a3a;
     }
 
+    /* bodyがflexの縦並びなので、ヘッダーの残り全部をここが取る。
+       以前はcalc(100vh - 75px)とヘッダー高さを決め打ちしていたが、ヘッダーが1行に
+       収まらない幅で高さが変わると盤面がはみ出すため、flexに任せる。 */
     .app-container {
       display: flex;
       width: 100%;
-      height: calc(100vh - 75px);
+      flex: 1;
+      min-height: 0;
       gap: 20px;
       box-sizing: border-box;
     }
@@ -222,6 +253,9 @@
       min-height: 0;
       overflow: hidden; /* パン・ズームしてはみ出た部分をここで切り取る */
       cursor: grab;
+      /* パン・ピンチはjs/board-data-driven.jsが自前で処理する。ブラウザ既定のスクロールや
+         ズームに指を取られると、1本指ドラッグが盤面に届かない。 */
+      touch-action: none;
     }
 
     /* 3Dダイスを転がす場所（js/dice-animation.js）。盤面にぴったり重ね、盤面外へは出さない。
@@ -261,7 +295,6 @@
       color: #e0e0e0;
       font-size: 0.9rem;
       font-weight: bold;
-      user-select: none;
     }
 
     .round-panel-nickname {
@@ -430,7 +463,7 @@
       justify-content: center;
       font-size: 12px;
       font-weight: bold;
-      user-select: none;
+      touch-action: none;
       z-index: 10;
       transition: top 0.05s ease-out, left 0.05s ease-out;
       flex-direction: column;
@@ -492,7 +525,7 @@
       border: 0px dashed rgba(255, 255, 255, 0.35);
       box-sizing: border-box;
       cursor: grab;
-      user-select: none;
+      touch-action: none;
       /* 親(#panel-layer)が素通しなので、パネル自身で操作を拾い直す */
       pointer-events: auto;
     }
@@ -620,7 +653,9 @@
       background-color: #333;
       border-bottom: 1px solid #444;
       cursor: move;
-      user-select: none;
+      /* ドラッグ移動はPointer Eventsで自前処理する（js/floating-panel.js）。
+         これが無いとタッチではブラウザのスクロールに指を持っていかれる。 */
+      touch-action: none;
     }
 
     .floating-panel-title {
@@ -666,6 +701,7 @@
       width: 16px;
       height: 16px;
       cursor: nwse-resize;
+      touch-action: none;
       background:
         linear-gradient(135deg, transparent 0 45%, #666 45% 55%, transparent 55% 100%),
         linear-gradient(135deg, transparent 0 70%, #666 70% 80%, transparent 80% 100%);
@@ -993,6 +1029,7 @@
       flex: 0 0 10px;
       cursor: row-resize;
       position: relative;
+      touch-action: none;
     }
 
     .resize-handle::after {
@@ -1247,6 +1284,273 @@
     .context-menu-item.danger:hover {
       background-color: #a8323f;
       color: #fff;
+    }
+
+    /* ======================================================================
+       指で操作する環境（タッチ・ペン）。画面幅とは独立に、当たり判定だけを広げる。
+       タッチ対応ノートPCも該当するが、押しやすくなるだけで害は無い。
+       ====================================================================== */
+    @media (pointer: coarse) {
+      /* 指で正確に狙える下限とされる44px前後まで持ち上げる */
+      .room-menu-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .context-menu-item {
+        padding: 12px 16px;
+        font-size: 1rem;
+      }
+
+      /* ホバーが無いので、掴める場所は常に見えていないと分からない */
+      .resize-handle {
+        flex: 0 0 22px;
+      }
+
+      .resize-handle::after {
+        top: 10px;
+        height: 3px;
+        background-color: #666;
+      }
+
+      .floating-panel-resize {
+        width: 28px;
+        height: 28px;
+      }
+
+      .chat-tab,
+      .chat-tab-add {
+        padding: 8px 12px;
+      }
+    }
+
+    /* ======================================================================
+       狭幅（スマホ）レイアウト。
+       ヘッダー／中央スペース／切り替えタブ／ログ／チャット入力 の縦5段にする。
+       DOMの組み替えはjs/mobile-layout.jsが行い、ここは見た目だけを持つ。
+       ====================================================================== */
+    @media (max-width: 900px) {
+      body {
+        padding: 0;
+      }
+
+      /* 上部は「タイトルとメニューだけの細い帯」に徹して、残りを全部中央スペースへ渡す */
+      .app-header {
+        gap: 8px;
+        padding: 2px 8px;
+        margin-bottom: 0;
+        border-bottom-width: 1px;
+        box-sizing: border-box;
+      }
+
+      h1 {
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* 部屋名は⋮のルーム設定から確認できる。狭い1行を取り合わせない */
+      .room-name-label {
+        display: none;
+      }
+
+      .app-container,
+      .main-area {
+        gap: 0;
+      }
+
+      .main-area {
+        flex-direction: column;
+      }
+
+      /* 中央スペース：盤面・チャット・キャラ一覧・チャットパレット・情報を重ねて置き、
+         .is-activeの1つだけを見せる */
+      #mobileStage {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      #mobileStage > * {
+        display: none;
+      }
+
+      #mobileStage > .is-active {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* 浮動パネルは中央スペースいっぱいに広げる。!importantが要るのは、
+         PC幅で動かしたときにjs/floating-panel.jsが書いたインラインの位置・大きさが
+         残っているため（dock中は新たに書かれない。PC幅へ戻ればそのまま復帰する）。 */
+      #mobileStage > .floating-panel {
+        position: static !important;
+        left: auto !important;
+        top: auto !important;
+        width: auto !important;
+        height: auto !important;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      /* はめ込み中はヘッダーがただの見出しになる（移動できないので） */
+      .floating-panel.is-docked .floating-panel-header {
+        cursor: default;
+      }
+
+      .floating-panel.is-docked .floating-panel-resize {
+        display: none;
+      }
+
+      #mobileStageTabs {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 4px;
+        padding: 4px 6px;
+        background-color: #222;
+        border-top: 1px solid #3a3a3a;
+        border-bottom: 1px solid #3a3a3a;
+        overflow-x: auto;
+      }
+
+      /* タブは5枚（盤面/チャット/キャラ/パレット/情報）。375px幅で1枚あたり約69pxなので
+         「パレット」がぎりぎり収まるところまで詰めてある。 */
+      .mobile-stage-tab {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        background-color: #2a2a2a;
+        color: #aaa;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 10px 2px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .mobile-stage-tab.is-active {
+        background-color: #007acc;
+        color: #fff;
+        border-color: #007acc;
+      }
+
+      /* チャットタブを見ていない間に増えた発言の件数（js/mobile-layout.js）。
+         タブの中に置くので、文字が押し出されないよう縮まない指定にする。 */
+      .mobile-stage-tab-badge {
+        flex: 0 0 auto;
+        background-color: #d9534f;
+        color: #fff;
+        border-radius: 999px;
+        padding: 0 5px;
+        font-size: 0.7rem;
+        font-weight: bold;
+        line-height: 1.5;
+      }
+
+      .mobile-stage-tab.is-active .mobile-stage-tab-badge {
+        background-color: #fff;
+        color: #007acc;
+      }
+
+      /* PC用のheight:100%は、中央スペース（flexの縦並び）の中では余計な高さになる */
+      .board-area {
+        gap: 6px;
+        height: auto;
+      }
+
+      /* ラウンド進行バーはボタンとニックネームが折り返して縦に伸び、狭幅では
+         中央スペースの4割以上を占める。盤面に高さを譲るため詰める。 */
+      .round-panel-bar {
+        gap: 6px;
+        padding: 4px 8px;
+      }
+
+      .round-panel-btn {
+        padding: 5px 8px;
+        font-size: 0.8rem;
+      }
+
+      /* 手番一覧は折り返さず横スクロールで見る（縦に伸びると盤面が潰れるため） */
+      .round-panel-detail {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding: 4px 8px;
+      }
+
+      .round-panel-turn-row {
+        flex: 0 0 auto;
+      }
+
+      /* 盤面の下1/4に出していた立ち絵＋最新発言。下段のログ表示と中身が重なるうえ
+         縦を大きく食うので、狭幅では盤面に高さを譲る。 */
+      .current-chat-bar {
+        display: none;
+      }
+
+      /* チャット（ログ＋入力欄）も中央スペースの1ビュー。開いている間は全面を使い、
+         ログが伸びて入力欄が下に付く。PC用の縦リサイズ（js/resizable-stack.js）は
+         ここでは使わない。!importantはそのインラインのflexを打ち消すため
+         （PC幅へ戻れば再び効く）。 */
+      .control-area {
+        min-width: 0;
+        height: auto;
+        gap: 6px;
+        overflow: hidden;
+        padding: 6px;
+        box-sizing: border-box;
+      }
+
+      .control-area > .log-section {
+        flex: 1 1 auto !important;
+        min-height: 0;
+      }
+
+      .control-area > .chat-send-panel {
+        flex: 0 0 auto !important;
+      }
+
+      .resize-handle {
+        display: none;
+      }
+
+      .panel {
+        padding: 8px;
+      }
+
+      /* 指で文字を打つ欄は16pxまで上げる。読みやすさのためと、iOS Safariが16px未満の
+         入力欄で勝手に画面を拡大するのを避けるため（viewportのmaximum-scale=1.0でも
+         塞いでいるが、こちらは素の読みやすさの話）。
+         クラス指定（.chat-palette-*は0.8rem）を上書きするので、同じ強さで並べる。 */
+      #commandInput,
+      .chat-palette-editor,
+      .chat-palette-send-input,
+      .chat-palette-name {
+        font-size: 16px;
+      }
+
+      .chat-input-row textarea {
+        resize: none;
+      }
+
+      /* ホームバー／ジェスチャ領域に送信ボタンが潜り込まないようにする */
+      .chat-send-panel {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      /* 浮動パネルの初期位置はPC幅前提なので、はめ込む前に一瞬はみ出して
+         横スクロールが出ることがある。狭幅では常に切っておく。 */
+      body {
+        overflow-x: hidden;
+      }
     }
   </style>
 </head>

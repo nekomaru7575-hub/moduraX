@@ -3,6 +3,8 @@
 // ドラッグハンドルを挿入し、高さをユーザーが調整できるようにする汎用ユーティリティ。
 // サイズはブラウザ単位（localStorage）で保存し、次回起動時も復元する。
 
+import { bindDragGesture } from './drag-gesture.js';
+
 function loadSizes(storageKey) {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -48,33 +50,33 @@ export function makeResizableStack({ container, storageKey, minSize = 60 }) {
     const before = sections[i];
     const after = sections[i + 1];
 
-    handle.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      handle.classList.add('dragging');
+    bindDragGesture(handle, {
+      onStart: (event) => {
+        handle.classList.add('dragging');
 
-      const startY = event.clientY;
-      const startBeforeSize = before.getBoundingClientRect().height;
-      const startAfterSize = after.getBoundingClientRect().height;
-      const total = startBeforeSize + startAfterSize; // ドラッグ中はこの2区画の合計を保つ
+        const startBeforeSize = before.getBoundingClientRect().height;
+        const startAfterSize = after.getBoundingClientRect().height;
 
-      function onMouseMove(moveEvent) {
-        const delta = moveEvent.clientY - startY;
+        return {
+          startY: event.clientY,
+          startBeforeSize,
+          // ドラッグ中はこの2区画の合計を保つ
+          total: startBeforeSize + startAfterSize
+        };
+      },
+
+      onMove: (event, { startY, startBeforeSize, total }) => {
+        const delta = event.clientY - startY;
         const nextBefore = Math.max(minSize, Math.min(startBeforeSize + delta, total - minSize));
-        const nextAfter = total - nextBefore;
 
         applySize(before, nextBefore);
-        applySize(after, nextAfter);
-      }
+        applySize(after, total - nextBefore);
+      },
 
-      function onMouseUp() {
+      onEnd: () => {
         handle.classList.remove('dragging');
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
         saveSizes(storageKey, sections.map(s => Math.round(s.getBoundingClientRect().height)));
       }
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
     });
   }
 }

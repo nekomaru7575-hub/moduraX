@@ -6,6 +6,7 @@
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
 import { pickAndUploadImage } from './image-upload.js';
+import { loadImageDimensions } from './image-dimensions.js';
 
 let dialogEl = null;
 
@@ -15,16 +16,6 @@ function ensureDialog() {
   dialogEl.className = 'character-dialog';
   document.body.appendChild(dialogEl);
   return dialogEl;
-}
-
-// data URLの画像の実ピクセルサイズを取得する
-function loadImageDimensions(dataUrl) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => resolve(null);
-    img.src = dataUrl;
-  });
 }
 
 /**

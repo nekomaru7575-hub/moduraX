@@ -1134,3 +1134,44 @@
   font-size: 0.85rem;
   color: #e0e0e0;
 }
+
+/* ======================================================================
+   狭幅（スマホ）。ダイアログはPC前提の2カラム・固定幅なので、
+   1カラムの縦長シートに畳む。combined_layout.html側の@mediaと同じ900pxで切る。
+   ====================================================================== */
+@media (max-width: 900px) {
+  .character-dialog {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    padding: 12px;
+    /* 中身が長いダイアログ（キャラクター更新など）は画面に収めて中でスクロールさせる */
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
+  /* 横に並べる余地が無いので上下に積む。左の区切り線は縦向きでは意味が無い */
+  .dialog-columns {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dialog-main-column,
+  .dialog-plugin-column {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dialog-plugin-column {
+    padding-left: 0;
+    padding-top: 12px;
+    border-left: none;
+    border-top: 1px solid #444;
+  }
+
+  .image-cropper {
+    width: min(160px, 45vw);
+    height: min(160px, 45vw);
+  }
+}

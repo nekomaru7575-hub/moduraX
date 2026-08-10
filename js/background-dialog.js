@@ -10,6 +10,7 @@
 // 「新しい画像＋古いサイズ」という中間状態が見えるため（APPLY_SCENEと同じ理由）。
 
 import { pickAndUploadImage } from './image-upload.js';
+import { loadImageDimensions } from './image-dimensions.js';
 
 let dialogEl = null;
 
@@ -19,17 +20,6 @@ function ensureDialog() {
   dialogEl.className = 'character-dialog';
   document.body.appendChild(dialogEl);
   return dialogEl;
-}
-
-// 画像の実ピクセルサイズを取得する（サイズ欄への自動反映用）。
-// R2の公開URLでもデータURLでも同じように扱える。読めなければnull。
-function loadImageDimensions(imageSrc) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => resolve(null);
-    img.src = imageSrc;
-  });
 }
 
 /**
@@ -109,8 +99,8 @@ export function showBackgroundDialog({
     preview.style.display = 'block';
 
     // 画像の実サイズをマス換算してサイズ欄へ自動反映。
-    // 自動サイズを選んでいる間は入力欄自体を使わないので触らない。
-    if (autoInput.checked) return;
+    // 自動のままでも盤面はこの大きさになる（js/board-data-driven.jsの
+    // resolveBoardPixelSize）ので、入力欄が無効の間も実際の値として見せておく。
     const dim = await loadImageDimensions(currentImage);
     if (dim) {
       colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
@@ -135,7 +125,10 @@ export function showBackgroundDialog({
   form.appendChild(imageGroup);
 
   // --- 盤面サイズを自動にする ---
-  // ONの間はboardWidth/boardHeightをnullにして、ウィンドウの大きさに追従させる（既定の状態）。
+  // ONの間はboardWidth/boardHeightをnullにして、盤面側の判断に任せる（既定の状態）。
+  // 背景画像があればその実サイズ、無ければウィンドウの大きさになる
+  // （js/board-data-driven.jsのresolveBoardPixelSize）。画像があるときにウィンドウ基準に
+  // すると、PCとスマホで盤面の縦横比が変わって画像だけが歪むため。
   const autoGroup = document.createElement('div');
   autoGroup.className = 'dialog-form-group';
   const autoLabel = document.createElement('label');

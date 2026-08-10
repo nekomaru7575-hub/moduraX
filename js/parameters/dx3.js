@@ -1,8 +1,12 @@
 import { buildParameters } from './paramFactory.js';
-import { showEffectBox } from './dx3-effect-box.js';
+import { showSkillBox } from './skill/skill-box.js';
+import {
+  createSkillSpec, normalizeSkillList, findSkillByName, resetSkillUsageOnPhaseEnd,
+  buildSkillUseCommandPattern
+} from './skill/skill-model.js';
+import { runSkillUse } from './skill/skill-use.js';
 import { showAbilitySkillBox } from './dx3-ability-box.js';
-import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage, runEffectUse } from './dx3-combo-box.js';
-import { LIMIT_CATEGORIES } from './dx3-effect-box.js';
+import { showComboBox, findComboByName, runComboActivate, runComboCheck, runComboDamage } from './dx3-combo-box.js';
 import {
   showLoisBox, countActiveLois, normalizeLoisList, LOIS_COMPONENT_KEY, LOIS_MAX
 } from './dx3-lois-box.js';
@@ -15,8 +19,8 @@ export const DX3_PARAMETERS =[
     {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
     {key : "attackPower", label : "攻撃力",value : 0,editable:true,visible:false},
     // エフェクトによるバフを受け取る汎用レジスタ（コンボに限らず判定/ダメージ全般で使う想定）。
-    // コンボ発動時は、選択したエフェクトの「コンボ時修正」（dx3-effect-box.jsのCOMBO_MOD_FIELDS）を
-    // ここへバフとして加算する（js/parameters/dx3-combo-box.jsのCOMBO_PARAM_MAP参照）。
+    // エフェクト使用時・コンボ発動時は、そのエフェクトの「使用時の修正」をここへバフとして
+    // 加算する（下のDX3_EFFECT_SPECのmodTargetsが、この5つを修正の対象として宣言している）。
     // 手入力での編集・一覧表示は想定しないためeditable:false・visible:falseだが、
     // バフ（ADD_BUFF）はeditableを見ずに加算できる。keyをDX3公式の略称（AdB等）にしているのは、
     // バフ/パラメータ変更コマンド（js/main.js）がlabel一致に加えてkey一致でも対象を特定できるため、
@@ -48,6 +52,73 @@ export const DX3_PARAMETERS =[
 
 export function buildDX3Parameters(){
     return buildParameters("DX3",DX3_PARAMETERS,{locked : true});
+}
+
+// クリティカル値の下限を持てるのはクリティカル修正(AcB)への修正/バフだけ。
+// クリティカル値は 10＋AcB で決まるため、下限も「AcBの下限」ではなく
+// 「10＋AcBの下限」＝クリティカル値そのものの下限として扱う
+// （適用はjs/parameters/dx3-combo-box.jsのlowestBuffCriticalFloor）。
+// エフェクト側の下限欄（DX3_EFFECT_SPECのmodTargets）と、手動で付けるバフの下限欄
+// （renderDX3BuffFields）の両方でこの文言・このパラメータを使う。
+const CRITICAL_FLOOR_PARAM_ID = 'DX3:AcB';
+const CRITICAL_FLOOR_HINT = 'クリティカル値の下限（空欄で下限なし）';
+
+// DX3のエフェクトを、汎用の「スキル」（キャラが選んで取得する能力）として宣言する。
+// 一覧UI・使用処理・使用制限・回数リセットはjs/parameters/skill/が持ち、ここは
+// 「DX3ではスキルをエフェクトと呼び、タイミング/Lv/上昇侵蝕率を持ち、修正値はAdB等の
+// レジスタへ入る」というDX3固有の知識だけを渡す。
+//
+// componentKeyを'effects'のままにしているのは、既存の部屋に保存済みのエフェクトを
+// そのまま読み続けるため。旧形式（トップレベルのtiming/level/encroach、limits直下の
+// 期間キー、固定5枠のcombo）はnormalizeSkillListが読み替える（legacyModMap参照）。
+export const DX3_EFFECT_SPEC = createSkillSpec({
+  id: 'dx3-effect',
+  noun: 'エフェクト',
+  componentKey: 'effects',
+  fields: [
+    { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
+    // formulaName: 修正値や使用制限の式に{Lv}と書くと、このエフェクト自身のレベルになる
+    { key: 'level', label: 'Lv', type: 'number', className: 'effect-box-level', formulaName: 'Lv' },
+    // 上昇侵蝕率は使用時に侵蝕率へ加算される「コスト」。シート上は「効果参照」等の
+    // 非数値も入るためtypeはtextのままにし、数値化できないものは0として扱う。
+    {
+      key: 'encroach', label: '上昇侵蝕率', type: 'text', className: 'effect-box-encroach',
+      onUse: { addToParamId: 'DX3:corruption' }
+    }
+  ],
+  periods: [
+    { key: 'scenario', label: 'シナリオ' },
+    { key: 'scene', label: 'シーン' },
+    { key: 'round', label: 'ラウンド' }
+  ],
+  // 修正値の受け皿はDX3の汎用レジスタ（DX3_PARAMETERSのAdB等）。ここに挙げたものが
+  // 対象プルダウンの先頭に並ぶが、コマが持つ他のパラメータも対象に選べる。
+  modTargets: [
+    { paramId: 'DX3:AdB', label: '判定ダイス' },
+    { paramId: 'DX3:AnB', label: '固定値' },
+    { paramId: 'DX3:DaB', label: '攻撃力修正' },
+    { paramId: 'DX3:DdB', label: 'ダメージダイス' },
+    {
+      paramId: 'DX3:AcB', label: 'クリティカル修正',
+      // クリティカル修正にだけ付けられる「クリティカル値の下限」。バフのmetaへ
+      // criticalFloorとして載り、判定時にlowestBuffCriticalFloorが読む。
+      extra: { key: 'floor', label: '下限', metaKey: 'criticalFloor', hint: CRITICAL_FLOOR_HINT }
+    }
+  ],
+  // 旧データ（effect.comboの固定5枠）→ 修正の対象パラメータ
+  legacyModMap: {
+    checkDice: 'DX3:AdB',
+    fixedValue: 'DX3:AnB',
+    attackPower: 'DX3:DaB',
+    damageDice: 'DX3:DdB',
+    criticalMod: 'DX3:AcB'
+  }
+});
+
+// componentsから正規形のエフェクト一覧を取り出す。保存済みが旧形式でもここを通せば
+// 新形式として読める（保存時に新形式で書き戻される）。
+export function readDX3Effects(components) {
+  return normalizeSkillList(DX3_EFFECT_SPEC, components?.[DX3_EFFECT_SPEC.componentKey] ?? []);
 }
 
 // パラメータ・componentsから自動計算される値をまとめて返す。
@@ -227,7 +298,7 @@ function renderDX3CharacterPanel({
   }
 
   if (mode === 'edit' && onComponentChange) {
-    const readEffects = () => readComponents().effects ?? [];
+    const readEffects = () => readDX3Effects(readComponents());
     const readCombos = () => readComponents().combos ?? [];
     const readLois = () => readComponents()[LOIS_COMPONENT_KEY] ?? [];
 
@@ -258,17 +329,18 @@ function renderDX3CharacterPanel({
     effectBtn.className = 'dialog-add-row-btn';
     effectBtn.style.marginTop = '8px';
     const updateEffectBtnLabel = () => {
-      effectBtn.textContent = `エフェクト一覧を開く（${readEffects().length}件）`;
+      effectBtn.textContent = `${DX3_EFFECT_SPEC.noun}一覧を開く（${readEffects().length}件）`;
     };
     updateEffectBtnLabel();
     effectBtn.addEventListener('click', () => {
-      showEffectBox({
-        effects: readEffects(),
-        // コンボ時修正の式に書ける{パラメータ名}の検証・提示に使う
+      showSkillBox({
+        spec: DX3_EFFECT_SPEC,
+        skills: readEffects(),
+        // 修正の対象に選べるパラメータと、式に書ける{パラメータ名}の検証・提示に使う
         parameters,
         readOnly: !canEdit,
         onSave: (nextEffects) => {
-          onComponentChange('effects', nextEffects);
+          onComponentChange(DX3_EFFECT_SPEC.componentKey, nextEffects);
           updateEffectBtnLabel();
         }
       });
@@ -349,8 +421,9 @@ function toNumber(value) {
 const DX3_EFFECT_HEADER_PATTERN = /^▼/;
 
 // effectNNameを起点に、シート上の全エフェクトを読み込む。
-// 回数制限（シナリオ/シーン/ラウンド×n回）はシート側に専用フィールドがないため、
-// ここでは初期値なし（制限なし）とし、ボックスUI側で手入力できるようにする。
+// 使用制限（回数・条件）と修正値はシート側に専用フィールドがないため、ここでは空のまま
+// 取り込み、ボックスUI側で手入力できるようにする。normalizeSkillListに欠けた分を
+// 埋めさせるので、ここではシートから読める値だけを渡せばよい。
 function importDX3Effects(json) {
   const effectNum = toNumber(json.effectNum);
   const effects = [];
@@ -361,21 +434,16 @@ function importDX3Effects(json) {
 
     effects.push({
       name,
-      timing: json[`effect${n}Timing`] ?? '',
-      level: toNumber(json[`effect${n}Lv`]),
-      encroach: json[`effect${n}Encroach`] ?? '',
       note: json[`effect${n}Note`] ?? '',
-      // 回数制限（シナリオ/シーン/ラウンド）はシート側に構造化フィールドがないため、
-      // 初期値は制限なし。ボックスUI側で手入力する。
-      limits: {
-        scenario: { current: 0, max: null },
-        scene: { current: 0, max: null },
-        round: { current: 0, max: null }
+      fields: {
+        timing: json[`effect${n}Timing`] ?? '',
+        level: toNumber(json[`effect${n}Lv`]),
+        encroach: json[`effect${n}Encroach`] ?? ''
       }
     });
   }
 
-  return effects;
+  return normalizeSkillList(DX3_EFFECT_SPEC, effects);
 }
 
 // シート上のロイス欄の状態（lois{N}State）→ ボックス側の状態。
@@ -504,9 +572,11 @@ function importDX3CharacterJson(json) {
 // コンボ名は参照キャラクターのcomponents.combosから完全一致で探す。
 const COMBO_COMMAND_PATTERN = /^combo\.(awk|chk|dmg)\((.+)\)$/;
 
-// エフェクト単体を自身へ適用するチャットコマンド。コンボを介さず、修正値バフの付与・
-// 使用数+1・上昇侵蝕率の即時反映をまとめて行う（実処理はdx3-combo-box.jsのrunEffectUse）。
-const EFFECT_USE_COMMAND_PATTERN = /^エフェクト使用\((.+)\)$/;
+// エフェクト単体を自身へ適用するチャットコマンド「エフェクト使用(名前)」。コンボを介さず、
+// 修正値バフの付与・使用数+1・上昇侵蝕率の即時反映をまとめて行う（実処理は
+// js/parameters/skill/skill-use.jsのrunSkillUse）。書式はspecの呼び名から組み立てるので、
+// 他システムでは「忍法使用(名前)」のようにその呼び名の形になる。
+const EFFECT_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DX3_EFFECT_SPEC);
 
 // この入力がDX3のコマンド構文に見えるか（実行できるかは問わない）。プラグインが適用されて
 // いない部屋でDX3のコマンドを打った場合、Core側は構文を知らないため素通りしてただの発言に
@@ -535,22 +605,31 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
     const name = effectUseMatch[1].trim();
 
     if (!token) {
-      alert('エフェクトを使用する参照キャラクターを選択してください。');
+      alert(`${DX3_EFFECT_SPEC.noun}を使用する参照キャラクターを選択してください。`);
       return true;
     }
 
-    const effects = token.components?.effects ?? [];
-    const effect = effects.find(e => e.name === name);
+    const effects = readDX3Effects(token.components);
+    const effect = findSkillByName(effects, name);
     if (!effect) {
-      alert(`エフェクト「${name}」が見つかりません。`);
+      alert(`${DX3_EFFECT_SPEC.noun}「${name}」が見つかりません。`);
       return true;
     }
 
     const tokenId = token.id;
-    runEffectUse({
-      effect, effects, tokenId, dispatch, getToken: () => token, getEffectiveParameterValue, generateBuffId,
+    runSkillUse({
+      spec: DX3_EFFECT_SPEC,
+      targetSkills: [effect],
+      allSkills: effects,
+      tokenId, dispatch, getToken: () => token, getEffectiveParameterValue, generateBuffId,
       chatCommand: rawInput,
-      onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
+      logTitle: `${DX3_EFFECT_SPEC.noun}使用: ${effect.name}`,
+      // コンボと違い判定・ダメージロールを経ないその場限りの処理なので、効果時間を
+      // 指定していないエフェクトのバフは手動で外すまで残す（従来どおりの挙動）。
+      expirePhaseFallback: null,
+      onSaveSkills: (nextEffects) => dispatch('SET_COMPONENT', {
+        id: tokenId, componentKey: DX3_EFFECT_SPEC.componentKey, value: nextEffects
+      })
     });
     return true;
   }
@@ -575,13 +654,16 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
 
   const tokenId = token.id;
   const getToken = () => token;
-  const effects = token.components?.effects ?? [];
+  const effects = readDX3Effects(token.components);
 
   if (action === 'awk') {
     runComboActivate({
+      spec: DX3_EFFECT_SPEC,
       combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
       chatCommand: rawInput,
-      onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'effects', value: nextEffects })
+      onSaveEffects: (nextEffects) => dispatch('SET_COMPONENT', {
+        id: tokenId, componentKey: DX3_EFFECT_SPEC.componentKey, value: nextEffects
+      })
     });
   } else if (action === 'chk') {
     runComboCheck({
@@ -590,6 +672,7 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
     });
   } else if (action === 'dmg') {
     runComboDamage({
+      spec: DX3_EFFECT_SPEC,
       combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice,
       chatCommand: rawInput
     });
@@ -598,34 +681,20 @@ function handleDX3ChatCommand(rawInput, { token, dispatch, getEffectiveParameter
   return true;
 }
 
-// シーン/ラウンド/シナリオ終了時、該当カテゴリのエフェクト使用数(current)を0へ戻す。
-// 判定終了/プロセス終了はエフェクトの使用制限カテゴリに存在しないため無変更で返す。
+// シーン/ラウンド/シナリオ終了時、該当する期間のエフェクト使用数(current)を0へ戻す。
+// 判定終了/プロセス終了はエフェクトの使用制限の期間に存在しないため無変更で返す。
 // フェーズの入れ子はCore側が1段ずつ呼び分けて処理する（例: シナリオ終了なら
-// scenario→scene→round→…の順に呼ばれる）ので、ここは渡されたカテゴリだけを見ればよい。
+// scenario→scene→round→…の順に呼ばれる）ので、ここは渡された期間だけを見ればよい。
 // 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
+// リセットは保存されている形（新旧どちらでも）を保ったまま行う。ここで正規化まで
+// してしまうと、フェーズが変わるたびに全コマのcomponentsが別参照になってしまうため。
 function resetDX3ComponentsOnPhaseEnd(components, phase) {
-  if (!LIMIT_CATEGORIES.includes(phase)) return components;
+  const key = DX3_EFFECT_SPEC.componentKey;
+  const effects = components?.[key];
+  const nextEffects = resetSkillUsageOnPhaseEnd(DX3_EFFECT_SPEC, effects, phase);
 
-  const effects = components?.effects;
-  if (!effects || effects.length === 0) return components;
-
-  let changed = false;
-  const nextEffects = effects.map(effect => {
-    const limit = effect.limits?.[phase];
-    if (!limit || (limit.current || 0) === 0) return effect;
-    changed = true;
-    return { ...effect, limits: { ...effect.limits, [phase]: { ...limit, current: 0 } } };
-  });
-
-  return changed ? { ...components, effects: nextEffects } : components;
+  return nextEffects === effects ? components : { ...components, [key]: nextEffects };
 }
-
-// クリティカル値の下限を持てるのはクリティカル修正(AcB)へのバフだけ。
-// クリティカル値は 10＋AcB で決まるため、下限も「AcBの下限」ではなく
-// 「10＋AcBの下限」＝クリティカル値そのものの下限として扱う
-// （適用はjs/parameters/dx3-combo-box.jsのlowestBuffCriticalFloor）。
-const CRITICAL_FLOOR_PARAM_ID = 'DX3:AcB';
-const CRITICAL_FLOOR_HINT = 'クリティカル値の下限（空欄で下限なし）';
 
 // バフ/デバフ付与ダイアログ（js/buff-dialog.js）に出す、DX3独自の追加入力欄。
 // 対象パラメータがAcBのときだけ下限欄を出す（他のパラメータでは意味を持たないため）。

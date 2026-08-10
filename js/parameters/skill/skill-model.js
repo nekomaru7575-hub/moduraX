@@ -1,0 +1,405 @@
+// js/parameters/skill/skill-model.js
+// 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。
+// DX3のエフェクト、シノビガミの忍法のように、システムごとに名前も付随する値も違うものを
+// 同じ形で扱えるようにする。システム固有の知識（名称・フィールド・回数制限の期間・
+// 修正値の対象パラメータ）は一切持たず、すべてプラグインからcreateSkillSpec()で渡してもらう
+// （js/parameters/saikoro-fiction/skill-table.jsのcreateSkillTableSpecと同じ構え）。
+//
+// 【注意】このファイルの「スキル」は、サイコロ・フィクションの「特技表」
+// （js/parameters/saikoro-fiction/skill-table.js）とは別物。あちらは判定の目標値を決める
+// 表で、こちらは取得して使用する能力。同じ英単語だが役割が違う。
+//
+// スキル1件の形：
+//   {
+//     name,                                   スキル名（DX3のエフェクト名等）
+//     note,                                   効果の説明文
+//     fields: { <fieldKey>: value },          システム固有の値（DX3ならtiming/level/encroach）
+//     expirePhase,                            付与するバフの効果時間。''なら使用側の既定に従う
+//     limits: {
+//       counts: { <periodKey>: {current, max} },  maxは式文字列（{EB}等）かnull＝無制限
+//       conditions: [ {left, comparator, right} ] 全て満たさないと使用できない
+//     },
+//     mods: [ {paramId, formula, target, extra} ]  使用時に与える修正（原則自身へのバフ）
+//   }
+//
+// このファイルはDOMに触れない（server/index.jsがgame-store.js経由でプラグインをimportする
+// ため、Node環境でも読み込める必要がある）。UIはskill-box.js、使用処理はskill-use.js。
+
+import { analyzeFormula, normalizeFormula, evaluateCondition } from './skill-formula.js';
+
+// バフの効果時間の選択肢。値はjs/game-store.jsのBUFF_PHASE_LABELS／PHASE_HIERARCHYと
+// 揃えてある。game-store.jsからimportすると
+// game-store.js → registry.js → プラグイン → このファイル という循環importになるため、
+// 直接importせず同じ内容をここに置いている（js/parameters/dx3-combo-box.js冒頭と同じ理由）。
+// 変えるときは両方を揃えること。
+export const EXPIRE_PHASE_CHOICES = [
+  { key: '', label: '（使用時の既定）' },
+  { key: 'manual', label: '手動で外すまで' },
+  { key: 'check', label: '判定終了まで' },
+  { key: 'process', label: 'プロセス終了まで' },
+  { key: 'round', label: 'ラウンド終了まで' },
+  { key: 'scene', label: 'シーン終了まで' },
+  { key: 'scenario', label: 'シナリオ終了まで' }
+];
+
+const EXPIRE_PHASE_KEYS = new Set(EXPIRE_PHASE_CHOICES.map(c => c.key));
+
+/**
+ * スキルのexpirePhase（保存値）を、ADD_BUFFへ渡す値へ変換する。
+ * ''（未設定）はfallbackへ委ね、'manual'はnull（手動で外すまで）になる。
+ * @param {string} stored スキルに保存された効果時間
+ * @param {string|null} fallback 使用経路ごとの既定（単体使用ならnull、コンボならprocess等）
+ * @returns {string|null}
+ */
+export function resolveExpirePhase(stored, fallback = null) {
+  if (stored === 'manual') return null;
+  if (stored && EXPIRE_PHASE_KEYS.has(stored)) return stored;
+  return fallback ?? null;
+}
+
+/**
+ * @param {{
+ *   id: string,
+ *   noun: string,              このシステムでのスキルの呼び名（DX3なら'エフェクト'）。
+ *                              ボックスの見出し・チャットコマンド・メッセージの生成に使う。
+ *   componentKey: string,      token.componentsのどのキーに保存するか。
+ *   fields?: Array<{
+ *     key: string, label: string,
+ *     type?: 'text'|'number',
+ *     placeholder?: string,
+ *     className?: string,      入力欄に付けるCSSクラス（既存のレイアウトを流用するため）
+ *     formulaName?: string,    式から{名前}で参照できるようにする（DX3のlevel → 'Lv'）
+ *     onUse?: { addToParamId: string }
+ *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
+ *                             （DX3の上昇侵蝕率 → DX3:corruption）。
+ *   }>,
+ *   periods?: Array<{key:string, label:string}>,
+ *                              回数制限の期間。keyはフェーズ終了のリセット
+ *                              （resetSkillUsageOnPhaseEnd）で渡される名前と一致させる。
+ *   modTargets?: Array<{
+ *     paramId: string, label: string,
+ *     extra?: { key:string, label:string, metaKey:string, hint?:string }
+ *                             その対象にだけ付けられる追加の数値（DX3のクリティカル値下限）。
+ *                             保存はmod.extra[key]、バフへはmeta[metaKey]として載る。
+ *   }>,
+ *   defaultExpirePhase?: string|null,
+ *   legacyModMap?: Record<string, string>
+ *                              旧データ（DX3のeffect.combo）のキー → paramIdの対応表。
+ * }} definition
+ */
+export function createSkillSpec(definition) {
+  const {
+    id,
+    noun,
+    componentKey,
+    fields = [],
+    periods = [],
+    modTargets = [],
+    defaultExpirePhase = null,
+    legacyModMap = {}
+  } = definition;
+
+  if (!id) throw new Error('[skill] idが必要です');
+  if (!noun) throw new Error(`[skill] ${id}: nounが必要です`);
+  if (!componentKey) throw new Error(`[skill] ${id}: componentKeyが必要です`);
+
+  const modTargetByParamId = new Map(modTargets.map(target => [target.paramId, target]));
+
+  return Object.freeze({
+    id,
+    noun,
+    componentKey,
+    fields: Object.freeze(fields.map(field => Object.freeze({ type: 'text', ...field }))),
+    periods: Object.freeze(periods.map(period => Object.freeze({ ...period }))),
+    modTargets: Object.freeze(modTargets.map(target => Object.freeze({ ...target }))),
+    defaultExpirePhase,
+    legacyModMap: Object.freeze({ ...legacyModMap }),
+    // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
+    findModTarget: (paramId) => modTargetByParamId.get(paramId) ?? null
+  });
+}
+
+// 正規表現のメタ文字をそのままの文字として扱わせる。nounは日本語なので今のところ
+// 該当しないが、記号を含む呼び名を付けたシステムが来ても壊れないようにしておく。
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * チャットコマンドの書式「（呼び名）使用（スキル名）」。呼び名はシステムごとに変わるので
+ * specから組み立てる（DX3なら「エフェクト使用(火炎放射)」、シノビガミなら「忍法使用(...)」）。
+ */
+export function buildSkillUseCommandPattern(spec) {
+  return new RegExp(`^${escapeRegExp(spec.noun)}使用\\((.+)\\)$`);
+}
+
+export function buildSkillUseCommand(spec, skillName) {
+  return `${spec.noun}使用(${skillName})`;
+}
+
+function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// 上限（max）は「{EB}回まで」のような式を書けるので、数値へ丸めず文字列のまま保つ。
+// 空欄・null・undefinedは「無制限」を意味するnullへ揃える。
+function normalizeLimitMax(raw) {
+  if (raw === null || raw === undefined) return null;
+  const text = String(raw).trim();
+  return text === '' ? null : text;
+}
+
+// 旧データ（DX3のeffect.combo = 固定5枠）を、可変長のmods配列へ読み替える。
+// 破壊的な一括移行はせず、読むたびにこの変換を通す（保存時に新形式で書き戻される）。
+function modsFromLegacyCombo(spec, combo) {
+  if (!combo || typeof combo !== 'object') return [];
+
+  return Object.entries(spec.legacyModMap)
+    .map(([legacyKey, paramId]) => {
+      const legacyMod = combo[legacyKey];
+      if (!legacyMod) return null;
+
+      const formula = normalizeFormula(legacyMod).trim();
+      const target = spec.findModTarget(paramId);
+
+      // 追加欄（DX3のクリティカル値下限）は旧データでも同じキー名で持っていた
+      const extra = {};
+      if (target?.extra) {
+        const value = legacyMod[target.extra.key];
+        if (Number.isFinite(value)) extra[target.extra.key] = value;
+      }
+
+      // 式も追加欄も無い枠は、旧UIが常に全枠を書き出していたためのただの空欄。落とす。
+      if (formula === '' && Object.keys(extra).length === 0) return null;
+
+      return { paramId, formula, target: 'self', extra };
+    })
+    .filter(Boolean);
+}
+
+function normalizeMod(spec, raw) {
+  const paramId = typeof raw?.paramId === 'string' ? raw.paramId : '';
+  if (!paramId) return null;
+
+  const modTarget = spec.findModTarget(paramId);
+  const extra = {};
+  if (modTarget?.extra) {
+    const value = raw?.extra?.[modTarget.extra.key];
+    if (Number.isFinite(value)) extra[modTarget.extra.key] = value;
+  }
+
+  return {
+    paramId,
+    formula: normalizeFormula(raw?.formula).trim(),
+    // 「原則自身にバフを与える」ため既定はself。他者対象を将来足してもデータ移行が
+    // 要らないよう、値としては持たせておく。
+    target: raw?.target === 'other' ? 'other' : 'self',
+    extra
+  };
+}
+
+function normalizeCondition(raw) {
+  return {
+    left: normalizeFormula(raw?.left).trim(),
+    comparator: typeof raw?.comparator === 'string' ? raw.comparator : 'lte',
+    right: normalizeFormula(raw?.right).trim()
+  };
+}
+
+/**
+ * 保存済みの1件を、欠けたフィールドを補った正規形へ揃える。
+ * 新形式・旧形式（DX3のエフェクト）のどちらも受け取れるよう、部分ごとに両方の置き場を見る。
+ * @param {object} spec
+ * @param {any} raw
+ * @returns {object}
+ */
+export function normalizeSkill(spec, raw) {
+  const fields = {};
+  spec.fields.forEach(field => {
+    // 新形式はfields配下、旧形式はトップレベル（effect.timing等）に置かれていた
+    const value = raw?.fields?.[field.key] ?? raw?.[field.key];
+    if (field.type === 'number') {
+      fields[field.key] = toNumber(value);
+    } else {
+      fields[field.key] = value === null || value === undefined ? '' : String(value);
+    }
+  });
+
+  // 新形式はlimits.counts、旧形式はlimits直下に期間キーが並んでいた
+  const rawCounts = raw?.limits?.counts ?? raw?.limits ?? {};
+  const counts = {};
+  spec.periods.forEach(period => {
+    const limit = rawCounts?.[period.key];
+    counts[period.key] = {
+      current: Math.max(0, Math.round(toNumber(limit?.current))),
+      max: normalizeLimitMax(limit?.max)
+    };
+  });
+
+  const conditions = Array.isArray(raw?.limits?.conditions)
+    ? raw.limits.conditions.map(normalizeCondition).filter(c => c.left !== '' || c.right !== '')
+    : [];
+
+  const mods = Array.isArray(raw?.mods)
+    ? raw.mods.map(mod => normalizeMod(spec, mod)).filter(Boolean)
+    : modsFromLegacyCombo(spec, raw?.combo);
+
+  const storedExpirePhase = typeof raw?.expirePhase === 'string' && EXPIRE_PHASE_KEYS.has(raw.expirePhase)
+    ? raw.expirePhase
+    : '';
+
+  return {
+    name: typeof raw?.name === 'string' ? raw.name : '',
+    note: typeof raw?.note === 'string' ? raw.note : '',
+    fields,
+    expirePhase: storedExpirePhase,
+    limits: { counts, conditions },
+    mods
+  };
+}
+
+/**
+ * componentsに保存された一覧を正規形の配列にする。名前が空のものは落とす
+ * （旧UIも保存時に同じ条件で捨てていた）。
+ */
+export function normalizeSkillList(spec, rawList) {
+  if (!Array.isArray(rawList)) return [];
+  return rawList.map(raw => normalizeSkill(spec, raw)).filter(skill => skill.name !== '');
+}
+
+/** 一覧から名前（完全一致）で1件引く。チャットコマンドの引数解決に使う。 */
+export function findSkillByName(skills, name) {
+  return skills.find(skill => skill.name === name) ?? null;
+}
+
+/**
+ * 修正1件の解析結果（値＋なぜその値になったか）。
+ * @returns {{value:number, formula:string, unresolvedNames:string[], invalidSyntax:boolean, empty:boolean}}
+ */
+export function analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue }) {
+  return analyzeFormula(mod.formula, { spec, skill, token, getEffectiveParameterValue });
+}
+
+/**
+ * 複数の修正のうち、追加欄の値が最も小さいもの（DX3のクリティカル値下限は
+ * 一番低い＝一番緩いものを適用する）を1つのmetaにまとめる。
+ */
+export function buildLowestModMeta(spec, paramId, mods) {
+  const modTarget = spec.findModTarget(paramId);
+  if (!modTarget?.extra) return null;
+
+  const values = mods
+    .map(mod => mod.extra?.[modTarget.extra.key])
+    .filter(value => Number.isFinite(value));
+  if (values.length === 0) return null;
+
+  return { [modTarget.extra.metaKey]: Math.min(...values) };
+}
+
+/**
+ * このスキルを今使えるか。回数制限と使用条件の両方を見る。
+ * 式が評価できなかった場合は使用を止めず、警告（problems）として返す
+ * （「上限が読めないので無制限として扱う」という既存の方針に揃えている）。
+ * @returns {{usable:boolean, blockedReasons:string[], problems:string[]}}
+ */
+export function checkSkillUsable(spec, skill, context) {
+  const { token, getEffectiveParameterValue } = context;
+  const formulaContext = { spec, skill, token, getEffectiveParameterValue };
+  const blockedReasons = [];
+  const problems = [];
+
+  spec.periods.forEach(period => {
+    const limit = skill.limits.counts[period.key];
+    if (!limit || limit.max === null) return;
+
+    const analysis = analyzeFormula(limit.max, formulaContext);
+    if (analysis.unresolvedNames.length > 0 || analysis.invalidSyntax) {
+      problems.push(`${skill.name}／使用制限「${limit.max}」: 式を評価できず、上限なしとして扱いました`);
+      return;
+    }
+    if (limit.current >= analysis.value) {
+      blockedReasons.push(`${period.label}の使用回数が上限（${limit.current}/${analysis.value}）に達しています`);
+    }
+  });
+
+  skill.limits.conditions.forEach(condition => {
+    const { satisfied, problem, text } = evaluateCondition(condition, formulaContext);
+    if (problem) {
+      problems.push(`${skill.name}／使用条件: ${problem}。条件を満たしたものとして扱いました`);
+      return;
+    }
+    if (!satisfied) blockedReasons.push(`使用条件を満たしていません（${text}）`);
+  });
+
+  return { usable: blockedReasons.length === 0, blockedReasons, problems };
+}
+
+/**
+ * 修正値の式のうち、評価できず0になったものの説明。使用時のログへ添えて、
+ * 「入力したのにバフが付かない」という無反応を避ける。
+ */
+export function collectModProblems(spec, skills, context) {
+  const problems = [];
+
+  skills.forEach(skill => {
+    skill.mods.forEach(mod => {
+      const { formula, unresolvedNames, invalidSyntax, empty } = analyzeMod(spec, skill, mod, context);
+      if (empty) return;
+      const label = spec.findModTarget(mod.paramId)?.label ?? mod.paramId;
+
+      if (unresolvedNames.length > 0) {
+        problems.push(`${skill.name}／${label}「${formula}」: 「${unresolvedNames.join('」「')}」を解決できませんでした`);
+      } else if (invalidSyntax) {
+        problems.push(`${skill.name}／${label}「${formula}」: 式として読めませんでした`);
+      }
+    });
+  });
+
+  return problems;
+}
+
+/**
+ * 指定スキルの使用回数を全期間+1した新しい一覧を返す（上限が無い期間も記録だけはしておく）。
+ * 一覧側の要素は正規形である前提。
+ */
+export function bumpSkillUsage(spec, skills, skillNames) {
+  const targets = new Set(skillNames);
+  if (targets.size === 0) return skills;
+
+  return skills.map(skill => {
+    if (!targets.has(skill.name)) return skill;
+    const counts = {};
+    spec.periods.forEach(period => {
+      const limit = skill.limits.counts[period.key] ?? { current: 0, max: null };
+      counts[period.key] = { ...limit, current: limit.current + 1 };
+    });
+    return { ...skill, limits: { ...skill.limits, counts } };
+  });
+}
+
+/**
+ * フェーズ終了で、その期間の使用回数を0へ戻す。該当する期間を持たないフェーズ
+ * （判定終了・プロセス終了など）では何もしない。
+ * 変化が無ければ同一参照を返す（game-store.js側の差分検知に合わせるため）。
+ */
+export function resetSkillUsageOnPhaseEnd(spec, rawList, phase) {
+  if (!spec.periods.some(period => period.key === phase)) return rawList;
+  if (!Array.isArray(rawList) || rawList.length === 0) return rawList;
+
+  let changed = false;
+  const next = rawList.map(raw => {
+    // 旧形式のまま保存されているコマもあるため、置き場は両方見る
+    const counts = raw?.limits?.counts ?? raw?.limits;
+    const limit = counts?.[phase];
+    if (!limit || (limit.current || 0) === 0) return raw;
+    changed = true;
+
+    const nextLimit = { ...limit, current: 0 };
+    return raw?.limits?.counts
+      ? { ...raw, limits: { ...raw.limits, counts: { ...raw.limits.counts, [phase]: nextLimit } } }
+      : { ...raw, limits: { ...raw.limits, [phase]: nextLimit } };
+  });
+
+  return changed ? next : rawList;
+}

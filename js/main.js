@@ -52,6 +52,7 @@ import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { initMobileLayout } from './mobile-layout.js';
+import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
@@ -1901,6 +1902,9 @@ function applyLog(entry, tabId = activeTabId) {
 
 // 初期化処理
 window.addEventListener('DOMContentLoaded', () => {
+  // 盤面が自前でズームを持っているので、ブラウザのページズームとは競合させない
+  initNoBrowserZoom();
+
   initNetSync();
   initRoundPanel();
   const infoPanel = initInfoPanel();

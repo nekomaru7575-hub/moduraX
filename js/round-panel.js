@@ -51,13 +51,6 @@ function listTurnOrderRows(state, round) {
   return rows;
 }
 
-// 直前の遷移に対して点呼/割り込み確認を表示すべきか（進行中のみ意味を持つ。フェーズの
-// confirmModeに従う）。
-function shouldShowConfirmation(round) {
-  const phase = currentPhase(round);
-  return phase ? phase.confirmMode === 'confirm' : true;
-}
-
 // 詳細リストの1行。状態（手番中／行動済み／割り込み予約）の見せ方と、GM向けの
 // 操作メニュー（行動済みの回復・次の手番への割り込み）を持つ。
 function buildTurnRow(state, round, tokenId, canOperate) {
@@ -157,25 +150,22 @@ export function initRoundPanel() {
       : '';
     statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}${interruptText}`;
 
-    // --- 「割り込みなし：（宣言済みのニックネーム,...）」の一覧表示 ---
-    const showConfirmation = shouldShowConfirmation(round);
+    // --- 「割り込みなし」まわり（一覧・自分のニックネーム・トグル）---
+    // 割り込みは「フェーズが割り込み確認中かどうか」に関係なく宣言したくなるものなので、
+    // 進行中（round.active）なら常に出す。フェーズのconfirmModeでは出し分けない。
     if (readyListEl) {
-      readyListEl.style.display = showConfirmation ? '' : 'none';
-      if (showConfirmation) {
-        const names = round.confirmation.readyEntries.map(entry => entry.nickname || '匿名');
-        readyListEl.textContent = names.length > 0
-          ? `割り込みなし：（${names.join('、')}）`
-          : '割り込みなし：（まだ誰もいません）';
-      }
+      readyListEl.style.display = '';
+      const names = round.confirmation.readyEntries.map(entry => entry.nickname || '匿名');
+      readyListEl.textContent = names.length > 0
+        ? `割り込みなし：（${names.join('、')}）`
+        : '割り込みなし：（まだ誰もいません）';
     }
 
     // --- 自分のニックネーム表示 ---
     if (nicknameLabelEl) {
-      nicknameLabelEl.style.display = showConfirmation ? '' : 'none';
-      if (showConfirmation) {
-        const myId = getLocalUserId();
-        nicknameLabelEl.textContent = `あなた: ${getNickname() || `匿名-${myId.slice(0, 4)}`}`;
-      }
+      nicknameLabelEl.style.display = '';
+      const myId = getLocalUserId();
+      nicknameLabelEl.textContent = `あなた: ${getNickname() || `匿名-${myId.slice(0, 4)}`}`;
     }
 
     // --- 「割り込みなし」トグル。押すと「割り込みありません」の宣言が表示され、
@@ -185,7 +175,7 @@ export function initRoundPanel() {
       const isReady = round.confirmation.readyEntries.some(e => e.userId === myId);
       readyToggleBtn.textContent = isReady ? '割り込みありません' : '割り込みなし';
       readyToggleBtn.classList.toggle('active', isReady);
-      readyToggleBtn.style.display = showConfirmation ? '' : 'none';
+      readyToggleBtn.style.display = '';
     }
 
     // --- 主操作ボタン（点呼に対してはソフトゲート：割り込み確認の状態では止めない。

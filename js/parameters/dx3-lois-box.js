@@ -1,6 +1,6 @@
 // js/parameters/dx3-lois-box.js
 // DX3の「ロイス」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。
-// エフェクト一覧（dx3-effect-box.js）と同じく、保存すると即座にonSaveへ新しい配列を渡し、
+// エフェクト一覧（skill/skill-box.js）と同じく、保存すると即座にonSaveへ新しい配列を渡し、
 // Core側はこの配列の中身を解釈しない（components.loisとして丸ごと保持されるだけ）。
 //
 // パラメータ「ロイス」の値はこの配列から自動計算される（countActiveLois）。

@@ -1,7 +1,14 @@
 // js/parameters/dx3-combo-box.js
 // DX3の「コンボ」一覧・編集を行うボックス。コンボは登録済みエフェクトの組み合わせ
-// （参照リストのみ）で、各エフェクトが持つ「コンボ時修正」（dx3-effect-box.js側の値）を
+// （参照リストのみ）で、各エフェクトが持つ「使用時の修正」（js/parameters/skill/側の値）を
 // 合算して判定・ダメージロールに使う。
+//
+// コンボはDX3固有の「複数のスキルをまとめて使う」仕組みなので、汎用化の対象外。
+// ただし発動そのものは汎用のrunSkillUse（js/parameters/skill/skill-use.js）へ委ね、
+// 使用制限の判定・バフ付与・使用回数の加算はエフェクト単体使用と同じ経路を通す。
+// エフェクトのspec（DX3_EFFECT_SPEC）はjs/parameters/dx3.jsが持っているが、
+// そこからimportすると dx3.js → このファイル → dx3.js の循環importになるため、
+// store操作と同じく実行系の関数の引数として受け取る。
 //
 // 発動/判定/ダメージの実処理（バフ付与・パラメータ変更・ダイスロール）はこのファイルの
 // runComboActivate/runComboCheck/runComboDamageが担うが、これらはボタンではなく
@@ -15,8 +22,7 @@
 // 循環importになってしまう。そのためstore操作・rollBCDiceは、実行系の関数
 // （runComboActivate等）の引数として呼び出し元（js/main.js）から受け取る。
 
-import { COMBO_MOD_FIELDS, LIMIT_CATEGORIES } from './dx3-effect-box.js';
-import { analyzeComboModFormula, resolveComboModFormula } from './dx3-formula.js';
+import { runSkillUse, sumSkillCosts, applySkillCosts } from './skill/skill-use.js';
 import { lockFormControls } from '../read-only-form.js';
 
 let dialogEl = null;
@@ -27,125 +33,6 @@ function ensureDialog() {
   dialogEl.className = 'character-dialog effect-box-dialog';
   document.body.appendChild(dialogEl);
   return dialogEl;
-}
-
-// エフェクトの「コンボ時修正」キー → バフの対象パラメータID（DX3の拡張レジスタ、js/parameters/dx3.js参照）
-const COMBO_PARAM_MAP = {
-  checkDice: 'DX3:AdB',
-  fixedValue: 'DX3:AnB',
-  attackPower: 'DX3:DaB',
-  damageDice: 'DX3:DdB',
-  criticalMod: 'DX3:AcB'
-};
-
-// コンボ時修正1件分の解析結果（値＋なぜその値になったか）。修正欄は文字列の式
-// （{Lv}/{パラメータ名}参照＋四則演算）なので、解決はdx3-formula.jsに委ねる。
-function comboModAnalysis(effect, key, token, getEffectiveParameterValue) {
-  return analyzeComboModFormula(effect.combo?.[key], { effect, token, getEffectiveParameterValue });
-}
-
-function comboModContribution(effect, key, token, getEffectiveParameterValue) {
-  return comboModAnalysis(effect, key, token, getEffectiveParameterValue).value;
-}
-
-function sumComboMod(effects, key, token, getEffectiveParameterValue) {
-  return effects.reduce((sum, e) => sum + comboModContribution(e, key, token, getEffectiveParameterValue), 0);
-}
-
-// 式が評価できず0として扱われたコンボ時修正を、ユーザーへ返す1行の説明にする。
-// 「入力したのにバフが付かない」という無反応を避けるため、使用時のログへ添える。
-// 問題が無ければ空配列。
-function collectComboModProblems(effects, token, getEffectiveParameterValue) {
-  const problems = [];
-
-  effects.forEach(effect => {
-    COMBO_MOD_FIELDS.forEach(({ key, label }) => {
-      const { formula, unresolvedNames, invalidSyntax, empty } =
-        comboModAnalysis(effect, key, token, getEffectiveParameterValue);
-      if (empty) return;
-
-      if (unresolvedNames.length > 0) {
-        problems.push(`${effect.name}／${label}「${formula}」: 「${unresolvedNames.join('」「')}」を解決できませんでした`);
-      } else if (invalidSyntax) {
-        problems.push(`${effect.name}／${label}「${formula}」: 式として読めませんでした`);
-      }
-    });
-  });
-
-  return problems;
-}
-
-// 上限式（「EB回まで」等）が評価できなかった場合も、無制限として扱ったことを伝える。
-function collectLimitProblems(effects, token, getEffectiveParameterValue) {
-  const problems = [];
-
-  effects.forEach(effect => {
-    LIMIT_CATEGORIES.forEach(category => {
-      const limit = effect.limits?.[category];
-      if (limit?.max == null || limit.max === '') return;
-
-      const { unresolvedNames, invalidSyntax } = analyzeComboModFormula(
-        { formula: String(limit.max) },
-        { effect, token, getEffectiveParameterValue }
-      );
-      if (unresolvedNames.length === 0 && !invalidSyntax) return;
-
-      problems.push(`${effect.name}／使用制限「${limit.max}」: 式を評価できず、上限なしとして扱いました`);
-    });
-  });
-
-  return problems;
-}
-
-// 修正値の警告と「修正値なし」の注意を、ログ本文へ足す末尾テキストに組み立てる。
-function buildModNoticeText({ effects, token, getEffectiveParameterValue, appliedBuffCount }) {
-  const problems = [
-    ...collectComboModProblems(effects, token, getEffectiveParameterValue),
-    ...collectLimitProblems(effects, token, getEffectiveParameterValue)
-  ];
-
-  const lines = problems.map(problem => `⚠ ${problem}`);
-
-  if (appliedBuffCount === 0) {
-    lines.push(problems.length > 0
-      ? '（このため修正値バフは付与されていません）'
-      : '（修正値バフはありません）');
-  }
-
-  return lines.length > 0 ? `\n${lines.join('\n')}` : '';
-}
-
-// シナリオ/シーン/ラウンドのいずれかで上限(max)が設定済みかつ、現在値(current)が
-// 既に上限に達しているエフェクトかどうか。使用（コンボ発動・単体使用）前のブロック判定に使う。
-// 上限は「EB回まで」のようなエフェクトのため{EB}等を含む式が入りうるので、コンボ時修正と同じ
-// resolveComboModFormulaで使用者のパラメータへ解決してから比較する。数値だけの旧データも
-// String()を通せば同じ経路で評価できる（'3' → 3）。
-function isEffectAtLimit(effect, token, getEffectiveParameterValue) {
-  return LIMIT_CATEGORIES.some(category => {
-    const limit = effect.limits?.[category];
-    if (limit?.max == null || limit.max === '') return false; // 無制限
-    const max = resolveComboModFormula(
-      { formula: String(limit.max) },
-      { effect, token, getEffectiveParameterValue }
-    );
-    return (limit.current || 0) >= max;
-  });
-}
-
-function buildEffectUseFailureMessage(names) {
-  return `エフェクト（${names.join('、')}）の使用に失敗しました`;
-}
-
-// クリティカル修正を持つエフェクトの「クリティカル値の下限」。複数のエフェクトが下限を
-// 持つ場合は、一番低い（＝一番緩い）ものを適用する。下限を持たないエフェクトはnullを返す。
-// これは「発動時にバフへ載せる下限を決める」ためだけに使う。判定時に効いている下限は
-// バフ側から読む（lowestBuffCriticalFloor）。
-function lowestCriticalFloor(effects) {
-  const floors = effects
-    .map(e => e.combo?.criticalMod?.floor)
-    .filter(f => f !== null && f !== undefined && Number.isFinite(f));
-  if (floors.length === 0) return null;
-  return Math.min(...floors);
 }
 
 // 今このコマに効いている「クリティカル値の下限」。AcBへのバフが持つ下限（buff.meta.criticalFloor）
@@ -162,13 +49,6 @@ export function lowestBuffCriticalFloor(token) {
     .filter(f => Number.isFinite(f));
   if (floors.length === 0) return null;
   return Math.min(...floors);
-}
-
-// 上昇侵蝕率はエフェクト自身の「上昇侵蝕率」欄（encroach）をそのまま使う。
-// シート上は「効果参照」等の非数値も入るため、数値化できないものは0として扱う。
-function parseEncroachNumber(encroach) {
-  const n = Number(encroach);
-  return Number.isFinite(n) ? n : 0;
 }
 
 // コンボの「使用能力値」「使用技能」プルダウンをそれぞれの種類だけに絞り込むための判定。
@@ -248,132 +128,37 @@ export function findComboByName(combos, name) {
 // js/parameters/dx3.jsのhandleDX3ChatCommand）から呼び出される。 ---
 
 /**
- * @param {{combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
+ * コンボ発動。組み込まれたエフェクトをまとめて「使用」する。
+ * 使用制限の判定・修正値バフの付与・使用回数の加算は汎用のrunSkillUse
+ * （js/parameters/skill/skill-use.js）へ委ね、ここではコンボ固有の事情だけを引数で伝える：
+ *   - 上昇侵蝕率はここでは払わない（ダメージを出した後に反映する。runComboDamage参照）
+ *   - 効果時間を指定していないエフェクトのバフは、プロセス終了までにする
+ *   - コンボ由来のバフはダメージロール後にまとめて剥がせるよう、combo.idをタグに付ける
+ * @param {{spec:object, combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
  *   getToken:Function, getEffectiveParameterValue:Function, generateBuffId:Function,
  *   onSaveEffects:Function}} options
  */
 export function runComboActivate({
-  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects,
+  spec, combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects,
   chatCommand
 }) {
-  const token = getToken();
-  if (!token) return;
-
   const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
 
-  // 0. 使用制限チェック：組み込まれたエフェクトのうち1つでも上限に達していたら、
-  //    このコンボは何も適用しない（バフ・使用数・ログいずれも発生させない）。
-  const failedEffects = selectedEffects.filter(e => isEffectAtLimit(e, token, getEffectiveParameterValue));
-  if (failedEffects.length > 0) {
-    alert(buildEffectUseFailureMessage(failedEffects.map(e => e.name)));
-    return;
-  }
-
-  // 1. 回数制限のカウント（シナリオ/シーン/ラウンドすべて+1。上限が無いカテゴリも
-  //    記録だけはしておく）
-  const nextEffects = effects.map(e => {
-    if (!combo.effectNames.includes(e.name)) return e;
-    const limits = e.limits || {};
-    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null }), current: (limits[cat]?.current || 0) + 1 });
-    return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
+  runSkillUse({
+    spec,
+    targetSkills: selectedEffects,
+    allSkills: effects,
+    tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId,
+    onSaveSkills: onSaveEffects,
+    chatCommand,
+    logTitle: `コンボ発動: ${combo.name}`,
+    logDetail: selectedEffects.map(e => e.name).join(' + '),
+    logSystem: 'コンボ',
+    expirePhaseFallback: 'process',
+    tag: combo.id,
+    applyCosts: false,
+    buffNameFallback: combo.name
   });
-  onSaveEffects(nextEffects);
-
-  // 2. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして付与
-  // 上昇侵蝕率はここでは加算しない（runComboDamageで、ダメージロール後に反映する）。
-  let appliedBuffCount = 0;
-  Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
-    const delta = sumComboMod(selectedEffects, key, token, getEffectiveParameterValue);
-    // クリティカル修正だけは、修正値が0でも下限を持つエフェクトがあればバフを付与する。
-    // 「クリティカル値は7として扱う」のような、修正値を持たず下限だけを持つエフェクトが
-    // あるため、ここで弾くと下限が判定へ届かなくなる。
-    const criticalFloor = key === 'criticalMod' ? lowestCriticalFloor(selectedEffects) : null;
-    if (!delta && criticalFloor === null) return;
-    // バフ名はコンボ名ではなく、このパラメータへ実際に修正を与えたエフェクト名（複数なら" + "区切り）にする。
-    const contributingNames = selectedEffects
-      .filter(e => comboModContribution(e, key, token, getEffectiveParameterValue) !== 0
-        || (key === 'criticalMod' && Number.isFinite(e.combo?.criticalMod?.floor)))
-      .map(e => e.name)
-      .join(' + ');
-    dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: contributingNames || combo.name, paramId, delta,
-      expirePhase: 'process', tag: combo.id,
-      meta: criticalFloor !== null ? { criticalFloor } : null
-    });
-    appliedBuffCount += 1;
-  });
-
-  // 修正値が0件だった場合や、式を評価できなかった場合はその理由をログへ添える
-  // （黙って何も起きないと「入力したのにバフが付かない」と見えてしまうため）。
-  const notice = buildModNoticeText({
-    effects: selectedEffects, token, getEffectiveParameterValue, appliedBuffCount
-  });
-
-  const effectNamesText = selectedEffects.map(e => e.name).join(' + ');
-  logToMain(dispatch, effectNamesText
-    ? `コンボ発動: ${combo.name}\n${effectNamesText}${notice}`
-    : `コンボ発動: ${combo.name}${notice}`, token, 'コンボ', chatCommand);
-}
-
-/**
- * コンボを介さず、単体のエフェクトを自身へ適用する（チャットコマンド「エフェクト使用(名前)」、
- * js/parameters/dx3.jsのhandleDX3ChatCommandから呼び出される）。
- * runComboActivateと違い、判定・ダメージロールを経ないその場限りの処理のため：
- * - 修正値バフはexpirePhase:null（手動で外すまで持続）で付与する
- * - 上昇侵蝕率（effect.encroach）はここで即座にDX3:corruptionへ加算する
- *   （コンボはダメージロール後に反映するが、単体使用にはダメージロールの概念が無いため）
- * @param {{effect:object, effects:Array<object>, tokenId:string, dispatch:Function,
- *   getToken:Function, getEffectiveParameterValue:Function, generateBuffId:Function,
- *   onSaveEffects:Function}} options
- */
-export function runEffectUse({
-  effect, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveEffects,
-  chatCommand
-}) {
-  const token = getToken();
-  if (!token) return;
-
-  if (isEffectAtLimit(effect, token, getEffectiveParameterValue)) {
-    alert(buildEffectUseFailureMessage([effect.name]));
-    return;
-  }
-
-  // 1. 判定ダイス/固定値/攻撃力修正/ダメージダイス/クリティカル修正をバフとして自身に付与
-  let appliedBuffCount = 0;
-  Object.entries(COMBO_PARAM_MAP).forEach(([key, paramId]) => {
-    const delta = comboModContribution(effect, key, token, getEffectiveParameterValue);
-    // コンボ発動時と同じ理由で、クリティカル修正だけは修正値0でも下限があれば付与する
-    const criticalFloor = key === 'criticalMod' ? lowestCriticalFloor([effect]) : null;
-    if (!delta && criticalFloor === null) return;
-    dispatch('ADD_BUFF', {
-      tokenId, id: generateBuffId(), name: effect.name, paramId, delta, expirePhase: null, tag: null,
-      meta: criticalFloor !== null ? { criticalFloor } : null
-    });
-    appliedBuffCount += 1;
-  });
-
-  // 2. 上昇侵蝕率をその場でDX3:corruptionへ加算
-  const corruptionGain = parseEncroachNumber(effect.encroach);
-  if (corruptionGain) {
-    const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
-    dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
-  }
-
-  // 3. 使用回数（シナリオ/シーン/ラウンド）を+1
-  const nextEffects = effects.map(e => {
-    if (e.name !== effect.name) return e;
-    const limits = e.limits || {};
-    const bump = (cat) => ({ ...(limits[cat] || { current: 0, max: null }), current: (limits[cat]?.current || 0) + 1 });
-    return { ...e, limits: { scenario: bump('scenario'), scene: bump('scene'), round: bump('round') } };
-  });
-  onSaveEffects(nextEffects);
-
-  const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
-  // コンボ発動と同じ理由（無反応を避ける）で、修正値が0件・式が評価できない場合を伝える。
-  const notice = buildModNoticeText({
-    effects: [effect], token, getEffectiveParameterValue, appliedBuffCount
-  });
-  logToMain(dispatch, `エフェクト使用: ${effect.name}${corruptionText}${notice}`, token, 'エフェクト', chatCommand);
 }
 
 /**
@@ -440,11 +225,11 @@ export async function runComboCheck({
 }
 
 /**
- * @param {{combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
+ * @param {{spec:object, combo:object, effects:Array<object>, tokenId:string, dispatch:Function,
  *   getToken:Function, getEffectiveParameterValue:Function, rollBCDice:Function}} options
  */
 export async function runComboDamage({
-  combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice, chatCommand
+  spec, combo, effects, tokenId, dispatch, getToken, getEffectiveParameterValue, rollBCDice, chatCommand
 }) {
   const token = getToken();
   if (!token) return;
@@ -459,19 +244,16 @@ export async function runComboDamage({
   try {
     const { success, resultText } = await rollBCDice('DoubleCross', command);
 
-    // 上昇侵蝕率：エフェクトの「上昇侵蝕率」欄（encroach）の合計で基礎値を永続的に増やす。
-    // ダメージを出した後に反映してほしいという要望のため、発動(runComboActivate)ではなく
-    // ここ（ダメージロール後）で加算する。
+    // 使用コスト（DX3なら上昇侵蝕率）：specのfields[].onUseで宣言された欄の合計で
+    // 基礎値を永続的に増やす。ダメージを出した後に反映してほしいという要望のため、
+    // 発動(runComboActivate)ではapplyCosts:falseで飛ばし、ここ（ダメージロール後）で払う。
     const selectedEffects = effects.filter(e => combo.effectNames.includes(e.name));
-    const corruptionGain = selectedEffects.reduce((sum, e) => sum + parseEncroachNumber(e.encroach), 0);
+    const costs = sumSkillCosts(spec, selectedEffects);
+    const costText = costs.map(({ label, gain }) => `\n${label}: ${gain > 0 ? '+' : ''}${gain}`).join('');
 
-    const corruptionText = corruptionGain ? `\n上昇侵蝕率: +${corruptionGain}` : '';
-    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${corruptionText}`, token, 'コンボ', chatCommand);
+    logToMain(dispatch, `コンボダメージ: ${combo.name}\n${success ? resultText : `エラー: ${resultText}`}${costText}`, token, 'コンボ', chatCommand);
 
-    if (corruptionGain) {
-      const baseCorruption = token.parameters['DX3:corruption']?.value ?? 0;
-      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: 'DX3:corruption', value: baseCorruption + corruptionGain });
-    }
+    applySkillCosts({ costs, token, tokenId, dispatch });
   } catch (error) {
     alert(`コンボダメージでエラーが発生しました: ${error.message}`);
   } finally {
@@ -565,7 +347,9 @@ export function showComboBox({
     timingAllOpt.value = '';
     timingAllOpt.textContent = '（すべて）';
     timingSelect.appendChild(timingAllOpt);
-    const availableTimings = new Set(effects.map(e => e.timing).filter(Boolean));
+    // タイミングはエフェクト（スキル）のシステム固有フィールド。呼び出し元が正規形
+    // （js/parameters/skill/skill-model.jsのnormalizeSkillList）で渡してくる前提。
+    const availableTimings = new Set(effects.map(e => e.fields?.timing).filter(Boolean));
     if (savedCombo.timing) availableTimings.add(savedCombo.timing);
     sortTimings([...availableTimings]).forEach(timing => {
       const opt = document.createElement('option');
@@ -606,7 +390,7 @@ export function showComboBox({
       }
 
       const timing = timingSelect.value;
-      const visibleEffects = effects.filter(e => !timing || e.timing === timing);
+      const visibleEffects = effects.filter(e => !timing || e.fields?.timing === timing);
       if (visibleEffects.length === 0) {
         const empty = document.createElement('span');
         empty.style.color = '#888';

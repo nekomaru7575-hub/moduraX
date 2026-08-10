@@ -1,7 +1,7 @@
 // js/parameters/saikoro-fiction/skill-table-box.js
 // サイコロ・フィクション共通の「特技表」ボックス。表の中身（特技名・分野名）は一切持たず、
 // 呼び出し元から渡された spec をそのまま描画する。
-// dx3-effect-box.js と同じ規約で、モジュールスコープに<dialog>を1つ持ち回す。
+// skill/skill-box.js と同じ規約で、モジュールスコープに<dialog>を1つ持ち回す。
 
 import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,

@@ -3,6 +3,7 @@
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { bindDragGesture } from './drag-gesture.js';
+import { loadImageDimensions } from './image-dimensions.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
@@ -151,17 +152,66 @@ function applyBoardTransform(board) {
   board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
 }
 
-// 盤面のピクセルサイズをマスの整数倍に決める。
-// 背景アップロード時に指定されたカスタムサイズ(boardWidth/boardHeight, 既にマスの整数倍)が
-// あればそれを、無ければビューポートをマス単位に切り上げたサイズを使う（端のマスが
-// 中途半端に切れないようにする）。
+// 背景画像のURL → 実ピクセルサイズ。測定中・測定失敗はnullを入れて二重に測らないようにする。
+const backgroundImageSizes = new Map();
+
+// 背景画像の実サイズをまだ測っていなければ測り、分かったら盤面を描き直す。
+// カスタムサイズが指定されている部屋では盤面サイズに使わないので測らない。
+function ensureBackgroundImageMeasured(board, room) {
+  const imageUrl = room?.backgroundImage;
+  if (!imageUrl) return;
+  if (room?.boardWidth && room?.boardHeight) return;
+  if (backgroundImageSizes.has(imageUrl)) return;
+
+  backgroundImageSizes.set(imageUrl, null);
+  loadImageDimensions(imageUrl).then((dim) => {
+    if (!dim) return; // 読めなければビューポート基準のまま（下のフォールバック）
+    backgroundImageSizes.set(imageUrl, dim);
+
+    applyBoardBackground(board, store.state.room);
+    // 盤面の大きさが変わったので、視点の可動域も取り直す
+    const viewport = board.parentElement;
+    if (viewport) clampPan(viewport, board);
+    scheduleBoardTransform(board);
+  });
+}
+
+// 盤面のピクセルサイズをマスの整数倍に決める。優先順は
+//   1. 背景設定で指定されたカスタムサイズ(boardWidth/boardHeight, 既にマスの整数倍)
+//   2. 背景画像の実サイズ
+//   3. ビューポートをマス単位に切り上げたサイズ（端のマスが中途半端に切れないようにする）
+//
+// 2があるのは、背景画像を「盤面いっぱいに引き伸ばして」敷いているため
+// （applyBoardBackgroundのbackground-size参照）。ここでビューポートを使うと、
+// 同じ部屋でもPCとスマホで盤面の縦横比が変わり、画像だけが歪んでコマとの位置関係がずれる。
+// 画像の実サイズを基準にすれば、どの端末でも同じ見た目になる。
 function resolveBoardPixelSize(board, room) {
   if (room?.boardWidth && room?.boardHeight) {
     return { width: room.boardWidth, height: room.boardHeight };
   }
+
+  const measured = room?.backgroundImage ? backgroundImageSizes.get(room.backgroundImage) : null;
+  if (measured) {
+    return {
+      width: Math.max(GRID_SIZE, Math.round(measured.width / GRID_SIZE) * GRID_SIZE),
+      height: Math.max(GRID_SIZE, Math.round(measured.height / GRID_SIZE) * GRID_SIZE)
+    };
+  }
+
   const viewport = board.parentElement;
-  const vw = viewport ? viewport.clientWidth : board.offsetWidth;
-  const vh = viewport ? viewport.clientHeight : board.offsetHeight;
+  const vw = viewport ? viewport.clientWidth : 0;
+  const vh = viewport ? viewport.clientHeight : 0;
+
+  // 狭幅レイアウトで盤面タブを開いていないと、ビューポートは0×0になる（js/mobile-layout.js）。
+  // それをそのまま採ると盤面が1マスの正方形へ潰れ、clampPanの基準まで壊れて
+  // 盤面へ戻ったときに視点が飛ぶ。測れないときは今の大きさを保つ。
+  if (vw <= 0 || vh <= 0) {
+    return {
+      width: parseFloat(board.style.width) || GRID_SIZE,
+      height: parseFloat(board.style.height) || GRID_SIZE
+    };
+  }
+
   return {
     width: Math.max(GRID_SIZE, Math.ceil(vw / GRID_SIZE) * GRID_SIZE),
     height: Math.max(GRID_SIZE, Math.ceil(vh / GRID_SIZE) * GRID_SIZE)
@@ -175,6 +225,8 @@ function applyBoardBackground(board, room) {
   const imageUrl = room?.backgroundImage;
   // 既定はマス目あり。この項目より前の部屋・シーンにはキーが無いので !== false で読む。
   const showGrid = room?.showGrid !== false;
+
+  ensureBackgroundImageMeasured(board, room);
   const { width: bw, height: bh } = resolveBoardPixelSize(board, room);
 
   board.style.width = `${bw}px`;

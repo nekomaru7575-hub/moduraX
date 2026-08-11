@@ -7,7 +7,7 @@ import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
   createCheckOptions, normalizeCheckOptions,
   hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
-  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount
+  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic
 } from './skill-table.js';
 import { describeSkillCheck, buildSkillCheckCommand, buildCheckCommand } from './skill-check.js';
 
@@ -49,7 +49,8 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     filledGaps: [...state.filledGaps],
     lostColumns: [...state.lostColumns],
     extraSlotCount: state.extraSlotCount,
-    lostExtraSlots: [...state.lostExtraSlots]
+    lostExtraSlots: [...state.lostExtraSlots],
+    cyclic: state.cyclic
   };
   const commit = next => {
     current = next;
@@ -174,14 +175,21 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   grid.style.gridTemplateColumns = `auto repeat(${spec.columns.length}, 14px minmax(0, 1fr))`;
   form.appendChild(grid);
 
-  if (spec.cyclic) {
-    const note = document.createElement('div');
-    note.className = 'sf-skill-table-note';
-    const first = spec.columns[0].label;
-    const last = spec.columns[spec.columns.length - 1].label;
-    note.textContent = `表の左右は繋がっています（${last} の右隣は ${first}）。左端のギャップがその境目です。`;
-    form.appendChild(note);
-  }
+  // 左右を繋ぐかはキャラクターごとの設定。切り替えると距離＝目標値が変わるので、
+  // 表のすぐ下に置いて今どちらなのかが分かるようにする。
+  const cyclicRow = document.createElement('label');
+  cyclicRow.className = 'sf-skill-table-cyclic';
+  const cyclicBox = document.createElement('input');
+  cyclicBox.type = 'checkbox';
+  cyclicBox.addEventListener('change', () => commit(toggleCyclic(current)));
+  cyclicRow.appendChild(cyclicBox);
+  const cyclicText = document.createElement('span');
+  cyclicRow.appendChild(cyclicText);
+  form.appendChild(cyclicRow);
+
+  const note = document.createElement('div');
+  note.className = 'sf-skill-table-note';
+  form.appendChild(note);
 
   const status = document.createElement('div');
   status.className = 'sf-skill-table-status';
@@ -311,6 +319,19 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     grid.innerHTML = '';
     grid.classList.toggle('is-check-mode', mode === 'check');
 
+    // --- 左右を繋ぐかの切り替え ---
+    const first = spec.columns[0].label;
+    const last = spec.columns[spec.columns.length - 1].label;
+    cyclicBox.checked = current.cyclic;
+    cyclicBox.disabled = !canEdit;
+    cyclicText.textContent = `表の左右を繋ぐ（${last} の右隣を ${first} にする）`;
+    cyclicRow.title = canEdit
+      ? '切り替えると分野間の距離＝目標値が変わります'
+      : '表示のみです';
+    note.textContent = current.cyclic
+      ? `左右は繋がっています。左端のギャップが ${last} と ${first} の境目です。`
+      : `左右は繋がっていません。${first} と ${last} は表の端から端まで数えます。`;
+
     // 見出し行：左上は空欄、以降は分野名
     const corner = document.createElement('div');
     corner.className = 'sf-skill-table-corner';
@@ -346,7 +367,7 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     // ギャップ：全行をまたぐ1本の縦帯にして、どこを押しても同じギャップをトグルできるようにする。
     // gap[i] は「列iの左」。円環でない表では gap[0]（＝表の左端）は存在しないので出さない。
     spec.columns.forEach((_column, gapIndex) => {
-      if (gapIndex === 0 && !spec.cyclic) return;
+      if (gapIndex === 0 && !current.cyclic) return;
       const gap = document.createElement('div');
       const filled = isGapFilled(current, gapIndex);
       gap.className = `sf-skill-gap${filled ? ' is-filled' : ''}`;

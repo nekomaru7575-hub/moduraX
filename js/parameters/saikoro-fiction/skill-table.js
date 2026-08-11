@@ -12,8 +12,9 @@
 //
 //   [gap0][列0][gap1][列1][gap2][列2] … [gapN-1][列N-1] →（円環なら gap0 に戻る）
 //
-// 【左右の結合】表の左端と右端が繋がるか（円環か）は cyclic で選ぶ。既定は false＝繋がらない。
-// 繋がる表のほうが特殊なので、そちらを明示的に宣言させる（シノビガミは cyclic:true）。
+// 【左右の結合】表の左端と右端が繋がるか（円環か）は**キャラクターごと**の設定
+// （state.cyclic）で、表のボックスのチェックボックスから切り替える。既定は false＝繋がらない。
+// specのcyclicはその初期値でしかなく、判定はすべてstate.cyclicを見る。
 // 繋がらない表では gap[0]（表の左端）は存在しないものとして扱い、UIにも出さない。
 //
 // 【距離】縦は行の差、横は「列を1つ跨ぐごとに1 ＋ その際に越えるギャップが未塗りつぶしなら1」。
@@ -33,7 +34,8 @@ const DEFAULT_CHECK = {
  *   columns: {key:string, label:string}[],
  *   rows: number[],            出目のラベル（例: [2,3,...,12]）
  *   cells: string[][],         cells[列index][行index] = 特技名
- *   cyclic?: boolean,          左端と右端が繋がるか（既定: false＝繋がらない）
+ *   cyclic?: boolean,          左端と右端を繋ぐかの初期値（既定: false＝繋がらない）。
+ *                              実際に繋ぐかはキャラクターごとに切り替える（state.cyclic）。
  *   gapFillable?: boolean,     ギャップを塗りつぶせるか（既定: true）
  *   baseTarget?: number,       目標値の基準（既定: 5）
  *   check?: {
@@ -268,8 +270,11 @@ export function findCellIdByName(spec, rawText) {
 // 状態（キャラクターの components.skillTable に保存する形）
 // ---------------------------------------------------------------------------
 
-export function createEmptySkillTableState() {
-  return { acquired: [], filledGaps: [], lostColumns: [], extraSlotCount: 0, lostExtraSlots: [] };
+export function createEmptySkillTableState(spec) {
+  return {
+    acquired: [], filledGaps: [], lostColumns: [], extraSlotCount: 0, lostExtraSlots: [],
+    cyclic: !!spec?.cyclic
+  };
 }
 
 /**
@@ -302,7 +307,10 @@ export function normalizeSkillTableState(spec, raw) {
     ? [...new Set(raw.lostExtraSlots.filter(i => Number.isInteger(i) && i >= 0 && i < extraSlotCount))]
     : [];
 
-  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots };
+  // 左右を繋ぐかはキャラクターごとの設定。保存済みの指定が無ければspecの初期値に従う。
+  const cyclic = typeof raw?.cyclic === 'boolean' ? raw.cyclic : !!spec.cyclic;
+
+  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, cyclic };
 }
 
 export function isAcquired(state, cellId) {
@@ -321,6 +329,15 @@ export function toggleAcquired(state, cellId) {
   return { ...state, acquired };
 }
 
+/**
+ * 左右を繋ぐかをトグルした新しいstateを返す。
+ * 繋がなくなると gap[0]（表の左端）は表示も距離計算も対象外になるが、塗りつぶしの印は
+ * 消さない。繋ぎ直したときに塗り直させないため（isGapFilledは残ったまま無視される）。
+ */
+export function toggleCyclic(state) {
+  return { ...state, cyclic: !state.cyclic };
+}
+
 /** ギャップの塗りつぶしをトグルした新しいstateを返す */
 export function toggleGap(state, gapIndex) {
   const filledGaps = isGapFilled(state, gapIndex)
@@ -337,12 +354,13 @@ export function toggleGap(state, gapIndex) {
  * 列Aから列Bまでの横方向の距離。
  * 列を1つ跨ぐごとに1、その際に越えるギャップが未塗りつぶしならさらに1。
  * 円環なら左回り・右回りの安い方を返す。
+ * 円環かどうかはキャラクターごとの設定（state.cyclic）なので、specではなくstateを見る。
  */
-export function columnDistance(spec, filledGaps, colA, colB) {
+export function columnDistance(spec, state, colA, colB) {
   if (colA === colB) return 0;
 
   const columnCount = spec.columns.length;
-  const filled = new Set(spec.gapFillable ? filledGaps : []);
+  const filled = new Set(spec.gapFillable ? state.filledGaps : []);
   const gapCost = gapIndex => (filled.has(gapIndex) ? 0 : 1);
 
   // 右へ1歩（列c → 列c+1）で越えるギャップは gap[(c+1) % N]（＝列c+1の左）
@@ -350,7 +368,7 @@ export function columnDistance(spec, filledGaps, colA, colB) {
   // 左へ1歩（列c → 列c-1）で越えるギャップは gap[c]（＝列cの左）
   const stepLeftCost = fromColumn => 1 + gapCost(fromColumn);
 
-  if (!spec.cyclic) {
+  if (!state.cyclic) {
     const low = Math.min(colA, colB);
     const high = Math.max(colA, colB);
     let total = 0;
@@ -379,7 +397,7 @@ export function cellDistance(spec, state, cellIdA, cellIdB) {
   const a = getCell(spec, cellIdA);
   const b = getCell(spec, cellIdB);
   if (!a || !b) return null;
-  return columnDistance(spec, state.filledGaps, a.columnIndex, b.columnIndex)
+  return columnDistance(spec, state, a.columnIndex, b.columnIndex)
     + Math.abs(a.rowIndex - b.rowIndex);
 }
 

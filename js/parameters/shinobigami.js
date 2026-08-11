@@ -47,7 +47,9 @@ const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
   columns: SHINOBIGAMI_COLUMNS,
   rows: SHINOBIGAMI_ROWS,
   cells: SHINOBIGAMI_SKILL_CELLS,
-  cyclic: true,       // 妖術の右隣は器術（表の左右は繋がっている）
+  // 左右を繋ぐかはキャラクターごとに切り替える（表のボックスのチェックボックス）。
+  // ここはその初期値で、既定どおり繋がない状態から始める。
+  cyclic: false,
   gapFillable: true,  // ギャップは塗りつぶすことができる
   baseTarget: 5,      // 2D6 >= 5 + 距離
   check: {

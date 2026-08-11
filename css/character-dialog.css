@@ -1086,6 +1086,27 @@
   opacity: 0.6;
 }
 
+/* 表の左右を繋ぐかの切り替え。表のすぐ下に置く */
+.sf-skill-table-cyclic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.sf-skill-table-cyclic input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.sf-skill-table-cyclic input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 /* 表の上に並べる追加枠の行 */
 .sf-skill-slot-extra-row {
   display: flex;

@@ -96,7 +96,13 @@ function createInitialRoundState() {
     currentActorId: null,  // 現在手番のコマ（kind:'perCharacter'かつstep:'act'のときだけ非null）
     step: 'act',           // perCharacterフェーズ内のサブステップ。'preTurn'（イニシアチブプロセス）| 'act'
     interruptId: null,     // 次の手番に割り込ませるコマ（GM指定。手番が決まる時に1回で消費する）
-    confirmation: { readyEntries: [] } // 点呼/割り込み確認の「準備OK」一覧。[{userId, nickname}]
+    confirmation: { readyEntries: [] }, // 点呼/割り込み確認の「準備OK」一覧。[{userId, nickname}]
+    // kind:'plot'のフェーズで各コマが伏せて出した数字 { [tokenId]: number }。
+    // plotsRevealedがtrueになるまで画面は値を伏せる（ただし状態自体は全員へ配られる。
+    // js/visibility.js冒頭の断り書きと同じ「うっかり見えない」レベル）。
+    // プロットはラウンドごとに引き直すので、plotフェーズに入るたびに両方リセットする。
+    plots: {},
+    plotsRevealed: false
   };
 }
 
@@ -125,7 +131,10 @@ function normalizeRoundState(round) {
     participants,
     // 値がundefinedのキーもスプレッドで既定値を上書きしてしまうので、参照される
     // まとまりだけは最後に埋め直す（round-panel.jsがreadyEntriesを直接読むため）
-    confirmation: round.confirmation || base.confirmation
+    confirmation: round.confirmation || base.confirmation,
+    // プロット機能より前の状態にはキーが無い。round-panel.jsが直接Object.entriesするので
+    // confirmationと同じく埋め直す。
+    plots: round.plots || base.plots
   };
   delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
   return next;
@@ -447,12 +456,63 @@ function sortByInitiative(tokensState, participantIds) {
   });
 }
 
-// まだこのラウンドで行動していない参加者を、イニシアチブの実効値の降順で返す。
+// 今このラウンドで手番順の根拠になっているフェーズ（turnOrderを宣言したperCharacterフェーズ）。
+// プロットの段にいる間も「公開後の手番順」を先に見せたいので、現在のphaseIndexではなく
+// テンプレート全体から探す。
+function turnOrderSourceOf(round) {
+  const template = round.template || [];
+  return template.find(phase => phase.kind === 'perCharacter')?.turnOrder || 'initiative';
+}
+
+// プロットの値。未提出は最下位に落とす（提出した人が先に動く）。
+function plotValueOf(round, tokenId) {
+  const value = round.plots?.[tokenId];
+  return Number.isFinite(value) ? value : -Infinity;
+}
+
+/**
+ * 手番順の並べ替え。turnOrderが'plot'ならプロット値の降順、それ以外は従来どおり
+ * core:initiativeの実効値の降順。
+ *
+ * プロットが同値のときは、ルール上は同時処理でも卓の運用では順番が要る（判定の準備が
+ * できていない人がいる）。そこで便宜上の順番として core:initiative の降順 → それも同値なら
+ * participants の並び（開始時のイニシアチブ順で固定）で決める。どちらも全員が見られる値なので、
+ * 誰が先かは公開された時点で確定し、振り直しでは変わらない。
+ * この既定を覆したいときはGMが「次の手番に割り込ませる」（ROUND_SET_INTERRUPT）で指名する。
+ */
+function sortForTurnOrder(tokensState, round, participantIds) {
+  // 公開前にプロット順で並べると、値を伏せていても並び順から大小が読めてしまう
+  // （手番順の詳細リストは全員に見えている）。公開されるまでは従来の並びのままにする。
+  if (turnOrderSourceOf(round) !== 'plot' || !round.plotsRevealed) {
+    return sortByInitiative(tokensState, participantIds);
+  }
+
+  const byInitiative = sortByInitiative(tokensState, participantIds);
+  const tieBreak = new Map(byInitiative.map((id, index) => [id, index]));
+  return byInitiative.sort((a, b) => {
+    const diff = plotValueOf(round, b) - plotValueOf(round, a);
+    if (diff !== 0) return diff;
+    return tieBreak.get(a) - tieBreak.get(b);
+  });
+}
+
+// プロットが同値（同じ値を出した相手がいる）のコマのid。ルール上は同時処理なので、
+// 画面とログで印を付けて卓に知らせるために使う（手番自体は上の便宜上の順番で回す）。
+export function listTiedPlotTokenIds(round) {
+  const counts = new Map();
+  Object.entries(round.plots || {}).forEach(([tokenId, value]) => {
+    if (!round.participants.includes(tokenId)) return;
+    counts.set(value, [...(counts.get(value) || []), tokenId]);
+  });
+  return [...counts.values()].filter(ids => ids.length > 1).flat();
+}
+
+// まだこのラウンドで行動していない参加者を、手番順で返す。
 // 呼ばれるたびに並べ替え直すので、バフ/デバフで行動値が変わっていれば次の手番の順序に
 // そのまま反映される（＝「イニシアチブプロセスで順番を計算し直す」の実体）。
 export function listUnactedParticipants(tokensState, round) {
   const acted = round.acted || [];
-  return sortByInitiative(tokensState, round.participants.filter(id => !acted.includes(id)));
+  return sortForTurnOrder(tokensState, round, round.participants.filter(id => !acted.includes(id)));
 }
 
 // 次に手番を得るコマ。割り込み指定が最優先で、無ければ未行動者のうち行動値が最大のもの。
@@ -1041,11 +1101,14 @@ export class ImmutableStore {
         const acted = (round.acted || []).filter(id => participants.includes(id));
         const currentActorId = participants.includes(round.currentActorId) ? round.currentActorId : null;
         const interruptId = participants.includes(round.interruptId) ? round.interruptId : null;
+        const plots = Object.fromEntries(
+          Object.entries(round.plots || {}).filter(([id]) => participants.includes(id))
+        );
 
         const participantNames = joinTokenNames(nextTokensState, participants) || '（なし）';
 
         this.#commit(prevState, {
-          round: { ...round, participants, acted, currentActorId, interruptId },
+          round: { ...round, participants, acted, currentActorId, interruptId, plots },
           chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`, payload?.time)
         });
         return;
@@ -1064,6 +1127,8 @@ export class ImmutableStore {
         let currentActorId = round.currentActorId;
         let step = round.step || 'act';
         let interruptId = round.interruptId;
+        let plots = round.plots || {};
+        let plotsRevealed = round.plotsRevealed || false;
         const logParts = [];
 
         const currentPhase = round.template[phaseIndex];
@@ -1073,7 +1138,27 @@ export class ImmutableStore {
         // 下のフェーズ完了処理へ落ちる（once種別のフェーズは常に完了扱い）。
         let phaseCompleted = false;
 
-        if (currentPhase.kind === 'perCharacter' && step === 'preTurn') {
+        if (currentPhase.kind === 'plot' && !plotsRevealed) {
+          // 一斉公開。ここが「主ボタンを1回押すと公開して止まる」の実体で、次の一押しで
+          // 下のphaseCompletedへ落ちて手番のフェーズへ進む。
+          plotsRevealed = true;
+
+          // 公開されて初めて値をログに残す（提出のたびに出すと伏せている意味が無くなる）。
+          // 並べ替えにはplotsRevealed:trueを渡す。sortForTurnOrderは公開前だと従来の並びへ
+          // 落とすので、ここでroundをそのまま渡すと手番順にならない。
+          const revealedRound = { ...round, plots, plotsRevealed: true };
+          const revealed = sortForTurnOrder(tokensForRound, revealedRound, round.participants)
+            .map(id => `${nameOf(id)}: ${Number.isFinite(plots[id]) ? plots[id] : '未提出'}`);
+          logParts.push(`${currentPhase.label}公開。${revealed.join('、')}`);
+
+          // 同値も手番順（＝便宜上の順番）で並べる。提出順のままだと画面の並びと食い違う。
+          const tied = sortForTurnOrder(tokensForRound, revealedRound, listTiedPlotTokenIds(revealedRound));
+          if (tied.length > 0) {
+            // ルール上は同時処理。手番自体は便宜上の順番（sortForTurnOrder参照）で回すので、
+            // 「同時である」ことは卓が知っている必要がある。
+            logParts.push(`同値: ${joinTokenNames(tokensForRound, tied)}（ルール上は同時処理です）`);
+          }
+        } else if (currentPhase.kind === 'perCharacter' && step === 'preTurn') {
           // イニシアチブプロセスを終える。ここで初めて次の行動者を確定させるので、
           // この段の最中に行動値が変わっていれば新しい順序で選ばれる。
           const actor = pickNextActor(tokensForRound, { ...round, acted });
@@ -1140,7 +1225,15 @@ export class ImmutableStore {
           const newPhase = round.template[phaseIndex];
           step = initialStepForPhase(newPhase, useInitiativeProcess);
           if (newPhase.kind === 'perCharacter' && step === 'act') {
-            currentActorId = pickNextActor(tokensForRound, { ...round, acted: [], interruptId: null });
+            currentActorId = pickNextActor(tokensForRound, { ...round, plots, acted: [], interruptId: null });
+          }
+
+          // プロットはラウンドごとに引き直すので、その段に入るところで捨てる。
+          // 手番のフェーズの間は公開済みの値を残しておく（手番順の根拠であり、
+          // 画面にも出しているため）。
+          if (newPhase.kind === 'plot') {
+            plots = {};
+            plotsRevealed = false;
           }
 
           const turnLabel = currentActorId ? `（手番: ${nameOf(currentActorId)}）`
@@ -1158,7 +1251,9 @@ export class ImmutableStore {
             acted,
             currentActorId,
             step,
-            interruptId
+            interruptId,
+            plots,
+            plotsRevealed
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
@@ -1212,6 +1307,37 @@ export class ImmutableStore {
           round: { ...round, interruptId: tokenId, acted },
           chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
         });
+        return;
+      }
+
+      // プロットの提出・変更・取り消し（value:null）。kind:'plot'のフェーズでだけ受け付ける。
+      // 【これはGM限定にしない】出すのはコマの持ち主なので、server/index.jsのGM_ONLY_ACTIONSにも
+      // 入れていない（ROUND_SET_READYと同じ扱い）。持ち主かどうかの判定は画面側だけの制限で、
+      // サーバーは強制しない（コマの所有者チェックと同じ姿勢。js/room-authority.jsのcanOperateToken）。
+      // 【ログに残さない】提出のたびに出すと、伏せている値がログから読めてしまう。
+      // 値はROUND_ADVANCE_PHASEでの一斉公開のときにまとめて出す。
+      case 'ROUND_SET_PLOT': {
+        const { tokenId, value = null } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+        if (round.template?.[round.phaseIndex]?.kind !== 'plot') return;
+        if (round.plotsRevealed) return; // 公開後の書き換えは受け付けない
+
+        const phase = round.template[round.phaseIndex];
+        const { min = 1, max = 6 } = phase.plot || {};
+        const plots = { ...(round.plots || {}) };
+
+        if (value === null) {
+          if (!(tokenId in plots)) return; // 変化なし
+          delete plots[tokenId];
+        } else {
+          const numeric = Math.trunc(Number(value));
+          if (!Number.isFinite(numeric) || numeric < min || numeric > max) return;
+          if (plots[tokenId] === numeric) return; // 変化なし
+          plots[tokenId] = numeric;
+        }
+
+        this.#commit(prevState, { round: { ...round, plots } });
         return;
       }
 

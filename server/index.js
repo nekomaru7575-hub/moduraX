@@ -411,6 +411,9 @@ function canOperateAsGm(state, participantId) {
 // GMだけが行えるアクション。js/main.js・js/round-panel.js・js/audio-dialog.jsで
 // 画面上も止めているが、こちらは直接WebSocketを叩かれた場合の歯止め。
 // ROUND_SET_READY（割り込みなしの宣言）はPL各自の意思表示なので含めない。
+// ROUND_SET_PLOT（プロットの提出）も同じ理由で含めない。出すのはコマの持ち主なので、
+// GM限定にすると本人が出せなくなる。プロットの一斉公開はROUND_ADVANCE_PHASE（下にある）
+// が兼ねているので、進行操作の側はこの表で守られている。
 const GM_ONLY_ACTIONS = new Set([
   'SET_BCDICE_SYSTEM',
   'SET_ACTIVE_PLUGIN',

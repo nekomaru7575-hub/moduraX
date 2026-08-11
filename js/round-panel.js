@@ -9,14 +9,17 @@
 // 点呼(confirmation)はソフトな可視化のみで、進行操作自体はブロックしない。
 // 手番は「行動済み(round.acted)の集合」で表され、詳細リストの各行から行動済みの回復・
 // 次の手番への割り込みを操作する（buildTurnRow・js/game-store.jsのpickNextActor参照）。
+// kind:'plot'のフェーズでは提出欄（renderPlotSection）が出る。提出は各自が自分のコマに対して
+// 行うのでGM限定にせず、一斉公開だけをGM限定の主ボタン（ROUND_ADVANCE_PHASE）が担う。
+// 公開前は他人の値を出さないが、状態そのものは全員へ配られている（js/visibility.js冒頭参照）。
 
 import { store } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
-import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
-import { listUnactedParticipants, getEffectiveParameterValue } from './game-store.js';
+import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
+import { listUnactedParticipants, listTiedPlotTokenIds, getEffectiveParameterValue } from './game-store.js';
 
 let lastRenderedRoundRef = null;
 let lastRenderedTokensRef = null;
@@ -37,6 +40,16 @@ function isPreTurnStep(round) {
   return currentPhase(round)?.kind === 'perCharacter' && round.step === 'preTurn';
 }
 
+// プロットの段にいるか（kind:'plot'。js/parameters/registry.jsのテンプレート仕様参照）
+function isPlotPhase(round) {
+  return currentPhase(round)?.kind === 'plot';
+}
+
+// このラウンドの手番順がプロット値で決まるか。詳細リストの括弧に何を出すかがこれで変わる。
+function usesPlotTurnOrder(round) {
+  return (round.template || []).some(phase => phase.kind === 'perCharacter' && phase.turnOrder === 'plot');
+}
+
 // 詳細リストの並び：手番中 → 未行動（イニシアチブ降順） → 行動済み。
 // 「次に誰が動くか」が上から読めるようにするため、参加者の登録順ではなくこの順で出す。
 function listTurnOrderRows(state, round) {
@@ -53,7 +66,7 @@ function listTurnOrderRows(state, round) {
 
 // 詳細リストの1行。状態（手番中／行動済み／割り込み予約）の見せ方と、GM向けの
 // 操作メニュー（行動済みの回復・次の手番への割り込み）を持つ。
-function buildTurnRow(state, round, tokenId, canOperate) {
+function buildTurnRow(state, round, tokenId, canOperate, tiedIds = []) {
   const row = document.createElement('div');
   row.className = 'round-panel-turn-row';
 
@@ -65,18 +78,32 @@ function buildTurnRow(state, round, tokenId, canOperate) {
   if (isInterrupt) row.classList.add('interrupt-reserved');
 
   const token = state.tokens[tokenId];
-  const initiative = token ? getEffectiveParameterValue(token, 'core:initiative') : undefined;
   const name = getTokenName(state, tokenId);
-  row.textContent = `${isInterrupt ? '⏭ ' : ''}${name}${initiative === undefined ? '' : ` (${initiative})`}`;
+
+  // 手番順がプロットで決まるラウンドでは、括弧の中もその根拠＝プロット値にする。
+  // 公開前は伏せる（提出済みかどうかだけを●/○で示すのは下の提出状況の行の仕事）。
+  let score;
+  if (usesPlotTurnOrder(round)) {
+    score = round.plotsRevealed ? round.plots?.[tokenId] : undefined;
+    if (round.plotsRevealed && tiedIds.includes(tokenId)) row.classList.add('plot-tied');
+  } else {
+    score = token ? getEffectiveParameterValue(token, 'core:initiative') : undefined;
+  }
+  row.textContent = `${isInterrupt ? '⏭ ' : ''}${name}${score === undefined ? '' : ` (${score})`}`;
+
+  // 同値であることは並び順からは読み取れないので、理由をツールチップにも書いておく
+  const tieNote = row.classList.contains('plot-tied')
+    ? '同値です（ルール上は同時処理。並び順は便宜上のもの）。'
+    : '';
 
   // 手番中のコマの「行動済みにする」は「手番を終了」と意味が重なるので操作を出さない
   if (isCurrent) {
-    row.title = '手番中です';
+    row.title = `${tieNote}手番中です`;
     return row;
   }
 
   row.classList.add('clickable');
-  row.title = canOperate ? 'クリックで行動済み・割り込みを操作' : GM_ONLY_REASON;
+  row.title = tieNote + (canOperate ? 'クリックで行動済み・割り込みを操作' : GM_ONLY_REASON);
   row.addEventListener('click', (event) => {
     showContextMenu(event.clientX, event.clientY, [
       {
@@ -104,6 +131,82 @@ function listBoardTokens(state) {
     .map(t => ({ id: t.id, name: t.name }));
 }
 
+// プロットを自分が出せるコマ（持ち主が自分か、持ち主のいないコマ。GMは全部出せる）。
+// 判定は盤面のコマ操作と同じ規則（js/room-authority.jsのcanOperateToken）。
+function listMyPlotTokenIds(state, round) {
+  return round.participants.filter(id => canOperateToken(state.tokens[id]));
+}
+
+// 自分のコマ1つ分の提出欄（コマ名 + min〜maxのボタン）。もう一度同じ数字を押すと取り消す。
+function buildPlotInputRow(state, round, tokenId) {
+  const { min = 1, max = 6 } = currentPhase(round).plot || {};
+  const row = document.createElement('div');
+  row.className = 'round-panel-plot-row';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'round-panel-plot-name';
+  nameEl.textContent = `${getTokenName(state, tokenId)}:`;
+  row.appendChild(nameEl);
+
+  const selected = round.plots?.[tokenId];
+  for (let value = min; value <= max; value += 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'round-panel-plot-btn';
+    btn.textContent = String(value);
+    if (selected === value) btn.classList.add('selected');
+    // 公開後は出し直せない（リデューサー側でも弾いている）
+    btn.disabled = round.plotsRevealed;
+    btn.title = round.plotsRevealed
+      ? '公開済みです'
+      : selected === value ? 'もう一度押すと取り消します' : `${value}を出す`;
+    btn.addEventListener('click', () => {
+      store.dispatch('ROUND_SET_PLOT', { tokenId, value: selected === value ? null : value });
+    });
+    row.appendChild(btn);
+  }
+
+  return row;
+}
+
+// 提出状況の1行。公開前は誰が出し終えたかだけ（●/○）、公開後は値を出す。
+function describePlotStatus(state, round) {
+  const entries = round.participants.map(id => {
+    const name = getTokenName(state, id);
+    const value = round.plots?.[id];
+    if (round.plotsRevealed) return `${name}: ${Number.isFinite(value) ? value : '未提出'}`;
+    return `${Number.isFinite(value) ? '●' : '○'}${name}`;
+  });
+
+  if (entries.length === 0) return '参加者がいません。';
+  return round.plotsRevealed
+    ? `公開: ${entries.join('、')}`
+    : `提出状況: ${entries.join('、')}`;
+}
+
+// プロットの段の欄をまるごと組み直す。plotフェーズ以外では隠す。
+function renderPlotSection(plotEl, state, round) {
+  if (!plotEl) return;
+
+  if (!isPlotPhase(round)) {
+    plotEl.style.display = 'none';
+    plotEl.innerHTML = '';
+    return;
+  }
+
+  plotEl.style.display = '';
+  plotEl.innerHTML = '';
+
+  listMyPlotTokenIds(state, round).forEach(tokenId => {
+    plotEl.appendChild(buildPlotInputRow(state, round, tokenId));
+  });
+
+  const statusEl = document.createElement('div');
+  statusEl.className = 'round-panel-plot-status';
+  statusEl.textContent = describePlotStatus(state, round);
+  plotEl.appendChild(statusEl);
+}
+
 // ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。参加者を選ぶステップは省き、
 // 現在盤面にいる（バックヤードに入っていない）visible!==falseのコマをそのまま参加者にする。
 // 手動で参加者を絞りたい場合は開始後、パネルの「⋮」→「参加者を編集」で調整できる。
@@ -126,6 +229,7 @@ export function initRoundPanel() {
   const actionBtn = document.getElementById('roundPanelActionBtn');
   const menuBtn = document.getElementById('roundPanelMenuBtn');
   const detailEl = document.getElementById('roundPanelDetail');
+  const plotEl = document.getElementById('roundPanelPlot');
 
   if (!bar || !statusEl || !actionBtn) return;
 
@@ -135,6 +239,7 @@ export function initRoundPanel() {
     // 平常時（未進行）はバー・詳細ともに非表示にして邪魔にならないようにする
     bar.style.display = round.active ? '' : 'none';
     if (detailEl && !round.active) detailEl.style.display = 'none';
+    if (plotEl && !round.active) plotEl.style.display = 'none';
     if (!round.active) return;
 
     // --- ステータス行 ---
@@ -183,11 +288,15 @@ export function initRoundPanel() {
     // このフェーズにまだ手番が残っているか＝「自分以外の未行動者」か割り込み予約があるか
     const remainingAfterCurrent = listUnactedParticipants(state.tokens, round)
       .filter(id => id !== round.currentActorId);
-    const isLastStepOfPhase = phase?.kind !== 'perCharacter'
-      || (remainingAfterCurrent.length === 0 && !round.interruptId);
+    // 未公開のプロットの段は、押しても次のフェーズへは進まず「公開する」で1回止まる
+    const isUnrevealedPlot = isPlotPhase(round) && !round.plotsRevealed;
+    const isLastStepOfPhase = !isUnrevealedPlot
+      && (phase?.kind !== 'perCharacter'
+        || (remainingAfterCurrent.length === 0 && !round.interruptId));
     const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
 
-    actionBtn.textContent = (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ'
+    actionBtn.textContent = isUnrevealedPlot ? 'プロットを公開'
+      : (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ'
       : isPreTurnStep(round) ? '手番を開始'
       : phase?.kind === 'perCharacter' ? '手番を終了'
       : '次へ進む';
@@ -199,6 +308,9 @@ export function initRoundPanel() {
       btn.disabled = !canOperate;
       btn.title = canOperate ? (btn === menuBtn ? '参加者編集・終了' : '') : GM_ONLY_REASON;
     });
+
+    // --- プロットの提出欄（kind:'plot'のフェーズのときだけ出る） ---
+    renderPlotSection(plotEl, state, round);
 
     // --- 詳細（手番順）リスト ---
     if (detailEl) {
@@ -213,8 +325,9 @@ export function initRoundPanel() {
           empty.textContent = '参加者がいません。';
           detailEl.appendChild(empty);
         } else {
+          const tiedIds = listTiedPlotTokenIds(round);
           listTurnOrderRows(state, round).forEach(tokenId => {
-            detailEl.appendChild(buildTurnRow(state, round, tokenId, canOperate));
+            detailEl.appendChild(buildTurnRow(state, round, tokenId, canOperate, tiedIds));
           });
         }
       }

@@ -39,3 +39,24 @@ export function canOperateAsGm() {
   if (!hasAnyGm(participants)) return true;
   return isGm(participants, getCurrentParticipantId());
 }
+
+/**
+ * そのコマを操作してよいか（更新・JSON読み込み・削除・バックヤードへの回収、
+ * ラウンド進行でのプロット提出）。所有者がいないコマは誰でも触れる。
+ * 盤面上の移動だけはこの判定を通さない（誰でも動かせる）。
+ *
+ * 部屋レベルの操作ではないが、判定の材料（誰がGMか・今の自分は誰か）が
+ * canOperateAsGmと同じなのでここに置く。呼ぶ側が自分のIDを組み立てずに済むよう、
+ * 状態は上と同じくこの中で読む。
+ *
+ * GMかどうかはcanOperateAsGm()ではなくisGm()で見る。canOperateAsGm()は「GMが1人も
+ * いない部屋では全員が操作できる」を含むため、それを使うとGM不在の部屋で他人のコマまで
+ * 触れてしまう。持ち主がいるコマの防壁は持ち主本人とGMだけ、という元の規則を保つ。
+ */
+export function canOperateToken(token) {
+  if (!token) return false;
+  if (!token.ownerId) return true;
+  const myParticipantId = getCurrentParticipantId();
+  if (isGm(store.state.participants, myParticipantId)) return true;
+  return token.ownerId === myParticipantId;
+}

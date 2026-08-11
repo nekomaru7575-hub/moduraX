@@ -28,12 +28,18 @@ export function buildRoomParameters(pluginId) {
 // Coreの既定ラウンド進行テンプレート。プラグインがbuildRoundPhaseTemplateを
 // 持たない場合はこれを使う。
 // kind: 'once'（1回きり）| 'perCharacter'（参加者全員に1回ずつ手番が回る）
+//   | 'plot'（参加者それぞれが数字を伏せて出し、進行役の合図で一斉に公開する段）
 // expirePhaseOnComplete: このフェーズを抜ける時にEXPIRE_BUFFSと同じバフ剥がしを自動発火するか
 //   （'round'を指定すると、その内側のプロセス・判定のバフもまとめて剥がれる）
 // preTurnStep: 各キャラの手番の直前に挟む段（perCharacterのみ意味を持つ。nullなら挟まない）。
 //   「挟める段があるか」はテンプレート側＝将来はプラグイン/ユーザー定義が宣言し、
 //   「今回それを使うか」はルーム設定（room.roundSettings.useInitiativeProcess）が決める。
 //   この段を抜ける時に次の行動者を決め直すので、直前のバフで変わった行動値も反映される。
+// plot: 出せる数字の範囲 { min, max }（kind:'plot'のみ意味を持つ）。シノビガミのプロットが
+//   これで、値の意味（大きいほど先に動く）はCore側に固定。範囲だけプラグインが決める。
+// turnOrder: 手番順の出どころ（perCharacterのみ意味を持つ）。
+//   省略時＝'initiative'（core:initiativeの実効値の降順）。'plot'ならプロット値の降順。
+//   詳しくはjs/game-store.jsのsortForTurnOrder。
 const DEFAULT_ROUND_PHASE_TEMPLATE = [
   { id: 'setup', label: 'セットアップ', kind: 'once', expirePhaseOnComplete: null, preTurnStep: null },
   {

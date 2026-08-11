@@ -174,10 +174,46 @@ function handleShinobigamiChatCommand(rawInput, { token, dispatch, rollBCDice })
   return true;
 }
 
+/**
+ * ラウンド進行のフェーズ構成。
+ *   1. プロット … 登場しているコマが1〜6を伏せて出し、GMの合図で一斉公開する
+ *   2. 手番     … プロット値の高い順（turnOrder:'plot'）に1人ずつ
+ *   3. ラウンド終了 … 次のラウンドへ。ここでラウンドのバフを剥がす
+ * 「ラウンド開始」に当たる段は置いていない。プロットの段に入ること自体がそれで、
+ * ログにも「ラウンド2 - プロット開始」と出る。
+ *
+ * 同値（同じ数字を出した者同士）はルール上は同時処理だが、卓の運用では順番が要るので
+ * Core側が便宜上の順番を決める（js/game-store.jsのsortForTurnOrder）。同値であることは
+ * パネルとログに印が出るので、実際にどう捌くかは卓の判断に委ねる。
+ *
+ * preTurnStepは置かない＝シノビガミではルーム設定の「イニシアチブプロセスを挟む」は
+ * 効かない（js/game-store.jsのinitialStepForPhase）。手番順の根拠がプロットであり、
+ * 手番の直前に順番を計算し直す段がそもそも無いため。
+ */
+function buildShinobigamiRoundPhaseTemplate() {
+  return [
+    {
+      id: 'plot', label: 'プロット', kind: 'plot',
+      plot: { min: 1, max: 6 },
+      expirePhaseOnComplete: null, preTurnStep: null
+    },
+    {
+      id: 'action', label: '手番', kind: 'perCharacter',
+      turnOrder: 'plot',
+      expirePhaseOnComplete: null, preTurnStep: null
+    },
+    {
+      id: 'roundEnd', label: 'ラウンド終了', kind: 'once',
+      expirePhaseOnComplete: 'round', preTurnStep: null
+    }
+  ];
+}
+
 export const SHINOBIGAMI_PLUGIN = {
   id: 'SHINOBIGAMI',
   label: 'シノビガミ',
   // buildCharacterParameters: 未定義 → registry側で空オブジェクト扱い（生命力・忍法は後続）
+  buildRoundPhaseTemplate: buildShinobigamiRoundPhaseTemplate,
   renderCharacterPanel: renderShinobigamiCharacterPanel,
   handleChatCommand: handleShinobigamiChatCommand,
   looksLikeOwnChatCommand: looksLikeShinobigamiChatCommand

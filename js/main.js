@@ -49,6 +49,8 @@ import { initAudioPlayer } from './audio-player.js';
 import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
+import { initStampLayer, requestStamp } from './stamp-layer.js';
+import { findStampByName, listStampLabels } from './stamp-catalog.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { initMobileLayout } from './mobile-layout.js';
@@ -1202,6 +1204,33 @@ function tryHandlePhaseEndCommand(rawInput) {
 // 対になる操作で、音楽ダイアログを開かずに止められるようにするためのコマンド。
 const AUDIO_STOP_COMMAND = '演奏停止';
 
+// スタンプ(拍手) のように打つ。盤面の右上に一定時間だけ出して消える合図で、
+// チャットログにも状態にも残さない（js/stamp-layer.js）。
+// このコマンドだけはapplyLogを通さないのが肝で、通すとログに残ってしまい仕様と食い違う。
+const STAMP_COMMAND_PATTERN = /^スタンプ\((.+)\)$/;
+
+function tryHandleStampCommand(rawInput) {
+  const match = rawInput.trim().match(STAMP_COMMAND_PATTERN);
+  if (!match) return false;
+
+  // 書式が合った時点で必ずtrueを返す。falseで抜けるとBCDiceへの判定として流れてしまう。
+  const stamp = findStampByName(match[1]);
+  if (!stamp) {
+    alert(`スタンプ「${match[1].trim()}」は登録されていません。\n\n使えるスタンプ: ${listStampLabels().join('／')}`);
+    return true;
+  }
+
+  // スタンプには送り主の名前が出るので、名乗っていない人は送れない（サーバー側も弾く）。
+  // 黙って消えると「打ったのに何も起きない」になるため、ここで理由を出す。
+  if (!getCurrentParticipantId()) {
+    alert('スタンプを送るには、先に参加者設定で名前を決めてください。');
+    return true;
+  }
+
+  requestStamp(stamp.id);
+  return true;
+}
+
 function tryHandleAudioStopCommand(rawInput) {
   if (rawInput.trim() !== AUDIO_STOP_COMMAND) return false;
 
@@ -1336,6 +1365,8 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
 
   if (tryHandlePhaseEndCommand(text)) { onSent?.(); return; }
   if (tryHandleAudioStopCommand(text)) { onSent?.(); return; }
+  // スタンプは{}参照の解決もダイスへのフォールバックも要らないので、置換より手前で捌く
+  if (tryHandleStampCommand(text)) { onSent?.(); return; }
 
   // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
@@ -1907,6 +1938,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   initNetSync();
   initRoundPanel();
+  initStampLayer();
   const infoPanel = initInfoPanel();
   const characterPanel = initCharacterPanel();
 

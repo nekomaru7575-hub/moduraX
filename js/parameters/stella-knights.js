@@ -6,12 +6,12 @@ const CHARGE_COMMAND_PATTERN = /^charge\((\d+)\)$/i;
 const MAIN_TAB_ID = 'main';
 
 const FACE_PARAMETERS = [
-  { key: 'face1', label: '１の目', value: 0, locked: true, editable: true, visible: true },
-  { key: 'face2', label: '２の目', value: 0, locked: true, editable: true, visible: true },
-  { key: 'face3', label: '３の目', value: 0, locked: true, editable: true, visible: true },
-  { key: 'face4', label: '４の目', value: 0, locked: true, editable: true, visible: true },
-  { key: 'face5', label: '５の目', value: 0, locked: true, editable: true, visible: true },
-  { key: 'face6', label: '６の目', value: 0, locked: true, editable: true, visible: true }
+  { key: 'face1', label: '１の目', value: 0, locked: true, editable: true, visible: false },
+  { key: 'face2', label: '２の目', value: 0, locked: true, editable: true, visible: false },
+  { key: 'face3', label: '３の目', value: 0, locked: true, editable: true, visible: false },
+  { key: 'face4', label: '４の目', value: 0, locked: true, editable: true, visible: false },
+  { key: 'face5', label: '５の目', value: 0, locked: true, editable: true, visible: false },
+  { key: 'face6', label: '６の目', value: 0, locked: true, editable: true, visible: false }
 ];
 
 function buildStellaKnightsCharacterParameters() {
@@ -30,6 +30,59 @@ function countFaces(diceValues) {
     counts[rand.value - 1] += 1;
   });
   return counts;
+}
+
+function readFaceValue(parameters, face) {
+  const value = parameters?.[`STELLA_KNIGHTS:face${face}`]?.value;
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function renderStellaKnightsCharacterPanel({ container, canEdit = true, parameters = {} }) {
+  container.innerHTML = '';
+
+  const title = document.createElement('h4');
+  title.textContent = '銀剣のステラナイツ';
+  title.style.margin = '0 0 8px 0';
+  title.style.color = '#fff';
+  container.appendChild(title);
+
+  const list = document.createElement('div');
+  list.className = 'dialog-custom-list';
+  container.appendChild(list);
+
+  const rows = FACE_PARAMETERS.map((definition, index) => {
+    const face = index + 1;
+    const paramId = `STELLA_KNIGHTS:${definition.key}`;
+
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const label = document.createElement('label');
+    label.textContent = definition.label;
+    label.className = 'dialog-param-label';
+    label.style.alignSelf = 'center';
+    label.style.color = '#ccc';
+    label.style.fontSize = '0.85rem';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1';
+    input.value = readFaceValue(parameters, face);
+    input.disabled = !canEdit;
+
+    row.appendChild(label);
+    row.appendChild(input);
+    list.appendChild(row);
+
+    return { paramId, input };
+  });
+
+  return {
+    getValues: () => Object.fromEntries(
+      rows.map(({ paramId, input }) => [paramId, Math.max(0, Math.trunc(Number(input.value) || 0))])
+    )
+  };
 }
 
 function buildChargeLines(token, counts, dispatch) {
@@ -114,6 +167,7 @@ export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
+  renderCharacterPanel: renderStellaKnightsCharacterPanel,
   handleChatCommand: handleStellaKnightsChatCommand,
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand
 };

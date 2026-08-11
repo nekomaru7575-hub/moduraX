@@ -1,9 +1,12 @@
 import { MAX_ANIMATED_DICE } from '../dice-notation.js';
 import { buildParameters } from './paramFactory.js';
+import { createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd } from './skill/skill-model.js';
+import { showSkillBox } from './skill/skill-box.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 const CHARGE_COMMAND_PATTERN = /^charge\((\d+)\)$/i;
 const MAIN_TAB_ID = 'main';
+const SKILL_COMPONENT_KEY = 'stellaKnightsSkills';
 
 const FACE_PARAMETERS = [
   { key: 'face1', label: '１の目', value: 0, locked: true, editable: true, visible: false },
@@ -13,6 +16,32 @@ const FACE_PARAMETERS = [
   { key: 'face5', label: '５の目', value: 0, locked: true, editable: true, visible: false },
   { key: 'face6', label: '６の目', value: 0, locked: true, editable: true, visible: false }
 ];
+
+const NUMBER_OPTIONS = [
+  { value: '', label: 'なし' },
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: '4', label: '4' },
+  { value: '5', label: '5' },
+  { value: '6', label: '6' }
+];
+
+const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
+  id: 'stella-knights-skill',
+  noun: 'スキル',
+  componentKey: SKILL_COMPONENT_KEY,
+  fields: [
+    { key: 'type', label: '種別', type: 'text', className: 'effect-box-timing' },
+    { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
+    { key: 'number', label: '対応する数字', type: 'select', options: NUMBER_OPTIONS, className: 'effect-box-level' }
+  ],
+  periods: [{ key: 'scenario', label: 'シナリオ' }],
+  modTargets: FACE_PARAMETERS.map((definition, index) => ({
+    paramId: `STELLA_KNIGHTS:${definition.key}`,
+    label: `${index + 1}の目`
+  }))
+});
 
 function buildStellaKnightsCharacterParameters() {
   return buildParameters('STELLA_KNIGHTS', FACE_PARAMETERS);
@@ -37,7 +66,14 @@ function readFaceValue(parameters, face) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-function renderStellaKnightsCharacterPanel({ container, canEdit = true, parameters = {} }) {
+// componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
+function readStellaKnightsSkills(components) {
+  return normalizeSkillList(STELLA_KNIGHTS_SKILL_SPEC, components?.[SKILL_COMPONENT_KEY] ?? []);
+}
+
+function renderStellaKnightsCharacterPanel({
+  container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents
+}) {
   container.innerHTML = '';
 
   const title = document.createElement('h4');
@@ -78,11 +114,56 @@ function renderStellaKnightsCharacterPanel({ container, canEdit = true, paramete
     return { paramId, input };
   });
 
+  // スキル一覧（ボックス）。既存キャラクターの更新時のみ開ける
+  // （新規作成時はまだcomponentsを持たないため対象外。js/parameters/dx3.jsのエフェクト欄と同じ扱い）。
+  if (mode === 'edit' && onComponentChange) {
+    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む
+    // （getComponentsが無い場合のみ、開いた時点のスナップショットにフォールバック）。
+    const readComponents = () => (getComponents ? getComponents() : components);
+    const readSkills = () => readStellaKnightsSkills(readComponents());
+
+    const skillBtn = document.createElement('button');
+    skillBtn.type = 'button';
+    skillBtn.className = 'dialog-add-row-btn';
+    skillBtn.style.marginTop = '8px';
+
+    const updateSkillBtnLabel = () => {
+      skillBtn.textContent = `${STELLA_KNIGHTS_SKILL_SPEC.noun}一覧を開く（${readSkills().length}件）`;
+    };
+    updateSkillBtnLabel();
+
+    skillBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: STELLA_KNIGHTS_SKILL_SPEC,
+        skills: readSkills(),
+        // 修正の対象に選べるパラメータと、式に書ける{パラメータ名}の検証・提示に使う
+        parameters,
+        readOnly: !canEdit,
+        onSave: (nextSkills) => {
+          onComponentChange(SKILL_COMPONENT_KEY, nextSkills);
+          updateSkillBtnLabel();
+        }
+      });
+    });
+    container.appendChild(skillBtn);
+  }
+
   return {
     getValues: () => Object.fromEntries(
       rows.map(({ paramId, input }) => [paramId, Math.max(0, Math.trunc(Number(input.value) || 0))])
     )
   };
+}
+
+// シナリオ終了時、スキルの使用回数（periods: scenario）を戻す
+// （js/parameters/dx3.jsのresetDX3ComponentsOnPhaseEndと同型）。
+// 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
+function resetStellaKnightsComponentsOnPhaseEnd(components, phase) {
+  const key = STELLA_KNIGHTS_SKILL_SPEC.componentKey;
+  const skills = components?.[key];
+  const nextSkills = resetSkillUsageOnPhaseEnd(STELLA_KNIGHTS_SKILL_SPEC, skills, phase);
+
+  return nextSkills === skills ? components : { ...components, [key]: nextSkills };
 }
 
 function buildChargeLines(token, counts, dispatch) {
@@ -169,5 +250,6 @@ export const STELLA_KNIGHTS_PLUGIN = {
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
   renderCharacterPanel: renderStellaKnightsCharacterPanel,
   handleChatCommand: handleStellaKnightsChatCommand,
-  looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand
+  looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,
+  resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd
 };

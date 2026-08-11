@@ -5,7 +5,7 @@ exports: 1
 imported_by: 5
 api_sha: ffcb4929db95
 prose_sha: ffcb4929db95
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.character-dialog]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-effect-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.dx3]]
+- imported by → [[js.character-dialog]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.dx3]], [[js.parameters.skill.skill-box]]
 
 ## 注意
 

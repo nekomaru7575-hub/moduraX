@@ -2,10 +2,10 @@
 source: js/EventBus.js
 lines: 16
 exports: 1
-imported_by: 9
+imported_by: 10
 api_sha: b4ae73ec975f
 prose_sha: b4ae73ec975f
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -34,7 +34,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.audio-player]], [[js.board-data-driven]], [[js.character-panel]], [[js.dice-animation]], [[js.game-store]], [[js.info-panel]], [[js.main]], [[js.net-sync]], [[js.round-panel]]
+- imported by → [[js.audio-player]], [[js.board-data-driven]], [[js.character-panel]], [[js.dice-animation]], [[js.game-store]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.net-sync]], [[js.round-panel]]
 
 ## 注意
 

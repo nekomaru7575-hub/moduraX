@@ -1,11 +1,11 @@
 ---
 source: js/resizable-stack.js
-lines: 81
+lines: 83
 exports: 1
 imported_by: 1
 api_sha: ac2f87b1df9a
 prose_sha: ac2f87b1df9a
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 31 | fn | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` |  |
+| 33 | fn | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,14 +34,14 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 6 | loadSizes | `loadSizes(storageKey)` | 9 |  |
-| 16 | saveSizes | `saveSizes(storageKey, sizes)` | 7 |  |
-| 24 | applySize | `applySize(section, size)` | 3 |  |
-| 31 | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` | 50 | ✓ |
+| 8 | loadSizes | `loadSizes(storageKey)` | 9 |  |
+| 18 | saveSizes | `saveSizes(storageKey, sizes)` | 7 |  |
+| 26 | applySize | `applySize(section, size)` | 3 |  |
+| 33 | makeResizableStack | `makeResizableStack({ container, storageKey, minSize = 60 })` | 50 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.drag-gesture]]
 - imported by → [[js.main]]
 
 ## 注意

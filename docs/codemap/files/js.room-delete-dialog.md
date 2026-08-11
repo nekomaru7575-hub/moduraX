@@ -1,11 +1,11 @@
 ---
 source: js/room-delete-dialog.js
-lines: 69
+lines: 71
 exports: 1
 imported_by: 1
 api_sha: 66ecbc1516f1
 prose_sha: 66ecbc1516f1
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 21 | fn | showRoomDeleteConfirmDialog | `showRoomDeleteConfirmDialog({ onDelete, onSaveAndDelete })` | onDelete: () => void, onSaveAndDelete: () => void }} options |
+| 23 | fn | showRoomDeleteConfirmDialog | `showRoomDeleteConfirmDialog({ onDelete, onSaveAndDelete })` | onDelete: () => void, onSaveAndDelete: () => void \| Promise<void> （書き出しにサーバーへの問い合わせが要るため非同期になりうる。ダイアログは待たないが… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -35,7 +35,7 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 7 | ensureDialog | `ensureDialog()` | 7 |  |
-| 21 | showRoomDeleteConfirmDialog | `showRoomDeleteConfirmDialog({ onDelete, onSaveAndDelete })` | 48 | ✓ |
+| 23 | showRoomDeleteConfirmDialog | `showRoomDeleteConfirmDialog({ onDelete, onSaveAndDelete })` | 48 | ✓ |
 
 ## 依存
 

@@ -1,11 +1,11 @@
 ---
 source: server/r2.js
-lines: 176
-exports: 10
+lines: 194
+exports: 11
 imported_by: 1
-api_sha: d8159d12e751
-prose_sha: d8159d12e751
-generated: 2026-08-08
+api_sha: 5c3b9fc05c8a
+prose_sha: 5c3b9fc05c8a
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-Cloudflare R2 への読み書きだけを担う薄いモジュール。署名は `aws4fetch` を使い、公開 URL と内部キーの相互変換もここが持つ。R2 が未設定なら `isR2Configured` が false を返し、呼び出し側がアップロード機能を無効化する。
+Cloudflare R2 への読み書きだけを担う薄いモジュール。署名は `aws4fetch` を使い、公開 URL と内部キーの相互変換もここが持つ。単体の put/get/delete に加えて、接頭辞単位の一覧・合計バイト数・一括削除を持ち、部屋ごとの使用量の把握と削除時の後片付けに使う。R2 が未設定なら `isR2Configured` が false を返し、呼び出し側がアップロード機能を無効化する。
 <!-- /prose:role -->
 
-## export（10）
+## export（11）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -32,11 +32,12 @@ Cloudflare R2 への読み書きだけを担う薄いモジュール。署名は
 | 70 | fn | putObject | `async putObject(key, body, contentType)` |  |
 | 85 | fn | getObject | `async getObject(key)` | 既にバケットにあるオブジェクトの中身を読む（取り込んだデータの画像を、その部屋の フォルダへ複製するときに使う）。 |
 | 98 | fn | deleteObject | `async deleteObject(key)` |  |
-| 126 | const | __test__ | `__test__` | テスト用にparseListResponseだけ切り出して公開する（R2に繋がずXMLの読み取りを確かめられる）。 |
-| 132 | fn | listObjectKeys | `async listObjectKeys(prefix)` | 指定した接頭辞のオブジェクトキーを全件返す。 |
-| 165 | fn | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 指定した接頭辞のオブジェクトをまとめて消す（部屋を削除するときの後片付け）。 |
+| 134 | const | __test__ | `__test__` | テスト用にparseListResponseだけ切り出して公開する（R2に繋がずXMLの読み取りを確かめられる）。 |
+| 141 | fn | listObjects | `async listObjects(prefix)` | 指定した接頭辞のオブジェクトを全件返す。 |
+| 168 | fn | totalBytesByPrefix | `async totalBytesByPrefix(prefix)` | 指定した接頭辞のオブジェクトが使っている合計バイト数。 |
+| 183 | fn | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 指定した接頭辞のオブジェクトをまとめて消す（部屋を削除するときの後片付け）。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（13）
+## トップレベル関数（LOCAL TASKS 候補）（14）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -53,9 +54,10 @@ Cloudflare R2 への読み書きだけを担う薄いモジュール。署名は
 | 85 | getObject | `async getObject(key)` | 12 | ✓ |
 | 98 | deleteObject | `async deleteObject(key)` | 8 | ✓ |
 | 111 | unescapeXml | `unescapeXml(text)` | 6 |  |
-| 118 | parseListResponse | `parseListResponse(xml)` | 6 |  |
-| 132 | listObjectKeys | `async listObjectKeys(prefix)` | 22 | ✓ |
-| 165 | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 11 | ✓ |
+| 120 | parseListResponse | `parseListResponse(xml)` | 12 |  |
+| 141 | listObjects | `async listObjects(prefix)` | 22 | ✓ |
+| 168 | totalBytesByPrefix | `async totalBytesByPrefix(prefix)` | 4 | ✓ |
+| 183 | deleteObjectsByPrefix | `async deleteObjectsByPrefix(prefix)` | 11 | ✓ |
 
 ## 依存
 

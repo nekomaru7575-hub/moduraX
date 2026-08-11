@@ -1,11 +1,11 @@
 ---
 source: js/board-data-driven.js
-lines: 983
+lines: 1132
 exports: 3
 imported_by: 4
 api_sha: 8410aa0c0f5f
 prose_sha: 8410aa0c0f5f
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -25,41 +25,42 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 36 | fn | setChatPaletteController | `setChatPaletteController(controller)` |  |
-| 43 | fn | setInfoPanelController | `setInfoPanelController(controller)` |  |
-| 50 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
+| 38 | fn | setChatPaletteController | `setChatPaletteController(controller)` |  |
+| 45 | fn | setInfoPanelController | `setInfoPanelController(controller)` |  |
+| 52 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（20）
+## トップレベル関数（LOCAL TASKS 候補）（21）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 36 | setChatPaletteController | `setChatPaletteController(controller)` | 3 | ✓ |
-| 43 | setInfoPanelController | `setInfoPanelController(controller)` | 3 | ✓ |
-| 50 | setCharacterPanelController | `setCharacterPanelController(controller)` | 3 | ✓ |
-| 60 | resolveCharacterImport | `resolveCharacterImport(json)` | 6 |  |
-| 69 | adoptSnapshotImage | `async adoptSnapshotImage(snapshot)` | 4 |  |
-| 74 | dispatchCharacterImport | `dispatchCharacterImport(id, importResult)` | 10 |  |
-| 95 | scheduleBoardTransform | `scheduleBoardTransform(board)` | 7 |  |
-| 107 | getContentBounds | `getContentBounds(board)` | 26 |  |
-| 134 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
-| 142 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 12 |  |
-| 158 | applyBoardBackground | `applyBoardBackground(board, room)` | 32 |  |
-| 193 | bindTokenDrag | `bindTokenDrag(element)` | **204** |  |
-| 402 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
-| 427 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
-| 450 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 24 |  |
-| 477 | bindPanelDrag | `bindPanelDrag(element)` | 118 |  |
-| 598 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 10 |  |
-| 609 | clampPan | `clampPan(viewport, board)` | 20 |  |
-| 632 | canOperateToken | `canOperateToken(token, myParticipantId, amGm)` | 6 |  |
-| 641 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
+| 38 | setChatPaletteController | `setChatPaletteController(controller)` | 3 | ✓ |
+| 45 | setInfoPanelController | `setInfoPanelController(controller)` | 3 | ✓ |
+| 52 | setCharacterPanelController | `setCharacterPanelController(controller)` | 3 | ✓ |
+| 62 | panelToggleItem | `panelToggleItem(controller, label)` | 8 |  |
+| 77 | resolveCharacterImport | `resolveCharacterImport(json)` | 6 |  |
+| 86 | adoptSnapshotImage | `async adoptSnapshotImage(snapshot)` | 4 |  |
+| 91 | dispatchCharacterImport | `dispatchCharacterImport(id, importResult)` | 10 |  |
+| 112 | scheduleBoardTransform | `scheduleBoardTransform(board)` | 7 |  |
+| 124 | getContentBounds | `getContentBounds(board)` | 26 |  |
+| 151 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
+| 160 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
+| 188 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
+| 224 | applyBoardBackground | `applyBoardBackground(board, room)` | 34 |  |
+| 261 | bindTokenDrag | `bindTokenDrag(element)` | **213** |  |
+| 479 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
+| 504 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
+| 527 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 24 |  |
+| 554 | bindPanelDrag | `bindPanelDrag(element)` | 139 |  |
+| 696 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 10 |  |
+| 707 | clampPan | `clampPan(viewport, board)` | 20 |  |
+| 730 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
 
 ## 依存
 
-- import → [[js.BCdice]], [[js.EventBus]], [[js.audience-picker]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.character-json-import]], [[js.character-snapshot]], [[js.context-menu]], [[js.file-uploader]], [[js.game-store]], [[js.image-upload]], [[js.local-identity]], [[js.panel-dialog]], [[js.parameters.registry]], [[js.room-authority]], [[js.visibility]]
+- import → [[js.BCdice]], [[js.EventBus]], [[js.audience-picker]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.character-json-import]], [[js.character-snapshot]], [[js.context-menu]], [[js.drag-gesture]], [[js.file-uploader]], [[js.game-store]], [[js.image-dimensions]], [[js.image-upload]], [[js.local-identity]], [[js.panel-dialog]], [[js.parameters.registry]], [[js.room-authority]], [[js.visibility]]
 - imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]], [[js.round-panel]]
 
 ## 注意

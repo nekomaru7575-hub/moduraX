@@ -1,11 +1,11 @@
 ---
 source: js/room-authority.js
-lines: 42
-exports: 2
+lines: 63
+exports: 3
 imported_by: 3
-api_sha: af9de3741cdf
-prose_sha: af9de3741cdf
-generated: 2026-08-08
+api_sha: 2269f260bec3
+prose_sha: 2269f260bec3
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -18,17 +18,18 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-「部屋そのものを左右する操作を誰がしてよいか」の判定を1か所に集めたモジュール。部屋の削除、システム変更、音源追加、セッションデータ読み込み、ラウンド進行がここの対象。個々の呼び出し側で権限判定を書かないための集約点なので、権限まわりの変更はまずここを見る。
+「部屋そのものを左右する操作を誰がしてよいか」と「そのコマを誰が触ってよいか」の判定を1か所に集めたモジュール。canOperateAsGm は部屋の削除・システム変更・音源追加・セッションデータ読み込み・ラウンド進行が対象で、GM が1人もいない部屋では全員に開く。canOperateToken は持ち主本人と GM だけに絞る。画面側の見せ方を決めるだけで、実際の可否はサーバー（[[server.index]] の GM_ONLY_ACTIONS）も同じ規則で判定する。
 <!-- /prose:role -->
 
-## export（2）
+## export（3）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 20 | const | GM_ONLY_REASON | `GM_ONLY_REASON` | 無効化した項目のtitleに入れる共通の理由。 |
 | 33 | fn | canOperateAsGm | `canOperateAsGm()` | 部屋レベルの操作をしてよいか。 |
+| 56 | fn | canOperateToken | `canOperateToken(token)` | そのコマを操作してよいか（更新・JSON読み込み・削除・バックヤードへの回収、 ラウンド進行でのプロット提出）。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -37,6 +38,7 @@ tags: [codemap]
 |---:|---|---|---:|:-:|
 | 24 | hasAnyGm | `hasAnyGm(participants)` | 3 |  |
 | 33 | canOperateAsGm | `canOperateAsGm()` | 9 | ✓ |
+| 56 | canOperateToken | `canOperateToken(token)` | 7 | ✓ |
 
 ## 依存
 
@@ -46,5 +48,5 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+canOperateToken の中で canOperateAsGm() を使わないこと。「GM 不在なら全員に開く」規則まで入り込み、GM のいない部屋で他人のコマまで触れるようになる。
 <!-- /prose:notes -->

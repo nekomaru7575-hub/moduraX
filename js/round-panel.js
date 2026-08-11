@@ -138,6 +138,11 @@ function listMyPlotTokenIds(state, round) {
 }
 
 // 自分のコマ1つ分の提出欄（コマ名 + min〜maxのボタン）。もう一度同じ数字を押すと取り消す。
+//
+// 光らせる（selectedを付ける）のは自分が出した分だけ。GMは他人のコマも操作できるので、
+// 出ている値をそのまま映すとGMの画面に全員のプロットが見えてしまう。他人が出した分は
+// 「提出済み」とだけ伝え、GMが代理で出したくなったら数字を押して上書きする
+// （押した時点で出したのは自分になり、値が見えるようになる）。
 function buildPlotInputRow(state, round, tokenId) {
   const { min = 1, max = 6 } = currentPhase(round).plot || {};
   const row = document.createElement('div');
@@ -148,22 +153,42 @@ function buildPlotInputRow(state, round, tokenId) {
   nameEl.textContent = `${getTokenName(state, tokenId)}:`;
   row.appendChild(nameEl);
 
-  const selected = round.plots?.[tokenId];
+  const myId = getLocalUserId();
+  const submitted = round.plots?.[tokenId];
+  const submittedByMe = round.plotSubmitters?.[tokenId] === myId;
+  const hasOthersPlot = Number.isFinite(submitted) && !submittedByMe;
+  // 公開後は全員に見えてよい。それまでは自分が出した分だけ
+  const visibleValue = (round.plotsRevealed || submittedByMe) ? submitted : undefined;
+
   for (let value = min; value <= max; value += 1) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'round-panel-plot-btn';
     btn.textContent = String(value);
-    if (selected === value) btn.classList.add('selected');
+    if (visibleValue === value) btn.classList.add('selected');
     // 公開後は出し直せない（リデューサー側でも弾いている）
     btn.disabled = round.plotsRevealed;
-    btn.title = round.plotsRevealed
-      ? '公開済みです'
-      : selected === value ? 'もう一度押すと取り消します' : `${value}を出す`;
+    btn.title = round.plotsRevealed ? '公開済みです'
+      : visibleValue === value ? 'もう一度押すと取り消します'
+      : hasOthersPlot ? `代理で${value}を出す（提出済みの値を上書きします）`
+      : `${value}を出す`;
     btn.addEventListener('click', () => {
-      store.dispatch('ROUND_SET_PLOT', { tokenId, value: selected === value ? null : value });
+      store.dispatch('ROUND_SET_PLOT', {
+        tokenId,
+        value: visibleValue === value ? null : value,
+        userId: myId
+      });
     });
     row.appendChild(btn);
+  }
+
+  // 他人が出した分は値を出さずに、提出済みであることだけ添える
+  if (hasOthersPlot && !round.plotsRevealed) {
+    const note = document.createElement('span');
+    note.className = 'round-panel-plot-note';
+    note.textContent = '提出済み';
+    note.title = '他の人が出しています（値は公開まで見えません）';
+    row.appendChild(note);
   }
 
   return row;

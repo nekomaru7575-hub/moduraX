@@ -100,8 +100,12 @@ function createInitialRoundState() {
     // kind:'plot'のフェーズで各コマが伏せて出した数字 { [tokenId]: number }。
     // plotsRevealedがtrueになるまで画面は値を伏せる（ただし状態自体は全員へ配られる。
     // js/visibility.js冒頭の断り書きと同じ「うっかり見えない」レベル）。
-    // プロットはラウンドごとに引き直すので、plotフェーズに入るたびに両方リセットする。
+    // プロットはラウンドごとに引き直すので、plotフェーズに入るたびにまとめてリセットする。
     plots: {},
+    // 各コマのプロットを出したのが誰か { [tokenId]: localUserId }。公開前に値を見せてよい
+    // 相手を決めるためだけに持つ（js/round-panel.jsのbuildPlotInputRow）。GMは他人のコマも
+    // 操作できてしまうので、これが無いとGMの画面に全員の値が映る。
+    plotSubmitters: {},
     plotsRevealed: false
   };
 }
@@ -134,7 +138,8 @@ function normalizeRoundState(round) {
     confirmation: round.confirmation || base.confirmation,
     // プロット機能より前の状態にはキーが無い。round-panel.jsが直接Object.entriesするので
     // confirmationと同じく埋め直す。
-    plots: round.plots || base.plots
+    plots: round.plots || base.plots,
+    plotSubmitters: round.plotSubmitters || base.plotSubmitters
   };
   delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
   return next;
@@ -1101,14 +1106,16 @@ export class ImmutableStore {
         const acted = (round.acted || []).filter(id => participants.includes(id));
         const currentActorId = participants.includes(round.currentActorId) ? round.currentActorId : null;
         const interruptId = participants.includes(round.interruptId) ? round.interruptId : null;
-        const plots = Object.fromEntries(
-          Object.entries(round.plots || {}).filter(([id]) => participants.includes(id))
+        const keepParticipant = ([id]) => participants.includes(id);
+        const plots = Object.fromEntries(Object.entries(round.plots || {}).filter(keepParticipant));
+        const plotSubmitters = Object.fromEntries(
+          Object.entries(round.plotSubmitters || {}).filter(keepParticipant)
         );
 
         const participantNames = joinTokenNames(nextTokensState, participants) || '（なし）';
 
         this.#commit(prevState, {
-          round: { ...round, participants, acted, currentActorId, interruptId, plots },
+          round: { ...round, participants, acted, currentActorId, interruptId, plots, plotSubmitters },
           chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`, payload?.time)
         });
         return;
@@ -1128,6 +1135,7 @@ export class ImmutableStore {
         let step = round.step || 'act';
         let interruptId = round.interruptId;
         let plots = round.plots || {};
+        let plotSubmitters = round.plotSubmitters || {};
         let plotsRevealed = round.plotsRevealed || false;
         const logParts = [];
 
@@ -1233,6 +1241,7 @@ export class ImmutableStore {
           // 画面にも出しているため）。
           if (newPhase.kind === 'plot') {
             plots = {};
+            plotSubmitters = {};
             plotsRevealed = false;
           }
 
@@ -1253,6 +1262,7 @@ export class ImmutableStore {
             step,
             interruptId,
             plots,
+            plotSubmitters,
             plotsRevealed
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
@@ -1317,7 +1327,7 @@ export class ImmutableStore {
       // 【ログに残さない】提出のたびに出すと、伏せている値がログから読めてしまう。
       // 値はROUND_ADVANCE_PHASEでの一斉公開のときにまとめて出す。
       case 'ROUND_SET_PLOT': {
-        const { tokenId, value = null } = payload;
+        const { tokenId, value = null, userId = null } = payload;
         const round = prevState.round;
         if (!round.active || !round.participants.includes(tokenId)) return;
         if (round.template?.[round.phaseIndex]?.kind !== 'plot') return;
@@ -1326,18 +1336,22 @@ export class ImmutableStore {
         const phase = round.template[round.phaseIndex];
         const { min = 1, max = 6 } = phase.plot || {};
         const plots = { ...(round.plots || {}) };
+        const plotSubmitters = { ...(round.plotSubmitters || {}) };
 
         if (value === null) {
           if (!(tokenId in plots)) return; // 変化なし
           delete plots[tokenId];
+          delete plotSubmitters[tokenId];
         } else {
           const numeric = Math.trunc(Number(value));
           if (!Number.isFinite(numeric) || numeric < min || numeric > max) return;
-          if (plots[tokenId] === numeric) return; // 変化なし
+          if (plots[tokenId] === numeric && plotSubmitters[tokenId] === userId) return; // 変化なし
           plots[tokenId] = numeric;
+          // 出し直されたら見てよい人も入れ替わる（GMが代理で出し直した場合など）
+          plotSubmitters[tokenId] = userId;
         }
 
-        this.#commit(prevState, { round: { ...round, plots } });
+        this.#commit(prevState, { round: { ...round, plots, plotSubmitters } });
         return;
       }
 

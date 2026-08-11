@@ -12,6 +12,11 @@
 //
 //   [gap0][列0][gap1][列1][gap2][列2] … [gapN-1][列N-1] →（円環なら gap0 に戻る）
 //
+// 【左右の結合】表の左端と右端が繋がるか（円環か）は**キャラクターごと**の設定
+// （state.cyclic）で、表のボックスのチェックボックスから切り替える。既定は false＝繋がらない。
+// specのcyclicはその初期値でしかなく、判定はすべてstate.cyclicを見る。
+// 繋がらない表では gap[0]（表の左端）は存在しないものとして扱い、UIにも出さない。
+//
 // 【距離】縦は行の差、横は「列を1つ跨ぐごとに1 ＋ その際に越えるギャップが未塗りつぶしなら1」。
 // 塗りつぶし済みのギャップは0として無視する。円環の場合は左回り・右回りの安い方を採る
 // （ギャップを塗りつぶすと遠回りの方が安くなり得るため）。
@@ -29,7 +34,8 @@ const DEFAULT_CHECK = {
  *   columns: {key:string, label:string}[],
  *   rows: number[],            出目のラベル（例: [2,3,...,12]）
  *   cells: string[][],         cells[列index][行index] = 特技名
- *   cyclic?: boolean,          左端と右端が繋がるか（既定: true）
+ *   cyclic?: boolean,          左端と右端を繋ぐかの初期値（既定: false＝繋がらない）。
+ *                              実際に繋ぐかはキャラクターごとに切り替える（state.cyclic）。
  *   gapFillable?: boolean,     ギャップを塗りつぶせるか（既定: true）
  *   baseTarget?: number,       目標値の基準（既定: 5）
  *   check?: {
@@ -38,6 +44,17 @@ const DEFAULT_CHECK = {
  *       UIはこの配列から数値入力欄を並べるだけなので、項目の意味は解釈しない。
  *     buildCommand: ({options, targetNumber}) => string
  *       BCDiceへ投げるコマンド文字列。システム固有（シノビガミならSG）なのでプラグインが持つ。
+ *   },
+ *   slots?: {
+ *     「失われうる枠」。シノビガミの生命力、インセインの恐怖心のように、
+ *     チェックを入れると何かが減る/使えなくなる枠を表に載せるための宣言。
+ *     省略すればチェック欄は一切出ず、従来どおりの表になる。
+ *     column?: { label: string, disablesColumn?: boolean }
+ *       各列（分野）の見出しに1つずつ置く枠。disablesColumn:true なら、失われた列の特技は
+ *       判定の目標にも代用元にもできなくなる（isColumnDisabled / findNearestAcquired）。
+ *     extra?: { label: string, max?: number }
+ *       表の上にまとめて置く枠。個数はキャラクターごとに決める（state.extraSlotCount）。
+ *       maxは入力できる上限（既定12）。
  *   }
  * }} definition
  */
@@ -47,10 +64,11 @@ export function createSkillTableSpec(definition) {
     columns,
     rows,
     cells,
-    cyclic = true,
+    cyclic = false,
     gapFillable = true,
     baseTarget = 5,
-    check = DEFAULT_CHECK
+    check = DEFAULT_CHECK,
+    slots = null
   } = definition;
 
   if (!Array.isArray(columns) || columns.length === 0) {
@@ -88,10 +106,85 @@ export function createSkillTableSpec(definition) {
   });
 
   return Object.freeze({
-    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check,
+    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check, slots,
     gapCount: columns.length,
     cellIndex, nameIndex, columnIndex
   });
+}
+
+// ---------------------------------------------------------------------------
+// 失われうる枠（spec.slots）
+// ---------------------------------------------------------------------------
+
+/** 追加枠の個数の上限。specで指定が無ければこれ。 */
+const DEFAULT_EXTRA_SLOT_MAX = 12;
+
+export function hasColumnSlots(spec) {
+  return !!spec.slots?.column;
+}
+
+export function hasExtraSlots(spec) {
+  return !!spec.slots?.extra;
+}
+
+export function extraSlotMax(spec) {
+  return spec.slots?.extra?.max ?? DEFAULT_EXTRA_SLOT_MAX;
+}
+
+export function isColumnLost(state, columnKey) {
+  return state.lostColumns.includes(columnKey);
+}
+
+export function isExtraSlotLost(state, index) {
+  return state.lostExtraSlots.includes(index);
+}
+
+/**
+ * その列の特技が使えなくなっているか。
+ * 枠を失っていても disablesColumn を宣言していなければ判定には影響しない
+ * （「枠は減るが特技は使える」システムもありうるため、宣言した時だけ塞ぐ）。
+ */
+export function isColumnDisabled(spec, state, columnIndex) {
+  if (!spec.slots?.column?.disablesColumn) return false;
+  const column = spec.columns[columnIndex];
+  return !!column && isColumnLost(state, column.key);
+}
+
+/** 残っている枠の数。パラメータの自動算出（プラグインのcomputeDerivedParameters）から使う。 */
+export function countRemainingSlots(spec, state) {
+  const column = hasColumnSlots(spec) ? spec.columns.length - state.lostColumns.length : 0;
+  const extra = hasExtraSlots(spec) ? state.extraSlotCount - state.lostExtraSlots.length : 0;
+  return { column, extra, total: column + extra };
+}
+
+/** 列の枠の喪失をトグルした新しいstateを返す */
+export function toggleColumnSlot(state, columnKey) {
+  const lostColumns = isColumnLost(state, columnKey)
+    ? state.lostColumns.filter(key => key !== columnKey)
+    : [...state.lostColumns, columnKey];
+  return { ...state, lostColumns };
+}
+
+/** 追加枠の喪失をトグルした新しいstateを返す */
+export function toggleExtraSlot(state, index) {
+  const lostExtraSlots = isExtraSlotLost(state, index)
+    ? state.lostExtraSlots.filter(i => i !== index)
+    : [...state.lostExtraSlots, index];
+  return { ...state, lostExtraSlots };
+}
+
+/**
+ * 追加枠の個数を変えた新しいstateを返す。
+ * 減らしたときに、はみ出した枠の「失った」印が残っていると、見えない枠のせいで
+ * 残数が合わなくなる（countRemainingSlotsが負に振れる）ので、ここで一緒に捨てる。
+ */
+export function setExtraSlotCount(spec, state, rawCount) {
+  const count = Math.min(Math.max(Math.trunc(Number(rawCount)) || 0, 0), extraSlotMax(spec));
+  return {
+    ...state,
+    extraSlotCount: count,
+    lostExtraSlots: state.lostExtraSlots.filter(index => index < count)
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -177,14 +270,19 @@ export function findCellIdByName(spec, rawText) {
 // 状態（キャラクターの components.skillTable に保存する形）
 // ---------------------------------------------------------------------------
 
-export function createEmptySkillTableState() {
-  return { acquired: [], filledGaps: [] };
+export function createEmptySkillTableState(spec) {
+  return {
+    acquired: [], filledGaps: [], lostColumns: [], extraSlotCount: 0, lostExtraSlots: [],
+    cyclic: !!spec?.cyclic
+  };
 }
 
 /**
  * 保存済みデータを安全な形に正規化する。古いコマは components 自体が無い
  * （game-store.js の hydrate は token.components を補完しない）ため、読む側は必ずこれを通す。
- * 表の定義が変わって存在しなくなったセルID・範囲外のギャップは黙って捨てる。
+ * 表の定義が変わって存在しなくなったセルID・範囲外のギャップ・列キーは黙って捨てる。
+ * spec が slots を宣言していない場合は、保存済みの値があっても空にする（表に出ない枠が
+ * 残数の計算にだけ効いてしまうのを防ぐ）。
  */
 export function normalizeSkillTableState(spec, raw) {
   const acquired = Array.isArray(raw?.acquired)
@@ -195,7 +293,24 @@ export function normalizeSkillTableState(spec, raw) {
     ? [...new Set(raw.filledGaps.filter(i => Number.isInteger(i) && i >= 0 && i < spec.gapCount))]
     : [];
 
-  return { acquired, filledGaps };
+  const validColumnKeys = new Set(spec.columns.map(column => column.key));
+  const lostColumns = (hasColumnSlots(spec) && Array.isArray(raw?.lostColumns))
+    ? [...new Set(raw.lostColumns.filter(key => validColumnKeys.has(key)))]
+    : [];
+
+  const rawCount = Number(raw?.extraSlotCount);
+  const extraSlotCount = hasExtraSlots(spec) && Number.isFinite(rawCount)
+    ? Math.min(Math.max(Math.trunc(rawCount), 0), extraSlotMax(spec))
+    : 0;
+
+  const lostExtraSlots = (extraSlotCount > 0 && Array.isArray(raw?.lostExtraSlots))
+    ? [...new Set(raw.lostExtraSlots.filter(i => Number.isInteger(i) && i >= 0 && i < extraSlotCount))]
+    : [];
+
+  // 左右を繋ぐかはキャラクターごとの設定。保存済みの指定が無ければspecの初期値に従う。
+  const cyclic = typeof raw?.cyclic === 'boolean' ? raw.cyclic : !!spec.cyclic;
+
+  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, cyclic };
 }
 
 export function isAcquired(state, cellId) {
@@ -214,6 +329,15 @@ export function toggleAcquired(state, cellId) {
   return { ...state, acquired };
 }
 
+/**
+ * 左右を繋ぐかをトグルした新しいstateを返す。
+ * 繋がなくなると gap[0]（表の左端）は表示も距離計算も対象外になるが、塗りつぶしの印は
+ * 消さない。繋ぎ直したときに塗り直させないため（isGapFilledは残ったまま無視される）。
+ */
+export function toggleCyclic(state) {
+  return { ...state, cyclic: !state.cyclic };
+}
+
 /** ギャップの塗りつぶしをトグルした新しいstateを返す */
 export function toggleGap(state, gapIndex) {
   const filledGaps = isGapFilled(state, gapIndex)
@@ -230,12 +354,13 @@ export function toggleGap(state, gapIndex) {
  * 列Aから列Bまでの横方向の距離。
  * 列を1つ跨ぐごとに1、その際に越えるギャップが未塗りつぶしならさらに1。
  * 円環なら左回り・右回りの安い方を返す。
+ * 円環かどうかはキャラクターごとの設定（state.cyclic）なので、specではなくstateを見る。
  */
-export function columnDistance(spec, filledGaps, colA, colB) {
+export function columnDistance(spec, state, colA, colB) {
   if (colA === colB) return 0;
 
   const columnCount = spec.columns.length;
-  const filled = new Set(spec.gapFillable ? filledGaps : []);
+  const filled = new Set(spec.gapFillable ? state.filledGaps : []);
   const gapCost = gapIndex => (filled.has(gapIndex) ? 0 : 1);
 
   // 右へ1歩（列c → 列c+1）で越えるギャップは gap[(c+1) % N]（＝列c+1の左）
@@ -243,7 +368,7 @@ export function columnDistance(spec, filledGaps, colA, colB) {
   // 左へ1歩（列c → 列c-1）で越えるギャップは gap[c]（＝列cの左）
   const stepLeftCost = fromColumn => 1 + gapCost(fromColumn);
 
-  if (!spec.cyclic) {
+  if (!state.cyclic) {
     const low = Math.min(colA, colB);
     const high = Math.max(colA, colB);
     let total = 0;
@@ -272,13 +397,18 @@ export function cellDistance(spec, state, cellIdA, cellIdB) {
   const a = getCell(spec, cellIdA);
   const b = getCell(spec, cellIdB);
   if (!a || !b) return null;
-  return columnDistance(spec, state.filledGaps, a.columnIndex, b.columnIndex)
+  return columnDistance(spec, state, a.columnIndex, b.columnIndex)
     + Math.abs(a.rowIndex - b.rowIndex);
 }
 
 /**
  * 目標のセルに一番近い「取得済み」のセルを探す。距離は分離可能なので全セル総当たりでよい。
- * @returns {{cellId:string, distance:number, ties:string[]} | null} 取得済みが1つも無ければnull
+ *
+ * 枠を失った列（isColumnDisabled）の特技は、取得していても代用元にしない。
+ * 枠の喪失が効くのはここだけで、目標にする側は制限しない（resolveSkillCheck参照）。
+ * その分野の特技を判定するときは、生きている分野から代用することになる。
+ *
+ * @returns {{cellId:string, distance:number, ties:string[]} | null} 使える取得済みが無ければnull
  *   ties は同じ距離だった他の候補（どれを使ってもよいことをUIで示すため）
  */
 export function findNearestAcquired(spec, state, targetCellId) {
@@ -286,6 +416,9 @@ export function findNearestAcquired(spec, state, targetCellId) {
   let ties = [];
 
   state.acquired.forEach(cellId => {
+    const cell = getCell(spec, cellId);
+    if (!cell || isColumnDisabled(spec, state, cell.columnIndex)) return;
+
     const distance = cellDistance(spec, state, targetCellId, cellId);
     if (distance === null) return;
     if (best === null || distance < best.distance) {
@@ -301,6 +434,11 @@ export function findNearestAcquired(spec, state, targetCellId) {
 
 /**
  * 目標の特技に対する判定内容を解決する。
+ *
+ * 枠を失った分野でも「その特技を目標にした判定」自体はできる。効くのは代用元の側で、
+ * 失った分野の取得済み特技は無かったものとして距離を測り直す（findNearestAcquired）。
+ * 結果として、失った分野の特技は他の分野から代用することになり目標値が上がる。
+ *
  * @returns {{
  *   targetCell: object, usedCell: object|null, distance: number|null,
  *   targetNumber: number|null, owned: boolean, ties: string[]

@@ -1,11 +1,11 @@
 ---
 source: js/context-menu.js
-lines: 76
+lines: 78
 exports: 1
 imported_by: 4
 api_sha: 9aac9452f08f
 prose_sha: 9aac9452f08f
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -37,7 +37,7 @@ tags: [codemap]
 | 8 | closeContextMenu | `closeContextMenu()` | 8 |  |
 | 17 | onOutsideClick | `onOutsideClick(event)` | 5 |  |
 | 23 | onEscape | `onEscape(event)` | 3 |  |
-| 34 | showContextMenu | `showContextMenu(x, y, items)` | 43 | ✓ |
+| 34 | showContextMenu | `showContextMenu(x, y, items)` | 45 | ✓ |
 
 ## 依存
 

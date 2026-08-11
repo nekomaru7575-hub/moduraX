@@ -1,11 +1,11 @@
 ---
 source: js/floating-panel.js
-lines: 212
+lines: 254
 exports: 1
 imported_by: 3
 api_sha: 9e114663bedc
 prose_sha: 9e114663bedc
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 62 | fn | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | title: string, storageKey: string, defaultRect?: {x:number, y:number, w:number, h:number}, defaultVisible?: … |
+| 67 | fn | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | title: string, storageKey: string, defaultRect?: {x:number, y:number, w:number, h:number}, defaultVisible?: … |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,14 +34,14 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 16 | loadRect | `loadRect(storageKey)` | 9 |  |
-| 26 | saveRect | `saveRect(storageKey, rect)` | 7 |  |
-| 36 | clampRect | `clampRect(rect)` | 11 |  |
-| 62 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 150 | ✓ |
+| 21 | loadRect | `loadRect(storageKey)` | 9 |  |
+| 31 | saveRect | `saveRect(storageKey, rect)` | 7 |  |
+| 41 | clampRect | `clampRect(rect)` | 11 |  |
+| 67 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 187 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.drag-gesture]]
 - imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]]
 
 ## 注意

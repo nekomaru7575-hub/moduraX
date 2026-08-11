@@ -15,7 +15,7 @@ import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
 import { canView, isGm } from './visibility.js';
-import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
+import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
@@ -315,7 +315,7 @@ function bindTokenDrag(element) {
 
     const myParticipantId = getCurrentParticipantId();
     const amGm = isGm(store.state.participants, myParticipantId);
-    const canOperate = canOperateToken(token, myParticipantId, amGm);
+    const canOperate = canOperateToken(token);
     // 権限が無い項目は消さずに押せない状態で出し、理由をツールチップで示す
     // （「キャラクター更新」だけは開けて、同じ理由をダイアログの見出し下に出す）
     const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（表示のみ。編集できるのは持ち主とGMです）`;
@@ -723,15 +723,6 @@ function clampPan(viewport, board) {
 
   panX = Math.min(maxPanX, Math.max(minPanX, panX));
   panY = Math.min(maxPanY, Math.max(minPanY, panY));
-}
-
-// コマの更新・JSON読み込み・削除・バックヤードへの回収ができるか。
-// 所有者がいないコマは誰でも触れる。盤面上の移動だけはこの判定を通さない（誰でも動かせる）。
-function canOperateToken(token, myParticipantId, amGm) {
-  if (!token) return false;
-  if (!token.ownerId) return true;
-  if (amGm) return true;
-  return token.ownerId === myParticipantId;
 }
 
 // 表示用の持ち主の名前。参加者一覧から引けなければ（表示名を変えた・削除された等）

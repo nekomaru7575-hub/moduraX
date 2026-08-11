@@ -311,6 +311,69 @@
       font-size: 0.85rem;
     }
 
+    /* プロットの提出欄。「割り込みなし」一覧と同じく単独の行を占有させる。 */
+    .round-panel-plot {
+      flex: 1 0 100%;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    /* 自分のコマ1つ分の提出欄（コマ名 + 1〜6のボタン）。複数のコマを持つ人がいるので行で分ける */
+    .round-panel-plot-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      flex: 1 0 100%;
+    }
+
+    .round-panel-plot-name {
+      color: #e0e0e0;
+      margin-right: 2px;
+    }
+
+    .round-panel-plot-btn {
+      background-color: #444;
+      color: #ddd;
+      border: 1px solid #666;
+      border-radius: 4px;
+      min-width: 28px;
+      padding: 2px 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    /* 自分が今出している数字。公開前は自分にだけ見えている状態なので、はっきり示す */
+    .round-panel-plot-btn.selected {
+      background-color: #007acc;
+      color: #fff;
+      border-color: #007acc;
+      font-weight: bold;
+    }
+
+    .round-panel-plot-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    /* 他の人が出した分の「提出済み」表示（値は見せない） */
+    .round-panel-plot-note {
+      color: #8fbf8f;
+      font-size: 0.8rem;
+      margin-left: 4px;
+    }
+
+    /* 提出状況（公開前は●/○だけ、公開後は値）。 */
+    .round-panel-plot-status {
+      flex: 1 0 100%;
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+
     .round-panel-btn {
       background-color: #444;
       color: #ddd;
@@ -372,6 +435,12 @@
     .round-panel-turn-row.interrupt-reserved {
       border: 1px solid #d0a000;
       color: #f0c040;
+    }
+
+    /* プロットが同値のコマ。ルール上は同時処理で、並び順はCoreが決めた便宜上のもの
+       （js/game-store.jsのsortForTurnOrder）。それが一目で分かるように点線で囲う。 */
+    .round-panel-turn-row.plot-tied {
+      border: 1px dashed #7aa7c7;
     }
 
     .round-panel-turn-row.clickable {
@@ -1646,6 +1715,8 @@
         <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
         <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了">⋮</button>
         <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
+        <!-- プロット（kind:'plot'のフェーズ）の提出欄と提出状況。中身はjs/round-panel.jsが組む -->
+        <div class="round-panel-plot" id="roundPanelPlot" style="display: none;"></div>
       </div>
       <div class="round-panel-detail" id="roundPanelDetail" style="display: none;"></div>
 

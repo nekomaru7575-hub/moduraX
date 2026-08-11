@@ -1,46 +1,45 @@
 ---
-source: js/log-clear-dialog.js
-lines: 58
+source: js/untrusted-json.js
+lines: 29
 exports: 1
-imported_by: 1
-api_sha: 4fccc5865601
-prose_sha: 4fccc5865601
+imported_by: 5
+api_sha: b23b7feae826
+prose_sha: b23b7feae826
 generated: 2026-08-11
 tags: [codemap]
 ---
 
-# js/log-clear-dialog.js
+# js/untrusted-json.js
 
 <!-- prose:summary -->
-全タブのログを消す前の確認ダイアログ。
+自分が書いたのではないJSONの読み方。
 <!-- /prose:summary -->
 
 ## 役割
 
 <!-- prose:role -->
-全タブのログ削除前の確認ダイアログ。確認を取るだけで、実際の削除は呼び出し側が行う。
+_(未記入)_
 <!-- /prose:role -->
 
 ## export（1）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 19 | fn | showLogClearConfirmDialog | `showLogClearConfirmDialog({ onConfirm })` |  |
+| 26 | fn | parseUntrustedJson | `parseUntrustedJson(text)` | 外から来たJSON文字列を、危険なキーを落として読む。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 8 | ensureDialog | `ensureDialog()` | 7 |  |
-| 19 | showLogClearConfirmDialog | `showLogClearConfirmDialog({ onConfirm })` | 39 | ✓ |
+| 26 | parseUntrustedJson | `parseUntrustedJson(text)` | 3 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.main]]
+- imported by → [[js.character-snapshot]], [[js.main]], [[js.net-sync]], [[js.room-index]], [[server.index]]
 
 ## 注意
 

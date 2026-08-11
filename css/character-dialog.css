@@ -71,12 +71,20 @@
   gap: 6px;
 }
 
-.effect-box-header-row input {
+.effect-box-header-row input,
+.effect-box-header-row select {
   background-color: #3a3a3a;
   color: #fff;
   border: 1px solid #555;
   padding: 6px 8px;
   border-radius: 4px;
+}
+
+/* その種類では使わない欄（シノビガミの「攻撃忍法以外の間合」）。値は残っているが
+   触れない状態なので、空欄と区別が付くよう沈めて示す。 */
+.effect-box-header-row .is-unavailable {
+  opacity: 0.45;
+  color: #999;
 }
 
 /* 名前欄は他の固定幅項目（タイミング/Lv/上昇侵蝕率）に押しつぶされないよう、
@@ -1057,11 +1065,91 @@
 }
 
 .sf-skill-table-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   text-align: center;
   font-size: 0.85rem;
   font-weight: bold;
   color: #ddd;
   padding: 2px 0;
+}
+
+/* 枠（生命力）を失った分野。見出しごと沈めて、下の列全体が使えないことを示す */
+.sf-skill-table-header.is-lost .sf-skill-table-header-label {
+  color: #8a6a6a;
+  text-decoration: line-through;
+}
+
+/* 失われうる枠のチェックボックス（分野の見出し・表の上の追加枠で共用） */
+.sf-skill-slot-box {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #b05a5a;
+}
+
+.sf-skill-slot-box:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* 表の左右を繋ぐかの切り替え。表のすぐ下に置く */
+.sf-skill-table-cyclic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.sf-skill-table-cyclic input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.sf-skill-table-cyclic input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* 表の上に並べる追加枠の行 */
+.sf-skill-slot-extra-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.sf-skill-slot-extra-title {
+  font-weight: bold;
+  color: #ddd;
+}
+
+.sf-skill-slot-extra-count {
+  width: 52px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #eee;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+}
+
+.sf-skill-slot-extra-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.sf-skill-slot-extra-none {
+  color: #888;
 }
 
 .sf-skill-table-roll {
@@ -1091,6 +1179,20 @@
   border-color: #6f95cf;
   color: #fff;
   font-weight: bold;
+}
+
+/* 枠（生命力）を失った分野のマス。判定の目標にはできるので押せる見た目のまま、
+   分野ごと沈めて「ここは失っている」ことだけを示す。 */
+.sf-skill-cell.is-slot-lost {
+  opacity: 0.6;
+}
+
+/* 取得しているのに枠を失っている特技。代用元に使えないので、取得済みの色は残したまま
+   取り消し線を引いて「持っているが判定には使えない」ことを見せる。 */
+.sf-skill-cell.is-acquired.is-slot-lost {
+  background-color: #5a5a6e;
+  border-color: #7a7a90;
+  text-decoration: line-through;
 }
 
 .sf-skill-cell.is-clickable {

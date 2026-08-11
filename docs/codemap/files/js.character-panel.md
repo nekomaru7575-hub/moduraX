@@ -1,11 +1,11 @@
 ---
 source: js/character-panel.js
-lines: 255
+lines: 258
 exports: 2
 imported_by: 1
 api_sha: 65b467f5f737
 prose_sha: 65b467f5f737
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -41,7 +41,7 @@ tags: [codemap]
 | 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 30 |  |
 | 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 53 |  |
 | 143 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
-| 160 | initCharacterPanel | `initCharacterPanel()` | 95 | ✓ |
+| 160 | initCharacterPanel | `initCharacterPanel()` | 98 | ✓ |
 
 ## 依存
 

@@ -28,12 +28,18 @@ export function buildRoomParameters(pluginId) {
 // Coreの既定ラウンド進行テンプレート。プラグインがbuildRoundPhaseTemplateを
 // 持たない場合はこれを使う。
 // kind: 'once'（1回きり）| 'perCharacter'（参加者全員に1回ずつ手番が回る）
+//   | 'plot'（参加者それぞれが数字を伏せて出し、進行役の合図で一斉に公開する段）
 // expirePhaseOnComplete: このフェーズを抜ける時にEXPIRE_BUFFSと同じバフ剥がしを自動発火するか
 //   （'round'を指定すると、その内側のプロセス・判定のバフもまとめて剥がれる）
 // preTurnStep: 各キャラの手番の直前に挟む段（perCharacterのみ意味を持つ。nullなら挟まない）。
 //   「挟める段があるか」はテンプレート側＝将来はプラグイン/ユーザー定義が宣言し、
 //   「今回それを使うか」はルーム設定（room.roundSettings.useInitiativeProcess）が決める。
 //   この段を抜ける時に次の行動者を決め直すので、直前のバフで変わった行動値も反映される。
+// plot: 出せる数字の範囲 { min, max }（kind:'plot'のみ意味を持つ）。シノビガミのプロットが
+//   これで、値の意味（大きいほど先に動く）はCore側に固定。範囲だけプラグインが決める。
+// turnOrder: 手番順の出どころ（perCharacterのみ意味を持つ）。
+//   省略時＝'initiative'（core:initiativeの実効値の降順）。'plot'ならプロット値の降順。
+//   詳しくはjs/game-store.jsのsortForTurnOrder。
 const DEFAULT_ROUND_PHASE_TEMPLATE = [
   { id: 'setup', label: 'セットアップ', kind: 'once', expirePhaseOnComplete: null, preTurnStep: null },
   {
@@ -215,12 +221,22 @@ function withMissingPluginParameters(plugin, parameters) {
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。
  * componentsを併せて渡すのは、ロイス数のように「ボックスのデータから決まるパラメータ」があるため。
  * Coreはcomponentsの中身を解釈せず、そのままプラグインへ渡すだけ。
+ * contextは「コマ自身の外から決まる値」。componentsと同じくCoreは中身を解釈せず、
+ * 事実だけを渡してプラグインに意味付けを委ねる（シノビガミのファンブル値は、そのコマが
+ * 出したプロットで決まる）。呼び出し側はjs/game-store.jsのbuildDerivedContextで組む。
+ *
  * @param {string} pluginId
  * @param {Record<string, any>} parameters
  * @param {Record<string, any>} [components] コマのcomponents（ロイス・エフェクト等）
+ * @param {{
+ *   tokenId: string|null,
+ *   roundActive: boolean,      ラウンド進行中か（＝シノビガミで言う戦闘中か）
+ *   plotValue: number|null,    そのコマが出したプロット値。未提出・非公開ならnull
+ *   plotsRevealed: boolean     プロットが公開済みか
+ * }} [context]
  * @returns {Record<string, any>} 計算適用後のパラメータリスト
  */
-export function applyPluginDerivedParameters(pluginId, parameters, components = {}) {
+export function applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {}) {
   const plugin = PLUGINS[pluginId];
   if (!plugin) return parameters; // プラグイン未適用ならそのまま返す
 
@@ -231,7 +247,7 @@ export function applyPluginDerivedParameters(pluginId, parameters, components = 
   }
 
   // プラグイン側で計算された差分 { "DX3:corDB": 2, ... } を取得
-  const updates = plugin.computeDerivedParameters(baseParameters, components);
+  const updates = plugin.computeDerivedParameters(baseParameters, components, context);
   if (!updates || Object.keys(updates).length === 0) {
     return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
   }

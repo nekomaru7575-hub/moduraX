@@ -5,9 +5,13 @@
 
 import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
-  createCheckOptions, normalizeCheckOptions
+  createCheckOptions, normalizeCheckOptions,
+  hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
+  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic
 } from './skill-table.js';
-import { describeSkillCheck, buildSkillCheckCommand, buildCheckCommand } from './skill-check.js';
+import {
+  describeSkillCheck, buildSkillCheckCommand, buildCheckCommand, resolveCheckAdjustments
+} from './skill-check.js';
 
 let dialogEl = null;
 
@@ -31,7 +35,10 @@ function ensureDialog() {
  *     checkOptionsは「判定オプション」欄で指定された値（ダイアログ内だけの状態で保存はしない）。
  * }} options
  */
-export function showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck }) {
+export function showSkillTableBox({
+  spec, state, title = '特技表', editable = true, onSave, onCheck,
+  token = null, getEffectiveParameterValue = null
+}) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -42,7 +49,14 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
 
   // トグルのたびに onSave へ流す（コマ更新ダイアログ側で SET_COMPONENT され、
   // 他の参加者にも即座に同期される）。保存ボタンで溜めるとモード切替時に迷子になるため。
-  let current = { acquired: [...state.acquired], filledGaps: [...state.filledGaps] };
+  let current = {
+    acquired: [...state.acquired],
+    filledGaps: [...state.filledGaps],
+    lostColumns: [...state.lostColumns],
+    extraSlotCount: state.extraSlotCount,
+    lostExtraSlots: [...state.lostExtraSlots],
+    cyclic: state.cyclic
+  };
   const commit = next => {
     current = next;
     onSave?.(current);
@@ -127,20 +141,60 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     form.appendChild(optionRow);
   }
 
+  // 追加枠（シノビガミの追加生命力）の行。個数はキャラクターごとなので、ここで増減させる。
+  // 枠そのもののチェックは render() の中で組み直す（個数が変わると数も変わるため）。
+  const extraRow = document.createElement('div');
+  extraRow.className = 'sf-skill-slot-extra-row';
+  let extraBoxes = null;
+  let extraCountInput = null;
+  if (hasExtraSlots(spec)) {
+    const caption = document.createElement('span');
+    caption.className = 'sf-skill-slot-extra-title';
+    caption.textContent = spec.slots.extra.label;
+    extraRow.appendChild(caption);
+
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.className = 'sf-skill-slot-extra-count';
+    countInput.min = '0';
+    countInput.max = String(extraSlotMax(spec));
+    countInput.title = `${spec.slots.extra.label}の数（0〜${extraSlotMax(spec)}）`;
+    countInput.addEventListener('input', () => {
+      // 入力途中の空欄・範囲外はsetExtraSlotCountが0〜maxへ丸める
+      commit(setExtraSlotCount(spec, current, countInput.value));
+    });
+    countInput.addEventListener('blur', () => { countInput.value = String(current.extraSlotCount); });
+    extraRow.appendChild(countInput);
+    extraCountInput = countInput;
+
+    extraBoxes = document.createElement('span');
+    extraBoxes.className = 'sf-skill-slot-extra-boxes';
+    extraRow.appendChild(extraBoxes);
+
+    form.appendChild(extraRow);
+  }
+
   const grid = document.createElement('div');
   grid.className = 'sf-skill-table-grid';
   // 先頭は出目のラベル列。以降は［ギャップ／分野］の繰り返し。
   grid.style.gridTemplateColumns = `auto repeat(${spec.columns.length}, 14px minmax(0, 1fr))`;
   form.appendChild(grid);
 
-  if (spec.cyclic) {
-    const note = document.createElement('div');
-    note.className = 'sf-skill-table-note';
-    const first = spec.columns[0].label;
-    const last = spec.columns[spec.columns.length - 1].label;
-    note.textContent = `表の左右は繋がっています（${last} の右隣は ${first}）。左端のギャップがその境目です。`;
-    form.appendChild(note);
-  }
+  // 左右を繋ぐかはキャラクターごとの設定。切り替えると距離＝目標値が変わるので、
+  // 表のすぐ下に置いて今どちらなのかが分かるようにする。
+  const cyclicRow = document.createElement('label');
+  cyclicRow.className = 'sf-skill-table-cyclic';
+  const cyclicBox = document.createElement('input');
+  cyclicBox.type = 'checkbox';
+  cyclicBox.addEventListener('change', () => commit(toggleCyclic(current)));
+  cyclicRow.appendChild(cyclicBox);
+  const cyclicText = document.createElement('span');
+  cyclicRow.appendChild(cyclicText);
+  form.appendChild(cyclicRow);
+
+  const note = document.createElement('div');
+  note.className = 'sf-skill-table-note';
+  form.appendChild(note);
 
   const status = document.createElement('div');
   status.className = 'sf-skill-table-status';
@@ -155,6 +209,7 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   copyBtn.textContent = '判定コマンドをコピー';
   copyBtn.title = '取得済み特技の「特技判定(名前)」をまとめてコピーします。チャットパレットに貼り付けて使えます。';
   copyBtn.addEventListener('click', () => {
+    // 枠を失った分野の特技も目標にはできる（他の分野から代用する）ので、ここでは外さない
     const lines = current.acquired
       .map(cellId => getCell(spec, cellId))
       .filter(Boolean)
@@ -183,18 +238,45 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     status.textContent = text;
   }
 
+  /**
+   * 失われうる枠のチェックボックス1つ。チェック＝失った。
+   * 枠の付け外しは「取得の編集」と同じ性質の変更なので、canEdit のときだけ触れるようにする
+   * （判定モードのままでも押せる。判定の途中で生命力が減るのが普通の流れのため）。
+   */
+  function buildSlotCheckbox(lost, label, onToggle) {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'sf-skill-slot-box';
+    box.checked = lost;
+    box.disabled = !canEdit;
+    box.title = canEdit
+      ? `${label}${lost ? '（失っています。クリックで戻す）' : '（クリックで失う）'}`
+      : `${label}${lost ? '：失っています' : ''}`;
+    if (canEdit) box.addEventListener('change', onToggle);
+    return box;
+  }
+
   // カーソルが乗っているマスがあればその判定内容、無ければモードごとの操作説明を出す。
   // オプションを変えた時もここを呼び直して、投げるコマンドの表示を追従させる。
   function refreshStatus() {
     if (mode === 'check' && hoveredCellId) {
       const resolution = resolveSkillCheck(spec, current, hoveredCellId);
       if (resolution) {
-        const heading = describeSkillCheck(resolution);
+        // 実際に振るとき（runSkillCheck）と同じ手順で修正を反映してから見せる。
+        // ここだけ素の値を出すと、プレビューとログの目標値が食い違う。
+        const adjusted = resolveCheckAdjustments(spec, {
+          options: checkOptions,
+          targetNumber: resolution.targetNumber,
+          token,
+          getEffectiveParameterValue
+        });
+        const heading = describeSkillCheck({ ...resolution, targetNumber: adjusted.targetNumber });
+        const notes = adjusted.notes.length > 0 ? `［${adjusted.notes.join('、')}］` : '';
         // 代用できる特技が無い＝振れないので、コマンドは出さない
         const command = resolution.usedCell
-          ? ` → ${buildCheckCommand(spec, resolution.targetNumber, checkOptions)}`
+          ? ` → ${buildCheckCommand(spec, adjusted.targetNumber, adjusted.options)}`
           : '';
-        setStatus(`${heading}${command}`);
+        setStatus(`${heading}${notes}${command}`);
         return;
       }
     }
@@ -213,7 +295,36 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   }
 
   function render() {
-    titleEl.textContent = `${title}（取得 ${current.acquired.length}件）`;
+    // 枠を持つ表では残数も見出しに出す（生命力 5/6 のように、減ったことがすぐ分かるように）
+    const slots = countRemainingSlots(spec, current);
+    const slotText = hasColumnSlots(spec)
+      ? `・${spec.slots.column.label} ${slots.total}/${spec.columns.length + current.extraSlotCount}`
+      : '';
+    titleEl.textContent = `${title}（取得 ${current.acquired.length}件${slotText}）`;
+
+    // --- 追加枠の行 ---
+    if (extraBoxes) {
+      // 入力中に値を書き戻すとカーソルが飛ぶので、触っていない時だけ揃える
+      if (document.activeElement !== extraCountInput) {
+        extraCountInput.value = String(current.extraSlotCount);
+      }
+      extraCountInput.disabled = !canEdit;
+
+      extraBoxes.innerHTML = '';
+      for (let index = 0; index < current.extraSlotCount; index++) {
+        extraBoxes.appendChild(buildSlotCheckbox(
+          isExtraSlotLost(current, index),
+          `${spec.slots.extra.label}${index + 1}`,
+          () => commit(toggleExtraSlot(current, index))
+        ));
+      }
+      if (current.extraSlotCount === 0) {
+        const none = document.createElement('span');
+        none.className = 'sf-skill-slot-extra-none';
+        none.textContent = 'なし';
+        extraBoxes.appendChild(none);
+      }
+    }
 
     Object.entries(modeButtons).forEach(([value, button]) => {
       button.classList.toggle('is-active', mode === value);
@@ -221,6 +332,19 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
 
     grid.innerHTML = '';
     grid.classList.toggle('is-check-mode', mode === 'check');
+
+    // --- 左右を繋ぐかの切り替え ---
+    const first = spec.columns[0].label;
+    const last = spec.columns[spec.columns.length - 1].label;
+    cyclicBox.checked = current.cyclic;
+    cyclicBox.disabled = !canEdit;
+    cyclicText.textContent = `表の左右を繋ぐ（${last} の右隣を ${first} にする）`;
+    cyclicRow.title = canEdit
+      ? '切り替えると分野間の距離＝目標値が変わります'
+      : '表示のみです';
+    note.textContent = current.cyclic
+      ? `左右は繋がっています。左端のギャップが ${last} と ${first} の境目です。`
+      : `左右は繋がっていません。${first} と ${last} は表の端から端まで数えます。`;
 
     // 見出し行：左上は空欄、以降は分野名
     const corner = document.createElement('div');
@@ -232,16 +356,32 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     spec.columns.forEach((column, colIndex) => {
       const header = document.createElement('div');
       header.className = 'sf-skill-table-header';
-      header.textContent = column.label;
       header.style.gridColumn = String(3 + colIndex * 2);
       header.style.gridRow = '1';
+
+      // 分野の枠（生命力）のチェックは分野名の上に置く
+      if (hasColumnSlots(spec)) {
+        const lost = isColumnLost(current, column.key);
+        header.classList.toggle('is-lost', lost);
+        header.appendChild(buildSlotCheckbox(
+          lost,
+          `${column.label}の${spec.slots.column.label}`,
+          () => commit(toggleColumnSlot(current, column.key))
+        ));
+      }
+
+      const name = document.createElement('span');
+      name.className = 'sf-skill-table-header-label';
+      name.textContent = column.label;
+      header.appendChild(name);
+
       grid.appendChild(header);
     });
 
     // ギャップ：全行をまたぐ1本の縦帯にして、どこを押しても同じギャップをトグルできるようにする。
     // gap[i] は「列iの左」。円環でない表では gap[0]（＝表の左端）は存在しないので出さない。
     spec.columns.forEach((_column, gapIndex) => {
-      if (gapIndex === 0 && !spec.cyclic) return;
+      if (gapIndex === 0 && !current.cyclic) return;
       const gap = document.createElement('div');
       const filled = isGapFilled(current, gapIndex);
       gap.className = `sf-skill-gap${filled ? ' is-filled' : ''}`;
@@ -268,11 +408,17 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       spec.columns.forEach((_column, colIndex) => {
         const cellId = makeCellId(spec, colIndex, rowIndex);
         const acquired = isAcquired(current, cellId);
+        // 枠を失った分野。判定の目標にはできるので押せるままにし、
+        // 「取得していても代用元にならない」ことだけを見た目で伝える。
+        const disabled = isColumnDisabled(spec, current, colIndex);
         const cell = document.createElement('div');
-        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}`;
+        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-slot-lost' : ''}`;
         cell.textContent = spec.cells[colIndex][rowIndex] || '―';
         cell.style.gridColumn = String(3 + colIndex * 2);
         cell.style.gridRow = String(2 + rowIndex);
+        if (disabled && acquired) {
+          cell.title = `取得していますが、${spec.columns[colIndex].label}の${spec.slots.column.label}を失っているため代用元に使えません`;
+        }
 
         if (mode === 'edit' && canEdit) {
           cell.classList.add('is-clickable');

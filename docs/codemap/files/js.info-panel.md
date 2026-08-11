@@ -1,11 +1,11 @@
 ---
 source: js/info-panel.js
-lines: 357
+lines: 360
 exports: 1
 imported_by: 1
 api_sha: 345c82bc610b
 prose_sha: 345c82bc610b
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -38,7 +38,7 @@ tags: [codemap]
 | 52 | visibleSections | `visibleSections(entry, myId)` | 3 |  |
 | 56 | visibleEntries | `visibleEntries(state, myId)` | 3 |  |
 | 62 | canEditEntry | `canEditEntry(entry, myId, amGm)` | 5 |  |
-| 68 | initInfoPanel | `initInfoPanel()` | **289** | ✓ |
+| 68 | initInfoPanel | `initInfoPanel()` | **292** | ✓ |
 
 ## 依存
 

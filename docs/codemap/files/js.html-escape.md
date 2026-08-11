@@ -1,31 +1,32 @@
 ---
-source: js/log-export-dialog.js
-lines: 91
-exports: 1
-imported_by: 1
-api_sha: 7bbaffdafe39
-prose_sha: 7bbaffdafe39
+source: js/html-escape.js
+lines: 38
+exports: 2
+imported_by: 3
+api_sha: 5e6788af49d6
+prose_sha: 5e6788af49d6
 generated: 2026-08-11
 tags: [codemap]
 ---
 
-# js/log-export-dialog.js
+# js/html-escape.js
 
 <!-- prose:summary -->
-「ログを保存」のタブ選択ダイアログ。
+文字列をHTMLへ埋め込む前の始末。
 <!-- /prose:summary -->
 
 ## 役割
 
 <!-- prose:role -->
-ログ保存時に、どのタブを書き出すかを選ばせるダイアログ。HTML の組み立ては [[js.log-export]]。
+_(未記入)_
 <!-- /prose:role -->
 
-## export（1）
+## export（2）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 21 | fn | showLogExportDialog | `showLogExportDialog({ tabs, onConfirm })` | tabs: {id: string, name: string}[], onConfirm: (selectedTabIds: string[]) => void }} options |
+| 15 | fn | escapeHtml | `escapeHtml(text)` | HTMLの本文にも属性値にも安全に置ける形へ直す。 |
+| 35 | fn | safeCssColor | `safeCssColor(color, fallback)` | style属性へ入れてよい色だけを通す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,13 +35,13 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 7 | ensureDialog | `ensureDialog()` | 7 |  |
-| 21 | showLogExportDialog | `showLogExportDialog({ tabs, onConfirm })` | 70 | ✓ |
+| 15 | escapeHtml | `escapeHtml(text)` | 8 | ✓ |
+| 35 | safeCssColor | `safeCssColor(color, fallback)` | 3 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.main]]
+- imported by → [[js.log-export]], [[js.main]], [[js.parameters.dx3]]
 
 ## 注意
 

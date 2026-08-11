@@ -1,11 +1,11 @@
 ---
 source: js/net-sync.js
-lines: 320
+lines: 322
 exports: 8
 imported_by: 2
 api_sha: b83b1bba1907
 prose_sha: b83b1bba1907
-generated: 2026-08-08
+generated: 2026-08-11
 tags: [codemap]
 ---
 
@@ -25,14 +25,14 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 46 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
-| 225 | fn | initNetSync | `initNetSync()` |  |
-| 255 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
-| 268 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
-| 277 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
-| 285 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
-| 292 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
-| 301 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
+| 47 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
+| 227 | fn | initNetSync | `initNetSync()` |  |
+| 257 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
+| 270 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
+| 279 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
+| 287 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
+| 294 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
+| 303 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（12）
 
@@ -41,22 +41,22 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 46 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
-| 52 | askEntryPassword | `askEntryPassword({ error })` | 10 |  |
-| 65 | sendJoin | `sendJoin()` | 10 |  |
-| 80 | flushIdentify | `flushIdentify()` | 5 |  |
-| 86 | connect | `connect()` | 138 |  |
-| 225 | initNetSync | `initNetSync()` | 23 | ✓ |
-| 255 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
-| 268 | requestChatSendSound | `requestChatSendSound()` | 5 | ✓ |
-| 277 | requestRoomDeletion | `requestRoomDeletion()` | 5 | ✓ |
-| 285 | sendTypingStart | `sendTypingStart()` | 5 | ✓ |
-| 292 | sendTypingStop | `sendTypingStop()` | 5 | ✓ |
-| 301 | replaceState | `replaceState(newState)` | 19 | ✓ |
+| 47 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
+| 53 | askEntryPassword | `askEntryPassword({ error })` | 10 |  |
+| 66 | sendJoin | `sendJoin()` | 10 |  |
+| 81 | flushIdentify | `flushIdentify()` | 5 |  |
+| 87 | connect | `connect()` | 139 |  |
+| 227 | initNetSync | `initNetSync()` | 23 | ✓ |
+| 257 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
+| 270 | requestChatSendSound | `requestChatSendSound()` | 5 | ✓ |
+| 279 | requestRoomDeletion | `requestRoomDeletion()` | 5 | ✓ |
+| 287 | sendTypingStart | `sendTypingStart()` | 5 | ✓ |
+| 294 | sendTypingStop | `sendTypingStop()` | 5 | ✓ |
+| 303 | replaceState | `replaceState(newState)` | 19 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.audio-player]], [[js.game-store]], [[js.local-identity]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]]
+- import → [[js.EventBus]], [[js.audio-player]], [[js.game-store]], [[js.local-identity]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]], [[js.untrusted-json]]
 - imported by → [[js.main]], [[js.room-authority]]
 
 ## 注意

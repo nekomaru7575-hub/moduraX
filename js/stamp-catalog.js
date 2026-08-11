@@ -19,13 +19,12 @@
 const STAMP_IMAGE_DIR = 'image/stamps';
 
 export const STAMPS = [
-  { id: 'yes', label: 'はい', file: 'yes.png' },
-  { id: 'no', label: 'いいえ', file: 'no.png' },
-  { id: 'clap', label: '拍手', file: 'clap.png' },
-  { id: 'wait', label: '待って', file: 'wait.png' },
-  { id: 'help', label: '助けて', file: 'help.png' },
-  { id: 'laugh', label: '笑', file: 'laugh.png' },
-  { id: 'sad', label: '悲しい', file: 'sad.png' },
+  { id: 'ok', label: 'OK', file: 'ok.png' },
+  { id: 'no', label: 'No', file: 'no.png' },
+  { id: '!', label: '!', file: '!.png' },
+  { id: '?', label: '?', file: 'q.png' },
+  { id: 'heart', label: '♥', file: 'heart.png' },
+  { id: 'warikomi', label: '割込', file: 'warikomi.png' },
   { id: 'think', label: '考え中', file: 'think.png' }
 ];
 

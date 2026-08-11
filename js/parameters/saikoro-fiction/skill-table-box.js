@@ -5,7 +5,9 @@
 
 import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
-  createCheckOptions, normalizeCheckOptions
+  createCheckOptions, normalizeCheckOptions,
+  hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
+  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount
 } from './skill-table.js';
 import { describeSkillCheck, buildSkillCheckCommand, buildCheckCommand } from './skill-check.js';
 
@@ -42,7 +44,13 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
 
   // トグルのたびに onSave へ流す（コマ更新ダイアログ側で SET_COMPONENT され、
   // 他の参加者にも即座に同期される）。保存ボタンで溜めるとモード切替時に迷子になるため。
-  let current = { acquired: [...state.acquired], filledGaps: [...state.filledGaps] };
+  let current = {
+    acquired: [...state.acquired],
+    filledGaps: [...state.filledGaps],
+    lostColumns: [...state.lostColumns],
+    extraSlotCount: state.extraSlotCount,
+    lostExtraSlots: [...state.lostExtraSlots]
+  };
   const commit = next => {
     current = next;
     onSave?.(current);
@@ -127,6 +135,39 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     form.appendChild(optionRow);
   }
 
+  // 追加枠（シノビガミの追加生命力）の行。個数はキャラクターごとなので、ここで増減させる。
+  // 枠そのもののチェックは render() の中で組み直す（個数が変わると数も変わるため）。
+  const extraRow = document.createElement('div');
+  extraRow.className = 'sf-skill-slot-extra-row';
+  let extraBoxes = null;
+  let extraCountInput = null;
+  if (hasExtraSlots(spec)) {
+    const caption = document.createElement('span');
+    caption.className = 'sf-skill-slot-extra-title';
+    caption.textContent = spec.slots.extra.label;
+    extraRow.appendChild(caption);
+
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.className = 'sf-skill-slot-extra-count';
+    countInput.min = '0';
+    countInput.max = String(extraSlotMax(spec));
+    countInput.title = `${spec.slots.extra.label}の数（0〜${extraSlotMax(spec)}）`;
+    countInput.addEventListener('input', () => {
+      // 入力途中の空欄・範囲外はsetExtraSlotCountが0〜maxへ丸める
+      commit(setExtraSlotCount(spec, current, countInput.value));
+    });
+    countInput.addEventListener('blur', () => { countInput.value = String(current.extraSlotCount); });
+    extraRow.appendChild(countInput);
+    extraCountInput = countInput;
+
+    extraBoxes = document.createElement('span');
+    extraBoxes.className = 'sf-skill-slot-extra-boxes';
+    extraRow.appendChild(extraBoxes);
+
+    form.appendChild(extraRow);
+  }
+
   const grid = document.createElement('div');
   grid.className = 'sf-skill-table-grid';
   // 先頭は出目のラベル列。以降は［ギャップ／分野］の繰り返し。
@@ -155,12 +196,15 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   copyBtn.textContent = '判定コマンドをコピー';
   copyBtn.title = '取得済み特技の「特技判定(名前)」をまとめてコピーします。チャットパレットに貼り付けて使えます。';
   copyBtn.addEventListener('click', () => {
-    const lines = current.acquired
+    // 使えなくなった分野の特技は貼っても振れないので外す
+    const cells = current.acquired
       .map(cellId => getCell(spec, cellId))
-      .filter(Boolean)
-      .map(cell => buildSkillCheckCommand(cell.name));
+      .filter(cell => cell && !isColumnDisabled(spec, current, cell.columnIndex));
+    const lines = cells.map(cell => buildSkillCheckCommand(cell.name));
     if (lines.length === 0) {
-      setStatus('取得している特技がありません。');
+      setStatus(current.acquired.length > 0
+        ? '使える特技がありません（取得している特技の分野はすべて失われています）。'
+        : '取得している特技がありません。');
       return;
     }
     navigator.clipboard?.writeText(lines.join('\n'))
@@ -181,6 +225,24 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
 
   function setStatus(text) {
     status.textContent = text;
+  }
+
+  /**
+   * 失われうる枠のチェックボックス1つ。チェック＝失った。
+   * 枠の付け外しは「取得の編集」と同じ性質の変更なので、canEdit のときだけ触れるようにする
+   * （判定モードのままでも押せる。判定の途中で生命力が減るのが普通の流れのため）。
+   */
+  function buildSlotCheckbox(lost, label, onToggle) {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'sf-skill-slot-box';
+    box.checked = lost;
+    box.disabled = !canEdit;
+    box.title = canEdit
+      ? `${label}${lost ? '（失っています。クリックで戻す）' : '（クリックで失う）'}`
+      : `${label}${lost ? '：失っています' : ''}`;
+    if (canEdit) box.addEventListener('change', onToggle);
+    return box;
   }
 
   // カーソルが乗っているマスがあればその判定内容、無ければモードごとの操作説明を出す。
@@ -213,7 +275,36 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   }
 
   function render() {
-    titleEl.textContent = `${title}（取得 ${current.acquired.length}件）`;
+    // 枠を持つ表では残数も見出しに出す（生命力 5/6 のように、減ったことがすぐ分かるように）
+    const slots = countRemainingSlots(spec, current);
+    const slotText = hasColumnSlots(spec)
+      ? `・${spec.slots.column.label} ${slots.total}/${spec.columns.length + current.extraSlotCount}`
+      : '';
+    titleEl.textContent = `${title}（取得 ${current.acquired.length}件${slotText}）`;
+
+    // --- 追加枠の行 ---
+    if (extraBoxes) {
+      // 入力中に値を書き戻すとカーソルが飛ぶので、触っていない時だけ揃える
+      if (document.activeElement !== extraCountInput) {
+        extraCountInput.value = String(current.extraSlotCount);
+      }
+      extraCountInput.disabled = !canEdit;
+
+      extraBoxes.innerHTML = '';
+      for (let index = 0; index < current.extraSlotCount; index++) {
+        extraBoxes.appendChild(buildSlotCheckbox(
+          isExtraSlotLost(current, index),
+          `${spec.slots.extra.label}${index + 1}`,
+          () => commit(toggleExtraSlot(current, index))
+        ));
+      }
+      if (current.extraSlotCount === 0) {
+        const none = document.createElement('span');
+        none.className = 'sf-skill-slot-extra-none';
+        none.textContent = 'なし';
+        extraBoxes.appendChild(none);
+      }
+    }
 
     Object.entries(modeButtons).forEach(([value, button]) => {
       button.classList.toggle('is-active', mode === value);
@@ -232,9 +323,25 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     spec.columns.forEach((column, colIndex) => {
       const header = document.createElement('div');
       header.className = 'sf-skill-table-header';
-      header.textContent = column.label;
       header.style.gridColumn = String(3 + colIndex * 2);
       header.style.gridRow = '1';
+
+      // 分野の枠（生命力）のチェックは分野名の上に置く
+      if (hasColumnSlots(spec)) {
+        const lost = isColumnLost(current, column.key);
+        header.classList.toggle('is-lost', lost);
+        header.appendChild(buildSlotCheckbox(
+          lost,
+          `${column.label}の${spec.slots.column.label}`,
+          () => commit(toggleColumnSlot(current, column.key))
+        ));
+      }
+
+      const name = document.createElement('span');
+      name.className = 'sf-skill-table-header-label';
+      name.textContent = column.label;
+      header.appendChild(name);
+
       grid.appendChild(header);
     });
 
@@ -268,13 +375,22 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       spec.columns.forEach((_column, colIndex) => {
         const cellId = makeCellId(spec, colIndex, rowIndex);
         const acquired = isAcquired(current, cellId);
+        const disabled = isColumnDisabled(spec, current, colIndex);
         const cell = document.createElement('div');
-        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}`;
+        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-disabled' : ''}`;
         cell.textContent = spec.cells[colIndex][rowIndex] || '―';
         cell.style.gridColumn = String(3 + colIndex * 2);
         cell.style.gridRow = String(2 + rowIndex);
 
-        if (mode === 'edit' && canEdit) {
+        if (disabled && mode === 'check') {
+          // 使えない分野は判定に出せない。取得の編集はできるままにしておく
+          // （枠を失っている間に特技を取り直すことはある）。
+          // 押せないだけだと理由が分からないので、カーソルを乗せた時は他のマスと同じく
+          // 状態欄に出す（refreshStatus→describeSkillCheckがdisabledの文言を返す）。
+          cell.title = `${spec.columns[colIndex].label}の${spec.slots.column.label}を失っているため使えません`;
+          cell.addEventListener('mouseenter', () => { hoveredCellId = cellId; refreshStatus(); });
+          cell.addEventListener('mouseleave', () => { hoveredCellId = null; refreshStatus(); });
+        } else if (mode === 'edit' && canEdit) {
           cell.classList.add('is-clickable');
           cell.title = acquired ? 'クリックで取得を解除' : 'クリックで取得';
           cell.addEventListener('click', () => commit(toggleAcquired(current, cellId)));

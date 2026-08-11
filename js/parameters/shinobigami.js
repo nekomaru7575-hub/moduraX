@@ -7,7 +7,10 @@
 // シノビガミ固有の値（特技データ・BCDiceのシステムID・目標値の基準5）を渡すだけ。
 // インセイン等を追加する場合も、同じ形で自分の特技データを渡せばよい。
 
-import { createSkillTableSpec, normalizeSkillTableState, findCellIdByName } from './saikoro-fiction/skill-table.js';
+import {
+  createSkillTableSpec, normalizeSkillTableState, findCellIdByName, countRemainingSlots
+} from './saikoro-fiction/skill-table.js';
+import { buildParameters } from './paramFactory.js';
 import { showSkillTableBox } from './saikoro-fiction/skill-table-box.js';
 import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/skill-check.js';
 import { SHINOBIGAMI_COLUMNS, SHINOBIGAMI_ROWS, SHINOBIGAMI_SKILL_CELLS } from './shinobigami-skills.js';
@@ -50,8 +53,43 @@ const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
   check: {
     options: SHINOBIGAMI_CHECK_OPTIONS,
     buildCommand: buildShinobigamiCheckCommand
+  },
+  // 生命力。分野ごとに1つずつ枠があり、失うとその分野の特技が使えなくなる。
+  // 追加生命力は忍法や背景で増える分で、個数はキャラクターごとに決まる。
+  // 枠の仕組み自体は汎用側（saikoro-fiction/skill-table.js）が持っていて、
+  // ここでは呼び名と「失うと分野が死ぬ」ことだけを宣言する。
+  slots: {
+    column: { label: '生命力', disablesColumn: true },
+    extra: { label: '追加生命力', max: 12 }
   }
 });
+
+// キャラクターの生命力パラメータ。値は特技表の枠から自動算出するので、手入力はさせない
+// （editable:false）。locked:trueにしているのは削除させないためと、プラグイン導入前に
+// 作られたコマにも後から補完させるため（js/parameters/registry.jsのwithMissingPluginParameters）。
+const SHINOBIGAMI_CHARACTER_PARAMETERS = [
+  {
+    key: 'life', label: '生命力',
+    value: SHINOBIGAMI_COLUMNS.length, // 満タン＝分野の数（追加生命力は初期0）
+    locked: true, editable: false, visible: true
+  }
+];
+
+function buildShinobigamiCharacterParameters() {
+  return buildParameters('SHINOBIGAMI', SHINOBIGAMI_CHARACTER_PARAMETERS);
+}
+
+/**
+ * 生命力 ＝ 失っていない分野の枠 ＋ 失っていない追加生命力の枠。
+ * 特技表を編集すると SET_COMPONENT → applyPluginDerivedParameters が走るので
+ * （js/game-store.js）、チェックを入れた時点で全員の画面の値が変わる。
+ */
+function computeShinobigamiDerivedParameters(_parameters, components = {}) {
+  const state = readSkillTableState(components);
+  return {
+    'SHINOBIGAMI:life': countRemainingSlots(SHINOBIGAMI_SKILL_TABLE, state).total
+  };
+}
 
 // components から特技表の状態を取り出す。古いコマは components 自体を持たないので必ずこれを通す。
 function readSkillTableState(components) {
@@ -93,7 +131,8 @@ function renderShinobigamiCharacterPanel({
 
   const updateLabel = () => {
     const state = readSkillTableState(readComponents());
-    skillTableBtn.textContent = `特技表を開く（取得${state.acquired.length}件）`;
+    const life = countRemainingSlots(SHINOBIGAMI_SKILL_TABLE, state).total;
+    skillTableBtn.textContent = `特技表を開く（取得${state.acquired.length}件・生命力${life}）`;
   };
   updateLabel();
 
@@ -212,7 +251,8 @@ function buildShinobigamiRoundPhaseTemplate() {
 export const SHINOBIGAMI_PLUGIN = {
   id: 'SHINOBIGAMI',
   label: 'シノビガミ',
-  // buildCharacterParameters: 未定義 → registry側で空オブジェクト扱い（生命力・忍法は後続）
+  buildCharacterParameters: buildShinobigamiCharacterParameters,
+  computeDerivedParameters: computeShinobigamiDerivedParameters,
   buildRoundPhaseTemplate: buildShinobigamiRoundPhaseTemplate,
   renderCharacterPanel: renderShinobigamiCharacterPanel,
   handleChatCommand: handleShinobigamiChatCommand,

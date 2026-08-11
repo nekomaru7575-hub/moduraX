@@ -1057,11 +1057,70 @@
 }
 
 .sf-skill-table-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   text-align: center;
   font-size: 0.85rem;
   font-weight: bold;
   color: #ddd;
   padding: 2px 0;
+}
+
+/* 枠（生命力）を失った分野。見出しごと沈めて、下の列全体が使えないことを示す */
+.sf-skill-table-header.is-lost .sf-skill-table-header-label {
+  color: #8a6a6a;
+  text-decoration: line-through;
+}
+
+/* 失われうる枠のチェックボックス（分野の見出し・表の上の追加枠で共用） */
+.sf-skill-slot-box {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #b05a5a;
+}
+
+.sf-skill-slot-box:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* 表の上に並べる追加枠の行 */
+.sf-skill-slot-extra-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.sf-skill-slot-extra-title {
+  font-weight: bold;
+  color: #ddd;
+}
+
+.sf-skill-slot-extra-count {
+  width: 52px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #eee;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+}
+
+.sf-skill-slot-extra-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.sf-skill-slot-extra-none {
+  color: #888;
 }
 
 .sf-skill-table-roll {
@@ -1091,6 +1150,13 @@
   border-color: #6f95cf;
   color: #fff;
   font-weight: bold;
+}
+
+/* 枠を失って使えなくなった分野のマス。取得済みでも判定に出せないことを示す
+   （取得の編集はできるままなので、押せない見た目にはしない） */
+.sf-skill-cell.is-disabled {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 
 .sf-skill-cell.is-clickable {

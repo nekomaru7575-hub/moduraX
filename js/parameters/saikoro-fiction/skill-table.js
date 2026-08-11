@@ -12,6 +12,10 @@
 //
 //   [gap0][列0][gap1][列1][gap2][列2] … [gapN-1][列N-1] →（円環なら gap0 に戻る）
 //
+// 【左右の結合】表の左端と右端が繋がるか（円環か）は cyclic で選ぶ。既定は false＝繋がらない。
+// 繋がる表のほうが特殊なので、そちらを明示的に宣言させる（シノビガミは cyclic:true）。
+// 繋がらない表では gap[0]（表の左端）は存在しないものとして扱い、UIにも出さない。
+//
 // 【距離】縦は行の差、横は「列を1つ跨ぐごとに1 ＋ その際に越えるギャップが未塗りつぶしなら1」。
 // 塗りつぶし済みのギャップは0として無視する。円環の場合は左回り・右回りの安い方を採る
 // （ギャップを塗りつぶすと遠回りの方が安くなり得るため）。
@@ -29,7 +33,7 @@ const DEFAULT_CHECK = {
  *   columns: {key:string, label:string}[],
  *   rows: number[],            出目のラベル（例: [2,3,...,12]）
  *   cells: string[][],         cells[列index][行index] = 特技名
- *   cyclic?: boolean,          左端と右端が繋がるか（既定: true）
+ *   cyclic?: boolean,          左端と右端が繋がるか（既定: false＝繋がらない）
  *   gapFillable?: boolean,     ギャップを塗りつぶせるか（既定: true）
  *   baseTarget?: number,       目標値の基準（既定: 5）
  *   check?: {
@@ -58,7 +62,7 @@ export function createSkillTableSpec(definition) {
     columns,
     rows,
     cells,
-    cyclic = true,
+    cyclic = false,
     gapFillable = true,
     baseTarget = 5,
     check = DEFAULT_CHECK,

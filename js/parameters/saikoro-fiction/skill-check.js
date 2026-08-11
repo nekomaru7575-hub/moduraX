@@ -23,10 +23,7 @@ export function buildSkillCheckCommand(skillName) {
  * @param {ReturnType<typeof resolveSkillCheck>} resolution
  */
 export function describeSkillCheck(resolution) {
-  const { targetCell, usedCell, distance, targetNumber, owned, disabled, slotLabel } = resolution;
-  if (disabled) {
-    return `《${targetCell.name}》判定（${targetCell.columnLabel}の${slotLabel || '枠'}を失っているため振れません）`;
-  }
+  const { targetCell, usedCell, distance, targetNumber, owned } = resolution;
   if (!usedCell) return `《${targetCell.name}》判定（代用できる特技がありません）`;
   if (owned) return `《${targetCell.name}》判定（目標値${targetNumber}）`;
   return `《${targetCell.name}》判定（《${usedCell.name}》で代用・距離${distance}・目標値${targetNumber}）`;
@@ -85,13 +82,6 @@ export async function runSkillCheck({
   const resolution = resolveSkillCheck(spec, state, targetCellId);
   if (!resolution) {
     alert('その特技は特技表に存在しません。');
-    return;
-  }
-  // 表のマスからも「特技判定(名前)」のコマンドからも必ずここを通るので、
-  // 使えなくなった分野を止めるのはこの1か所で足りる。
-  if (resolution.disabled) {
-    const { targetCell, slotLabel } = resolution;
-    alert(`《${targetCell.name}》は${targetCell.columnLabel}の${slotLabel || '枠'}を失っているため使えません。`);
     return;
   }
   if (!resolution.usedCell) {

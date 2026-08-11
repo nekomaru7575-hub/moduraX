@@ -196,15 +196,13 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
   copyBtn.textContent = '判定コマンドをコピー';
   copyBtn.title = '取得済み特技の「特技判定(名前)」をまとめてコピーします。チャットパレットに貼り付けて使えます。';
   copyBtn.addEventListener('click', () => {
-    // 使えなくなった分野の特技は貼っても振れないので外す
-    const cells = current.acquired
+    // 枠を失った分野の特技も目標にはできる（他の分野から代用する）ので、ここでは外さない
+    const lines = current.acquired
       .map(cellId => getCell(spec, cellId))
-      .filter(cell => cell && !isColumnDisabled(spec, current, cell.columnIndex));
-    const lines = cells.map(cell => buildSkillCheckCommand(cell.name));
+      .filter(Boolean)
+      .map(cell => buildSkillCheckCommand(cell.name));
     if (lines.length === 0) {
-      setStatus(current.acquired.length > 0
-        ? '使える特技がありません（取得している特技の分野はすべて失われています）。'
-        : '取得している特技がありません。');
+      setStatus('取得している特技がありません。');
       return;
     }
     navigator.clipboard?.writeText(lines.join('\n'))
@@ -375,22 +373,19 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
       spec.columns.forEach((_column, colIndex) => {
         const cellId = makeCellId(spec, colIndex, rowIndex);
         const acquired = isAcquired(current, cellId);
+        // 枠を失った分野。判定の目標にはできるので押せるままにし、
+        // 「取得していても代用元にならない」ことだけを見た目で伝える。
         const disabled = isColumnDisabled(spec, current, colIndex);
         const cell = document.createElement('div');
-        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-disabled' : ''}`;
+        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-slot-lost' : ''}`;
         cell.textContent = spec.cells[colIndex][rowIndex] || '―';
         cell.style.gridColumn = String(3 + colIndex * 2);
         cell.style.gridRow = String(2 + rowIndex);
+        if (disabled && acquired) {
+          cell.title = `取得していますが、${spec.columns[colIndex].label}の${spec.slots.column.label}を失っているため代用元に使えません`;
+        }
 
-        if (disabled && mode === 'check') {
-          // 使えない分野は判定に出せない。取得の編集はできるままにしておく
-          // （枠を失っている間に特技を取り直すことはある）。
-          // 押せないだけだと理由が分からないので、カーソルを乗せた時は他のマスと同じく
-          // 状態欄に出す（refreshStatus→describeSkillCheckがdisabledの文言を返す）。
-          cell.title = `${spec.columns[colIndex].label}の${spec.slots.column.label}を失っているため使えません`;
-          cell.addEventListener('mouseenter', () => { hoveredCellId = cellId; refreshStatus(); });
-          cell.addEventListener('mouseleave', () => { hoveredCellId = null; refreshStatus(); });
-        } else if (mode === 'edit' && canEdit) {
+        if (mode === 'edit' && canEdit) {
           cell.classList.add('is-clickable');
           cell.title = acquired ? 'クリックで取得を解除' : 'クリックで取得';
           cell.addEventListener('click', () => commit(toggleAcquired(current, cellId)));

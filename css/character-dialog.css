@@ -1152,10 +1152,17 @@
   font-weight: bold;
 }
 
-/* 枠を失って使えなくなった分野のマス。取得済みでも判定に出せないことを示す
-   （取得の編集はできるままなので、押せない見た目にはしない） */
-.sf-skill-cell.is-disabled {
-  opacity: 0.45;
+/* 枠（生命力）を失った分野のマス。判定の目標にはできるので押せる見た目のまま、
+   分野ごと沈めて「ここは失っている」ことだけを示す。 */
+.sf-skill-cell.is-slot-lost {
+  opacity: 0.6;
+}
+
+/* 取得しているのに枠を失っている特技。代用元に使えないので、取得済みの色は残したまま
+   取り消し線を引いて「持っているが判定には使えない」ことを見せる。 */
+.sf-skill-cell.is-acquired.is-slot-lost {
+  background-color: #5a5a6e;
+  border-color: #7a7a90;
   text-decoration: line-through;
 }
 

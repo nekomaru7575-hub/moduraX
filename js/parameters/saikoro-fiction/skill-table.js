@@ -381,8 +381,11 @@ export function cellDistance(spec, state, cellIdA, cellIdB) {
 
 /**
  * 目標のセルに一番近い「取得済み」のセルを探す。距離は分離可能なので全セル総当たりでよい。
- * 枠を失って使えなくなった列（isColumnDisabled）の特技は、取得していても代用元にしない。
- * ここを素通しにすると、生命力を失った分野の特技で判定し続けられてしまう。
+ *
+ * 枠を失った列（isColumnDisabled）の特技は、取得していても代用元にしない。
+ * 枠の喪失が効くのはここだけで、目標にする側は制限しない（resolveSkillCheck参照）。
+ * その分野の特技を判定するときは、生きている分野から代用することになる。
+ *
  * @returns {{cellId:string, distance:number, ties:string[]} | null} 使える取得済みが無ければnull
  *   ties は同じ距離だった他の候補（どれを使ってもよいことをUIで示すため）
  */
@@ -409,35 +412,27 @@ export function findNearestAcquired(spec, state, targetCellId) {
 
 /**
  * 目標の特技に対する判定内容を解決する。
- * disabled:true は「その分野の枠を失っていて振れない」で、usedCell:null（代用できる特技が
- * 1つも無い）とは理由が別。文言を出し分けるため、表示側（describeSkillCheck）へ
- * 枠の呼び名（slotLabel）も一緒に渡す。
+ *
+ * 枠を失った分野でも「その特技を目標にした判定」自体はできる。効くのは代用元の側で、
+ * 失った分野の取得済み特技は無かったものとして距離を測り直す（findNearestAcquired）。
+ * 結果として、失った分野の特技は他の分野から代用することになり目標値が上がる。
+ *
  * @returns {{
  *   targetCell: object, usedCell: object|null, distance: number|null,
- *   targetNumber: number|null, owned: boolean, ties: string[],
- *   disabled: boolean, slotLabel: string|null
+ *   targetNumber: number|null, owned: boolean, ties: string[]
  * } | null} targetCellIdが不正ならnull
  */
 export function resolveSkillCheck(spec, state, targetCellId) {
   const targetCell = getCell(spec, targetCellId);
   if (!targetCell) return null;
 
-  const slotLabel = spec.slots?.column?.label ?? null;
-  const blank = {
-    targetCell, usedCell: null, distance: null, targetNumber: null,
-    owned: false, ties: [], disabled: false, slotLabel
-  };
-
-  // 目標の分野そのものが使えない場合は、距離を測るまでもなく振れない
-  if (isColumnDisabled(spec, state, targetCell.columnIndex)) {
-    return { ...blank, disabled: true };
+  const nearest = findNearestAcquired(spec, state, targetCellId);
+  if (!nearest) {
+    return { targetCell, usedCell: null, distance: null, targetNumber: null, owned: false, ties: [] };
   }
 
-  const nearest = findNearestAcquired(spec, state, targetCellId);
-  if (!nearest) return blank;
-
   return {
-    ...blank,
+    targetCell,
     usedCell: getCell(spec, nearest.cellId),
     distance: nearest.distance,
     targetNumber: spec.baseTarget + nearest.distance,

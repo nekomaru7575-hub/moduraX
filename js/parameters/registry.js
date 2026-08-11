@@ -221,12 +221,22 @@ function withMissingPluginParameters(plugin, parameters) {
  * キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。
  * componentsを併せて渡すのは、ロイス数のように「ボックスのデータから決まるパラメータ」があるため。
  * Coreはcomponentsの中身を解釈せず、そのままプラグインへ渡すだけ。
+ * contextは「コマ自身の外から決まる値」。componentsと同じくCoreは中身を解釈せず、
+ * 事実だけを渡してプラグインに意味付けを委ねる（シノビガミのファンブル値は、そのコマが
+ * 出したプロットで決まる）。呼び出し側はjs/game-store.jsのbuildDerivedContextで組む。
+ *
  * @param {string} pluginId
  * @param {Record<string, any>} parameters
  * @param {Record<string, any>} [components] コマのcomponents（ロイス・エフェクト等）
+ * @param {{
+ *   tokenId: string|null,
+ *   roundActive: boolean,      ラウンド進行中か（＝シノビガミで言う戦闘中か）
+ *   plotValue: number|null,    そのコマが出したプロット値。未提出・非公開ならnull
+ *   plotsRevealed: boolean     プロットが公開済みか
+ * }} [context]
  * @returns {Record<string, any>} 計算適用後のパラメータリスト
  */
-export function applyPluginDerivedParameters(pluginId, parameters, components = {}) {
+export function applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {}) {
   const plugin = PLUGINS[pluginId];
   if (!plugin) return parameters; // プラグイン未適用ならそのまま返す
 
@@ -237,7 +247,7 @@ export function applyPluginDerivedParameters(pluginId, parameters, components = 
   }
 
   // プラグイン側で計算された差分 { "DX3:corDB": 2, ... } を取得
-  const updates = plugin.computeDerivedParameters(baseParameters, components);
+  const updates = plugin.computeDerivedParameters(baseParameters, components, context);
   if (!updates || Object.keys(updates).length === 0) {
     return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
   }

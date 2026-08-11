@@ -9,7 +9,9 @@ import {
   hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
   countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic
 } from './skill-table.js';
-import { describeSkillCheck, buildSkillCheckCommand, buildCheckCommand } from './skill-check.js';
+import {
+  describeSkillCheck, buildSkillCheckCommand, buildCheckCommand, resolveCheckAdjustments
+} from './skill-check.js';
 
 let dialogEl = null;
 
@@ -33,7 +35,10 @@ function ensureDialog() {
  *     checkOptionsは「判定オプション」欄で指定された値（ダイアログ内だけの状態で保存はしない）。
  * }} options
  */
-export function showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck }) {
+export function showSkillTableBox({
+  spec, state, title = '特技表', editable = true, onSave, onCheck,
+  token = null, getEffectiveParameterValue = null
+}) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -257,12 +262,21 @@ export function showSkillTableBox({ spec, state, title = '特技表', editable =
     if (mode === 'check' && hoveredCellId) {
       const resolution = resolveSkillCheck(spec, current, hoveredCellId);
       if (resolution) {
-        const heading = describeSkillCheck(resolution);
+        // 実際に振るとき（runSkillCheck）と同じ手順で修正を反映してから見せる。
+        // ここだけ素の値を出すと、プレビューとログの目標値が食い違う。
+        const adjusted = resolveCheckAdjustments(spec, {
+          options: checkOptions,
+          targetNumber: resolution.targetNumber,
+          token,
+          getEffectiveParameterValue
+        });
+        const heading = describeSkillCheck({ ...resolution, targetNumber: adjusted.targetNumber });
+        const notes = adjusted.notes.length > 0 ? `［${adjusted.notes.join('、')}］` : '';
         // 代用できる特技が無い＝振れないので、コマンドは出さない
         const command = resolution.usedCell
-          ? ` → ${buildCheckCommand(spec, resolution.targetNumber, checkOptions)}`
+          ? ` → ${buildCheckCommand(spec, adjusted.targetNumber, adjusted.options)}`
           : '';
-        setStatus(`${heading}${command}`);
+        setStatus(`${heading}${notes}${command}`);
         return;
       }
     }

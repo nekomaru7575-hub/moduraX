@@ -71,12 +71,20 @@
   gap: 6px;
 }
 
-.effect-box-header-row input {
+.effect-box-header-row input,
+.effect-box-header-row select {
   background-color: #3a3a3a;
   color: #fff;
   border: 1px solid #555;
   padding: 6px 8px;
   border-radius: 4px;
+}
+
+/* その種類では使わない欄（シノビガミの「攻撃忍法以外の間合」）。値は残っているが
+   触れない状態なので、空欄と区別が付くよう沈めて示す。 */
+.effect-box-header-row .is-unavailable {
+  opacity: 0.45;
+  color: #999;
 }
 
 /* 名前欄は他の固定幅項目（タイミング/Lv/上昇侵蝕率）に押しつぶされないよう、

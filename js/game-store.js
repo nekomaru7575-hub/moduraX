@@ -145,6 +145,47 @@ function normalizeRoundState(round) {
   return next;
 }
 
+/**
+ * プラグインの自動計算（applyPluginDerivedParameters）へ渡す「コマ自身の外から決まる値」。
+ * 今はラウンド進行の事実だけ。Coreは意味を決めず、プラグイン側が解釈する
+ * （シノビガミはこれを見てファンブル値を出す）。
+ *
+ * 【公開前のプロットは渡さない】パラメータは全員へ同期されるので、公開前の値を渡すと
+ * 伏せたはずのプロットが誰にでも読めてしまう（js/round-panel.jsで画面から隠している意味が
+ * 無くなる）。ここで塞いでおけば、プラグイン側が気を付けなくても漏れない。
+ */
+function buildDerivedContext(round, tokenId) {
+  const plotsRevealed = !!round?.plotsRevealed;
+  const plot = plotsRevealed ? round?.plots?.[tokenId] : undefined;
+  return {
+    tokenId: tokenId ?? null,
+    roundActive: !!round?.active,
+    plotValue: Number.isFinite(plot) ? plot : null,
+    plotsRevealed
+  };
+}
+
+/**
+ * ラウンド進行が動いた後に、参加者の自動計算をやり直す。
+ * 普段の自動計算はそのコマ自身が変わった時（パラメータ・components）に走るが、
+ * プロットの公開やラウンドの終了はコマを触らないまま計算の前提を変えるので、
+ * ここから明示的に引き直す必要がある。
+ * @param {object} tokensState 作業用コピー（patchCharacterで書き換えてよいもの）
+ * @param {object} round 反映後のラウンド状態
+ */
+function recomputeDerivedForRound(tokensState, activePlugin, round) {
+  if (!activePlugin) return;
+
+  (round?.participants || []).forEach(id => {
+    const character = tokensState[id];
+    if (!character) return;
+    const parameters = applyPluginDerivedParameters(
+      activePlugin, character.parameters, character.components, buildDerivedContext(round, id)
+    );
+    if (parameters !== character.parameters) patchCharacter(tokensState, id, { parameters });
+  });
+}
+
 // 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。
 // この機能より前の状態にはキーが無いので、必ずこのヘルパ経由で読む。
 export function usesInitiativeProcess(state) {
@@ -740,7 +781,9 @@ export class ImmutableStore {
 
         // プラグインの自動計算を適用（activePlugin と parameters を正しく渡す）。
         // 作成直後はcomponentsが空なので、componentsから決まる値（ロイス数等）は0から始まる。
-        const finalParameters = applyPluginDerivedParameters(activePlugin, parameters, {});
+        const finalParameters = applyPluginDerivedParameters(
+          activePlugin, parameters, {}, buildDerivedContext(prevState.round, id)
+        );
 
         nextTokensState[id] = Object.freeze({
           id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
@@ -806,7 +849,9 @@ export class ImmutableStore {
         // 自動計算にはcomponents（ロイス数等の算出元）を渡すため、先に反映後のcomponentsを作る。
         const nextComponents = Object.freeze({ ...character.components, ...components });
 
-        nextParams = applyPluginDerivedParameters(activePlugin, nextParams, nextComponents);
+        nextParams = applyPluginDerivedParameters(
+          activePlugin, nextParams, nextComponents, buildDerivedContext(prevState.round, id)
+        );
 
         patchCharacter(nextTokensState, id, {
           name: name || character.name,
@@ -833,7 +878,9 @@ export class ImmutableStore {
           nextParams[paramId] = Object.freeze({ ...paramDef });
         });
         const nextComponents = Object.freeze({ ...(snapshot.components || {}) });
-        const calculatedParams = applyPluginDerivedParameters(activePlugin, nextParams, nextComponents);
+        const calculatedParams = applyPluginDerivedParameters(
+          activePlugin, nextParams, nextComponents, buildDerivedContext(prevState.round, id)
+        );
 
         patchCharacter(nextTokensState, id, {
           name: snapshot.name || character.name,
@@ -867,7 +914,9 @@ export class ImmutableStore {
 
         patchCharacter(nextTokensState, id, {
           components: nextComponents,
-          parameters: applyPluginDerivedParameters(activePlugin, character.parameters, nextComponents)
+          parameters: applyPluginDerivedParameters(
+            activePlugin, character.parameters, nextComponents, buildDerivedContext(prevState.round, id)
+          )
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -884,7 +933,10 @@ export class ImmutableStore {
 
         // プラグインの自動計算を通して新パラメータを取得
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
+          parameters: applyPluginDerivedParameters(
+            activePlugin, nextParams, character.components,
+            buildDerivedContext(prevState.round, characterId)
+          )
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -935,7 +987,10 @@ export class ImmutableStore {
 
         // 自動計算の再評価
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
+          parameters: applyPluginDerivedParameters(
+            activePlugin, nextParams, character.components,
+            buildDerivedContext(prevState.round, characterId)
+          )
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -952,7 +1007,10 @@ export class ImmutableStore {
 
         // 自動計算の適用
         patchCharacter(nextTokensState, characterId, {
-          parameters: applyPluginDerivedParameters(activePlugin, nextParams, character.components)
+          parameters: applyPluginDerivedParameters(
+            activePlugin, nextParams, character.components,
+            buildDerivedContext(prevState.round, characterId)
+          )
         });
 
         this.#commit(prevState, { tokens: nextTokensState });
@@ -1251,19 +1309,29 @@ export class ImmutableStore {
           logParts.push(`ラウンド${roundNumber} - ${newPhase.label}開始${turnLabel}。`);
         }
 
+        const nextRound = {
+          ...round,
+          phaseIndex,
+          roundNumber,
+          acted,
+          currentActorId,
+          step,
+          interruptId,
+          plots,
+          plotSubmitters,
+          plotsRevealed
+        };
+
+        // プロットの公開・ラウンドの繰り上がりで自動計算の前提が変わる（シノビガミの
+        // ファンブル値）。コマ自体は触っていないので、ここから明示的に引き直す。
+        // tokensForRoundはapplyPhaseEndが返した新しいオブジェクトか、作業用コピーのまま。
+        tokensForRound = { ...tokensForRound };
+        recomputeDerivedForRound(tokensForRound, activePlugin, nextRound);
+
         this.#commit(prevState, {
           tokens: tokensForRound,
           round: {
-            ...round,
-            phaseIndex,
-            roundNumber,
-            acted,
-            currentActorId,
-            step,
-            interruptId,
-            plots,
-            plotSubmitters,
-            plotsRevealed
+            ...nextRound
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
@@ -1410,7 +1478,14 @@ export class ImmutableStore {
         const round = prevState.round;
         if (!round.active) return;
 
+        // 戦闘が終われば、プロットから決まっていた値は平常時のものへ戻す。
+        // 引き直しには「参加者が誰だったか」が要るので、終了後の空の状態ではなく
+        // 直前のparticipantsを渡す（roundActive:falseで平常時として計算される）。
+        const endedRound = { ...createInitialRoundState(), participants: round.participants };
+        recomputeDerivedForRound(nextTokensState, activePlugin, endedRound);
+
         this.#commit(prevState, {
+          tokens: nextTokensState,
           round: createInitialRoundState(),
           chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, payload?.time)
         });
@@ -1442,7 +1517,8 @@ export class ImmutableStore {
         Object.keys(nextTokensState).forEach(id => {
           patchCharacter(nextTokensState, id, {
             parameters: applyPluginDerivedParameters(
-              pluginId, nextTokensState[id].parameters, nextTokensState[id].components
+              pluginId, nextTokensState[id].parameters, nextTokensState[id].components,
+              buildDerivedContext(prevState.round, id)
             )
           });
         });

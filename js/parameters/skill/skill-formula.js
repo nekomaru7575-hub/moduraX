@@ -147,6 +147,23 @@ function findParameterEntryByName(parameters, name) {
   ) ?? null;
 }
 
+/**
+ * その欄がこのスキルで意味を持つか（シノビガミの「間合は攻撃忍法だけ」）。
+ * availableWhenを宣言していない欄は常に有効。
+ *
+ * 本来はskill-model.js側の関心だが、式の評価（下のbuildSkillFieldLookup）でも同じ規則が
+ * 要るのに、このファイルはskill-model.jsをimportできない（あちらがこちらをimportしていて
+ * 循環する）。そこで最下層のここに定義し、skill-model.jsから再公開している。
+ * 判定の実体はこの1か所だけ。
+ *
+ * @param {object} field specのfields[]の1件
+ * @param {Record<string, any>} fields そのスキルのフィールド値一式
+ */
+export function isFieldAvailable(field, fields) {
+  if (typeof field?.availableWhen !== 'function') return true;
+  return !!field.availableWhen(fields ?? {});
+}
+
 // スキル自身のフィールドを式から引くための対応表を作る。
 // specのfieldsのうちformulaNameを宣言したものだけが式に書ける（DX3なら level → {Lv}）。
 // specもskillも無い呼び出し（パラメータだけを参照する式）では空の表になる。
@@ -154,6 +171,12 @@ function buildSkillFieldLookup(spec, skill) {
   const lookup = new Map();
   (spec?.fields || []).forEach(field => {
     if (!field.formulaName) return;
+    // そのスキルで意味を持たない欄（シノビガミの「攻撃忍法以外の間合」）は0として扱う。
+    // 保存値は残っているので、ここで見ないと消したはずの値が式に効いてしまう。
+    if (!isFieldAvailable(field, skill?.fields)) {
+      lookup.set(normalizeName(field.formulaName), 0);
+      return;
+    }
     const raw = skill?.fields?.[field.key];
     const value = Number(raw);
     lookup.set(normalizeName(field.formulaName), Number.isFinite(value) ? value : 0);

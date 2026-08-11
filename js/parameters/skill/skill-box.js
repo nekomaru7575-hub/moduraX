@@ -9,7 +9,36 @@
 
 import { lockFormControls } from '../../read-only-form.js';
 import { analyzeFormula, listFormulaNames, COMPARATORS } from './skill-formula.js';
-import { normalizeSkillList, EXPIRE_PHASE_CHOICES } from './skill-model.js';
+import { normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable } from './skill-model.js';
+
+// 選択肢欄（type:'select'）を組む。optionにgroupがあれば、その名前でoptgroupにまとめる
+// （シノビガミの指定特技は66件あるので、分野ごとに畳まないと選べない）。
+function buildSelectField(field, value) {
+  const select = document.createElement('select');
+  const groups = new Map();
+
+  field.options.forEach(option => {
+    const el = document.createElement('option');
+    el.value = option.value;
+    el.textContent = option.label;
+
+    if (!option.group) {
+      select.appendChild(el);
+      return;
+    }
+    let group = groups.get(option.group);
+    if (!group) {
+      group = document.createElement('optgroup');
+      group.label = option.group;
+      groups.set(option.group, group);
+      select.appendChild(group);
+    }
+    group.appendChild(el);
+  });
+
+  select.value = value;
+  return select;
+}
 
 let dialogEl = null;
 
@@ -95,15 +124,50 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
 
     const fieldInputs = {};
     spec.fields.forEach(field => {
-      const input = document.createElement('input');
-      input.type = field.type === 'number' ? 'number' : 'text';
+      const stored = skill?.fields?.[field.key];
+      let input;
+      if (field.type === 'select') {
+        input = buildSelectField(field, stored ?? field.options[0]?.value ?? '');
+      } else {
+        input = document.createElement('input');
+        input.type = field.type === 'number' ? 'number' : 'text';
+        input.placeholder = field.placeholder || field.label;
+        input.value = stored ?? (field.type === 'number' ? 0 : '');
+      }
       input.className = field.className || 'effect-box-timing';
-      input.placeholder = field.placeholder || field.label;
       input.title = field.label;
-      input.value = skill?.fields?.[field.key] ?? (field.type === 'number' ? 0 : '');
       headerRow.appendChild(input);
       fieldInputs[field.key] = input;
     });
+
+    // 条件付きの欄（シノビガミの「間合は攻撃忍法だけ」）の有効/無効を今の入力値で決め直す。
+    // 無効でも値は消さない。条件が戻ったときに入れ直させないため（skill-model.jsのisFieldAvailable）。
+    function syncFieldAvailability() {
+      const values = {};
+      spec.fields.forEach(field => { values[field.key] = fieldInputs[field.key].value; });
+
+      spec.fields.forEach(field => {
+        const input = fieldInputs[field.key];
+        const available = isFieldAvailable(field, values);
+        input.disabled = !available;
+        input.classList.toggle('is-unavailable', !available);
+        if (available) {
+          input.title = field.label;
+          if (field.type !== 'select') input.placeholder = field.placeholder || field.label;
+        } else {
+          input.title = `${field.label}：この種類では使いません`;
+          if (field.type !== 'select') input.placeholder = '-';
+        }
+      });
+    }
+
+    // 条件の元になる欄（タイプ等）が変わったら組み直す。どの欄が条件を左右するかは
+    // specしか知らないので、全部の欄の変化を見て一律に引き直す。
+    spec.fields.forEach(field => {
+      fieldInputs[field.key].addEventListener('change', syncFieldAvailability);
+      fieldInputs[field.key].addEventListener('input', syncFieldAvailability);
+    });
+    syncFieldAvailability();
 
     const removeBtn = createElement('button', 'dialog-remove-row', '×');
     removeBtn.type = 'button';

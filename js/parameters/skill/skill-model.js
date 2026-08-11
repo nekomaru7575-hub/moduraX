@@ -65,10 +65,17 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   componentKey: string,      token.componentsのどのキーに保存するか。
  *   fields?: Array<{
  *     key: string, label: string,
- *     type?: 'text'|'number',
+ *     type?: 'text'|'number'|'select',
+ *     options?: Array<{value:string, label:string, group?:string}>,
+ *                             type:'select'のときの選択肢。先頭が既定値になる。
+ *                             groupを付けると、その名前でまとめて（optgroupで）並ぶ。
  *     placeholder?: string,
  *     className?: string,      入力欄に付けるCSSクラス（既存のレイアウトを流用するため）
  *     formulaName?: string,    式から{名前}で参照できるようにする（DX3のlevel → 'Lv'）
+ *     availableWhen?: (fields: Record<string, any>) => boolean
+ *                             この欄がそのスキルで意味を持つ条件（シノビガミの「間合は
+ *                             攻撃忍法だけ」）。偽なら入力させず、表示・式・ログでも無視する。
+ *                             ただし保存値は捨てない（条件が戻ったときに入れ直させないため）。
  *     onUse?: { addToParamId: string }
  *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
  *                             （DX3の上昇侵蝕率 → DX3:corruption）。
@@ -109,7 +116,11 @@ export function createSkillSpec(definition) {
     id,
     noun,
     componentKey,
-    fields: Object.freeze(fields.map(field => Object.freeze({ type: 'text', ...field }))),
+    fields: Object.freeze(fields.map(field => Object.freeze({
+      type: 'text',
+      ...field,
+      options: Object.freeze((field.options ?? []).map(option => Object.freeze({ ...option })))
+    }))),
     periods: Object.freeze(periods.map(period => Object.freeze({ ...period }))),
     modTargets: Object.freeze(modTargets.map(target => Object.freeze({ ...target }))),
     defaultExpirePhase,
@@ -117,6 +128,16 @@ export function createSkillSpec(definition) {
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
     findModTarget: (paramId) => modTargetByParamId.get(paramId) ?? null
   });
+}
+
+// 「その欄がこのスキルで意味を持つか」の判定は skill-formula.js にある（式の評価でも
+// 同じ規則が要るのに、skill-formula.js はこのファイルをimportできない＝循環するため、
+// 最下層のあちらに定義してある）。使う側がここだけ見れば済むよう、そのまま再公開する。
+export { isFieldAvailable } from './skill-formula.js';
+
+/** その欄で選べる値の既定（選択肢の先頭）。選択肢が無ければ空文字。 */
+function defaultSelectValue(field) {
+  return field.options?.[0]?.value ?? '';
 }
 
 // 正規表現のメタ文字をそのままの文字として扱わせる。nounは日本語なので今のところ
@@ -221,6 +242,14 @@ export function normalizeSkill(spec, raw) {
     const value = raw?.fields?.[field.key] ?? raw?.[field.key];
     if (field.type === 'number') {
       fields[field.key] = toNumber(value);
+    } else if (field.type === 'select') {
+      // 選択肢から消えた値（表の特技名を整理した後など）は既定へ落とす。
+      // 存在しない値のまま持っていると、UIでは先頭が選ばれて見えるのに保存値は別物、
+      // というずれ方をするため。
+      const text = value === null || value === undefined ? '' : String(value);
+      fields[field.key] = field.options.some(option => option.value === text)
+        ? text
+        : defaultSelectValue(field);
     } else {
       fields[field.key] = value === null || value === undefined ? '' : String(value);
     }

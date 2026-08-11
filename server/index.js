@@ -24,6 +24,8 @@ import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+// スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
+import { isKnownStampId } from '../js/stamp-catalog.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -902,6 +904,27 @@ function broadcastToRoom(entry, sender, message) {
 // （Mapはそのままだと空オブジェクトとしてJSON化されてしまうため）。T-013。
 function typingUsersList(entry) {
   return Array.from(entry.typing, ([id, name]) => ({ id, name }));
+}
+
+// --- スタンプの連打よけ ---
+// 1接続あたり STAMP_WINDOW_MS の間に STAMP_MAX_PER_WINDOW 枚まで。
+// 数える場所を接続（ws）にしているのは、接続が切れた時点で一緒に捨てられて
+// 後片付けが要らないため。entryに持たせると、部屋の組み立てが2か所ある都合で
+// 片方に足し忘れる事故が起きる（getOrLoadRoomのコメント参照）。
+// 同じ人が2タブ開くと2倍出せるが、これは荒らし対策ではなく事故防止なので許容する。
+const STAMP_WINDOW_MS = 10_000;
+const STAMP_MAX_PER_WINDOW = 6;
+
+function allowStamp(ws) {
+  const now = Date.now();
+  const recent = (ws.stampTimes || []).filter(time => now - time < STAMP_WINDOW_MS);
+  if (recent.length >= STAMP_MAX_PER_WINDOW) {
+    ws.stampTimes = recent;
+    return false;
+  }
+  recent.push(now);
+  ws.stampTimes = recent;
+  return true;
 }
 
 // このアプリがR2に実体を持っている音源だけがキーを返す。外部URL指定のものはnull。
@@ -2543,6 +2566,32 @@ wss.on('connection', async (ws, req) => {
         type: 'ACTION',
         action: 'CHAT_SEND_SOUND',
         payload: { chatSendSoundUrl: CHAT_SEND_SOUND_URL || null }
+      });
+      return;
+    }
+
+    // スタンプ。盤面に数十秒だけ出して消える合図で、チャットログにも状態にも残さない。
+    // 記入中一覧（TYPING_*）・送信音（上のREQUEST_CHAT_SEND_SOUND）と同じ揮発メッセージで、
+    // store.dispatchを通さないのでpersistも走らない＝出すたびの保存が発生しない。
+    //
+    // 受け取るのはスタンプのIDだけにしてある。URLや任意の文字列を受けると、そのまま
+    // 「他人の画面に好きな画像を出す口」になるため（js/stamp-catalog.js冒頭参照）。
+    // 表示名もクライアントの申告ではなく、名乗りのときにサーバーが決めたws.participantNameを使う。
+    if (message.type === 'SEND_STAMP') {
+      // スタンプには送り主の名前が出る。名前の無いゲストはそもそも描けないので対象外にする
+      // （記入中一覧と同じ扱い）。
+      if (!verifiedParticipantId) return;
+      if (!isKnownStampId(message.stampId)) return;
+      if (!allowStamp(ws)) return;
+
+      broadcastToRoom(entry, null, {
+        type: 'ACTION',
+        action: 'SHOW_STAMP',
+        payload: {
+          stampId: String(message.stampId),
+          participantId: verifiedParticipantId,
+          name: ws.participantName || 'ゲスト'
+        }
       });
       return;
     }

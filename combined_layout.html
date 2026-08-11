@@ -278,6 +278,76 @@
       cursor: pointer;
     }
 
+    /* スタンプ（js/stamp-layer.js）。盤面の右上に重ね、1分ほどで自動的に消える合図。
+       ダイス(z-index:40)より手前・浮動パネル(60)より奥。盤面のパン・コマのドラッグを
+       邪魔しないよう、レイヤーもスタンプ自身もポインタを素通しにする。 */
+    #stampLayer {
+      --stamp-column-width: 84px;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      /* 列は右詰めで左へ伸びる。上限5列分の幅を確保しておく */
+      width: calc(5 * var(--stamp-column-width));
+      height: 0; /* 中身はabsoluteなので高さは要らない。盤面のクリック領域を奪わない */
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .stamp-item {
+      position: absolute;
+      width: var(--stamp-column-width);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+      /* 出た瞬間だけふわっと入れる。消えるのはJS側のsetTimeout（1分） */
+      animation: stamp-pop 0.18s ease-out;
+    }
+
+    @keyframes stamp-pop {
+      from { opacity: 0; transform: scale(0.7); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .stamp-item-image {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      /* 盤面の背景が明るくても暗くても見えるように、輪郭を落とす */
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+    }
+
+    /* 画像がまだ置かれていないときの代わり（js/stamp-layer.jsのerrorハンドラ）。
+       仕組みだけ先に動かして確かめられるようにするためのもの。 */
+    .stamp-item-fallback {
+      width: 64px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 2px;
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      color: #eee;
+      background-color: rgba(40, 40, 40, 0.85);
+      border: 1px dashed #888;
+      border-radius: 8px;
+    }
+
+    .stamp-item-name {
+      max-width: 100%;
+      font-size: 0.7rem;
+      color: #fff;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    }
+
     /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
     .round-panel-bar {
       flex: 0 0 auto;
@@ -1728,6 +1798,9 @@
         </div>
         <!-- 3Dダイスの舞台（js/dice-animation.js）。中のcanvasはライブラリが作る -->
         <div id="dice-stage" class="dice-stage" aria-hidden="true"></div>
+        <!-- スタンプの置き場（js/stamp-layer.js）。盤面の右上に重ねる。
+             盤面の操作を邪魔しないよう pointer-events は通す -->
+        <div id="stampLayer" aria-hidden="true"></div>
       </div>
 
       <!-- 盤面下1/4：既存ログのミラー表示。左側（キャラ一覧パネルと重なりうる領域）は

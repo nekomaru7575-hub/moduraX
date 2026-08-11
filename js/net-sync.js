@@ -179,6 +179,13 @@ function connect() {
         return;
       }
 
+      // スタンプ。盤面に一定時間だけ出して消える合図で、状態にもログにも残さないので
+      // CHAT_SEND_SOUNDと同じくlocalDispatchは通さない（js/stamp-layer.jsが描く）。
+      if (message.action === 'SHOW_STAMP') {
+        EventBus.emit('STAMP_RECEIVED', message.payload || {});
+        return;
+      }
+
       localDispatch(message.action, message.payload);
       // 入室メッセージに合わせた入室音。URLはサーバーの環境変数ENTRY_SOUND_URL由来で、
       // 状態には載せずこのACTIONメッセージのpayloadだけで運ぶ（js/audio-player.js参照）。
@@ -270,6 +277,15 @@ export function sendIdentify(participantId, authToken, name) {
 export function requestChatSendSound() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'REQUEST_CHAT_SEND_SOUND' }));
+  }
+}
+
+// スタンプを送る。requestChatSendSoundと同じ揮発メッセージで、状態もログも変えない。
+// 送るのはIDだけ（画像URLも表示名もサーバー／受け手側が決める。js/stamp-catalog.js冒頭参照）。
+// 名乗っていない場合はサーバーが黙って捨てるので、押せないようにするのは画面側の仕事。
+export function sendStamp(stampId) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'SEND_STAMP', stampId }));
   }
 }
 

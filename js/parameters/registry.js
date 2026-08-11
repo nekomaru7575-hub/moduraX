@@ -3,11 +3,13 @@
 
 import { DX3_PLUGIN } from './dx3.js';
 import { SHINOBIGAMI_PLUGIN } from './shinobigami.js';
+import { STELLA_KNIGHTS_PLUGIN } from './stella-knights.js';
 // import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
 
 const PLUGINS = {
   DX3: DX3_PLUGIN,
   SHINOBIGAMI: SHINOBIGAMI_PLUGIN,
+  STELLA_KNIGHTS: STELLA_KNIGHTS_PLUGIN,
   // GCREST: GCREST_PLUGIN,
 };
 

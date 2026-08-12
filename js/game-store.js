@@ -7,7 +7,7 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
-  getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd
+  applyPluginDerivedRoomParameters, getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd
 } from './parameters/registry.js';
 // スタンプの集計（COUNT_STAMP）で「その部屋に実在するスタンプか」を確かめるためだけに使う。
 import { findStamp } from './stamp-registry.js';
@@ -15,6 +15,23 @@ import { findStamp } from './stamp-registry.js';
 // スタンプの集計1件（1人ぶん）が取りうる上限。桁あふれした値を書き込まれても表示が
 // 壊れないようにするための歯止めで、実際の使用でここに届くことは想定していない。
 const MAX_STAMP_COUNT = 1_000_000;
+
+/**
+ * 「部屋全体から決まるルーム変数」を計算し直したroomを返す（ステラナイツのブーケ合計）。
+ * 何を計算するかはプラグイン側（computeDerivedRoomParameters）が決め、Coreは材料を
+ * 渡すだけで中身を解釈しない。変化が無ければ同じroomの参照を返す。
+ *
+ * 呼ぶのは「材料が変わりうるところ」すべて：スタンプの集計（COUNT_STAMP・
+ * RESET_STAMP_COUNTS）、システムの切り替え（SET_ACTIVE_PLUGIN）、そして状態の丸ごと
+ * 差し替え（hydrate）。hydrateでも通すのが肝で、こうしておくとルーム変数は常に
+ * 材料から導かれた値になり、単独でズレたまま残ることがない。
+ */
+function withDerivedRoomParameters(room, stampCounts) {
+  const parameters = applyPluginDerivedRoomParameters(
+    room?.activePlugin ?? null, room?.parameters || {}, { stampCounts: stampCounts || {} }
+  );
+  return parameters === room.parameters ? room : { ...room, parameters };
+}
 
 export { listPlugins };
 
@@ -708,6 +725,12 @@ export class ImmutableStore {
         roundSettings: newState.room?.roundSettings || { useInitiativeProcess: false }
       }
     };
+
+    // 部屋全体から決まるルーム変数（ステラナイツのブーケ合計）を、読み込んだ材料から
+    // 計算し直す。プラグインへ後から足したぶんの補完もここで効く（この機能より前に
+    // 保存された状態には、そのルーム変数自体が無いため）。
+    normalized.room = withDerivedRoomParameters(normalized.room, normalized.stampCounts);
+
     this.#state = this.#createProtectedProxy(normalized);
     EventBus.emit('STATE_CHANGED', this.#state);
   }
@@ -1530,11 +1553,13 @@ export class ImmutableStore {
         });
 
         this.#commit(prevState, {
-          room: {
+          // 作り直したルーム変数にも、既に溜まっている集計からの自動計算を当てておく
+          // （切り替えた直後だけブーケ合計が0に見える、という食い違いを作らない）
+          room: withDerivedRoomParameters({
             ...prevRoom,
             activePlugin: pluginId,
             parameters: buildRoomParameters(pluginId)
-          },
+          }, prevState.stampCounts),
           tokens: nextTokensState
         });
 
@@ -1652,10 +1677,14 @@ export class ImmutableStore {
         // 同じ値の書き直しは何も変えない（保存の往復を省く。persistRoomNowの比較と同じ狙い）
         if (current === count) return;
 
+        const nextStampCounts = withMapEntry(
+          stampCounts, stamp.id, withMapEntry(perParticipant, participantId, count)
+        );
+
         this.#commit(prevState, {
-          stampCounts: withMapEntry(
-            stampCounts, stamp.id, withMapEntry(perParticipant, participantId, count)
-          )
+          stampCounts: nextStampCounts,
+          // 集計から決まるルーム変数（ブーケ合計）を追随させる
+          room: withDerivedRoomParameters(prevState.room, nextStampCounts)
         });
         return;
       }
@@ -1665,7 +1694,12 @@ export class ImmutableStore {
       case 'RESET_STAMP_COUNTS': {
         if (Object.keys(prevState.stampCounts || {}).length === 0) return;
 
-        this.#commit(prevState, { stampCounts: Object.freeze({}) });
+        const emptyCounts = Object.freeze({});
+        this.#commit(prevState, {
+          stampCounts: emptyCounts,
+          // 集計を0にしたら、そこから決まるルーム変数（ブーケ合計）も0に戻る
+          room: withDerivedRoomParameters(prevState.room, emptyCounts)
+        });
         return;
       }
 
@@ -2303,7 +2337,11 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     room: {
       name,                // 部屋名（複数部屋運用時のインデックスページ・見出し表示に使う）
       activePlugin,        // 例: 'DX3'。null = プラグイン未選択（Coreパラメータのみ）
-      parameters: {},        // ルーム変数（後述）
+      // ルーム変数（後述）。システムを選んで部屋を作った場合は、そのシステムの既定を
+      // 最初から配る。以前は常に空で始めていたため、SET_ACTIVE_PLUGINを一度通すまで
+      // プラグインのルーム変数（ステラナイツのブーケ合計、グランクレストの混沌レベル）が
+      // 存在しなかった。
+      parameters: buildRoomParameters(activePlugin),
       backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
       // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
       // データURLではnull。音源のtrack.keyと同じ役割。

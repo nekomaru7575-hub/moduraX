@@ -1,10 +1,10 @@
 ---
 source: js/parameters/registry.js
-lines: 282
-exports: 16
+lines: 353
+exports: 17
 imported_by: 8
-api_sha: fba7e2c195c9
-prose_sha: fba7e2c195c9
+api_sha: 01fbc1974769
+prose_sha: 01fbc1974769
 generated: 2026-08-12
 tags: [codemap]
 ---
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-DX3・シノビガミ・ステラナイツの記述子を登録し、キャラクターパラメータの構築・専用パネルの描画・JSON 取り込み・チャットコマンド処理・バフ欄の拡張・フェーズ終了時のリセット・ラウンド進行テンプレート・スタンプの宣言（listPluginStamps。束ねるのは[[js.stamp-registry]]）を、プラグインの有無で分岐しながら中継する。呼び出し側がシステム名を知らずに済むように、判定はすべてここに集める。プラグインへ渡すのは値と事実だけで、Core は中身を解釈しない（applyPluginDerivedParameters の components と context がその例）。新しいシステムを足す作業はこのファイルへの登録から始まる。
+DX3・シノビガミ・ステラナイツの記述子を登録し、キャラクターパラメータの構築・専用パネルの描画・JSON 取り込み・チャットコマンド処理・バフ欄の拡張・フェーズ終了時のリセット・ラウンド進行テンプレート・スタンプの宣言（listPluginStamps。束ねるのは[[js.stamp-registry]]）・ルーム変数の自動計算（applyPluginDerivedRoomParameters。ステラナイツのブーケ合計のような「部屋全体から決まる値」）を、プラグインの有無で分岐しながら中継する。コマ側・ルーム側とも、後から足したパラメータを既存の部屋へ補うのはここの役目（withMissingPluginParameters / withMissingPluginRoomParameters。locked:true のものだけ）。呼び出し側がシステム名を知らずに済むように、判定はすべてここに集める。プラグインへ渡すのは値と事実だけで、Core は中身を解釈しない（applyPluginDerivedParameters の components と context がその例）。新しいシステムを足す作業はこのファイルへの登録から始まる。
 <!-- /prose:role -->
 
-## export（16）
+## export（17）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -39,10 +39,11 @@ DX3・シノビガミ・ステラナイツの記述子を登録し、キャラ�
 | 165 | fn | renderPluginBuffFields | `renderPluginBuffFields(pluginId, context)` | バフ/デバフ付与ダイアログのプラグイン用スペースに、プラグイン自身の追加入力欄を描画させる。 |
 | 179 | fn | parsePluginBuffExtra | `parsePluginBuffExtra(pluginId, paramId, text)` | バフ()チャットコマンドの省略可能な追加引数を、プラグインの知識でmetaへ変換する。 |
 | 191 | fn | describePluginBuffMeta | `describePluginBuffMeta(pluginId, buff)` | バフ1件のmetaを、一覧やログへ添える1行の説明にする。 |
-| 204 | fn | listPluginStamps | `listPluginStamps(pluginId)` | プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。 |
-| 253 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 238 | fn | applyPluginDerivedRoomParameters | `applyPluginDerivedRoomParameters(pluginId, parameters, context = {})` | ルーム変数に、プラグインの自動計算を適用した新しい集合を返す。 |
+| 275 | fn | listPluginStamps | `listPluginStamps(pluginId)` | プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。 |
+| 324 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（17）
+## トップレベル関数（LOCAL TASKS 候補）（19）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -63,9 +64,11 @@ DX3・シノビガミ・ステラナイツの記述子を登録し、キャラ�
 | 165 | renderPluginBuffFields | `renderPluginBuffFields(pluginId, context)` | 5 | ✓ |
 | 179 | parsePluginBuffExtra | `parsePluginBuffExtra(pluginId, paramId, text)` | 5 | ✓ |
 | 191 | describePluginBuffMeta | `describePluginBuffMeta(pluginId, buff)` | 5 | ✓ |
-| 204 | listPluginStamps | `listPluginStamps(pluginId)` | 4 | ✓ |
-| 218 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |  |
-| 253 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 207 | withMissingPluginRoomParameters | `withMissingPluginRoomParameters(plugin, parameters)` | 15 |  |
+| 238 | applyPluginDerivedRoomParameters | `applyPluginDerivedRoomParameters(pluginId, parameters, context = {})` | 29 | ✓ |
+| 275 | listPluginStamps | `listPluginStamps(pluginId)` | 4 | ✓ |
+| 289 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |  |
+| 324 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 

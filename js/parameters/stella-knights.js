@@ -47,6 +47,32 @@ function buildStellaKnightsCharacterParameters() {
   return buildParameters('STELLA_KNIGHTS', FACE_PARAMETERS);
 }
 
+// --- ブーケ合計（ルーム変数） ---
+// この部屋でブーケのスタンプが押された回数の、参加者全員ぶんの合計。
+// 数え札そのものはCoreが持っている（js/game-store.jsのstampCounts）ので、ここは
+// 「どれを足すか」だけを決める。手入力させない（editable:false）のは自動計算値だから、
+// 消させない（locked:true）のは、既にこのシステムで動いている部屋にも後から補完させるため
+// （js/parameters/registry.jsのwithMissingPluginRoomParameters）。
+const BOUQUET_STAMP_ID = 'STELLA_KNIGHTS:bouquet';
+const BOUQUET_TOTAL_PARAM_ID = 'STELLA_KNIGHTS:bouquetTotal';
+
+const ROOM_PARAMETERS = [
+  { key: 'bouquetTotal', label: 'ブーケ合計', value: 0, locked: true, editable: false }
+];
+
+function buildStellaKnightsRoomParameters() {
+  return buildParameters('STELLA_KNIGHTS', ROOM_PARAMETERS);
+}
+
+function computeStellaKnightsDerivedRoomParameters(parameters, context = {}) {
+  const perParticipant = context.stampCounts?.[BOUQUET_STAMP_ID] ?? {};
+  // 壊れた値（保存データを手で書き換えられた等）が混ざっていても合計を壊さない
+  const total = Object.values(perParticipant)
+    .reduce((sum, count) => sum + (Number.isInteger(count) && count > 0 ? count : 0), 0);
+
+  return { [BOUQUET_TOTAL_PARAM_ID]: total };
+}
+
 function looksLikeStellaKnightsChatCommand(rawInput) {
   return CHARGE_COMMAND_PATTERN.test(String(rawInput).trim());
 }
@@ -248,6 +274,8 @@ export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
+  buildRoomParameters: buildStellaKnightsRoomParameters,
+  computeDerivedRoomParameters: computeStellaKnightsDerivedRoomParameters,
   renderCharacterPanel: renderStellaKnightsCharacterPanel,
   handleChatCommand: handleStellaKnightsChatCommand,
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,

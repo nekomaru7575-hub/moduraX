@@ -195,6 +195,77 @@ export function describePluginBuffMeta(pluginId, buff) {
 }
 
 /**
+ * プラグインの既定ルーム変数のうち、まだこの部屋が持っていないものを補う。
+ * withMissingPluginParameters（コマ側）のルーム変数版で、狙いも補完対象の絞り方も同じ。
+ *
+ * ルーム変数はSET_ACTIVE_PLUGINのときにしか組み立てられないため、プラグインへ後から
+ * ルーム変数を足しても、既にそのシステムで動いている部屋には存在しないままになる。
+ * かといって「システムを選び直す」で作り直させると、room.parametersごと差し替わって
+ * 利用者が自分で追加したルーム変数まで消える（js/game-store.jsのSET_ACTIVE_PLUGIN）。
+ * そこで、locked:true の宣言だけをここで補う。
+ */
+function withMissingPluginRoomParameters(plugin, parameters) {
+  if (!plugin?.buildRoomParameters) return parameters;
+
+  const defaults = plugin.buildRoomParameters();
+  const missing = Object.entries(defaults).filter(
+    ([paramId, def]) => def.locked && !parameters[paramId]
+  );
+  if (missing.length === 0) return parameters;
+
+  const nextParameters = { ...parameters };
+  missing.forEach(([paramId, def]) => {
+    nextParameters[paramId] = def; // buildParameters側で既にfreeze済み
+  });
+  return nextParameters;
+}
+
+/**
+ * ルーム変数に、プラグインの自動計算を適用した新しい集合を返す。
+ * applyPluginDerivedParameters（コマ側）のルーム変数版。コマ1体では決まらず
+ * 「部屋全体から決まる値」（ステラナイツのブーケ合計＝スタンプの集計の総和）のためにある。
+ *
+ * contextはCoreが解釈しない「事実」で、渡す中身は呼び出し側（js/game-store.js）が決める。
+ * 今はスタンプの集計だけを渡している。増やすときはここと呼び出し側を揃えること。
+ *
+ * 変化が無ければ同じ参照を返す（呼び出し側が差分検知に使う）。
+ *
+ * @param {string} pluginId
+ * @param {Record<string, any>} parameters room.parameters
+ * @param {{ stampCounts?: Record<string, Record<string, number>> }} [context]
+ * @returns {Record<string, any>} 計算適用後のルーム変数（変化が無ければ同一参照）
+ */
+export function applyPluginDerivedRoomParameters(pluginId, parameters, context = {}) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin) return parameters; // プラグイン未適用ならそのまま返す
+
+  const baseParameters = withMissingPluginRoomParameters(plugin, parameters);
+
+  const updates = plugin.computeDerivedRoomParameters
+    ? plugin.computeDerivedRoomParameters(baseParameters, context)
+    : null;
+
+  if (!updates || Object.keys(updates).length === 0) {
+    return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
+  }
+
+  // 差分のうち、実際に値が変わるものだけを当てる。1件も変わらなければ元の参照を返す。
+  let nextParameters = null;
+  Object.entries(updates).forEach(([paramId, newValue]) => {
+    const current = baseParameters[paramId];
+    if (!current || current.value === newValue) return;
+
+    if (!nextParameters) nextParameters = { ...baseParameters };
+    nextParameters[paramId] = Object.freeze({ ...current, value: newValue });
+  });
+
+  if (!nextParameters) {
+    return baseParameters === parameters ? parameters : Object.freeze(baseParameters);
+  }
+  return Object.freeze(nextParameters);
+}
+
+/**
  * プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。
  * Coreは中身を解釈せず、ID・表示名・画像ファイル名の表として受け取るだけで、
  * 名前空間の付与と画像URLの組み立てはjs/stamp-registry.jsが行う。

@@ -126,6 +126,7 @@ const PLUGINS = {
 | `buildCharacterParameters` | `() => Record<paramId, param>` | コマ作成時に配るパラメータ |
 | `buildRoomParameters` | `() => Record<paramId, param>` | 部屋に 1 つだけ持つパラメータ（混沌レベル等） |
 | `computeDerivedParameters` | `(parameters, components, context) => Record<paramId, number>` | 自動計算。**差分だけ**返す |
+| `computeDerivedRoomParameters` | `(roomParameters, context) => Record<paramId, number>` | ルーム変数の自動計算（[3.10](#310-computederivedroomparametersroomparameters-context)） |
 | `renderCharacterPanel` | `(context) => ({ getValues })` | コマ作成/更新ダイアログの専用スペースを描く |
 | `importCharacterJson` | `(json) => result` | 外部キャラシートツールの JSON を読む |
 | `handleChatCommand` | `(rawInput, context) => boolean` | 独自のチャットコマンドを実行する |
@@ -414,6 +415,48 @@ stamps: [
 `activePlugin` を見て検証するので、別のシステムのスタンプIDを名指しで送っても弾かれる。
 Core のスタンプ（`ok` / `!` 等）は常に使えるし、プラグインが同じ `id` を宣言しても
 名前空間が違うので奪えない。
+
+---
+
+### 3.10 `computeDerivedRoomParameters(roomParameters, context)`
+
+コマ1体では決まらず、**部屋全体から決まる**ルーム変数を計算する。`computeDerivedParameters`
+のルーム変数版で、返すのは同じく**変えたいものだけ**の `{ paramId: 数値 }`。
+
+ステラナイツの「ブーケ合計」（ブーケのスタンプが押された回数の全参加者ぶんの合計）がこれ。
+
+```js
+const BOUQUET_STAMP_ID = 'MYSYSTEM:bouquet';
+
+buildRoomParameters: () => buildParameters('MYSYSTEM', [
+  { key: 'bouquetTotal', label: 'ブーケ合計', value: 0, locked: true, editable: false }
+]),
+
+computeDerivedRoomParameters(parameters, context = {}) {
+  const perParticipant = context.stampCounts?.[BOUQUET_STAMP_ID] ?? {};
+  const total = Object.values(perParticipant)
+    .reduce((sum, count) => sum + (Number.isInteger(count) && count > 0 ? count : 0), 0);
+  return { 'MYSYSTEM:bouquetTotal': total };
+}
+```
+
+**`context` の中身**（Core が解釈せず事実として渡すもの）:
+
+| キー | 中身 |
+|---|---|
+| `stampCounts` | スタンプの集計 `{ [stampId]: { [participantId]: 枚数 } }`（[3.9](#39-stamps)） |
+
+**呼ばれるタイミング**: スタンプの集計が動いたとき（送信・集計のリセット）、システムを
+切り替えたとき、そして**状態を丸ごと読み込んだとき**（入室・再接続・部屋データの取り込み）。
+最後のものがあるおかげで、この値は常に材料から導かれた結果になり、単独でズレたまま残らない。
+
+> **受け皿は必ず `locked: true` にすること。** ルーム変数はシステムを適用した時にしか
+> 組み立てられないため、後からプラグインへ足しても既存の部屋には存在しない。
+> `locked: true` のものだけは Core が自動で補完する
+> （`registry.js` の `withMissingPluginRoomParameters`）。**システムを選び直させないこと**：
+> 選び直すと `room.parameters` ごと差し替わり、利用者が自分で追加したルーム変数まで消える。
+
+ルーム変数はチャットで `{ブーケ合計}` のように参照できる（`key` でも `label` でも引ける）。
 
 ---
 

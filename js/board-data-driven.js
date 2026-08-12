@@ -27,11 +27,12 @@ export {
   getEffectiveParameterValue, BUFF_PHASE_LABELS
 };
 
-// 浮動パネル（チャットパレット・情報・キャラクター一覧）。盤外の右クリックメニューから
-// 表示/非表示を切り替えるためだけに参照する。importは 生成側 → board-data-driven.js の向きに
-// 張られている（逆向きは循環importになる）ので、実体は起動時に注入してもらう。
+// 浮動パネル（チャットパレット・情報・キャラクター一覧・スタンプ送信）。盤外の右クリック
+// メニューから表示/非表示を切り替えるためだけに参照する。importは 生成側 →
+// board-data-driven.js の向きに張られている（逆向きは循環importになる）ので、実体は
+// 起動時に注入してもらう。
 // 生成側はパネルごとに違う：チャットパレットはjs/main.js、情報はjs/info-panel.js、
-// キャラクター一覧はjs/character-panel.js。
+// キャラクター一覧はjs/character-panel.js、スタンプ送信はjs/stamp-panel.js。
 let chatPaletteController = null;
 
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
@@ -51,6 +52,13 @@ let characterPanelController = null;
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
 export function setCharacterPanelController(controller) {
   characterPanelController = controller;
+}
+
+let stampPanelController = null;
+
+/** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
+export function setStampPanelController(controller) {
+  stampPanelController = controller;
 }
 
 // 進行中のドラッグ（コマ・パネル・視点移動のうち1つ）。2本指になったら
@@ -977,7 +985,9 @@ window.addEventListener('DOMContentLoaded', () => {
       ...panelToggleItem(infoPanelController, '情報'),
       // キャラクター一覧も浮動パネル（生成はjs/character-panel.js）。バックヤードは
       // このパネルのタブに統合したので、しまったコマを取り出す導線もここから辿る。
-      ...panelToggleItem(characterPanelController, 'キャラクター一覧')
+      ...panelToggleItem(characterPanelController, 'キャラクター一覧'),
+      // スタンプ送信も既定で非表示なので、ここが唯一の出しどころ（生成はjs/stamp-panel.js）。
+      ...panelToggleItem(stampPanelController, 'スタンプ送信')
     ]);
   }
 

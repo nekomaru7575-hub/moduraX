@@ -133,6 +133,7 @@ const PLUGINS = {
 | `resetComponentsOnPhaseEnd` | `(components, phase) => components` | シーン/ラウンド終了時に使用回数などを戻す |
 | `buildRoundPhaseTemplate` | `() => phase[]` | ラウンド進行のフェーズ構成 |
 | `buffFields` | `{ render, parseExtra, describe }` | バフに独自の追加情報を持たせる |
+| `stamps` | `{ id, label, file }[]` | そのシステム用のスタンプを足す |
 
 以下、それぞれの詳細。
 
@@ -375,6 +376,40 @@ function importMyCharacterJson(json) {
 ```
 
 実装しない場合は Core の汎用読み込み（`js/character-json-import.js`）が使われる。
+
+---
+
+### 3.9 `stamps`
+
+スタンプ（盤面の右上に1分ほど出て消える合図。「スタンプ送信」パネルとチャットコマンド
+`スタンプ(名前)` から撃つ）に、そのシステム用の絵柄を足す。**データだけを宣言する。**
+
+```js
+stamps: [
+  { id: 'seed',   label: 'シード',   file: 'seed.png' },
+  { id: 'brilliant', label: '輝*/', file: 'brilliant.png' }
+]
+```
+
+| キー | 説明 |
+|---|---|
+| `id` | プラグイン内で一意な短い名前。公開IDは `` `${プラグインid}:${id}` `` になる |
+| `label` | 画面に出る名前。チャットコマンドの引数にも使える |
+| `file` | 画像のファイル名**だけ**（`/` や `..` を含めない） |
+
+**画像の置き場は Core が決める**: `image/stamps/<プラグインidを小文字にしたもの>/<file>`。
+`STELLA_KNIGHTS` なら `image/stamps/stella_knights/seed.png`。推奨は正方形・128px前後・
+背景透過（拡張子は `.png` / `.svg` / `.webp` / `.gif`）。画像が無い間は、枠と `label` だけの
+代わりの見た目で表示され、送信もできる（先に仕組みだけ確かめられる）。
+
+パスをプラグインに書かせないのは、**「送受信するのはIDだけ。URLは受け取った側が組み立てる」**
+というスタンプ全体の約束（`js/stamp-catalog.js` 冒頭）を、プラグイン経由で破らせないため。
+同じ理由で、`stamps` に外部URLは書けない。
+
+そのスタンプが使えるのは **そのプラグインが適用されている部屋だけ**。サーバーも部屋の
+`activePlugin` を見て検証するので、別のシステムのスタンプIDを名指しで送っても弾かれる。
+Core のスタンプ（`ok` / `!` 等）は常に使えるし、プラグインが同じ `id` を宣言しても
+名前空間が違うので奪えない。
 
 ---
 

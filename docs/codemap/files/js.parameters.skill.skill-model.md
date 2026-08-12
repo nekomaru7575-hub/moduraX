@@ -2,10 +2,10 @@
 source: js/parameters/skill/skill-model.js
 lines: 435
 exports: 14
-imported_by: 4
+imported_by: 5
 api_sha: 8e2565e69e7b
 prose_sha: 8e2565e69e7b
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 
@@ -71,7 +71,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.parameters.skill.skill-formula]]
-- imported by → [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]]
+- imported by → [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
 
 ## 注意
 

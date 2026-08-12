@@ -25,7 +25,8 @@ import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
-import { isKnownStampId } from '../js/stamp-catalog.js';
+import { isKnownStampId } from '../js/stamp-registry.js';
+import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -912,8 +913,10 @@ function typingUsersList(entry) {
 // 後片付けが要らないため。entryに持たせると、部屋の組み立てが2か所ある都合で
 // 片方に足し忘れる事故が起きる（getOrLoadRoomのコメント参照）。
 // 同じ人が2タブ開くと2倍出せるが、これは荒らし対策ではなく事故防止なので許容する。
-const STAMP_WINDOW_MS = 10_000;
-const STAMP_MAX_PER_WINDOW = 6;
+// 数字はjs/stamp-catalog.jsに置いてある（送信パネルが「あと何秒で押せるか」を出すのに
+// 同じ値を要るため。両方に書くと必ずどちらかがずれる）。判定の権威はここ。
+const STAMP_WINDOW_MS = STAMP_RATE_LIMIT.windowMs;
+const STAMP_MAX_PER_WINDOW = STAMP_RATE_LIMIT.max;
 
 function allowStamp(ws) {
   const now = Date.now();
@@ -2581,7 +2584,9 @@ wss.on('connection', async (ws, req) => {
       // スタンプには送り主の名前が出る。名前の無いゲストはそもそも描けないので対象外にする
       // （記入中一覧と同じ扱い）。
       if (!verifiedParticipantId) return;
-      if (!isKnownStampId(message.stampId)) return;
+      // 使えるスタンプはその部屋に適用中のプラグインで変わる（js/stamp-registry.js）。
+      // 別のシステムのスタンプを名指しで送られても、ここで落ちる。
+      if (!isKnownStampId(message.stampId, entry.store.state.room?.activePlugin ?? null)) return;
       if (!allowStamp(ws)) return;
 
       broadcastToRoom(entry, null, {

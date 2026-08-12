@@ -348,6 +348,81 @@
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
     }
 
+    /* スタンプ送信パネル（js/stamp-panel.js）。浮動パネルの中身なので、枠の見た目は
+       .floating-panel側が持つ。ここは画像ボタンの並べ方だけ。 */
+    .stamp-send-notice {
+      margin-bottom: 6px;
+      padding: 4px 6px;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      color: #ffd479;
+      background-color: rgba(255, 212, 121, 0.1);
+      border: 1px solid rgba(255, 212, 121, 0.35);
+      border-radius: 4px;
+    }
+
+    /* 幅に合わせて折り返す。1枚あたり72pxを下限に、余った幅は等分する */
+    .stamp-send-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      gap: 6px;
+    }
+
+    .stamp-send-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 2px;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .stamp-send-btn:hover:not(:disabled) {
+      background-color: #333;
+      border-color: #007acc;
+    }
+
+    /* 押せないのは、名前が未設定のときと連打よけの上限に達したとき（理由は上の案内に出る） */
+    .stamp-send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .stamp-send-image {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    /* 画像がまだ置かれていないときの代わり（.stamp-item-fallbackと同じ役目） */
+    .stamp-send-fallback {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 2px;
+      text-align: center;
+      font-size: 0.65rem;
+      line-height: 1.2;
+      color: #eee;
+      border: 1px dashed #888;
+      border-radius: 6px;
+    }
+
+    .stamp-send-label {
+      max-width: 100%;
+      font-size: 0.7rem;
+      color: #ccc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
     .round-panel-bar {
       flex: 0 0 auto;
@@ -1557,8 +1632,8 @@
         overflow-x: auto;
       }
 
-      /* タブは5枚（盤面/チャット/キャラ/パレット/情報）。375px幅で1枚あたり約69pxなので
-         「パレット」がぎりぎり収まるところまで詰めてある。 */
+      /* タブは4枚（盤面/チャット/パレット/キャラ・情報・スタンプの束）。束のタブだけは
+         「スタンプ ▾」と中身の名前が入るので、他より少し文字数が要る。 */
       .mobile-stage-tab {
         flex: 1 1 0;
         min-width: 0;
@@ -1580,6 +1655,13 @@
         background-color: #007acc;
         color: #fff;
         border-color: #007acc;
+      }
+
+      /* 束のタブには中身の名前が入る。収まらないときは末尾を省略して、
+         バッジや他のタブを押し出さない。 */
+      .mobile-stage-tab-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* チャットタブを見ていない間に増えた発言の件数（js/mobile-layout.js）。

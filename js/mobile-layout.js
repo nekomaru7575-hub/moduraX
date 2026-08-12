@@ -3,20 +3,27 @@
 //
 //   ┌ タイトル ♪ ⋮ ┐  .app-header
 //   │                │
-//   │  中央スペース  │  #mobileStage … 盤面／チャット／キャラ一覧／
-//   │                │                 パレット／情報のどれか1つ
+//   │  中央スペース  │  #mobileStage … 盤面／チャット／パレット／キャラ一覧／
+//   │                │                 情報／スタンプ送信のどれか1つ
 //   └ [切り替えタブ] ┘  #mobileStageTabs
 //
 // 上部の細いヘッダーと、残り全部の2分割。チャット（ログ＋入力欄）も常時表示をやめて
 // タブの1つにしてある。常時表示だと下段だけで340px近くを固定的に取られ、
 // どのタブも半分以下の高さしか使えなかったため（特にチャットパレットの編集欄）。
 //
+// 【まとめタブ】タブは375px幅で1枚あたり70px弱しか取れず、5枚で既に限界だった。
+// そこで同じgroupを指定されたビュー（キャラ／情報／スタンプ）は1枚のタブに束ね、
+// タブには今出している中身の名前を出す（「キャラ ▾」）。押したときの動きは2通り：
+//   - そのタブを見ていないとき … 前回選んだ中身をそのまま出す（1タップで戻れる）
+//   - 既にそのタブを見ているとき … 中身を選ぶメニューを出す
+//
 // PC幅では何もしない。狭幅に入ったときだけ、盤面(.board-area)・チャット(.control-area)・
-// 3枚の浮動パネルを中央スペースへ移す。PC幅へ戻れば元の場所へ返す。
+// 4枚の浮動パネルを中央スペースへ移す。PC幅へ戻れば元の場所へ返す。
 // 見た目の切り替え自体はCSS（combined_layout.htmlの@media）が持ち、ここは
 // DOMの置き場所とタブの状態だけを扱う。
 
 import { EventBus } from './EventBus.js';
+import { showContextMenu } from './context-menu.js';
 
 const MOBILE_QUERY = '(max-width: 900px)';
 const ACTIVE_VIEW_KEY = 'mobileActiveView';
@@ -52,8 +59,9 @@ function saveActiveViewId(viewId) {
 }
 
 /**
- * @param {{ panels: { id: string, label: string, panel: { element: HTMLElement, dock: (c: HTMLElement) => void, undock: () => void } }[] }} options
+ * @param {{ panels: { id: string, label: string, group?: string, panel: { element: HTMLElement, dock: (c: HTMLElement) => void, undock: () => void } }[] }} options
  *   panels: 中央スペースへはめ込む浮動パネル。並べた順にタブが出る。
+ *   group を同じ文字列にしたものは1枚のタブに束ねる（上の「まとめタブ」）。
  */
 export function initMobileLayout({ panels = [] } = {}) {
   const mainArea = document.querySelector('.main-area');
@@ -62,10 +70,27 @@ export function initMobileLayout({ panels = [] } = {}) {
   if (!mainArea || !boardArea || !controlArea) return;
 
   const views = [
-    { id: BOARD_VIEW_ID, label: '盤面', element: boardArea, panel: null },
-    { id: CHAT_VIEW_ID, label: 'チャット', element: controlArea, panel: null },
-    ...panels.map(({ id, label, panel }) => ({ id, label, element: panel.element, panel }))
+    { id: BOARD_VIEW_ID, label: '盤面', element: boardArea, panel: null, group: null },
+    { id: CHAT_VIEW_ID, label: 'チャット', element: controlArea, panel: null, group: null },
+    ...panels.map(({ id, label, group = null, panel }) => ({ id, label, group, element: panel.element, panel }))
   ];
+
+  // タブ1枚 = 単独のビュー、または同じgroupのビューの束。並びは views の順のまま
+  // （束は、その1枚目が現れた位置に1枚だけ置く）。currentは、その束のタブを押したときに
+  // 出す中身＝前回そこで選んでいたもの。
+  const tabItems = [];
+  const tabItemByGroup = new Map();
+  views.forEach((view) => {
+    const existing = view.group ? tabItemByGroup.get(view.group) : null;
+    if (existing) {
+      existing.members.push(view);
+      return;
+    }
+
+    const item = { members: [view], current: view };
+    if (view.group) tabItemByGroup.set(view.group, item);
+    tabItems.push(item);
+  });
 
   const stage = document.createElement('div');
   stage.id = 'mobileStage';
@@ -77,31 +102,70 @@ export function initMobileLayout({ panels = [] } = {}) {
   let activeViewId = views.some(v => v.id === savedViewId) ? savedViewId : BOARD_VIEW_ID;
   let mobile = false;
 
+  // 前回見ていたのが束の中身なら、その束はそこから始める
+  tabItems.forEach((item) => {
+    const saved = item.members.find(member => member.id === activeViewId);
+    if (saved) item.current = saved;
+  });
+
   // チャットタブだけ、非表示の間に増えたログの件数をバッジで出す
   let unreadCount = 0;
   let lastLogTotal = null;
   let unreadBadge = null;
 
-  const tabButtons = views.map((view) => {
+  const tabButtons = tabItems.map((item) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mobile-stage-tab';
 
     const labelEl = document.createElement('span');
-    labelEl.textContent = view.label;
+    labelEl.className = 'mobile-stage-tab-label';
     btn.appendChild(labelEl);
 
-    if (view.id === CHAT_VIEW_ID) {
+    if (item.members.some(member => member.id === CHAT_VIEW_ID)) {
       unreadBadge = document.createElement('span');
       unreadBadge.className = 'mobile-stage-tab-badge';
       unreadBadge.hidden = true;
       btn.appendChild(unreadBadge);
     }
 
-    btn.addEventListener('click', () => setActiveView(view.id));
+    btn.addEventListener('click', () => onTabClick(item, btn));
     tabs.appendChild(btn);
     return btn;
   });
+
+  // 束のタブは、今出している中身の名前を出す（何が出るか押す前に分かるように）。
+  function renderTabLabels() {
+    tabItems.forEach((item, index) => {
+      const labelEl = tabButtons[index].querySelector('.mobile-stage-tab-label');
+      const grouped = item.members.length > 1;
+      labelEl.textContent = grouped ? `${item.current.label} ▾` : item.current.label;
+      tabButtons[index].title = grouped ? `${item.current.label}（押すと切り替え）` : '';
+    });
+  }
+
+  // 束の中身を選ぶメニュー。今出しているものには印を付ける。
+  function openTabMenu(item, btn) {
+    const rect = btn.getBoundingClientRect();
+    showContextMenu(rect.left, rect.top, item.members.map(member => ({
+      label: member === item.current ? `✓ ${member.label}` : `　${member.label}`,
+      onSelect: () => {
+        item.current = member;
+        setActiveView(member.id);
+      }
+    })));
+  }
+
+  // 単独のタブはそのまま切り替え。束のタブは、見ていなければ前回の中身へ戻り、
+  // 既に見ているときだけ選び直しのメニューを出す（目的の中身に1タップで戻れるように）。
+  function onTabClick(item, btn) {
+    const showing = item.members.some(member => member.id === activeViewId);
+    if (item.members.length > 1 && showing) {
+      openTabMenu(item, btn);
+      return;
+    }
+    setActiveView(item.current.id);
+  }
 
   function renderUnreadBadge() {
     if (!unreadBadge) return;
@@ -110,11 +174,14 @@ export function initMobileLayout({ panels = [] } = {}) {
   }
 
   function applyActiveView() {
-    views.forEach((view, index) => {
-      const isActive = view.id === activeViewId;
-      view.element.classList.toggle('is-active', isActive);
+    views.forEach((view) => {
+      view.element.classList.toggle('is-active', view.id === activeViewId);
+    });
+    tabItems.forEach((item, index) => {
+      const isActive = item.members.some(member => member.id === activeViewId);
       tabButtons[index].classList.toggle('is-active', isActive);
     });
+    renderTabLabels();
   }
 
   function setActiveView(viewId) {

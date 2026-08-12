@@ -13,7 +13,8 @@
 
 import { EventBus } from './EventBus.js';
 import { sendStamp } from './net-sync.js';
-import { findStampById, stampImageUrl } from './stamp-catalog.js';
+import { store } from './board-data-driven.js';
+import { findStamp } from './stamp-registry.js';
 
 // 1枚が残る時間。仕様の「1分ほど」。
 const STAMP_LIFETIME_MS = 60_000;
@@ -76,7 +77,7 @@ function buildStampElement(stamp, name) {
   const image = document.createElement('img');
   image.className = 'stamp-item-image';
   image.alt = stamp.label;
-  image.src = stampImageUrl(stamp);
+  image.src = stamp.url;
   // 画像がまだ置かれていない場合でも「誰が何を出したか」は伝わるようにする。
   // 画像を用意する前から動作を確かめられるようにするための逃げ道でもある。
   image.addEventListener('error', () => {
@@ -99,7 +100,8 @@ function buildStampElement(stamp, name) {
 // 届いた1枚を盤面へ出す。
 function showStamp({ stampId, participantId, name }) {
   if (!layerEl) return;
-  const stamp = findStampById(stampId);
+  // 「この部屋で使えるスタンプ」は適用中のプラグインで変わる（js/stamp-registry.js）。
+  const stamp = findStamp(stampId, store.state.room?.activePlugin ?? null);
   // 知らないIDは黙って捨てる（相手が新しいカタログを持っている場合など）
   if (!stamp) return;
 

@@ -2,10 +2,10 @@
 source: js/parameters/paramFactory.js
 lines: 31
 exports: 1
-imported_by: 4
+imported_by: 5
 api_sha: f1876c947914
 prose_sha: f1876c947914
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.parameters.core]], [[js.parameters.dx3]], [[js.parameters.gcrest]], [[js.parameters.shinobigami]]
+- imported by → [[js.parameters.core]], [[js.parameters.dx3]], [[js.parameters.gcrest]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
 
 ## 注意
 

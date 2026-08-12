@@ -1,11 +1,11 @@
 ---
 source: js/mobile-layout.js
-lines: 216
+lines: 283
 exports: 1
 imported_by: 1
 api_sha: 927a067b39ff
 prose_sha: 927a067b39ff
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 58 | fn | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | panels: 中央スペースへはめ込む浮動パネル。 |
+| 66 | fn | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | panels: 中央スペースへはめ込む浮動パネル。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,14 +34,14 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 34 | countLogEntries | `countLogEntries(state)` | 3 |  |
-| 38 | loadActiveViewId | `loadActiveViewId()` | 7 |  |
-| 46 | saveActiveViewId | `saveActiveViewId(viewId)` | 7 |  |
-| 58 | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | 158 | ✓ |
+| 41 | countLogEntries | `countLogEntries(state)` | 3 |  |
+| 45 | loadActiveViewId | `loadActiveViewId()` | 7 |  |
+| 53 | saveActiveViewId | `saveActiveViewId(viewId)` | 7 |  |
+| 66 | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | **217** | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]]
+- import → [[js.EventBus]], [[js.context-menu]]
 - imported by → [[js.main]]
 
 ## 注意

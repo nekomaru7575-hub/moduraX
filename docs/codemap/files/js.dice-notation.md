@@ -2,10 +2,10 @@
 source: js/dice-notation.js
 lines: 82
 exports: 2
-imported_by: 2
+imported_by: 3
 api_sha: cb125e30856a
 prose_sha: cb125e30856a
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 
@@ -41,7 +41,7 @@ BCDice が返す生の出目配列（rands）を、3Dダイスライブラリが
 ## 依存
 
 - import → なし
-- imported by → [[js.dice-animation]], [[js.main]]
+- imported by → [[js.dice-animation]], [[js.main]], [[js.parameters.stella-knights]]
 
 ## 注意
 

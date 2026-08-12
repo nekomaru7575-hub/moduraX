@@ -1,11 +1,11 @@
 ---
 source: js/parameters/gcrest.js
-lines: 17
+lines: 24
 exports: 3
 imported_by: 0
 api_sha: 6160f0c847e2
 prose_sha: 6160f0c847e2
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 

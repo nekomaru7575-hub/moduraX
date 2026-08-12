@@ -2,10 +2,10 @@
 source: js/floating-panel.js
 lines: 254
 exports: 1
-imported_by: 3
+imported_by: 4
 api_sha: 9e114663bedc
 prose_sha: 9e114663bedc
-generated: 2026-08-11
+generated: 2026-08-12
 tags: [codemap]
 ---
 
@@ -42,7 +42,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.drag-gesture]]
-- imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]]
+- imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]], [[js.stamp-panel]]
 
 ## 注意
 

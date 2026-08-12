@@ -13,5 +13,12 @@ export const GCREST_PLUGIN = {
   id: 'GCREST',
   label: 'グランクレスト',
   buildCharacterParameters: () => ({}), // キャラクター側は今回省略
-  buildRoomParameters: buildGcrestRoomParameters
+  buildRoomParameters: buildGcrestRoomParameters,
+
+  // このシステム用のスタンプ（docs/plugin-guide.md 3.9）。宣言するのはデータだけで、
+  // 画像URLはCoreが image/stamps/gcrest/<file> として組み立てる。
+  // 公開IDは 'GCREST:chaos' になるので、Coreの表のIDとぶつかることはない。
+  stamps: [
+    { id: 'chaos', label: '混沌', file: 'chaos.png' }
+  ]
 };

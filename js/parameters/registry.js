@@ -195,6 +195,18 @@ export function describePluginBuffMeta(pluginId, buff) {
 }
 
 /**
+ * プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。
+ * Coreは中身を解釈せず、ID・表示名・画像ファイル名の表として受け取るだけで、
+ * 名前空間の付与と画像URLの組み立てはjs/stamp-registry.jsが行う。
+ * @param {string|null} pluginId
+ * @returns {{id:string, label:string, file:string}[]} 宣言が無ければ空配列
+ */
+export function listPluginStamps(pluginId) {
+  const plugin = PLUGINS[pluginId];
+  return Array.isArray(plugin?.stamps) ? plugin.stamps : [];
+}
+
+/**
  * プラグインの既定パラメータのうち、まだそのコマが持っていないものを補う。
  * パラメータはコマ作成時にしか組み立てられないため、プラグインへ後からパラメータを
  * 足すと、それ以前に作られたコマには存在しないまま＝自動計算の結果を入れる先が無い、

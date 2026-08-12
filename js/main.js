@@ -50,7 +50,8 @@ import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initStampLayer, requestStamp } from './stamp-layer.js';
-import { findStampByName, listStampLabels } from './stamp-catalog.js';
+import { initStampPanel } from './stamp-panel.js';
+import { findStampByName, listStampLabels } from './stamp-registry.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { initMobileLayout } from './mobile-layout.js';
@@ -1214,9 +1215,11 @@ function tryHandleStampCommand(rawInput) {
   if (!match) return false;
 
   // 書式が合った時点で必ずtrueを返す。falseで抜けるとBCDiceへの判定として流れてしまう。
-  const stamp = findStampByName(match[1]);
+  // 使えるスタンプは適用中のプラグインで変わる（js/stamp-registry.js）。
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  const stamp = findStampByName(match[1], activePluginId);
   if (!stamp) {
-    alert(`スタンプ「${match[1].trim()}」は登録されていません。\n\n使えるスタンプ: ${listStampLabels().join('／')}`);
+    alert(`スタンプ「${match[1].trim()}」は登録されていません。\n\n使えるスタンプ: ${listStampLabels(activePluginId).join('／')}`);
     return true;
   }
 
@@ -1941,14 +1944,19 @@ window.addEventListener('DOMContentLoaded', () => {
   initStampLayer();
   const infoPanel = initInfoPanel();
   const characterPanel = initCharacterPanel();
+  const stampPanel = initStampPanel();
 
-  // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル3枚を
+  // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル4枚を
   // 中央スペースのタブに切り替える。PC幅では何も起きない。
+  // キャラ・情報・スタンプは1枚のタブに束ねる（groupが同じもの同士）。タブは375px幅で
+  // 1枚70px弱しか取れず、6枚並べると文字が読めなくなるため。打鍵中に行き来する
+  // パレットだけは、束ねずに1タップで開けるところへ残す。
   initMobileLayout({
     panels: [
-      { id: 'characters', label: 'キャラ', panel: characterPanel },
       { id: 'palette', label: 'パレット', panel: chatPalettePanel },
-      { id: 'info', label: '情報', panel: infoPanel }
+      { id: 'characters', label: 'キャラ', group: 'panels', panel: characterPanel },
+      { id: 'info', label: '情報', group: 'panels', panel: infoPanel },
+      { id: 'stamps', label: 'スタンプ', group: 'panels', panel: stampPanel }
     ]
   });
 

@@ -451,6 +451,9 @@ const GM_ONLY_ACTIONS = new Set([
   'REMOVE_SCENE',
   // 全タブのログの消去（js/log-clear-dialog.js）。一度消すと戻せないのでGM限定。
   'CLEAR_ALL_CHAT_LOGS',
+  // スタンプの集計の全消し（js/stamp-panel.js）。同じく一度消すと戻せないのでGM限定。
+  // 加算（COUNT_STAMP）の方は誰でもできる（自分が押した枚数が増えるだけ）。
+  'RESET_STAMP_COUNTS',
   // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
   // 上の操作を通せてしまい、他の制限がすべて無意味になる。
   'SET_PARTICIPANT_GM',

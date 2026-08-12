@@ -9,6 +9,8 @@ import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
   getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd
 } from './parameters/registry.js';
+// スタンプの集計（COUNT_STAMP）で「その部屋に実在するスタンプか」を確かめるためだけに使う。
+import { findStamp } from './stamp-registry.js';
 
 export { listPlugins };
 
@@ -1600,6 +1602,57 @@ export class ImmutableStore {
         return;
       }
 
+      // スタンプ1枚ぶんを集計に足す（js/stamp-layer.jsのrequestStampから、送るのと同時に）。
+      // スタンプの表示には連打よけの上限があるが、この数には無い。上限に当たった枚は
+      // 盤面に出ないだけで、押した事実としては数える。
+      //
+      // 【なぜここで弾くか】キーになる2つを、実在するものだけに絞る。
+      // 素通しにすると、細工したクライアントが任意のstampId・participantIdで加算でき、
+      // このマップが無限に増える。状態は部屋ごとまるごと保存されるので、そのまま
+      // 保存先への書き込み量になる（＝資源の話であって、行儀の話ではない）。
+      // reducerはサーバーでも同じものが動くため、ここで塞げばサーバー側に手当ては要らない。
+      case 'COUNT_STAMP': {
+        const { stampId, participantId } = payload || {};
+
+        // 実在する参加者のぶんだけ。名乗っていない人は数える先が無い（スタンプ自体も
+        // サーバーが捨てる。server/index.jsのSEND_STAMP参照）。
+        // hasOwnPropertyで見るのが肝：素の [participantId] だと '__proto__' が
+        // Object.prototype に当たって「実在する参加者」を通ってしまう。
+        const participants = prevState.participants || {};
+        if (!participantId || !Object.prototype.hasOwnProperty.call(participants, participantId)) return;
+
+        // その部屋で使えるスタンプのうち、プラグインが足したものだけを数える。
+        // Coreのスタンプ（相槌）まで数えると、集計が「OK ×132」で埋まって用を成さない。
+        const activePluginId = prevState.room?.activePlugin ?? null;
+        const stamp = findStamp(stampId, activePluginId);
+        if (!stamp || !activePluginId || !stamp.id.startsWith(`${activePluginId}:`)) return;
+
+        // 既存の値も同じ理由で、own propertyとして在るものだけを読む
+        // （数値以外が紛れ込んでいた場合も0から数え直す）。
+        const stampCounts = prevState.stampCounts || {};
+        const perParticipant = Object.prototype.hasOwnProperty.call(stampCounts, stamp.id)
+          ? stampCounts[stamp.id] : {};
+        const current = Object.prototype.hasOwnProperty.call(perParticipant, participantId)
+          ? perParticipant[participantId] : 0;
+        const next = (Number.isFinite(current) ? current : 0) + 1;
+
+        this.#commit(prevState, {
+          stampCounts: withMapEntry(
+            stampCounts, stamp.id, withMapEntry(perParticipant, participantId, next)
+          )
+        });
+        return;
+      }
+
+      // 集計を全部0に戻す（js/stamp-panel.jsの「集計をリセット」）。一度消すと戻せないので
+      // GM限定（server/index.jsのGM_ONLY_ACTIONS）。ログの消去と同じ扱い。
+      case 'RESET_STAMP_COUNTS': {
+        if (Object.keys(prevState.stampCounts || {}).length === 0) return;
+
+        this.#commit(prevState, { stampCounts: Object.freeze({}) });
+        return;
+      }
+
       // オリジナル表（ユーザー定義のダイス表）を登録する。キーはタイトルなので、既存と
       // 同じタイトルで登録し直すと上書きになる（誤登録の修正に使える）。
       case 'ADD_ORIGINAL_TABLE': {
@@ -2302,6 +2355,15 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     // 参加者一覧（js/local-identity.jsの表示名から導出した公開IDがキー）。
     // { [id]: { id, nickname, isGm } }。
     participants: {},
+
+    // スタンプを誰が何枚出したかの集計（COUNT_STAMP・js/stamp-panel.js）。
+    // { [stampId]: { [participantId]: 回数 } }。数えるのはプラグインのスタンプだけで、
+    // Coreの「OK」「♥」等は数えない（ステラナイツのブーケのように、そのシステムで
+    // 意味を持つものを数えるための機能なので）。
+    // スタンプ自体は揮発（盤面に1分出て消えるだけで状態に残らない）だが、この数だけは
+    // 状態に載せて全員へ配る。上限（server/index.jsのallowStamp）で表示が間引かれても
+    // 数は必ず増える＝「押した回数」が正しく残る。
+    stampCounts: {},
 
     // ラウンド進行（Core機能）。詳細はcreateInitialRoundState()参照
     round: createInitialRoundState()

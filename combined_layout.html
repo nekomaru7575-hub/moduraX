@@ -348,6 +348,12 @@
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
     }
 
+    /* 列（＝参加者）ごとに、名前を出すのは一番新しい1枚だけ。連投すると同じ名前が
+       縦に並んで読みづらいため（js/stamp-layer.jsのrefreshColumnNames）。 */
+    .stamp-item.is-name-hidden .stamp-item-name {
+      display: none;
+    }
+
     /* スタンプ送信パネル（js/stamp-panel.js）。浮動パネルの中身なので、枠の見た目は
        .floating-panel側が持つ。ここは画像ボタンの並べ方だけ。 */
     .stamp-send-notice {
@@ -421,6 +427,69 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* 誰が何枚出したかの集計（js/stamp-panel.js）。プラグインのスタンプが1枚も
+       出ていない間は、セクションごとJS側で隠す。 */
+    .stamp-count-section {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #3a3a3a;
+    }
+
+    .stamp-count-heading {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #ddd;
+    }
+
+    .stamp-count-heading:first-child {
+      margin-top: 0;
+    }
+
+    .stamp-count-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 1px 0 1px 8px;
+      font-size: 0.75rem;
+      color: #bbb;
+    }
+
+    /* 名前は長くなりうるので、はみ出す側はこちらに寄せる（枚数は必ず読めるように） */
+    .stamp-count-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stamp-count-value {
+      flex: 0 0 auto;
+      color: #eee;
+    }
+
+    .stamp-count-reset {
+      margin-top: 8px;
+      width: 100%;
+      padding: 4px;
+      background-color: #2a2a2a;
+      color: #bbb;
+      border: 1px solid #444;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .stamp-count-reset:hover:not(:disabled) {
+      background-color: #333;
+      color: #fff;
+    }
+
+    .stamp-count-reset:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */

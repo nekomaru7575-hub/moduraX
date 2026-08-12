@@ -2,7 +2,7 @@
 source: js/room-authority.js
 lines: 63
 exports: 3
-imported_by: 3
+imported_by: 4
 api_sha: 2269f260bec3
 prose_sha: 2269f260bec3
 generated: 2026-08-12
@@ -43,7 +43,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.game-store]], [[js.local-identity]], [[js.net-sync]], [[js.visibility]]
-- imported by → [[js.board-data-driven]], [[js.main]], [[js.round-panel]]
+- imported by → [[js.board-data-driven]], [[js.main]], [[js.round-panel]], [[js.stamp-panel]]
 
 ## 注意
 

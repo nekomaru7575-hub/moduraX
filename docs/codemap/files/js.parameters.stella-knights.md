@@ -1,6 +1,6 @@
 ---
 source: js/parameters/stella-knights.js
-lines: 256
+lines: 259
 exports: 1
 imported_by: 1
 api_sha: 3241cc3cfb34

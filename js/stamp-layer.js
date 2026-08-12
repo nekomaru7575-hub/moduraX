@@ -15,6 +15,7 @@ import { EventBus } from './EventBus.js';
 import { sendStamp } from './net-sync.js';
 import { store } from './board-data-driven.js';
 import { findStamp } from './stamp-registry.js';
+import { getCurrentParticipantId } from './local-identity.js';
 
 // 1枚が残る時間。仕様の「1分ほど」。
 const STAMP_LIFETIME_MS = 60_000;
@@ -59,13 +60,27 @@ function claimColumn(participantId) {
   return column;
 }
 
+// その列で名前を出すのは一番新しい1枚だけにする。連投すると同じ名前が縦に並んで
+// 読みづらいため（列は参加者ごとなので、並んでいる名前はどれも同じ人のもの）。
+// 足したときと減ったときの両方で呼ぶ：古い1枚が消えたら、残っている中の最新へ名前が戻る。
+function refreshColumnNames(column) {
+  const items = [...column.items];
+  items.forEach((item, index) => {
+    item.classList.toggle('is-name-hidden', index !== items.length - 1);
+  });
+}
+
 // 1枚を取り除き、その人のスタンプが無くなったら列を解放する。
 function removeItem(participantId, item) {
   item.remove();
   const column = columns.get(participantId);
   if (!column) return;
   column.items.delete(item);
-  if (column.items.size === 0) columns.delete(participantId);
+  if (column.items.size === 0) {
+    columns.delete(participantId);
+    return;
+  }
+  refreshColumnNames(column);
 }
 
 // スタンプ1枚。画像と、その下に送信者名。
@@ -115,18 +130,31 @@ function showStamp({ stampId, participantId, name }) {
 
   column.items.add(item);
   layerEl.appendChild(item);
+  refreshColumnNames(column);
 
   const ownerId = String(participantId || 'unknown');
   setTimeout(() => removeItem(ownerId, item), STAMP_LIFETIME_MS);
 }
 
 /**
- * スタンプを送る。チャットコマンドからも、将来のスタンプ送信ボタンからもここを通す。
+ * スタンプを送る。チャットコマンドからも送信パネル（js/stamp-panel.js）からもここを通す。
  * 送るのはIDだけで、表示名はサーバーが埋める（js/stamp-catalog.js冒頭参照）。
+ *
+ * 集計もここで行う。数える場所を送信の入口1か所にまとめておくと、パネルから押しても
+ * チャットコマンドで打っても同じように数えられる。
+ *
+ * 送信（揮発。連打よけの上限で間引かれる）と集計（状態。上限なし）は別の経路なので、
+ * 上限に当たった枚は「盤面には出ないが数は増える」ことになる。これは意図した挙動で、
+ * 数えたいのは押した回数だから。
  * @param {string} stampId
  */
 export function requestStamp(stampId) {
   sendStamp(stampId);
+
+  // 何を数えるか（プラグインのスタンプだけ）と、数えてよいか（実在する参加者か）の
+  // 判定はreducer側に置いてある（js/game-store.jsのCOUNT_STAMP）。サーバーでも同じ
+  // 判定が走るので、ここでは投げるだけでよい。
+  store.dispatch('COUNT_STAMP', { stampId, participantId: getCurrentParticipantId() });
 }
 
 export function initStampLayer() {

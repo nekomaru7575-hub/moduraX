@@ -1,6 +1,6 @@
 ---
 source: js/stamp-layer.js
-lines: 138
+lines: 166
 exports: 2
 imported_by: 2
 api_sha: 592ee42af932
@@ -18,34 +18,35 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-_(未記入)_
+スタンプの表示レイヤーと、送信の入口（requestStamp）。届いたスタンプ（WebSocketの揮発メッセージ SHOW_STAMP → EventBus の STAMP_RECEIVED）を盤面の右上へ1分だけ出す。状態にもログにも残さない。参加者ごとに1列を割り当て、同じ人の連投はその列の中でずらして重ねる（他人のスタンプ同士は重ねない、という仕様のため）。列に名前を出すのは一番新しい1枚だけで、連投しても同じ名前が縦に並ばない。送信側は requestStamp に集約してあり、[[js.stamp-panel]] のボタンからも [[js.main]] のチャットコマンドからも同じ経路を通る。ここで送信（揮発。上限で間引かれる）と集計（[[js.game-store]] の COUNT_STAMP。上限なし）の両方を行うので、上限に当たった枚は「盤面には出ないが数は増える」。
 <!-- /prose:role -->
 
 ## export（2）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 128 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
-| 132 | fn | initStampLayer | `initStampLayer()` |  |
+| 151 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
+| 160 | fn | initStampLayer | `initStampLayer()` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 34 | pickColumnIndex | `pickColumnIndex()` | 7 |  |
-| 43 | claimColumn | `claimColumn(participantId)` | 18 |  |
-| 63 | removeItem | `removeItem(participantId, item)` | 7 |  |
-| 73 | buildStampElement | `buildStampElement(stamp, name)` | 26 |  |
-| 101 | showStamp | `showStamp({ stampId, participantId, name })` | 21 |  |
-| 128 | requestStamp | `requestStamp(stampId)` | 3 | ✓ |
-| 132 | initStampLayer | `initStampLayer()` | 6 | ✓ |
+| 35 | pickColumnIndex | `pickColumnIndex()` | 7 |  |
+| 44 | claimColumn | `claimColumn(participantId)` | 18 |  |
+| 66 | refreshColumnNames | `refreshColumnNames(column)` | 6 |  |
+| 74 | removeItem | `removeItem(participantId, item)` | 11 |  |
+| 88 | buildStampElement | `buildStampElement(stamp, name)` | 26 |  |
+| 116 | showStamp | `showStamp({ stampId, participantId, name })` | 22 |  |
+| 151 | requestStamp | `requestStamp(stampId)` | 8 | ✓ |
+| 160 | initStampLayer | `initStampLayer()` | 6 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.board-data-driven]], [[js.net-sync]], [[js.stamp-registry]]
+- import → [[js.EventBus]], [[js.board-data-driven]], [[js.local-identity]], [[js.net-sync]], [[js.stamp-registry]]
 - imported by → [[js.main]], [[js.stamp-panel]]
 
 ## 注意

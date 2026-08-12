@@ -5,12 +5,16 @@
 // 送るのはIDだけで、画像URLはこちらが組み立てる（js/stamp-registry.js）。並べる顔ぶれは
 // 部屋に適用中のプラグインで変わるので、システムを切り替えたら組み直す。
 //
-// 【押せない時間を出すこと】
-// サーバーは連打よけの上限を超えたスタンプを黙って捨てる（server/index.jsのallowStamp）。
-// チャットコマンドなら打ち間違いを疑えるが、画像を押すだけのパネルで無反応だと
-// 「壊れている」としか見えない。そこで同じ上限（STAMP_RATE_LIMIT）を画面側でも数えて、
-// 押せない間はボタンを止めて残り秒数を出す。判定の権威はあくまでサーバー側で、
-// ここは案内のための写し。
+// 【連打よけの上限との付き合い方】
+// サーバーは上限を超えたスタンプを捨てる（server/index.jsのallowStamp）。以前はその間
+// ボタンを止めていたが、それだと押した回数を数えられない。上限は「盤面がスタンプで
+// 埋まらないための表示側の都合」であって、押した事実まで無かったことにしたいわけでは
+// ないので、ボタンは常に押せるようにし、超えたぶんは盤面に出ないだけにしてある。
+// 数（下の集計）は上限に関わらず必ず増える。
+//
+// 【集計】
+// プラグインのスタンプ（ステラナイツのブーケ等）は、誰が何枚出したかを部屋の状態に
+// 残して全員へ配る（js/game-store.jsのCOUNT_STAMP）。Coreのスタンプは相槌なので数えない。
 //
 // net-sync.js/round-panel.js/info-panel.jsと同様にinitStampPanel()をexportし、
 // main.jsの初期化から1回だけ呼ぶ。
@@ -20,19 +24,20 @@ import { EventBus } from './EventBus.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { requestStamp } from './stamp-layer.js';
 import { listStamps } from './stamp-registry.js';
-import { STAMP_RATE_LIMIT } from './stamp-catalog.js';
 import { getCurrentParticipantId } from './local-identity.js';
+import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
 
 const NO_NAME_REASON = 'スタンプを送るには、参加者設定で名前を決めてください。';
 
-// 残り秒数の表示を更新する間隔。1秒ぴったりだと表示が飛ぶことがあるので少し細かく見る。
-const COOLDOWN_TICK_MS = 200;
+// 参加者一覧から引けなかった参加者の表示。数を黙って消さないために行は残す
+// （読み込んだ部屋データの集計や、退室後に消された参加者のぶん）。
+const UNKNOWN_PARTICIPANT_LABEL = '(不明)';
 
 export function initStampPanel() {
   const panel = createFloatingPanel({
     title: 'スタンプ送信',
     storageKey: 'stampPanelRect',
-    defaultRect: { x: 24, y: 120, w: 280, h: 300 },
+    defaultRect: { x: 24, y: 120, w: 280, h: 380 },
     // 盤面を隠してしまうので、出すかどうかは各自に決めてもらう（情報パネルと同じ）
     defaultVisible: false
   });
@@ -46,60 +51,35 @@ export function initStampPanel() {
   grid.className = 'stamp-send-grid';
   panel.body.appendChild(grid);
 
-  // 自分が送った時刻。サーバーと同じ窓で数えるための控え。
-  let sentTimes = [];
-  let cooldownTimer = null;
+  // 集計（プラグインのスタンプが1枚も出ていなければ丸ごと隠す）
+  const countsSection = document.createElement('div');
+  countsSection.className = 'stamp-count-section';
+  countsSection.hidden = true;
+
+  const countsList = document.createElement('div');
+  countsList.className = 'stamp-count-list';
+  countsSection.appendChild(countsList);
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'stamp-count-reset';
+  resetBtn.textContent = '集計をリセット';
+  countsSection.appendChild(resetBtn);
+
+  panel.body.appendChild(countsSection);
+
   let renderedPluginId = null;
   let buttons = [];
 
-  // 今この瞬間から何ミリ秒待てば1枚送れるか。0なら送れる。
-  function cooldownRemainingMs() {
-    const now = Date.now();
-    sentTimes = sentTimes.filter(time => now - time < STAMP_RATE_LIMIT.windowMs);
-    if (sentTimes.length < STAMP_RATE_LIMIT.max) return 0;
-
-    // 一番古い1枚が窓から出れば1枚空く
-    return STAMP_RATE_LIMIT.windowMs - (now - sentTimes[0]);
-  }
-
   function applyAvailability() {
-    const remainingMs = cooldownRemainingMs();
     // 名前を名乗っていない人のスタンプはサーバーが捨てる（送り主の名前を出せないため）。
-    // 押してから無視されるより、押せないことと理由を先に見せる。
+    // 集計も参加者ごとなので数える先が無い。押してから無視されるより、押せないことと
+    // 理由を先に見せる。上限による無効化はしない（冒頭参照）。
     const named = !!getCurrentParticipantId();
+    buttons.forEach(button => { button.disabled = !named; });
 
-    const disabled = !named || remainingMs > 0;
-    buttons.forEach(button => { button.disabled = disabled; });
-
-    if (!named) {
-      notice.textContent = NO_NAME_REASON;
-      notice.hidden = false;
-    } else if (remainingMs > 0) {
-      notice.textContent = `続けて送れる上限です（あと${Math.ceil(remainingMs / 1000)}秒）`;
-      notice.hidden = false;
-    } else {
-      notice.textContent = '';
-      notice.hidden = true;
-    }
-
-    // 上限に達している間だけ、残り秒数を刻んで自動で戻す
-    if (remainingMs > 0 && cooldownTimer === null) {
-      cooldownTimer = setInterval(() => {
-        if (cooldownRemainingMs() === 0) {
-          clearInterval(cooldownTimer);
-          cooldownTimer = null;
-        }
-        applyAvailability();
-      }, COOLDOWN_TICK_MS);
-    }
-  }
-
-  function send(stampId) {
-    if (cooldownRemainingMs() > 0 || !getCurrentParticipantId()) return;
-
-    sentTimes.push(Date.now());
-    requestStamp(stampId);
-    applyAvailability();
+    notice.textContent = named ? '' : NO_NAME_REASON;
+    notice.hidden = named;
   }
 
   // ボタン1つ。画像とその下に名前（チャットコマンド「スタンプ(名前)」でも撃てるため、
@@ -129,7 +109,10 @@ export function initStampPanel() {
     labelEl.textContent = stamp.label;
     button.appendChild(labelEl);
 
-    button.addEventListener('click', () => send(stamp.id));
+    button.addEventListener('click', () => {
+      if (!getCurrentParticipantId()) return;
+      requestStamp(stamp.id);
+    });
     return button;
   }
 
@@ -144,16 +127,78 @@ export function initStampPanel() {
     applyAvailability();
   }
 
-  // 顔ぶれが変わるのは適用プラグインが変わったときだけなので、そのときだけ組み直す
-  EventBus.subscribe('STATE_CHANGED', (state) => {
-    const pluginId = state.room?.activePlugin ?? null;
-    if (pluginId !== renderedPluginId) renderGrid(pluginId);
+  // 「ブーケ … なこまる ×5」の1行。名前は他人が決めた文字列なのでtextContentで入れる。
+  function buildCountRow(nickname, count) {
+    const row = document.createElement('div');
+    row.className = 'stamp-count-row';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'stamp-count-name';
+    nameEl.textContent = nickname;
+    row.appendChild(nameEl);
+
+    const countEl = document.createElement('span');
+    countEl.className = 'stamp-count-value';
+    countEl.textContent = `×${count}`;
+    row.appendChild(countEl);
+
+    return row;
+  }
+
+  function renderCounts(state) {
+    const stampCounts = state.stampCounts || {};
+    const participants = state.participants || {};
+    // 並びはパネルのボタンと同じ（スタンプの宣言順）。集計側の都合で順番が入れ替わらない。
+    const stamps = listStamps(state.room?.activePlugin ?? null)
+      .filter(stamp => Object.keys(stampCounts[stamp.id] || {}).length > 0);
+
+    countsList.innerHTML = '';
+    stamps.forEach(stamp => {
+      const heading = document.createElement('div');
+      heading.className = 'stamp-count-heading';
+      heading.textContent = stamp.label;
+      countsList.appendChild(heading);
+
+      Object.entries(stampCounts[stamp.id])
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([participantId, count]) => {
+          const nickname = participants[participantId]?.nickname || UNKNOWN_PARTICIPANT_LABEL;
+          countsList.appendChild(buildCountRow(nickname, count));
+        });
+    });
+
+    countsSection.hidden = stamps.length === 0;
+
+    // リセットは一度押すと戻せないのでGM限定（server/index.jsのGM_ONLY_ACTIONSでも弾く）。
+    // 項目ごと消すと「なぜ出ないのか」が分からないので、押せないまま理由をtitleで示す
+    // （盤外メニューの権限まわりと同じ見せ方）。
+    const gm = canOperateAsGm();
+    resetBtn.disabled = !gm;
+    resetBtn.title = gm ? '' : GM_ONLY_REASON;
+  }
+
+  resetBtn.addEventListener('click', () => {
+    if (!canOperateAsGm()) return;
+    if (!confirm('スタンプの集計をすべて0に戻します。よろしいですか？')) return;
+    store.dispatch('RESET_STAMP_COUNTS', {});
   });
 
-  // 名乗ると押せるようになる（その逆も）
-  EventBus.subscribe('IDENTITY_CHANGED', () => applyAvailability());
+  EventBus.subscribe('STATE_CHANGED', (state) => {
+    // 顔ぶれが変わるのは適用プラグインが変わったときだけなので、そのときだけ組み直す
+    const pluginId = state.room?.activePlugin ?? null;
+    if (pluginId !== renderedPluginId) renderGrid(pluginId);
+
+    renderCounts(state);
+  });
+
+  // 名乗ると押せるようになる（その逆も）。GMかどうかも名乗りで変わる
+  EventBus.subscribe('IDENTITY_CHANGED', () => {
+    applyAvailability();
+    renderCounts(store.state);
+  });
 
   renderGrid(store.state.room?.activePlugin ?? null);
+  renderCounts(store.state);
 
   // 盤外の右クリックメニューから表示/非表示を切り替えられるようにする
   setStampPanelController(panel);

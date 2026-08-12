@@ -16,7 +16,7 @@ export const GCREST_PLUGIN = {
   buildRoomParameters: buildGcrestRoomParameters,
 
   // このシステム用のスタンプ（docs/plugin-guide.md 3.9）。宣言するのはデータだけで、
-  // 画像URLはCoreが image/stamps/gcrest/<file> として組み立てる。
+  // 画像URLはCoreが image/stamps/GCREST/<file> として組み立てる（フォルダ名はidそのまま）。
   // 公開IDは 'GCREST:chaos' になるので、Coreの表のIDとぶつかることはない。
   stamps: [
     { id: 'chaos', label: '混沌', file: 'chaos.png' }

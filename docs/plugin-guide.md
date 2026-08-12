@@ -397,8 +397,12 @@ stamps: [
 | `label` | 画面に出る名前。チャットコマンドの引数にも使える |
 | `file` | 画像のファイル名**だけ**（`/` や `..` を含めない） |
 
-**画像の置き場は Core が決める**: `image/stamps/<プラグインidを小文字にしたもの>/<file>`。
-`STELLA_KNIGHTS` なら `image/stamps/stella_knights/seed.png`。推奨は正方形・128px前後・
+**画像の置き場は Core が決める**: `image/stamps/<プラグインid>/<file>`。
+`STELLA_KNIGHTS` なら `image/stamps/STELLA_KNIGHTS/seed.png`。**フォルダ名は `id` と
+一字一句同じにすること**（大文字のまま。Core は小文字化などの変換を一切しない）。
+本番は Linux で大文字小文字を区別するのに対し、Windows は区別しない。ここがずれていると
+**手元では正しく見えて本番だけ画像が出ない**、という見つけにくい壊れ方をする。
+推奨は正方形・128px前後・
 背景透過（拡張子は `.png` / `.svg` / `.webp` / `.gif`）。画像が無い間は、枠と `label` だけの
 代わりの見た目で表示され、送信もできる（先に仕組みだけ確かめられる）。
 

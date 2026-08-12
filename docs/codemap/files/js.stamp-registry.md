@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-「この部屋で使えるスタンプ」を決める唯一の場所。Coreの表（[[js.stamp-catalog]]）と、適用中プラグインが記述子の `stamps` で宣言した表（[[js.parameters.registry]] の listPluginStamps）を束ね、ID→`{id, label, url}` の解決・名前からの逆引き・サーバー側の検証（isKnownStampId）を提供する。プラグインのスタンプはIDを `プラグインid:id` と名前空間化し、画像URLは `image/stamps/<プラグインid小文字>/<file>` としてここが組み立てる。プラグインにパスを書かせないのは、「送受信するのはIDだけ・URLは受け取った側が組み立てる」というスタンプの約束をプラグイン経由で破らせないため。サーバー（server/index.js）と画面（[[js.stamp-panel]]・[[js.stamp-layer]]・[[js.main]]）が同じ判定を使うよう、DOM/windowには触れない。
+「この部屋で使えるスタンプ」を決める唯一の場所。Coreの表（[[js.stamp-catalog]]）と、適用中プラグインが記述子の `stamps` で宣言した表（[[js.parameters.registry]] の listPluginStamps）を束ね、ID→`{id, label, url}` の解決・名前からの逆引き・サーバー側の検証（isKnownStampId）を提供する。プラグインのスタンプはIDを `プラグインid:id` と名前空間化し、画像URLは `image/stamps/<プラグインid>/<file>` としてここが組み立てる（フォルダ名はidそのまま。小文字化していた頃は、大文字小文字を区別しないWindowsでだけ正しく見えて本番のLinuxで404になる事故を起こした）。プラグインにパスを書かせないのは、「送受信するのはIDだけ・URLは受け取った側が組み立てる」というスタンプの約束をプラグイン経由で破らせないため。サーバー（server/index.js）と画面（[[js.stamp-panel]]・[[js.stamp-layer]]・[[js.main]]）が同じ判定を使うよう、DOM/windowには触れない。
 <!-- /prose:role -->
 
 ## export（5）

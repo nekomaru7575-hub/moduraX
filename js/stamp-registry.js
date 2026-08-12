@@ -11,25 +11,30 @@
 // 記述子に stamps: [{ id, label, file }] を書くと足せる（docs/plugin-guide.md）。
 // - 公開IDは "<プラグインid>:<id>"（paramIdの source:key と同じ流儀）。Coreの'ok'等を
 //   プラグインが乗っ取れないようにするため、名前空間を必ず付ける。
-// - 画像URLは Core が組み立てる: image/stamps/<プラグインid小文字>/<file>
+// - 画像URLは Core が組み立てる: image/stamps/<プラグインid>/<file>
 //   プラグイン側にパスやURLを書かせないのは、「URLは受け取った側が組み立てる」という
 //   スタンプ全体の約束（js/stamp-catalog.js冒頭）をプラグイン経由で破らせないため。
+//   フォルダ名はプラグインidをそのまま使う（大文字のまま）。以前は小文字へ直していたが、
+//   Windowsは大文字小文字を区別しないので手元では正しく見え、Linux（本番）だけ404になる、
+//   という見つけにくい事故を起こした。目に見えない変換は挟まない。
 // - 使えるのは、その部屋に適用中のプラグインのスタンプだけ。
 
 import { STAMPS, STAMP_IMAGE_DIR } from './stamp-catalog.js';
 import { listPluginStamps } from './parameters/registry.js';
 
-// 画像URLの組み立てに使うので、ファイル名に階層を混ぜさせない。
+// 画像URLの組み立てに使うので、名前に階層を混ぜさせない。ファイル名（記述子のfile）と
+// フォルダ名（プラグインid）の両方に掛ける。
 // （プラグインはこのリポジトリのコードなので攻撃者ではないが、URLを組み立てる側として
-//   「ファイル名しか受け取らない」ことは形で示しておく。）
-function isPlainFileName(file) {
-  const text = String(file ?? '');
+//   「名前しか受け取らない」ことは形で示しておく。）
+function isPlainPathSegment(name) {
+  const text = String(name ?? '');
   return text !== '' && !text.includes('/') && !text.includes('\\') && !text.includes('..');
 }
 
 // 表の1件を { id, label, url } に均す。idはそのまま公開IDになる。
 function normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {}) {
-  if (!stamp || !stamp.id || !isPlainFileName(stamp.file)) return null;
+  if (!stamp || !stamp.id || !isPlainPathSegment(stamp.file)) return null;
+  if (dirSegment && !isPlainPathSegment(dirSegment)) return null;
 
   const dir = dirSegment ? `${STAMP_IMAGE_DIR}/${dirSegment}` : STAMP_IMAGE_DIR;
   return {
@@ -57,7 +62,7 @@ export function listStamps(pluginId) {
   const pluginStamps = listPluginStamps(pluginId)
     .map(stamp => normalizeStamp(stamp, {
       idPrefix: `${pluginId}:`,
-      dirSegment: String(pluginId).toLowerCase()
+      dirSegment: String(pluginId)
     }))
     .filter(Boolean);
 

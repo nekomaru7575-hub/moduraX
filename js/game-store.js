@@ -12,6 +12,10 @@ import {
 // スタンプの集計（COUNT_STAMP）で「その部屋に実在するスタンプか」を確かめるためだけに使う。
 import { findStamp } from './stamp-registry.js';
 
+// スタンプの集計1件（1人ぶん）が取りうる上限。桁あふれした値を書き込まれても表示が
+// 壊れないようにするための歯止めで、実際の使用でここに届くことは想定していない。
+const MAX_STAMP_COUNT = 1_000_000;
+
 export { listPlugins };
 
 export const DEFAULT_TOKEN_COLOR = 'transparent';
@@ -1602,17 +1606,25 @@ export class ImmutableStore {
         return;
       }
 
-      // スタンプ1枚ぶんを集計に足す（js/stamp-layer.jsのrequestStampから、送るのと同時に）。
+      // スタンプを何枚出したかを記録する（js/stamp-layer.jsのrequestStampから、送るのと同時に）。
       // スタンプの表示には連打よけの上限があるが、この数には無い。上限に当たった枚は
       // 盤面に出ないだけで、押した事実としては数える。
       //
+      // 【なぜ「+1」ではなく枚数そのものを受け取るか】
+      // 加算だと、途中の1回が届かなかった時点でその人の数が全員ぶんズレたまま戻らない
+      // （サーバーは流量の上限を超えたメッセージを黙って捨てる。server/index.jsの
+      // WS_MAX_MESSAGES_PER_WINDOW）。このアプリの他のアクションが軒並み絶対値を運んで
+      // いるのはそのためで、取りこぼしても次の操作で正しい値に戻る。ここも同じ流儀にする。
+      // 書き込むのは常に「自分の枠」だけ（＝人ごとにキーが分かれている）なので、
+      // 絶対値にしても他人の操作と衝突しない。
+      //
       // 【なぜここで弾くか】キーになる2つを、実在するものだけに絞る。
-      // 素通しにすると、細工したクライアントが任意のstampId・participantIdで加算でき、
+      // 素通しにすると、細工したクライアントが任意のstampId・participantIdで書き込めて、
       // このマップが無限に増える。状態は部屋ごとまるごと保存されるので、そのまま
       // 保存先への書き込み量になる（＝資源の話であって、行儀の話ではない）。
       // reducerはサーバーでも同じものが動くため、ここで塞げばサーバー側に手当ては要らない。
       case 'COUNT_STAMP': {
-        const { stampId, participantId } = payload || {};
+        const { stampId, participantId, count } = payload || {};
 
         // 実在する参加者のぶんだけ。名乗っていない人は数える先が無い（スタンプ自体も
         // サーバーが捨てる。server/index.jsのSEND_STAMP参照）。
@@ -1627,18 +1639,22 @@ export class ImmutableStore {
         const stamp = findStamp(stampId, activePluginId);
         if (!stamp || !activePluginId || !stamp.id.startsWith(`${activePluginId}:`)) return;
 
-        // 既存の値も同じ理由で、own propertyとして在るものだけを読む
-        // （数値以外が紛れ込んでいた場合も0から数え直す）。
+        // 枚数は0以上の整数だけ。上限を設けているのは、桁数の大きい値を書き込まれても
+        // 表示が壊れないようにするため（人ごとに1つの数なので、資源としては軽い）。
+        if (!Number.isInteger(count) || count < 0 || count > MAX_STAMP_COUNT) return;
+
+        // 既存の値も同じ理由で、own propertyとして在るものだけを読む。
         const stampCounts = prevState.stampCounts || {};
         const perParticipant = Object.prototype.hasOwnProperty.call(stampCounts, stamp.id)
           ? stampCounts[stamp.id] : {};
         const current = Object.prototype.hasOwnProperty.call(perParticipant, participantId)
           ? perParticipant[participantId] : 0;
-        const next = (Number.isFinite(current) ? current : 0) + 1;
+        // 同じ値の書き直しは何も変えない（保存の往復を省く。persistRoomNowの比較と同じ狙い）
+        if (current === count) return;
 
         this.#commit(prevState, {
           stampCounts: withMapEntry(
-            stampCounts, stamp.id, withMapEntry(perParticipant, participantId, next)
+            stampCounts, stamp.id, withMapEntry(perParticipant, participantId, count)
           )
         });
         return;
@@ -2357,7 +2373,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     participants: {},
 
     // スタンプを誰が何枚出したかの集計（COUNT_STAMP・js/stamp-panel.js）。
-    // { [stampId]: { [participantId]: 回数 } }。数えるのはプラグインのスタンプだけで、
+    // { [stampId]: { [participantId]: 枚数 } }。書き込むのは各自が自分の枠だけで、
+    // 運ぶのは増分ではなく枚数そのもの（取りこぼしても次の1枚で揃うため。COUNT_STAMP参照）。
+    // 数えるのはプラグインのスタンプだけで、
     // Coreの「OK」「♥」等は数えない（ステラナイツのブーケのように、そのシステムで
     // 意味を持つものを数えるための機能なので）。
     // スタンプ自体は揮発（盤面に1分出て消えるだけで状態に残らない）だが、この数だけは

@@ -20,7 +20,7 @@ generated: 2026-08-12
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 81 | 288 | 634 | 14 | 0 |
+| 81 | 288 | 635 | 14 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 

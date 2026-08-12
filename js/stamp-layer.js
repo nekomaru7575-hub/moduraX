@@ -150,11 +150,24 @@ function showStamp({ stampId, participantId, name }) {
  */
 export function requestStamp(stampId) {
   sendStamp(stampId);
+  countStamp(stampId);
+}
 
-  // 何を数えるか（プラグインのスタンプだけ）と、数えてよいか（実在する参加者か）の
-  // 判定はreducer側に置いてある（js/game-store.jsのCOUNT_STAMP）。サーバーでも同じ
-  // 判定が走るので、ここでは投げるだけでよい。
-  store.dispatch('COUNT_STAMP', { stampId, participantId: getCurrentParticipantId() });
+// 集計へ「自分がこれまでに出した枚数」を書き込む。送るのは増分ではなく枚数そのもの
+// （理由はjs/game-store.jsのCOUNT_STAMP参照。1回届かなくても次に押した時点で全員が
+// 正しい数に揃う）。
+//
+// 何を数えるか（プラグインのスタンプだけ）と、数えてよいか（実在する参加者か）の
+// 判定はreducer側にある。サーバーでも同じ判定が走るので、ここでは投げるだけでよい。
+function countStamp(stampId) {
+  const participantId = getCurrentParticipantId();
+  // 名乗っていない人は数える先が無い（スタンプ自体もサーバーが捨てる）
+  if (!participantId) return;
+
+  const current = store.state.stampCounts?.[stampId]?.[participantId];
+  const count = (Number.isInteger(current) ? current : 0) + 1;
+
+  store.dispatch('COUNT_STAMP', { stampId, participantId, count });
 }
 
 export function initStampLayer() {

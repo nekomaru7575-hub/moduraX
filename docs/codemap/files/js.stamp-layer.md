@@ -1,6 +1,6 @@
 ---
 source: js/stamp-layer.js
-lines: 166
+lines: 179
 exports: 2
 imported_by: 2
 api_sha: 592ee42af932
@@ -26,9 +26,9 @@ tags: [codemap]
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 151 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
-| 160 | fn | initStampLayer | `initStampLayer()` |  |
+| 173 | fn | initStampLayer | `initStampLayer()` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（8）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -41,8 +41,9 @@ tags: [codemap]
 | 74 | removeItem | `removeItem(participantId, item)` | 11 |  |
 | 88 | buildStampElement | `buildStampElement(stamp, name)` | 26 |  |
 | 116 | showStamp | `showStamp({ stampId, participantId, name })` | 22 |  |
-| 151 | requestStamp | `requestStamp(stampId)` | 8 | ✓ |
-| 160 | initStampLayer | `initStampLayer()` | 6 | ✓ |
+| 151 | requestStamp | `requestStamp(stampId)` | 4 | ✓ |
+| 162 | countStamp | `countStamp(stampId)` | 10 |  |
+| 173 | initStampLayer | `initStampLayer()` | 6 | ✓ |
 
 ## 依存
 

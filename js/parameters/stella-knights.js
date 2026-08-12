@@ -251,5 +251,8 @@ export const STELLA_KNIGHTS_PLUGIN = {
   renderCharacterPanel: renderStellaKnightsCharacterPanel,
   handleChatCommand: handleStellaKnightsChatCommand,
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,
-  resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd
+  resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd,
+  stamps: [
+    {id:`bouquet`, label : `ブーケ`,file:`bouquet.png`}
+  ]
 };

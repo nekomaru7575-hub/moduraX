@@ -456,6 +456,18 @@
   border-radius: 4px;
 }
 
+/* 複数行の入力欄（発言の編集など）。見た目は上の1行入力と揃え、縦だけ引き伸ばせるようにする。 */
+.dialog-form-group textarea {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+}
+
 /* ダイアログ内の画像プレビュー（背景・パネル）。地図のような大きい画像でも
    ダイアログを押し広げないよう、枠に収めて縦横比を保つ。 */
 .dialog-image-preview {

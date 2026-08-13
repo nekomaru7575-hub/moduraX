@@ -231,6 +231,37 @@ function connect() {
   });
 }
 
+// 発言1件を後から指すための鍵。部屋の中で重複しなければよいので、参加者IDのような
+// 導出はせず単なるランダム値でよい（crypto.randomUUIDが無い環境用の控えも用意する）。
+function generateChatEntryId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return `entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+// チャットの発言に、その1件を指す鍵（id）と発言者（ownerId）を刻む。
+//
+// 下のtimeと同じくaction発生源で1回だけ確定させる。ここでなくgame-store.js側で作ると、
+// 各クライアントとサーバーがそれぞれ別のidを振ってしまい、編集の指し先が食い違う。
+// 発言の入口はjs/main.jsのapplyLogだけでなくプラグインからの直接dispatchにもあるので
+// （js/parameters/以下）、全部が通るこのラッパに置いて取りこぼしを無くす。
+//
+// idが必要なのは、配列の位置では発言を指せないため。楽観適用のせいで同時発言の並びは
+// クライアント間でずれ得るので、位置で指すと他人の画面では別の発言を書き換えてしまう。
+// ownerIdは「編集してよいのは本人とGMだけ」の判定に使う（js/room-authority.jsの
+// canEditChatEntry）。表示名未設定（ゲスト）の場合はnullのままで、本人にも直せない。
+function withStampedChatEntry(action, payload) {
+  if (action !== 'ADD_CHAT_MESSAGE' || !payload?.entry) return payload;
+
+  return {
+    ...payload,
+    entry: {
+      ...payload.entry,
+      id: payload.entry.id || generateChatEntryId(),
+      ownerId: payload.entry.ownerId ?? getCurrentParticipantId()
+    }
+  };
+}
+
 export function initNetSync() {
   // ローカルでの操作をサーバーへ転送する。サーバー由来のアクション適用はlocalDispatchを
   // 直接呼ぶため、ここは通らない（再送信ループにならない）。
@@ -241,9 +272,10 @@ export function initNetSync() {
   // 誰も自分の時計でDate.now()を呼び直さない（js/game-store.jsのwithChatEntry/withSystemLogが
   // payload.timeを尊重する）。呼び出し側が渡したpayload自体は書き換えず、新しいオブジェクトを
   // 作って使う（js/game-store.jsと同じく、渡された引数を破壊的に書き換えない流儀に揃える）。
+  // チャットの発言に刻むid・ownerIdも同じ理由でここで確定させる（withStampedChatEntry）。
   store.dispatch = (action, payload) => {
     const time = Number.isFinite(payload?.time) ? payload.time : Date.now();
-    const stampedPayload = { ...(payload || {}), time };
+    const stampedPayload = withStampedChatEntry(action, { ...(payload || {}), time });
 
     localDispatch(action, stampedPayload);
 

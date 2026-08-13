@@ -466,6 +466,9 @@ const GM_ONLY_ACTIONS = new Set([
   // GM以外も作成・開示できる機能なので入れない。「編集・削除できるのは作成者とGM」は
   // 画面側（js/info-panel.jsのcanEditEntry）だけの制限で、サーバーは強制しない。
   // これはコマの所有者チェック（board-data-driven.jsのcanOperateToken）と同じ姿勢。
+  // 発言の編集（EDIT_CHAT_MESSAGE）も同じ扱い：「直せるのは発言者本人とGMだけ」は画面側
+  // （js/room-authority.jsのcanEditChatEntry）だけの制限。全消しのCLEAR_ALL_CHAT_LOGSと違い、
+  // 1件の本文が書き換わるだけで元の発言者・時刻は残るため、GM限定の表には入れない。
 ]);
 
 const MIME_TYPES = {

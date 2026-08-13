@@ -13,7 +13,7 @@ const DEFAULT_NAME_COLOR = '#2e7d32';
 
 // ログ1件を行のHTMLへ。キャラ名が無いエントリ（システム通知など）は本文だけの行にする。
 // システム名（[Cthulhu7th]等）は読み物としては不要なので出さない。
-function buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time }) {
+function buildEntryHtml({ character = '', comment = '', resultText = '', diceDetail = '', color = null, time, editedAt = null }) {
   const bodyHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   const nameHtml = character
     ? `<span class="log-name" style="color: ${safeCssColor(color, DEFAULT_NAME_COLOR)};">${escapeHtml(character)}</span>：`
@@ -30,7 +30,10 @@ function buildEntryHtml({ character = '', comment = '', resultText = '', diceDet
     timeHtml = ` <span class="log-time">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`;
   }
 
-  return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}${timeHtml}</div>${detailHtml}`;
+  // 後から本文が書き換えられた発言には印を残す（画面のログ欄と揃える。js/main.jsのbuildLogHtml）
+  const editedHtml = editedAt ? ` <span class="log-edited">(編集済み)</span>` : '';
+
+  return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}${timeHtml}${editedHtml}</div>${detailHtml}`;
 }
 
 function buildTabHtml(tab, entries) {
@@ -85,6 +88,7 @@ export function buildLogExportHtml({ roomName, tabs, chatLogs }) {
   .log-name { font-weight: bold; }
   .log-detail { color: #888; font-size: 0.85rem; margin: 0 0 4px 2em; }
   .log-comment { color: #888; font-size: 0.9rem; }
+  .log-edited { color: #888; font-size: 0.85rem; }
   .log-empty { color: #888; }
 </style>
 </head>

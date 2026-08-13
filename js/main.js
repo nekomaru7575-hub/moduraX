@@ -43,6 +43,7 @@ import { showSceneListDialog } from './scene-list-dialog.js';
 import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
 import { showLogClearConfirmDialog } from './log-clear-dialog.js';
+import { showLogEditDialog } from './log-edit-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
@@ -57,7 +58,7 @@ import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
 import { initMobileLayout } from './mobile-layout.js';
 import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
-import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
+import { canOperateAsGm, canEditChatEntry, GM_ONLY_REASON } from './room-authority.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -91,7 +92,9 @@ let activeTabId = MAIN_TAB_ID;
 let lastRenderedChatTabsRef = null;
 let lastRenderedLogTabId = null; // logContainerに最後に描画したタブID（切り替え検知用）
 let lastRenderedLogCount = 0;    // logContainerへ反映済みの件数（差分追記用）
+let lastRenderedLogEntries = null; // logContainerへ反映済みのentries配列（発言の編集の検知用）
 let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mainタブ固定）
+let lastRenderedMainEntry = null; // currentChatLogに出している発言（同じく編集の検知用）
 let lastSpokenCharacterId = null; // カレントチャット欄に最後に流れたメッセージの参照キャラクター（立ち絵表示用）
 
 // 自分に見えるチャットタブだけを返す（限定公開タブは宛先に入っている人にだけ見せる）。
@@ -184,16 +187,34 @@ function switchChatTab(tabId) {
 }
 
 // containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
-// メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）
+// メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）。
+// data-entry-idは、右クリック／長押しで「どの発言を編集するか」を引くための印
+// （idを持たない発言＝過去ログ・システム発言では付かず、そのまま編集の対象外になる）。
 function appendLogEntries(container, entries, fromIndex, itemClassName, buildOptions = {}) {
   for (let i = fromIndex; i < entries.length; i++) {
     const item = document.createElement('div');
     item.className = itemClassName;
+    if (entries[i].id) item.dataset.entryId = entries[i].id;
     item.innerHTML = buildLogHtml(entries[i], buildOptions);
     container.appendChild(item);
   }
   if (entries.length > fromIndex) {
     container.scrollTop = container.scrollHeight;
+  }
+}
+
+// 既に描いてある行のうち、中身が入れ替わったもの（＝編集された発言）だけを描き直す。
+// 全部を消して描き直すと過去ログ全部のfadeInが再生されるので、触るのはその行だけにする。
+// entryは編集のたびに凍らせて作り直されるため（game-store.jsのEDIT_CHAT_MESSAGE）、
+// 参照が変わったかどうかだけで編集された行を見分けられる。
+function patchEditedLogEntries(container, entries) {
+  if (!lastRenderedLogEntries || lastRenderedLogEntries === entries) return;
+
+  const rendered = Math.min(lastRenderedLogCount, lastRenderedLogEntries.length, entries.length);
+  for (let i = 0; i < rendered; i++) {
+    if (lastRenderedLogEntries[i] === entries[i]) continue;
+    const item = container.children[i];
+    if (item) item.innerHTML = buildLogHtml(entries[i]);
   }
 }
 
@@ -207,6 +228,7 @@ function renderActiveTabLog(state) {
     logContainer.innerHTML = '';
     lastRenderedLogTabId = activeTabId;
     lastRenderedLogCount = 0;
+    lastRenderedLogEntries = null;
   }
 
   if (entries.length === 0) {
@@ -217,6 +239,7 @@ function renderActiveTabLog(state) {
       placeholder.textContent = 'ここにダイスログが表示されます...';
       logContainer.appendChild(placeholder);
     }
+    lastRenderedLogEntries = entries;
     return;
   }
 
@@ -224,8 +247,10 @@ function renderActiveTabLog(state) {
     logContainer.innerHTML = '';
   }
 
+  patchEditedLogEntries(logContainer, entries);
   appendLogEntries(logContainer, entries, lastRenderedLogCount, 'log-item');
   lastRenderedLogCount = entries.length;
+  lastRenderedLogEntries = entries;
 }
 
 function renderMainChatMirror(state) {
@@ -237,11 +262,17 @@ function renderMainChatMirror(state) {
   if (entries.length < lastRenderedMainCount) {
     currentChatLog.innerHTML = '';
     lastSpokenCharacterId = null;
+    lastRenderedMainEntry = null;
   }
 
-  if (entries.length > lastRenderedMainCount) {
-    const latestEntry = entries[entries.length - 1];
+  const latestEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+  // 件数が増えたとき（新しい発言）に加えて、今出している発言そのものが差し替わったとき
+  // （＝出しているものが編集されたとき）も描き直す。件数が同じ場合だけを編集とみなすので、
+  // ログの消去で件数が減った直後の1件（「ログを消去しました。」）は流さない。
+  const isNewEntry = entries.length > lastRenderedMainCount;
+  const isEditedEntry = entries.length === lastRenderedMainCount && latestEntry !== lastRenderedMainEntry;
 
+  if (latestEntry && (isNewEntry || isEditedEntry)) {
     // 履歴を積み上げず、最新の発言1件だけに置き換える（要素を作り直すことで
     // fadeInアニメーションも都度再生される）。
     currentChatLog.innerHTML = '';
@@ -253,6 +284,7 @@ function renderMainChatMirror(state) {
     if ('characterId' in latestEntry) {
       lastSpokenCharacterId = latestEntry.characterId || null;
     }
+    lastRenderedMainEntry = latestEntry;
   }
 
   lastRenderedMainCount = entries.length;
@@ -270,6 +302,106 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   renderMainChatMirror(state);
   updateCurrentChatPortrait();
 });
+
+// --- 発言の編集（ログ欄の右クリック／長押し） ---
+// 編集してよいのは発言者本人とGMだけ（js/room-authority.jsのcanEditChatEntry）。
+
+// 表示中のタブから、idで発言1件を引く。行の位置ではなくidで引くのは、描画してから
+// メニューを開くまでの間に新しい発言が入っても、指し先がずれないようにするため。
+function findLogEntryById(entryId) {
+  return (store.state.chatLogs[activeTabId] || []).find(entry => entry.id === entryId) || null;
+}
+
+function openLogEntryMenu(clientX, clientY, entry) {
+  showContextMenu(clientX, clientY, [
+    {
+      label: '発言を編集',
+      onSelect: () => showLogEditDialog({
+        resultText: entry.resultText || '',
+        // ダイアログを開いている間に消える（ログの消去）こともあるので、
+        // 反映は指し先のidだけを渡し、実体の差し替えはstore側に任せる。
+        onConfirm: (resultText) => store.dispatch('EDIT_CHAT_MESSAGE', {
+          tabId: activeTabId, entryId: entry.id, resultText
+        })
+      })
+    }
+  ]);
+}
+
+// 右クリックされた行が編集できるものなら、その発言を返す。
+function editableEntryFromEvent(event) {
+  const item = event.target?.closest?.('.log-item');
+  if (!item?.dataset.entryId) return null;
+  const entry = findLogEntryById(item.dataset.entryId);
+  return (entry && canEditChatEntry(entry)) ? entry : null;
+}
+
+// タッチ・ペンでの長押し。盤面と同じjs/drag-gesture.jsは使わない：あちらはpointerdownで
+// preventDefault()するため、ログ欄では指でのスクロールと文字の選択（コピー）ができなくなる。
+// ここでは何も止めず、押している時間と指の動きだけを見る。
+const LOG_LONG_PRESS_MS = 500;
+const LOG_LONG_PRESS_TOLERANCE_PX = 10;
+
+// 長押しでメニューを出した直後、Androidのブラウザはさらにcontextmenuを上げてくる。
+// 同じメニューが開き直されるのを防ぐため、この時刻まではcontextmenuを無視する
+// （js/drag-gesture.jsのsuppressNextContextMenuと同じ事情）。
+let suppressLogContextMenuUntil = 0;
+
+function initLogEntryMenu(container) {
+  container.addEventListener('contextmenu', (event) => {
+    const entry = editableEntryFromEvent(event);
+    // 編集できない行では何もしない＝ブラウザ標準のメニュー（コピー等）をそのまま残す。
+    // 押せない項目として出すこともできるが、ログは行数が多く、どの行でもメニューが
+    // 割り込んでくると文字のコピーの邪魔になる。
+    if (!entry) return;
+
+    event.preventDefault();
+    if (Date.now() < suppressLogContextMenuUntil) return;
+    openLogEntryMenu(event.clientX, event.clientY, entry);
+  });
+
+  let longPressTimer = null;
+  let startX = 0;
+  let startY = 0;
+
+  const cancelLongPress = () => {
+    if (longPressTimer === null) return;
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  };
+
+  container.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse') return; // マウスには右クリックがある
+    const entry = editableEntryFromEvent(event);
+    if (!entry) return;
+
+    startX = event.clientX;
+    startY = event.clientY;
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      // 押している間に消えた・編集できなくなった場合に備えて引き直す
+      const current = findLogEntryById(entry.id);
+      if (!current || !canEditChatEntry(current)) return;
+
+      suppressLogContextMenuUntil = Date.now() + 800;
+      openLogEntryMenu(startX, startY, current);
+    }, LOG_LONG_PRESS_MS);
+  });
+
+  // 指が動いたらスクロールとみなして取り消す（長押しの判定はその場で押し続けたときだけ）
+  container.addEventListener('pointermove', (event) => {
+    if (longPressTimer === null) return;
+    if (Math.abs(event.clientX - startX) > LOG_LONG_PRESS_TOLERANCE_PX
+      || Math.abs(event.clientY - startY) > LOG_LONG_PRESS_TOLERANCE_PX) {
+      cancelLongPress();
+    }
+  });
+  container.addEventListener('pointerup', cancelLongPress);
+  container.addEventListener('pointercancel', cancelLongPress);
+  container.addEventListener('scroll', cancelLongPress);
+}
+
+if (logContainer) initLogEntryMenu(logContainer);
 
 // 接続状態インジケータ（ヘッダー）
 EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
@@ -1898,7 +2030,7 @@ function splitForSpace(string) {
 // 開いた全員にマークアップを流し込めてしまう。全部エスケープしてから埋める
 // （書き出し側のjs/log-export.jsは元からそうしていた。表示側もこれで揃う）。
 // 色はエスケープでは守れない文脈（style属性の中）なので、形そのもので絞る。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time }, { hideSystem = false, hideTime = false } = {}) {
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {}) {
   const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${escapeHtml(system)}]</strong>` : '';
   const nameColor = safeCssColor(color, '#4caf50');
@@ -1917,7 +2049,10 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
   // タイムスタンプはヘッダー行の末尾（システム名・キャラ名・コメントの後）に置く。
   // hideTime: カレントチャット欄など、時刻の表示が不要な場所ではtrueにする（hideSystemと同じ流儀）。
   const timestamp = (!hideTime && typeof time === 'number' && isFinite(time)) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
-  const headerLine = [systemTag, characterTag, commentTag, timestamp].filter(Boolean).join(' ');
+  // 後から本文が書き換えられたことは隠さない（js/game-store.jsのEDIT_CHAT_MESSAGE）。
+  // 時刻とは別の情報なので、時刻を出さないカレントチャット欄でもこの印だけは出す。
+  const editedMark = editedAt ? '<small class="log-edited" style="color: #888;">(編集済み)</small>' : '';
+  const headerLine = [systemTag, characterTag, commentTag, timestamp, editedMark].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `

@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-12
+generated: 2026-08-13
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-08-12
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 81 | 289 | 640 | 14 | 0 |
+| 82 | 291 | 650 | 14 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -60,6 +60,7 @@ generated: 2026-08-12
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
 | [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 13 |
 | [[js.log-clear-dialog\|js/log-clear-dialog.js]] | 全タブのログを消す前の確認ダイアログ。 | 1 | 1 |
+| [[js.log-edit-dialog\|js/log-edit-dialog.js]] | 既に流れた発言の本文を書き直すダイアログ。 | 1 | 1 |
 | [[js.log-export-dialog\|js/log-export-dialog.js]] | 「ログを保存」のタブ選択ダイアログ。 | 1 | 1 |
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
 | [[js.main\|js/main.js]] |  | 0 | 0 |
@@ -89,7 +90,7 @@ generated: 2026-08-12
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 5 |
 | [[js.resizable-stack\|js/resizable-stack.js]] | 縦に並んだ複数セクション（[data-resizable-section]を持つ要素）の間に ドラッグハンドルを挿入し、高さをユーザーが調整できるようにする汎用ユーティリティ。 | 1 | 1 |
-| [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 3 | 4 |
+| [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 4 |
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
 | [[js.room-entry-dialog\|js/room-entry-dialog.js]] | 入室パスワードの入力ダイアログ。 | 2 | 1 |
 | [[js.room-entry\|js/room-entry.js]] | 部屋の入室パスワードを、このブラウザに覚えておくところ。 | 4 | 5 |

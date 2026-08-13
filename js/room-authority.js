@@ -60,3 +60,23 @@ export function canOperateToken(token) {
   if (isGm(store.state.participants, myParticipantId)) return true;
   return token.ownerId === myParticipantId;
 }
+
+/**
+ * その発言（チャットログ1件）の本文を書き直してよいか。発言者本人とGMだけに開ける。
+ *
+ * idを持たない発言は編集できない。この機能より前に流れた過去ログ、システム発言
+ * （js/game-store.jsのwithSystemLog）、サーバーが直接流す入室メッセージが該当する。
+ * idはjs/net-sync.jsが発言のたびに刻む。位置（配列のindex）で指さないのは、楽観適用で
+ * 同時発言の並びがクライアント間でずれ得るため（他人の画面で別の発言を書き換えてしまう）。
+ *
+ * ownerIdが無い発言（表示名未設定のゲストが送ったもの）はGMだけが編集できる。コマ
+ * （canOperateToken）や情報（js/info-panel.jsのcanEditEntry）が「持ち主がいなければ
+ * 誰でも触れる」としているのと逆に倒しているのは意図的で、チャットは件数が桁違いに多く、
+ * 部屋の過去ログが丸ごと誰でも書き換えられる状態は事故が大きいため。
+ */
+export function canEditChatEntry(entry) {
+  if (!entry?.id) return false;
+  const myParticipantId = getCurrentParticipantId();
+  if (isGm(store.state.participants, myParticipantId)) return true;
+  return !!entry.ownerId && entry.ownerId === myParticipantId;
+}

@@ -2099,6 +2099,43 @@ export class ImmutableStore {
         return;
       }
 
+      // 既に流れた発言の本文を書き直す（誤字の直し）。誰が編集してよいかはここでは見ない：
+      // 画面側（js/room-authority.jsのcanEditChatEntry）が本人とGMだけに絞る。コマの所有者
+      // チェック（canOperateToken）や情報の編集（js/info-panel.jsのcanEditEntry）と同じ姿勢で、
+      // サーバー（server/index.js）も強制しない。
+      //
+      // 書き換わるのは本文（resultText）だけ。キャラ名・色・コマンド・出目内訳・発言時刻は
+      // 元のまま残るので、「誰がいつ何を振ったか」は編集では消せない。
+      // 指し先はidのみ。配列の位置で指すと、楽観適用で並びがずれた画面では別の発言に当たる。
+      // idを持たない発言（この機能より前の過去ログ、システム発言、サーバー発の入室メッセージ）は
+      // 一致するものが無いので、そのまま何も起こらない。
+      case 'EDIT_CHAT_MESSAGE': {
+        const { tabId, entryId, resultText } = payload;
+        if (!tabId || !entryId || typeof resultText !== 'string') return;
+
+        const entries = prevState.chatLogs[tabId];
+        if (!entries) return;
+
+        const index = entries.findIndex(entry => entry.id === entryId);
+        if (index < 0) return;
+
+        // editedAtは「編集済み」の印を出すためだけの値（表示はjs/main.jsのbuildLogHtml）。
+        // timeの扱いはwithChatEntryと同じで、payload.timeがあればそれを使う。
+        const edited = Object.freeze({
+          ...entries[index],
+          resultText,
+          editedAt: Number.isFinite(payload.time) ? payload.time : Date.now()
+        });
+
+        this.#commit(prevState, {
+          chatLogs: withMapEntry(
+            prevState.chatLogs, tabId,
+            Object.freeze(entries.map((entry, i) => (i === index ? edited : entry)))
+          )
+        });
+        return;
+      }
+
       // 3Dダイスを転がす合図（js/dice-animation.jsが購読）。状態は一切変えず、通知だけを行う。
       // 出目をチャットログのエントリに持たせなかったのは、部屋のJSONへ永続化されてしまい、
       // 再接続時のhydrateで過去のロールが一斉に転がり出すため。状態を変えないので

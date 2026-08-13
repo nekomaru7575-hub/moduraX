@@ -1,6 +1,6 @@
 ---
 source: js/game-store.js
-lines: 2467
+lines: 2481
 exports: 27
 imported_by: 13
 api_sha: 6e391a0717f7
@@ -36,22 +36,22 @@ tags: [codemap]
 | 84 | fn | getPhaseChain | `getPhaseChain(phase)` | 指定フェーズ自身と、その内側の全フェーズを外側から順に返す。 |
 | 92 | fn | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | このコマがそのフェーズ終了で失うバフ/デバフの名前一覧（入れ子の内側も含む）。 |
 | 102 | fn | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 上の一覧を、判定結果などのログ本文へ足す1行にする。 |
-| 214 | fn | usesInitiativeProcess | `usesInitiativeProcess(state)` | 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。 |
-| 221 | fn | showsEntryMessages | `showsEntryMessages(state)` | 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。 |
-| 277 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
-| 294 | const | MAIN_CHAT_TAB_ID | `MAIN_CHAT_TAB_ID` | 既定のチャットタブ。 |
-| 298 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
-| 301 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
-| 306 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
-| 404 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
-| 429 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
-| 570 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | プロットが同値（同じ値を出した相手がいる）のコマのid。 |
-| 582 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
-| 590 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 658 | class | ImmutableStore | `ImmutableStore` |  |
-| 2368 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 2372 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 2466 | const | store | `store` |  |
+| 219 | fn | usesInitiativeProcess | `usesInitiativeProcess(state)` | 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。 |
+| 226 | fn | showsEntryMessages | `showsEntryMessages(state)` | 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。 |
+| 282 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
+| 299 | const | MAIN_CHAT_TAB_ID | `MAIN_CHAT_TAB_ID` | 既定のチャットタブ。 |
+| 303 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
+| 306 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
+| 311 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
+| 409 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
+| 434 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
+| 575 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | プロットが同値（同じ値を出した相手がいる）のコマのid。 |
+| 587 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
+| 595 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 663 | class | ImmutableStore | `ImmutableStore` |  |
+| 2382 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 2386 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 2480 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（45）
 
@@ -71,40 +71,40 @@ tags: [codemap]
 | 102 | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 4 | ✓ |
 | 111 | createInitialRoundState | `createInitialRoundState()` | 24 |  |
 | 139 | normalizeRoundState | `normalizeRoundState(round)` | 31 |  |
-| 180 | buildDerivedContext | `buildDerivedContext(round, tokenId)` | 10 |  |
-| 199 | recomputeDerivedForRound | `recomputeDerivedForRound(tokensState, activePlugin, round)` | 12 |  |
-| 214 | usesInitiativeProcess | `usesInitiativeProcess(state)` | 3 | ✓ |
-| 221 | showsEntryMessages | `showsEntryMessages(state)` | 3 | ✓ |
-| 230 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |  |
-| 258 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |  |
-| 277 | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 14 | ✓ |
-| 314 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |  |
-| 319 | withMapEntry | `withMapEntry(map, key, value)` | 3 |  |
-| 324 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |  |
-| 332 | freezePanelMap | `freezePanelMap(panels)` | 5 |  |
-| 348 | withChatEntry | `withChatEntry(chatLogs, tabId, entry, time)` | 5 |  |
-| 358 | withSystemLog | `withSystemLog(chatLogs, text, time)` | 3 |  |
-| 364 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |  |
-| 372 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |  |
-| 381 | withoutParam | `withoutParam(params, paramId, label)` | 9 |  |
-| 394 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
-| 404 | normalizeStackOrder | `normalizeStackOrder(value)` | 3 | ✓ |
-| 410 | definedFields | `definedFields(patch)` | 3 |  |
-| 416 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 8 |  |
-| 429 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
-| 466 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
-| 475 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
-| 490 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
-| 518 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
-| 531 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
-| 537 | plotValueOf | `plotValueOf(round, tokenId)` | 4 |  |
-| 552 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 15 |  |
-| 570 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 8 | ✓ |
-| 582 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 4 | ✓ |
-| 590 | pickNextActor | `pickNextActor(tokensState, round)` | 4 | ✓ |
-| 597 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
-| 602 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
-| 2372 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 93 | ✓ |
+| 180 | buildDerivedContext | `buildDerivedContext(round, tokenId)` | 15 |  |
+| 204 | recomputeDerivedForRound | `recomputeDerivedForRound(tokensState, activePlugin, round)` | 12 |  |
+| 219 | usesInitiativeProcess | `usesInitiativeProcess(state)` | 3 | ✓ |
+| 226 | showsEntryMessages | `showsEntryMessages(state)` | 3 | ✓ |
+| 235 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |  |
+| 263 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |  |
+| 282 | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 14 | ✓ |
+| 319 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |  |
+| 324 | withMapEntry | `withMapEntry(map, key, value)` | 3 |  |
+| 329 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |  |
+| 337 | freezePanelMap | `freezePanelMap(panels)` | 5 |  |
+| 353 | withChatEntry | `withChatEntry(chatLogs, tabId, entry, time)` | 5 |  |
+| 363 | withSystemLog | `withSystemLog(chatLogs, text, time)` | 3 |  |
+| 369 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |  |
+| 377 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |  |
+| 386 | withoutParam | `withoutParam(params, paramId, label)` | 9 |  |
+| 399 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
+| 409 | normalizeStackOrder | `normalizeStackOrder(value)` | 3 | ✓ |
+| 415 | definedFields | `definedFields(patch)` | 3 |  |
+| 421 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 8 |  |
+| 434 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
+| 471 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
+| 480 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
+| 495 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
+| 523 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
+| 536 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
+| 542 | plotValueOf | `plotValueOf(round, tokenId)` | 4 |  |
+| 557 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 15 |  |
+| 575 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 8 | ✓ |
+| 587 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 4 | ✓ |
+| 595 | pickNextActor | `pickNextActor(tokensState, round)` | 4 | ✓ |
+| 602 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
+| 607 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
+| 2386 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 93 | ✓ |
 
 ## 依存
 

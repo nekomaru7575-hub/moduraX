@@ -190,6 +190,7 @@ function computeMyDerivedParameters(parameters, components = {}, context = {}) {
 {
   tokenId: string | null,
   roundActive: boolean,      // ラウンド進行中か
+  roundNumber: number,       // 何ラウンド目か。進行していなければ 0
   plotValue: number | null,  // そのコマが出したプロット値。未提出・非公開なら null
   plotsRevealed: boolean     // プロットが公開済みか
 }

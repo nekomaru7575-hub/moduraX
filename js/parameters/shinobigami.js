@@ -13,7 +13,7 @@ import {
 } from './saikoro-fiction/skill-table.js';
 import {
   createSkillSpec, normalizeSkillList, findSkillByName, resetSkillUsageOnPhaseEnd,
-  buildSkillUseCommandPattern
+  buildSkillUseCommandPattern, isFieldAvailable
 } from './skill/skill-model.js';
 import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
@@ -164,7 +164,22 @@ const SHINOBIGAMI_CHARACTER_PARAMETERS = [
   // 自動計算される判定の基準値。修正（SB/FB）を足して丸めるのは判定を組み立てるとき
   // （buildShinobigamiCheckCommand）で、ここは素の基準値だけを持つ。
   { key: 'F', label: 'ファンブル値({F})', value: FUMBLE_FLOOR, locked: true, editable: false, visible: false },
-  { key: 'S', label: 'スペシャル値({S})', value: SPECIAL_DEFAULT, locked: true, editable: false, visible: false }
+  { key: 'S', label: 'スペシャル値({S})', value: SPECIAL_DEFAULT, locked: true, editable: false, visible: false },
+
+  // ラウンド進行の事実をパラメータへ写したもの。Coreはこれを自動計算のcontextとしてしか
+  // 渡してこない（js/game-store.jsのbuildDerivedContext）ので、チャットコマンドの処理から
+  // 見るにはパラメータを経由するしかない。忍法の式・使用条件からも {プロット} {ラウンド}
+  // として参照できる。どちらも戦闘中でなければ0。
+  { key: 'plot', label: 'プロット', value: 0, locked: true, editable: false, visible: false },
+  { key: 'round', label: 'ラウンド', value: 0, locked: true, editable: false, visible: false },
+
+  // このラウンドに使った忍法のコストの合計。プロット値を超える使い方はできない
+  // （handleNinpouUseCommand）。値そのものはcomponents側が持ち、これはその写し。
+  // 残り枠を数えるのは卓の仕事なので、これだけは表示する。
+  // ラベルが4文字なのは、キャラクター一覧のラベル欄（character-param-label）が56pxで、
+  // 5文字だと「使用コス…」と切れるため。忍法の「コスト」欄と同じ名前にしないのは、
+  // 式の中の {コスト} が忍法自身の欄を指す（js/parameters/skill/skill-formula.js）ため。
+  { key: 'usedCost', label: 'コスト計', value: 0, locked: true, editable: false, visible: true }
 ];
 
 function buildShinobigamiCharacterParameters() {
@@ -172,17 +187,26 @@ function buildShinobigamiCharacterParameters() {
 }
 
 /**
- * ファンブル値の基準値。戦闘中（ラウンド進行中）は、自分が出したプロットと2の大きい方。
- * それ以外は2。
+ * このコマのプロット値。戦闘中（ラウンド進行中）で、公開済みの提出がある場合だけ1〜6。
+ * それ以外（平常時・未提出・公開前）は0。
  *
  * contextはCoreが渡すラウンドの事実（js/game-store.jsのbuildDerivedContext）。
  * 公開前のプロットはCore側でnullに落とされて届かないので、ここでは
  * 「値が来ていれば公開済み」と考えてよい（伏せたプロットがパラメータ経由で漏れない）。
  */
+function computePlotValue(context) {
+  if (!context?.roundActive) return 0;
+  return Number.isFinite(context.plotValue) ? context.plotValue : 0;
+}
+
+// ファンブル値の基準値。戦闘中は自分が出したプロットと2の大きい方、それ以外は2。
 function computeFumbleBase(context) {
-  if (!context?.roundActive) return FUMBLE_FLOOR;
-  const plot = context.plotValue;
-  return Number.isFinite(plot) ? Math.max(FUMBLE_FLOOR, plot) : FUMBLE_FLOOR;
+  return Math.max(FUMBLE_FLOOR, computePlotValue(context));
+}
+
+// 何ラウンド目か（戦闘中でなければ0）。
+function computeRoundNumber(context) {
+  return Number.isFinite(context?.roundNumber) ? context.roundNumber : 0;
 }
 
 /**
@@ -190,6 +214,8 @@ function computeFumbleBase(context) {
  *   生命力 ＝ 失っていない分野の枠 ＋ 失っていない追加生命力の枠
  *   ファンブル値 ＝ 上のcomputeFumbleBase
  *   スペシャル値 ＝ 常に既定12（上限13・下限ファンブル値+1の丸めは判定を組むときに掛ける）
+ *   プロット・ラウンド ＝ ラウンド進行の事実をそのまま写したもの
+ *   使用コスト ＝ このラウンドに使った忍法コストの合計（readNinpouCost）
  *
  * 特技表を編集すると SET_COMPONENT → applyPluginDerivedParameters が走り、
  * プロットの公開・ラウンドの終了では recomputeDerivedForRound が走る（js/game-store.js）。
@@ -199,7 +225,10 @@ function computeShinobigamiDerivedParameters(_parameters, components = {}, conte
   return {
     'SHINOBIGAMI:life': countRemainingSlots(SHINOBIGAMI_SKILL_TABLE, state).total,
     'SHINOBIGAMI:F': computeFumbleBase(context),
-    'SHINOBIGAMI:S': SPECIAL_DEFAULT
+    'SHINOBIGAMI:S': SPECIAL_DEFAULT,
+    'SHINOBIGAMI:plot': computePlotValue(context),
+    'SHINOBIGAMI:round': computeRoundNumber(context),
+    'SHINOBIGAMI:usedCost': readNinpouCost(components, computeRoundNumber(context))
   };
 }
 
@@ -285,6 +314,38 @@ function readNinpouList(components) {
   return normalizeSkillList(SHINOBIGAMI_NINPOU_SPEC, components?.[SHINOBIGAMI_NINPOU_SPEC.componentKey] ?? []);
 }
 
+// ---------------------------------------------------------------------------
+// 忍法のコスト
+//
+// 戦闘中の1ラウンドに使える忍法のコストの合計は、そのラウンドに出したプロット値まで。
+// 合計の置き場をcomponentsにしているのは、ラウンド終了で戻せる場所がここしか無いため
+// （パラメータをリセットする口はCoreに無い。js/parameters/registry.jsの
+// resetPluginComponentsOnPhaseEnd）。
+//
+// 保存する形は { round, used } で、何ラウンド目の記録かを一緒に持つ。番号が変われば
+// 0から数え直すので、リセットの経路をどこかで通し損ねても前のラウンドの合計を引きずらない。
+// ---------------------------------------------------------------------------
+
+const NINPOU_COST_COMPONENT_KEY = 'ninpouCost';
+
+// このラウンドに使った合計。記録が別のラウンドのものなら0。
+function readNinpouCost(components, roundNumber) {
+  const stored = components?.[NINPOU_COST_COMPONENT_KEY];
+  if (!stored || stored.round !== roundNumber || roundNumber <= 0) return 0;
+  const used = Number(stored.used);
+  return Number.isFinite(used) && used > 0 ? used : 0;
+}
+
+// 忍法1件のコスト。その種別で意味を持たない欄（装備忍法のコスト）や、数値でない入力・
+// 負の値は0として扱う（js/parameters/skill/skill-use.jsのsumSkillCostsと同じ数え方）。
+const NINPOU_COST_FIELD = SHINOBIGAMI_NINPOU_SPEC.fields.find(field => field.key === 'cost');
+
+function ninpouCostOf(ninpou) {
+  if (!NINPOU_COST_FIELD || !isFieldAvailable(NINPOU_COST_FIELD, ninpou.fields)) return 0;
+  const value = Number(ninpou.fields?.cost);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 // 指定特技の表示名。表から消えたセルIDでも落ちないようにする。
 function describeNinpouSkill(cellId) {
   if (!cellId) return '自由';
@@ -292,12 +353,22 @@ function describeNinpouSkill(cellId) {
 }
 
 // シーン終了・ラウンド終了などで忍法の使用回数を戻す（DX3のresetDX3ComponentsOnPhaseEndと同型）。
+// ラウンド終了では、そのラウンドに使った忍法コストの合計（NINPOU_COST_COMPONENT_KEY）も捨てる。
+// 記録はラウンド番号で見分けているので消さなくても次のラウンドには効かないが、古い記録を
+// 部屋のデータに残さないためと、「戦闘終了→次の戦闘のラウンド1」で番号が1に戻ったときに
+// 前の戦闘の合計を拾わないようにするため（js/game-store.jsのROUND_PROGRESSION_ENDも
+// このリセットを通す）。
 function resetShinobigamiComponentsOnPhaseEnd(components, phase) {
   const key = SHINOBIGAMI_NINPOU_SPEC.componentKey;
   const ninpou = components?.[key];
   const nextNinpou = resetSkillUsageOnPhaseEnd(SHINOBIGAMI_NINPOU_SPEC, ninpou, phase);
 
-  return nextNinpou === ninpou ? components : { ...components, [key]: nextNinpou };
+  let next = components;
+  if (nextNinpou !== ninpou) next = { ...next, [key]: nextNinpou };
+  if (phase === 'round' && components?.[NINPOU_COST_COMPONENT_KEY]) {
+    next = { ...next, [NINPOU_COST_COMPONENT_KEY]: null };
+  }
+  return next;
 }
 
 /**
@@ -454,6 +525,7 @@ function handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEff
 /**
  * 忍法使用(名前) を実行する。使用制限の判定・修正値のバフ付与・使用回数の記録・ログは
  * すべて共通の runSkillUse が持つ（DX3のエフェクト使用と同じ経路）。
+ * シノビガミ固有の「1ラウンドのコスト合計はプロットまで」だけをここで見る。
  */
 function handleNinpouUseCommand(rawInput, context) {
   const match = rawInput.match(NINPOU_USE_COMMAND_PATTERN);
@@ -473,14 +545,41 @@ function handleNinpouUseCommand(rawInput, context) {
     return true;
   }
 
+  // ラウンドの事実はパラメータ経由で受け取る（自動計算のcontextはここへ届かない）。
+  const readParam = (key) => Number(getEffectiveParameterValue(token, `SHINOBIGAMI:${key}`)) || 0;
+  const plot = readParam('plot');
+  const roundNumber = readParam('round');
+  const cost = ninpouCostOf(ninpou);
+  // 判定に使うのは実効値（バフ込み）。GMが「バフ(使用コスト, -1)」でその場だけ枠を
+  // 緩められるようにしてある。書き戻す元にするのはcomponents側の生の値（下）なので、
+  // バフの分が合計へ焼き付くことはない。
+  const usedCost = readParam('usedCost');
+
+  // プロットが0なのは、平常時・未提出・公開前のいずれか。上限を決める材料が無いので
+  // 制限しない（公開前のプロットはCoreがプラグインへ渡さない。computePlotValue参照）。
+  // ただし戦闘中であれば、公開前に使った分も下で数えておく。そのラウンドに使ったことは
+  // 変わらないので、公開された時点で残り枠から引かれる。
+  if (plot > 0 && cost > 0 && usedCost + cost > plot) {
+    alert(`忍法「${ninpou.name}」は使用できません。\n\n`
+      + `このラウンドに使えるコストの合計はプロット（${plot}）までです。\n`
+      + `使用済み${usedCost} ＋ 今回${cost} ＝ ${usedCost + cost}`);
+    return true;
+  }
+
+  // コストは、戦闘中なら「今回を足した合計／プロット」まで添える（残り枠が読めるように）
+  const costText = ninpou.fields.type === 'equip'
+    ? null
+    : `コスト${ninpou.fields.cost}`
+      + (plot > 0 && cost > 0 ? `（このラウンド計${usedCost + cost}／プロット${plot}）` : '');
+
   const detail = [
     NINPOU_TYPES.find(type => type.value === ninpou.fields.type)?.label,
     ninpou.fields.type === 'attack' ? `間合${ninpou.fields.range}` : null,
-    ninpou.fields.type !== 'equip' ? `コスト${ninpou.fields.cost}` : null,
+    costText,
     ninpou.fields.type !== 'equip' ? `指定特技: ${describeNinpouSkill(ninpou.fields.skill)}` : null
   ].filter(Boolean).join('／');
 
-  runSkillUse({
+  const used = runSkillUse({
     spec: SHINOBIGAMI_NINPOU_SPEC,
     targetSkills: [ninpou],
     allSkills: ninpouList,
@@ -500,6 +599,17 @@ function handleNinpouUseCommand(rawInput, context) {
     logDetail: detail,
     chatCommand: rawInput
   });
+
+  // 実際に使えた分だけ積む（使用回数の上限や使用条件で弾かれた場合、runSkillUseは何も
+  // 起こさずfalseを返すので、コストだけ減ることはない）。記録するのは戦闘中だけ。
+  // 足す先はtoken.components側の生の値で、上で読んだ実効値（バフ込み）ではない。
+  if (used && roundNumber > 0 && cost > 0) {
+    dispatch('SET_COMPONENT', {
+      id: token.id,
+      componentKey: NINPOU_COST_COMPONENT_KEY,
+      value: { round: roundNumber, used: readNinpouCost(token.components, roundNumber) + cost }
+    });
+  }
   return true;
 }
 

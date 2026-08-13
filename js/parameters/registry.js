@@ -316,6 +316,7 @@ function withMissingPluginParameters(plugin, parameters) {
  * @param {{
  *   tokenId: string|null,
  *   roundActive: boolean,      ラウンド進行中か（＝シノビガミで言う戦闘中か）
+ *   roundNumber: number,       何ラウンド目か。進行していなければ0
  *   plotValue: number|null,    そのコマが出したプロット値。未提出・非公開ならnull
  *   plotsRevealed: boolean     プロットが公開済みか
  * }} [context]

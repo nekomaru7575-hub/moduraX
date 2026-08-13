@@ -180,9 +180,14 @@ function normalizeRoundState(round) {
 function buildDerivedContext(round, tokenId) {
   const plotsRevealed = !!round?.plotsRevealed;
   const plot = plotsRevealed ? round?.plots?.[tokenId] : undefined;
+  const active = !!round?.active;
   return {
     tokenId: tokenId ?? null,
-    roundActive: !!round?.active,
+    roundActive: active,
+    // 何ラウンド目か（進行していないときは0）。プラグイン側が「この記録は今のラウンドの
+    // ものか」を見分けるために使う（シノビガミの忍法コストの合計は、番号が変われば0から
+    // 数え直す）。プロットと違い伏せる値ではないので、そのまま渡してよい。
+    roundNumber: active ? (round?.roundNumber || 0) : 0,
     plotValue: Number.isFinite(plot) ? plot : null,
     plotsRevealed
   };
@@ -1507,14 +1512,23 @@ export class ImmutableStore {
         const round = prevState.round;
         if (!round.active) return;
 
-        // 戦闘が終われば、プロットから決まっていた値は平常時のものへ戻す。
+        // 戦闘が終わるということは、進行中だったラウンドもそこで終わる。ラウンド単位の
+        // プラグインデータ（忍法の「ラウンドにつき1回」の使用回数、そのラウンドに使った
+        // 忍法コストの合計）を戻しておかないと、次の戦闘のラウンド1へ持ち越されてしまう。
+        // バフの期限切れ（applyPhaseEnd）まで通さないのは、ここで消すと決めていない
+        // 「ラウンド終了まで」のバフの扱いを、この変更で一緒に変えてしまわないため。
+        let tokensAfterEnd = resetPluginComponentsForPhase(nextTokensState, activePlugin, 'round');
+
+        // プロットから決まっていた値は平常時のものへ戻す。
         // 引き直しには「参加者が誰だったか」が要るので、終了後の空の状態ではなく
         // 直前のparticipantsを渡す（roundActive:falseで平常時として計算される）。
+        // components を戻した後に引き直す（使用コストの表示がその結果を見るため）。
         const endedRound = { ...createInitialRoundState(), participants: round.participants };
-        recomputeDerivedForRound(nextTokensState, activePlugin, endedRound);
+        tokensAfterEnd = { ...tokensAfterEnd };
+        recomputeDerivedForRound(tokensAfterEnd, activePlugin, endedRound);
 
         this.#commit(prevState, {
-          tokens: nextTokensState,
+          tokens: tokensAfterEnd,
           round: createInitialRoundState(),
           chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, payload?.time)
         });

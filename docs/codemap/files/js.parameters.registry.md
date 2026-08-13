@@ -1,6 +1,6 @@
 ---
 source: js/parameters/registry.js
-lines: 353
+lines: 354
 exports: 17
 imported_by: 8
 api_sha: 01fbc1974769
@@ -41,7 +41,7 @@ DX3・シノビガミ・ステラナイツの記述子を登録し、キャラ�
 | 191 | fn | describePluginBuffMeta | `describePluginBuffMeta(pluginId, buff)` | バフ1件のmetaを、一覧やログへ添える1行の説明にする。 |
 | 238 | fn | applyPluginDerivedRoomParameters | `applyPluginDerivedRoomParameters(pluginId, parameters, context = {})` | ルーム変数に、プラグインの自動計算を適用した新しい集合を返す。 |
 | 275 | fn | listPluginStamps | `listPluginStamps(pluginId)` | プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。 |
-| 324 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 325 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（19）
 
@@ -68,7 +68,7 @@ DX3・シノビガミ・ステラナイツの記述子を登録し、キャラ�
 | 238 | applyPluginDerivedRoomParameters | `applyPluginDerivedRoomParameters(pluginId, parameters, context = {})` | 29 | ✓ |
 | 275 | listPluginStamps | `listPluginStamps(pluginId)` | 4 | ✓ |
 | 289 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |  |
-| 324 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 325 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 

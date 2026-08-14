@@ -23,6 +23,38 @@ function currentRoomId() {
 // 開くたびに問い合わせても仕方ないので一度取ったら保持する。
 let uploadCapability = null;
 
+// 混み合っているときの再挑戦を待つ上限。サーバーはRetry-Afterで目安を返してくるが、
+// 言われるまま待つと画像を選んだ人の画面が長く止まる。
+const RETRY_WAIT_CAP_MS = 10 * 1000;
+
+/**
+ * アップロード系のfetch。サーバーが「今は混んでいる」（503）と言ってきたときだけ、
+ * 一度だけ間を置いて挑み直す。
+ *
+ * 挑み直す価値があるのは、断りが利用者の側の問題ではなく時間で解けるためで、ここで
+ * 諦めると呼び出し側がデータURLへ退避してしまう＝8MBの画像がそのまま部屋データに載り、
+ * アクションのたびにRedisへ送られる（このファイル冒頭の設計の裏返し）。
+ * サーバーのメモリを守るための断りが、かえって重い状態を作るのを避ける。
+ */
+async function fetchUpload(url, options) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(url, options);
+    if (response.status !== 503 || attempt === 1) return response;
+
+    // 本文を読んでから待つ（retryableが無い503は、この仕組みとは別の理由なので挑み直さない）
+    const body = await response.clone().json().catch(() => ({}));
+    if (!body.retryable) return response;
+
+    const suggested = Number(response.headers.get('Retry-After')) * 1000;
+    const wait = Math.min(Number.isFinite(suggested) && suggested > 0 ? suggested : RETRY_WAIT_CAP_MS,
+      RETRY_WAIT_CAP_MS);
+    console.warn(`[image-upload] サーバーが混み合っています。${Math.round(wait / 1000)}秒後にもう一度試します`);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+  // ここには来ない（ループ内で必ず返す）が、抜けた場合に備えて呼び出し側で扱える形にする
+  return fetch(url, options);
+}
+
 /**
  * アップロードが使える環境か。使えなければ呼び出し側はデータURLへ退避する。
  * 問い合わせに失敗した場合は「使えない」扱いにする（データURLなら確実に動くため）。
@@ -94,7 +126,7 @@ export async function adoptImageIntoRoom(image, purpose) {
       headers['X-Auth-Token'] = authToken;
     }
 
-    const response = await fetch(`/api/image/copy?${query}`, {
+    const response = await fetchUpload(`/api/image/copy?${query}`, {
       method: 'POST', headers, body: JSON.stringify({ sourceUrl: image })
     });
     const body = await response.json().catch(() => ({}));
@@ -123,7 +155,7 @@ export async function uploadImageFile(file, purpose) {
   }
 
   const query = `room=${encodeURIComponent(currentRoomId())}&purpose=${encodeURIComponent(purpose)}`;
-  const response = await fetch(`/api/image?${query}`, { method: 'POST', headers, body: file });
+  const response = await fetchUpload(`/api/image?${query}`, { method: 'POST', headers, body: file });
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {

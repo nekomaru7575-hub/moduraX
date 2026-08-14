@@ -37,6 +37,10 @@ import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
   publicUrlFor, publicBaseUrl, keyFromPublicUrl, totalBytesByPrefix
 } from './r2.js';
+// 重い操作（取り込み・書き出し・アップロード）を、メモリの残りを見てから通す。
+import {
+  acquireHeavySlot, hasRoomFor, maxBodyBytesFor, describeBudget
+} from './memory-budget.js';
 
 const PORT = Number(process.env.PORT) || 8081;
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
@@ -589,9 +593,13 @@ async function serveStaticFile(req, res) {
   }
 }
 
-function sendJson(res, statusCode, body) {
+function sendJson(res, statusCode, body, extraHeaders = null) {
   const json = JSON.stringify(body);
-  res.writeHead(statusCode, { ...SECURITY_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(statusCode, {
+    ...SECURITY_HEADERS,
+    'Content-Type': 'application/json; charset=utf-8',
+    ...extraHeaders
+  });
   res.end(json);
 }
 
@@ -1799,6 +1807,12 @@ async function handleCreateRoom(req, res) {
 // 公開URLで誰でも取得できる画像なので、ここで見える範囲は増えない。
 const MAX_EXPORT_EMBED_BYTES = (Number(process.env.MAX_EXPORT_EMBED_MB) || 64) * 1024 * 1024;
 
+// 画像を除いた状態そのもの（チャットログ・コマ・情報）の書き出しに要る見込み。
+// 実測では5時間のセッションで状態JSONが156KB、長丁場でも1MBに届かないので、
+// 4MBあれば「画像を1枚も埋め込まない書き出し」は必ず通る。埋め込むぶんは
+// これとは別に、そのときの残り予算から決める（embedStateImagesのlimitBytes）。
+const EXPORT_BASE_BYTES = 4 * 1024 * 1024;
+
 // 取り込み（POST /api/roomsのimportedStateと、WebSocketのREPLACE_STATE）で受け取ってよい
 // 大きさ。上の書き出しと必ず対で決める：埋め込んだ画像はデータURL（base64）になって元の
 // バイト数の約4/3に膨らむので、その分の余裕を見ないと「自分が書き出したものを取り込めない」
@@ -1831,7 +1845,11 @@ async function handleExportRoom(req, res, roomId) {
   }
   const myBackyardTokenIds = Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : [];
 
-  const { state, embedded, skipped } = await embedStateImages(roomId, entry.store.state);
+  // 埋め込んでよい量は、設定した上限と「今の残りメモリ」の小さいほう。混んでいるときは
+  // 埋め込みを減らして書き出し自体は通す（超えたぶんはURLのまま残る＝skippedに数えられ、
+  // 呼び出し側が「一部の画像は入っていない」と伝えられる）。
+  const embedLimit = Math.min(MAX_EXPORT_EMBED_BYTES, maxBodyBytesFor('export'));
+  const { state, embedded, skipped } = await embedStateImages(roomId, entry.store.state, embedLimit);
   sendJson(res, 200, { state: { ...state, myBackyardTokenIds }, embedded, skipped });
 }
 
@@ -1843,9 +1861,11 @@ async function handleExportRoom(req, res, roomId) {
  * 合計の上限を超えたぶんはURLのまま残す（巨大なファイルを書き出せなくするより、
  * 戻せるものだけでも戻せる方がよい）。
  *
+ * @param {number} limitBytes 埋め込んでよい合計バイト数。呼び出し側が、設定した上限と
+ *   そのときのメモリの残りから決める（handleExportRoom参照）。
  * @returns {Promise<{ state: object, embedded: number, skipped: number }>}
  */
-async function embedStateImages(roomId, state) {
+async function embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES) {
   let embedded = 0;
   let skipped = 0;
   if (!isR2Configured() || !state || typeof state !== 'object') return { state, embedded, skipped };
@@ -1861,7 +1881,7 @@ async function embedStateImages(roomId, state) {
       let value = image;
       try {
         const object = await getObject(key);
-        if (totalBytes + object.body.length > MAX_EXPORT_EMBED_BYTES) {
+        if (totalBytes + object.body.length > limitBytes) {
           skipped += 1;
         } else {
           totalBytes += object.body.length;
@@ -2200,6 +2220,52 @@ function rejectTooManyRequests(res) {
   sendJson(res, 429, { error: '短い時間に何度も呼び出されています。しばらく待ってからお試しください。' });
 }
 
+// --- 重い操作の入口 ---
+// 取り込み・書き出し・アップロードは、ボディや応答の大きさに比例して数百MBのピークを作る。
+// 上限（MAX_IMPORT_BYTES等）は「1回あたり」の歯止めでしかなく、同時に2本走れば足し算に
+// なってプロセスごと落ちる。ここで「今の残りメモリで足りるか」「順番待ちに入れるか」を
+// 見てから通す（memory-budget.js参照）。
+//
+// 断るときは503にする。429（回数制限）と違って利用者の側に非は無く、時間を置けば必ず
+// 通るためで、Retry-Afterで待つ目安も返す。
+
+// 読み込む量。Content-Lengthが分かるならそれ、分からない（チャンク送信）なら上限を
+// 悲観的に見積もる。通常のブラウザからの送信は必ず前者を通る。
+function declaredBodyBytes(req, fallbackBytes) {
+  const declared = Number(req.headers['content-length']);
+  return Number.isFinite(declared) && declared >= 0 ? declared : fallbackBytes;
+}
+
+// @param {number} hardMaxBytes この経路がそもそも受け取れる上限（MAX_IMPORT_BYTES等）。
+//   これを超える申告は、待っても小さくならない＝時間で解けないので、混雑扱い（503）にせず
+//   ハンドラへ通してそちらの413（大きすぎます）を返させる。retryable付きの503を返すと、
+//   ブラウザ側が「混んでいるだけ」と受け取って送り直してしまう（js/image-upload.jsのfetchUpload）。
+async function withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity) {
+  if (bodyBytes > hardMaxBytes) {
+    await handler();
+    return;
+  }
+
+  const slot = await acquireHeavySlot(kind, bodyBytes);
+
+  if (!slot.ok) {
+    const message = slot.reason === 'memory'
+      ? 'サーバーのメモリに余裕がないため、この大きさのデータは今は受け取れません。'
+        + '時間を置くか、データを小さくしてからお試しください。'
+      : '今ほかの読み込み・書き出しが混み合っています。少し待ってからもう一度お試しください。';
+    console.warn(`[server] 重い操作(${kind})を断りました: ${slot.reason}`
+      + (slot.reason === 'memory' ? `（必要 ${Math.floor(slot.need / 1024 / 1024)}MB / 残り ${Math.floor(slot.room / 1024 / 1024)}MB）` : ''));
+    sendJson(res, 503, { error: message, retryable: true }, { 'Retry-After': String(slot.retryAfterSec) });
+    return;
+  }
+
+  try {
+    await handler();
+  } finally {
+    slot.release();
+  }
+}
+
 await migrateLegacyStateIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
@@ -2212,7 +2278,9 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/rooms' && req.method === 'POST') {
     if (exceedsRateLimit(req, 'createRoom')) { rejectTooManyRequests(res); return; }
-    await handleCreateRoom(req, res);
+    // importedStateを載せられるため、ここが一番大きなボディを読む経路になる
+    await withHeavySlot(req, res, 'import', declaredBodyBytes(req, MAX_IMPORT_BYTES),
+      () => handleCreateRoom(req, res), MAX_IMPORT_BYTES);
     return;
   }
 
@@ -2225,7 +2293,11 @@ const httpServer = http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/rooms/') && url.pathname.endsWith('/export') && req.method === 'POST') {
     if (exceedsRateLimit(req, 'export')) { rejectTooManyRequests(res); return; }
     const roomId = url.pathname.slice('/api/rooms/'.length, -'/export'.length);
-    await handleExportRoom(req, res, decodeURIComponent(roomId));
+    // 書き出しはボディではなく応答が大きい。どれだけ埋め込むかは残りの予算を見て
+    // handleExportRoom側が決めるので（embedStateImagesのlimitBytes）、ここで押さえるのは
+    // 画像を除いた状態そのもののぶん。
+    await withHeavySlot(req, res, 'export', EXPORT_BASE_BYTES,
+      () => handleExportRoom(req, res, decodeURIComponent(roomId)));
     return;
   }
 
@@ -2243,7 +2315,8 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/audio' && req.method === 'POST') {
     if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
-    await handleAudioUpload(req, res);
+    await withHeavySlot(req, res, 'upload', declaredBodyBytes(req, MAX_AUDIO_BYTES),
+      () => handleAudioUpload(req, res), MAX_AUDIO_BYTES);
     return;
   }
 
@@ -2255,13 +2328,16 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/image' && req.method === 'POST') {
     if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
-    await handleImageUpload(req, res);
+    await withHeavySlot(req, res, 'upload', declaredBodyBytes(req, MAX_IMAGE_BYTES),
+      () => handleImageUpload(req, res), MAX_IMAGE_BYTES);
     return;
   }
 
   if (url.pathname === '/api/image/copy' && req.method === 'POST') {
     if (exceedsRateLimit(req, 'upload')) { rejectTooManyRequests(res); return; }
-    await handleImageCopy(req, res);
+    // ボディは複製元のURLだけで小さいが、R2から実体を読むぶんメモリを使う
+    await withHeavySlot(req, res, 'copy', MAX_IMAGE_BYTES,
+      () => handleImageCopy(req, res));
     return;
   }
 
@@ -2283,6 +2359,11 @@ const httpServer = http.createServer(async (req, res) => {
 // 同時に受け取るだけでメモリを使い切る。取り込み（REPLACE_STATE）が最大のメッセージ
 // なので、その枠に少しの余裕を足した値にする。超えたフレームはws側が接続を閉じる。
 const WS_MAX_PAYLOAD_BYTES = MAX_IMPORT_BYTES + 1024 * 1024;
+
+// これを超えるフレームは、処理する前にメモリの残りを確かめる（ws.on('message')参照）。
+// 通常の操作（コマの移動・チャット1行）は数百バイトなので、ここに引っかかるのは
+// 取り込みだけ。小さいメッセージまで毎回memoryUsage()を呼ぶと、そちらが無駄になる。
+const WS_HEAVY_FRAME_BYTES = 512 * 1024;
 
 // 1接続あたりのメッセージ流量。1操作ごとに状態の保存（Redisへの書き込み）が走るため、
 // 連打されると課金と帯域がそのまま伸びる。人間の操作としてはこれで十分足りる。
@@ -2443,6 +2524,22 @@ wss.on('connection', async (ws, req) => {
 
   ws.on('message', (data) => {
     if (exceedsMessageRate()) return;
+
+    // 大きなフレーム（＝取り込み。REPLACE_STATE）は、この先のtoString()とJSON.parse()で
+    // フレーム自体の3〜4倍のメモリを追加で使う。フレームはws側が既に受け取り終えているので
+    // ここで節約できるのはその複製分だけだが、落ちるかどうかを分けるのはまさにそこ。
+    //
+    // HTTP側（withHeavySlot）と違って順番待ちにはしない。待つ間もフレームを抱えたままで、
+    // 待つこと自体がメモリを空けないため。送り手には現在の状態を配り直して整合を戻す
+    // （送り手のタブはローカルで置き換え済み。js/net-sync.jsのreplaceState参照）。
+    if (data.length > WS_HEAVY_FRAME_BYTES && !hasRoomFor('import', data.length)) {
+      console.warn(`[server] ${roomId}: メモリに余裕がないため大きなメッセージ`
+        + `（${Math.floor(data.length / 1024 / 1024)}MB）を処理せず捨てました`);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'RESYNC', state: entry.store.state }));
+      }
+      return;
+    }
 
     let message;
     try {
@@ -2791,4 +2888,7 @@ httpServer.listen(PORT, () => {
   if (isR2Configured()) {
     console.log(`[server] 1部屋あたりのファイル合計の上限: ${Math.floor(MAX_ROOM_STORAGE_BYTES / 1024 / 1024)}MB`);
   }
+  // メモリ上限の検出を誤ると、断りすぎ（機能が使えない）か断らなすぎ（OOMで全部屋切断）の
+  // どちらかになる。実際に効いている値を必ずログに出す（memory-budget.js参照）。
+  console.log(`[server] ${describeBudget()}`);
 });

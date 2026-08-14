@@ -94,7 +94,10 @@ function buildBoardRow(tokenData, myId) {
 
   Object.entries(tokenData.parameters || {})
     // visible: 一覧に出すかどうか（全員共通）。出さないものは行ごと消える。
-    .filter(([, param]) => param.visible !== false)
+    // roundOnly: 戦闘中（ラウンド進行中）にだけ意味を持つ値。進行していない間は同じく
+    // 行ごと出さない（シノビガミの「コスト計」。js/parameters/paramFactory.js参照）。
+    // 2つはANDで、visible:falseのものは戦闘中でも出ない。
+    .filter(([, param]) => param.visible !== false && (!param.roundOnly || store.state.round?.active))
     .forEach(([paramId, param]) => {
       const paramRow = document.createElement('div');
       paramRow.className = 'character-list-param-row';

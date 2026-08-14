@@ -1,11 +1,11 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 671
+lines: 675
 exports: 4
 imported_by: 1
 api_sha: 345370e97d9d
 prose_sha: 345370e97d9d
-generated: 2026-08-13
+generated: 2026-08-14
 tags: [codemap]
 ---
 
@@ -27,8 +27,8 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 26 | const | SKILL_TABLE_COMPONENT_KEY | `SKILL_TABLE_COMPONENT_KEY` | キャラクターの components に特技表を保存するときのキー。 |
 | 118 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` |  |
-| 270 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
-| 656 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 274 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
+| 660 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（21）
 
@@ -40,24 +40,24 @@ tags: [codemap]
 | 45 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 6 |  |
 | 64 | pickCheckOption | `pickCheckOption(rawOptions, key, autoValue)` | 7 |  |
 | 86 | resolveShinobigamiCheck | `resolveShinobigamiCheck({ rawOptions, targetNumber, getParam })` | 31 |  |
-| 185 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
-| 197 | computePlotValue | `computePlotValue(context)` | 4 |  |
-| 203 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
-| 208 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
-| 223 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 11 |  |
-| 236 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
-| 254 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
-| 313 | readNinpouList | `readNinpouList(components)` | 3 |  |
-| 332 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
-| 343 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
-| 350 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
-| 361 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
-| 378 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice })` | 100 |  |
-| 484 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 3 |  |
-| 494 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 30 |  |
-| 530 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
-| 617 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 3 |  |
-| 637 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 189 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
+| 201 | computePlotValue | `computePlotValue(context)` | 4 |  |
+| 207 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
+| 212 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
+| 227 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 11 |  |
+| 240 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
+| 258 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
+| 317 | readNinpouList | `readNinpouList(components)` | 3 |  |
+| 336 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
+| 347 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
+| 354 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
+| 365 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
+| 382 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice })` | 100 |  |
+| 488 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 3 |  |
+| 498 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 30 |  |
+| 534 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
+| 621 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 3 |  |
+| 641 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 

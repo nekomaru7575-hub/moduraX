@@ -828,6 +828,11 @@
       cursor: default;
     }
 
+    /* ログ＋チャット欄の縦並び。高さの配分は固定で、ここ自体はスクロールしない。
+       スクロールするのは中のログ（.log-container）だけ。
+       以前は境目をドラッグして高さを変えられたが（3分割だった頃の名残）、各段に
+       固定pxが入る仕組みだったため、合計が枠に収まらないとここに縦スクロールバーが
+       出てしまっていた（画面の右端に出る、誰も頼んでいないバーの正体）。 */
     .control-area {
       flex: 3;
       display: flex;
@@ -835,14 +840,15 @@
       gap: 15px;
       height: 100%;
       min-width: 320px;
-      overflow-y: auto;
+      overflow: hidden;
     }
 
-    /* チャット送信欄＋チャットパレットの統合区画。ログとの間のみリサイズ可能 */
+    /* チャット送信欄。中身（選択欄・入力欄・記入中の表示）の高さそのままで下に置く */
     .chat-send-panel {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      flex: 0 0 auto;
       min-height: 0;
     }
 
@@ -1308,29 +1314,6 @@
     }
 
     /* ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整するためのハンドル */
-    .resize-handle {
-      flex: 0 0 10px;
-      cursor: row-resize;
-      position: relative;
-      touch-action: none;
-    }
-
-    .resize-handle::after {
-      content: '';
-      position: absolute;
-      left: 25%;
-      right: 25%;
-      top: 4px;
-      height: 2px;
-      background-color: #444;
-      border-radius: 1px;
-    }
-
-    .resize-handle:hover::after,
-    .resize-handle.dragging::after {
-      background-color: #007acc;
-    }
-
     .panel {
       background-color: #2a2a2a;
       padding: 15px;
@@ -1389,9 +1372,13 @@
       cursor: not-allowed;
     }
 
+    /* チャット欄を置いた残り全部を取る。min-height:0が無いと、中のログが伸びた分だけ
+       この段も伸びて親からはみ出す（flexの既定はmin-height:auto＝縮まない） */
     .log-section {
       display: flex;
       flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: hidden;
       box-sizing: border-box;
     }
@@ -1700,17 +1687,6 @@
         font-size: 1rem;
       }
 
-      /* ホバーが無いので、掴める場所は常に見えていないと分からない */
-      .resize-handle {
-        flex: 0 0 22px;
-      }
-
-      .resize-handle::after {
-        top: 10px;
-        height: 3px;
-        background-color: #666;
-      }
-
       .floating-panel-resize {
         width: 28px;
         height: 28px;
@@ -1903,9 +1879,9 @@
       }
 
       /* チャット（ログ＋入力欄）も中央スペースの1ビュー。開いている間は全面を使い、
-         ログが伸びて入力欄が下に付く。PC用の縦リサイズ（js/resizable-stack.js）は
-         ここでは使わない。!importantはそのインラインのflexを打ち消すため
-         （PC幅へ戻れば再び効く）。 */
+         ログが伸びて入力欄が下に付く。高さの配分そのものはPC幅と同じ（.log-sectionが
+         残り全部、.chat-send-panelは中身の高さ）なので、ここで上書きするのは
+         余白と高さの取り方だけでよい。 */
       .control-area {
         min-width: 0;
         height: auto;
@@ -1913,19 +1889,6 @@
         overflow: hidden;
         padding: 6px;
         box-sizing: border-box;
-      }
-
-      .control-area > .log-section {
-        flex: 1 1 auto !important;
-        min-height: 0;
-      }
-
-      .control-area > .chat-send-panel {
-        flex: 0 0 auto !important;
-      }
-
-      .resize-handle {
-        display: none;
       }
 
       .panel {
@@ -2080,7 +2043,7 @@
 
     <div class="control-area" id="controlArea">
       <!-- 上段：ログ＋チャットタブ。タブは入力欄に近い下側に置く -->
-      <div class="log-section" data-resizable-section="log">
+      <div class="log-section">
         <div class="log-container" id="logContainer">
           <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
         </div>
@@ -2096,8 +2059,8 @@
         </div>
       </div>
 
-      <!-- 下段：チャット送信欄＋チャットパレットを統合。ログとの間のみリサイズ可能 -->
-      <div class="chat-send-panel" data-resizable-section="chatSend">
+      <!-- 下段：チャット送信欄。高さは中身なりで、上のログが残りを取る -->
+      <div class="chat-send-panel">
         <div class="panel chat-input-panel">
           <div class="chat-input-selects">
             <select id="characterParamSelect" class="compact-select" title="参照キャラクター（{パラメータ名}の置換・送信元）">

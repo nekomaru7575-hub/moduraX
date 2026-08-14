@@ -464,6 +464,6 @@ export function buildHelpRoot(activePlugin) {
   return {
     id: 'root',
     label: '最初にもどる',
-    children: pluginNode ? [CORE_HELP, pluginNode] : [CORE_HELP]
+    children: pluginNode ? [CORE_HELP, pluginNode,whoIsDediDevi,howToEraceYou] : [CORE_HELP,whoIsDediDevi,howToEraceYou]
   };
 }

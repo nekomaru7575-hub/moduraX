@@ -466,19 +466,25 @@ computeDerivedRoomParameters(parameters, context = {}) {
 ### 形
 
 ```js
-{ key, label, value, source, locked, editable, visible }
+{ key, label, value, source, locked, editable, visible, roundOnly }
 ```
 
 `paramId` は **`` `${source}:${key}` ``**。`source` はプラグインの `id`。
 つまり `buildParameters('MYSYSTEM', [{ key: 'hp', ... }])` は `'MYSYSTEM:hp'` を作る。
 
-### 3 つのフラグ
+### 4 つのフラグ
 
 | フラグ | 既定 | `false`/`true` にすると |
 |---|---|---|
 | `locked` | `false` | `true` = ユーザーが削除できない。**かつ、既存のコマにも後から自動で補完される** |
 | `editable` | `true` | `false` = 更新ダイアログで手入力できない（自動計算値向け） |
 | `visible` | `true` | `false` = キャラクター一覧に出さない（内部レジスタ向け） |
+| `roundOnly` | `false` | `true` = ラウンド進行中だけキャラクター一覧に出す（戦闘中しか意味を持たない値向け） |
+
+> `roundOnly` と `visible` は AND。`visible: false` のものは戦闘中でも出ない。
+> シノビガミの「コスト計」（そのラウンドに使った忍法コストの合計）がこれ。
+> なお更新ダイアログの表示トグルは Core の既定パラメータ専用なので、プラグインの
+> パラメータの表示/非表示をユーザーが切り替える手段は今のところ無い。
 
 > **`locked: true` は後方互換の要**。パラメータはコマ作成時にしか配られないので、後からプラグインへ
 > パラメータを足すと既存のコマには存在しない。`locked: true` のものだけは Core が自動で補完する

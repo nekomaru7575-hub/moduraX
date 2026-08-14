@@ -1,11 +1,11 @@
 ---
 source: js/game-store.js
-lines: 2481
+lines: 2491
 exports: 27
 imported_by: 13
 api_sha: 6e391a0717f7
 prose_sha: 6e391a0717f7
-generated: 2026-08-13
+generated: 2026-08-14
 tags: [codemap]
 ---
 
@@ -49,9 +49,9 @@ tags: [codemap]
 | 587 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
 | 595 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
 | 663 | class | ImmutableStore | `ImmutableStore` |  |
-| 2382 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 2386 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 2480 | const | store | `store` |  |
+| 2392 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 2396 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 2490 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（45）
 
@@ -104,7 +104,7 @@ tags: [codemap]
 | 595 | pickNextActor | `pickNextActor(tokensState, round)` | 4 | ✓ |
 | 602 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
 | 607 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
-| 2386 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 93 | ✓ |
+| 2396 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 93 | ✓ |
 
 ## 依存
 

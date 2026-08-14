@@ -5,7 +5,6 @@ image/sample/DediDevi.png
 .gitignore
 image/sample/face.PNG
 image/sample/download20250804204224.png
-image/iconDediDevi.png
 node_modules/
 server/state.json
 server/rooms/

@@ -179,7 +179,11 @@ const SHINOBIGAMI_CHARACTER_PARAMETERS = [
   // ラベルが4文字なのは、キャラクター一覧のラベル欄（character-param-label）が56pxで、
   // 5文字だと「使用コス…」と切れるため。忍法の「コスト」欄と同じ名前にしないのは、
   // 式の中の {コスト} が忍法自身の欄を指す（js/parameters/skill/skill-formula.js）ため。
-  { key: 'usedCost', label: 'コスト計', value: 0, locked: true, editable: false, visible: true }
+  // roundOnly: 戦闘中でなければ常に0の値なので、平常時は一覧に出さない。
+  {
+    key: 'usedCost', label: 'コスト計', value: 0,
+    locked: true, editable: false, visible: true, roundOnly: true
+  }
 ];
 
 function buildShinobigamiCharacterParameters() {

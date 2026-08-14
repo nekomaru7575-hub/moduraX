@@ -1170,17 +1170,27 @@ export class ImmutableStore {
           ? `ラウンド進行を開始しました（参加者: ${participantNames}）。ラウンド1 - ${firstPhase.label}開始。`
           : `ラウンド進行を開始しました。ラウンド1 - ${firstPhase.label}開始。`;
 
+        const startedRound = {
+          ...createInitialRoundState(),
+          active: true,
+          template,
+          roundNumber: 1,
+          phaseIndex: 0,
+          participants,
+          step,
+          currentActorId
+        };
+
+        // 戦闘が始まった時点でも自動計算を引き直す。プロットの公開・ラウンドの終了と同じで、
+        // コマ自体は触っていないのに計算の前提（roundActive・ラウンド番号）が変わるため。
+        // ここを飛ばすと、シノビガミの「ラウンド」が0のまま＝ラウンド1のプロット公開前に
+        // 使った忍法のコストが数えられず、戦闘中だけ出すパラメータ（roundOnly）の表示も
+        // 次に何かが動くまで切り替わらない。
+        recomputeDerivedForRound(nextTokensState, activePlugin, startedRound);
+
         this.#commit(prevState, {
-          round: {
-            ...createInitialRoundState(),
-            active: true,
-            template,
-            roundNumber: 1,
-            phaseIndex: 0,
-            participants,
-            step,
-            currentActorId
-          },
+          tokens: nextTokensState,
+          round: startedRound,
           chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
         });
         return;

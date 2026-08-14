@@ -59,6 +59,7 @@ import { initMobileLayout } from './mobile-layout.js';
 import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, canEditChatEntry, GM_ONLY_REASON } from './room-authority.js';
+import { createHelpPanel } from './help/help-panel.js';
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -73,6 +74,8 @@ const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
 const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
+const helpTabBtn = document.getElementById('helpTabBtn');
+const helpChatEl = document.getElementById('helpChat');
 const netStatusEl = document.getElementById('netStatus');
 const typingIndicatorEl = document.getElementById('typingIndicator');
 
@@ -88,6 +91,10 @@ if (controlArea) {
 // 盤面下のカレントチャット欄（currentChatLog）は、選択中のタブに関わらずMainタブの内容だけを表示する。
 const MAIN_TAB_ID = 'main';
 let activeTabId = MAIN_TAB_ID;
+
+// 「？ヘルプ」を開いているか。ヘルプはstoreのタブではなくこのブラウザだけのUI状態で、
+// 開いている間もactiveTabIdは実在するタブのままにしておく（詳細はopenHelpの手前）。
+let helpOpen = false;
 
 let lastRenderedChatTabsRef = null;
 let lastRenderedLogTabId = null; // logContainerに最後に描画したタブID（切り替え検知用）
@@ -110,7 +117,9 @@ function renderChatTabs(state) {
   visibleChatTabs(state).forEach(tab => {
     const tabBtn = document.createElement('button');
     tabBtn.type = 'button';
-    tabBtn.className = 'chat-tab' + (tab.id === activeTabId ? ' active' : '');
+    // ヘルプを開いている間はログ欄が見えていないので、実タブの方は選択中に見せない
+    // （どちらも光っていると「今どっちを見ているのか」が分からなくなる）
+    tabBtn.className = 'chat-tab' + (tab.id === activeTabId && !helpOpen ? ' active' : '');
     // 限定公開のタブは、うっかり全体向けの発言を書き込まないよう鍵アイコンで区別する
     tabBtn.textContent = isRestricted(tab.audience) ? `🔒${tab.name}` : tab.name;
     tabBtn.title = describeAudience(tab.audience, state.participants);
@@ -132,6 +141,10 @@ function renderChatTabs(state) {
   addBtn.textContent = '+';
   addBtn.addEventListener('click', addChatTab);
   chatTabsEl.appendChild(addBtn);
+
+  // ヘルプのボタンは静的マークアップ（#helpTabBtn）なのでここでは作り直さない。
+  // 選択中の見た目だけ合わせる。
+  helpTabBtn?.classList.toggle('active', helpOpen);
 }
 
 function addChatTab() {
@@ -180,10 +193,67 @@ function ensureActiveTabVisible(state) {
 }
 
 function switchChatTab(tabId) {
+  if (helpOpen) closeHelp();
   activeTabId = tabId;
   lastRenderedLogTabId = null; // 強制的にlogContainerを描き直させる
   renderChatTabs(store.state);
   renderActiveTabLog(store.state);
+}
+
+// --- 「？ヘルプ」タブ ---
+// ヘルプはstoreのタブではなく、このブラウザだけのUI状態。activeTabIdは実在するタブの
+// ままにしておく：この画面ではtabId = activeTabIdを既定にして発言・パラメータ操作・
+// バフ・発言の編集を流す箇所が多く、架空のIDを入れると存在しないタブへ書き込みかねない。
+// 開いているかどうかはhelpOpen（宣言はactiveTabIdの隣）だけで表す。
+
+const helpPanel = helpChatEl
+  ? createHelpPanel({
+    container: helpChatEl,
+    getActivePlugin: () => store.state.room?.activePlugin ?? null
+  })
+  : null;
+
+// ヘルプ表示中はチャット欄を触れなくする（選択肢を押して読むだけの場所なので、
+// 見えていない先のタブへうっかり発言してしまう事故を防ぐ）。
+// js/read-only-form.jsのlockFormControlsは「封じたら戻さない」前提の道具なので使わない。
+const COMMAND_INPUT_PLACEHOLDER = commandInput?.placeholder ?? '';
+
+function setChatInputLocked(locked) {
+  if (commandInput) {
+    commandInput.disabled = locked;
+    commandInput.placeholder = locked ? 'ヘルプ表示中は入力できません' : COMMAND_INPUT_PLACEHOLDER;
+  }
+  if (sendBtn) sendBtn.disabled = locked;
+  if (characterParamSelect) characterParamSelect.disabled = locked;
+}
+
+function openHelp() {
+  if (!helpPanel || !helpChatEl || !logContainer) return;
+  helpOpen = true;
+  logContainer.hidden = true;
+  helpChatEl.hidden = false;
+  setChatInputLocked(true);
+  helpPanel.open(); // 開くたびにあいさつを引き直して最初の層から
+  renderChatTabs(store.state);
+}
+
+function closeHelp() {
+  if (!helpChatEl || !logContainer) return;
+  helpOpen = false;
+  helpChatEl.hidden = true;
+  logContainer.hidden = false;
+  setChatInputLocked(false);
+}
+
+if (helpTabBtn) {
+  // 押すたびに開閉する（もう一度押せば見ていたタブへ戻れる）
+  helpTabBtn.addEventListener('click', () => {
+    if (helpOpen) {
+      switchChatTab(activeTabId); // closeHelp + ログの描き直し
+    } else {
+      openHelp();
+    }
+  });
 }
 
 // containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
@@ -993,7 +1063,9 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     console.error(error);
     alert(`エラーが発生しました: ${error.message}`);
   } finally {
-    sendBtn.disabled = false;
+    // 振っている間にヘルプを開かれていたら、封じたままにする
+    // （素直にfalseへ戻すと、ヘルプ表示中なのに送信できてしまう）
+    sendBtn.disabled = helpOpen;
     sendBtn.textContent = "送信";
   }
 });

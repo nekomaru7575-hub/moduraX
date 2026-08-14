@@ -4,7 +4,13 @@
 
 /**
  * @param {string} source パラメータの出自（'core' / 'user' / 'plugin:DX3' など）
- * @param {{key:string,label:string,value:number,locked?:boolean,editable?:boolean,visible?:boolean}[]} definitions
+ * @param {{
+ *   key:string, label:string, value:number,
+ *   locked?:boolean, editable?:boolean, visible?:boolean, roundOnly?:boolean
+ * }[]} definitions
+ *   roundOnly: 戦闘中（ラウンド進行中）にだけ意味を持つ値。一覧では進行していない間は
+ *   行ごと出さない（js/character-panel.js）。visibleとはANDで、visible:falseのものは
+ *   戦闘中でも出ない。
  * @param {{locked?:boolean, editable?:boolean, visible?:boolean}} defaults
  *   このsource全体に適用するデフォルト値。個別のdefinitionで指定があればそちらが優先される。
  *   省略時は locked:false / editable:true / visible:true（＝全部自由に編集・削除・表示できる）。
@@ -24,7 +30,8 @@ export function buildParameters(source, definitions, defaults = {}) {
       source,
       locked: def.locked ?? defaultLocked,
       editable: def.editable ?? defaultEditable,
-      visible: def.visible ?? defaultVisible
+      visible: def.visible ?? defaultVisible,
+      roundOnly: def.roundOnly ?? false
     });
   });
   return Object.freeze(params);

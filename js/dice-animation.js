@@ -58,7 +58,7 @@ function applyVolume(box) {
   box.sounds = !isMuted() && volume > 0;
 }
 
-// 盤面の大きさはペインのリサイズ（js/resizable-stack.js）や画面の分割で変わる。
+// 盤面の大きさは画面の分割（js/mobile-layout.js）や浮動パネルの開閉で変わる。
 // ライブラリのresizeWorld()はwindowのresizeしか見ていないため、要素の大きさ自体を監視する。
 function observeStageResize(box, stage) {
   const observer = new ResizeObserver(() => {

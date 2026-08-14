@@ -18,7 +18,6 @@ import { showContextMenu } from './context-menu.js';
 import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines } from './chat-palette.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
-import { makeResizableStack } from './resizable-stack.js';
 import {
   initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound,
   sendTypingStart, sendTypingStop
@@ -72,17 +71,11 @@ const commandInputSuggestions = document.getElementById('commandInputSuggestions
 const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
-const controlArea = document.getElementById('controlArea');
 const chatTabsEl = document.getElementById('chatTabs');
 const helpTabBtn = document.getElementById('helpTabBtn');
 const helpChatEl = document.getElementById('helpChat');
 const netStatusEl = document.getElementById('netStatus');
 const typingIndicatorEl = document.getElementById('typingIndicator');
-
-// ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整できるようにする
-if (controlArea) {
-  makeResizableStack({ container: controlArea, storageKey: 'controlAreaSectionSizesV2' });
-}
 
 // --- チャットタブ ---
 // 「Main」タブは常に存在する既定タブ。他のタブはユーザーが追加する並行チャット用。

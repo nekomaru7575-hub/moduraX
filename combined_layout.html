@@ -1396,12 +1396,21 @@
       box-sizing: border-box;
     }
 
+    /* タブ列（横スクロールする）と、その外に固定する「？ヘルプ」を並べる行 */
+    .chat-tabs-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      flex-shrink: 0;
+      padding-top: 6px;
+    }
+
     .chat-tabs {
       display: flex;
       align-items: center;
       gap: 4px;
-      flex-shrink: 0;
-      padding-top: 6px;
+      flex: 1;
+      min-width: 0;
       overflow-x: auto;
     }
 
@@ -1442,6 +1451,112 @@
     .chat-tab-add:hover {
       color: #fff;
       border-color: #007acc;
+    }
+
+    /* 「？ヘルプ」タブ。他のタブと違い、選んでいなくても黄色くしておく
+       （「困ったらここ」の目印なので、探させたくない） */
+    .chat-tab-help {
+      background-color: #f0c419;
+      color: #2a2a2a;
+      border-color: #c99f0a;
+      font-weight: bold;
+    }
+
+    .chat-tab-help:hover {
+      background-color: #ffd633;
+      color: #2a2a2a;
+    }
+
+    /* .chat-tab.active が color:#fff を持っているので、ここで打ち消しておく
+       （黄色地に白文字だと読めない） */
+    .chat-tab-help.active {
+      background-color: #ffd633;
+      color: #2a2a2a;
+      border-color: #fff0a0;
+      box-shadow: inset 0 0 0 1px #fff0a0;
+    }
+
+    /* --- ヘルプの対話（js/help/help-panel.js）。枠はログ欄と同じ見た目に揃える --- */
+    .help-chat {
+      background-color: #222;
+      border: 1px solid #333;
+      border-radius: 8px;
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    .help-chat-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .help-chat-row.is-user {
+      justify-content: flex-end;
+    }
+
+    .help-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid #fff;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
+
+    .help-bubble {
+      background-color: #2f2f2f;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      max-width: 80%;
+    }
+
+    .help-chat-row.is-user .help-bubble {
+      background-color: #0b5f96;
+    }
+
+    .help-paragraph {
+      margin: 0 0 6px 0;
+      white-space: pre-wrap;
+    }
+
+    .help-paragraph:last-child {
+      margin-bottom: 0;
+    }
+
+    /* 選択肢。アバターぶん下げてボットの発言にぶら下がって見えるようにする */
+    .help-choices {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 0 0 10px 48px;
+    }
+
+    .help-choice {
+      background-color: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #f0c419;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .help-choice:hover {
+      background-color: #3a3a3a;
+    }
+
+    /* 戻る導線は本題の選択肢と区別が付くよう色を落とす */
+    .help-choice.is-back {
+      border-color: #555;
+      color: #bbb;
     }
 
     .log-container {
@@ -1602,7 +1717,8 @@
       }
 
       .chat-tab,
-      .chat-tab-add {
+      .chat-tab-add,
+      .help-choice {
         padding: 8px 12px;
       }
     }
@@ -1968,7 +2084,16 @@
         <div class="log-container" id="logContainer">
           <div class="log-item" style="color: #888;">ここにダイスログが表示されます...</div>
         </div>
-        <div class="chat-tabs" id="chatTabs"></div>
+        <!-- ヘルプの対話（js/help/help-panel.js）。ログ欄を上書きせず入れ替える：
+             logContainerは差分追記でログを描いているので、中身を横取りすると
+             その計数が壊れる -->
+        <div class="help-chat" id="helpChat" hidden></div>
+        <!-- 「？ヘルプ」はスクロールするタブ列（#chatTabs）の外に置く。タブが増えても
+             流れず右端に居座り、renderChatTabsのinnerHTML=''にも巻き込まれない -->
+        <div class="chat-tabs-row">
+          <div class="chat-tabs" id="chatTabs"></div>
+          <button type="button" class="chat-tab chat-tab-help" id="helpTabBtn" title="使い方のヘルプ">？ヘルプ</button>
+        </div>
       </div>
 
       <!-- 下段：チャット送信欄＋チャットパレットを統合。ログとの間のみリサイズ可能 -->

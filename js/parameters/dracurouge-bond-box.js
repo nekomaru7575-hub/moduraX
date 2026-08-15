@@ -156,6 +156,40 @@ function buildSlotSelect(options, currentValue, title) {
   return select;
 }
 
+// 列の見出し1行。行（addRow）と同じクラスで組み立てるので、幅の定義は1か所（CSS）で済み、
+// 枠の幅を変えても見出しが勝手にずれない。
+function buildHeadRow() {
+  const head = document.createElement('div');
+  head.className = 'bond-box-row bond-box-head';
+
+  const sideLabel = (kind, text) => {
+    const cell = document.createElement('div');
+    cell.className = `bond-box-side bond-box-side-${kind}`;
+    cell.textContent = text;
+    return cell;
+  };
+  const markLabel = (title) => {
+    const cell = document.createElement('div');
+    cell.className = 'bond-box-eternal';
+    cell.textContent = '消';
+    cell.title = title;
+    return cell;
+  };
+
+  head.appendChild(sideLabel('noir', 'ノワール'));
+  head.appendChild(markLabel('消えざる絆（ノワール）'));
+
+  const name = document.createElement('div');
+  name.className = 'bond-box-head-name';
+  name.textContent = '名称';
+  head.appendChild(name);
+
+  head.appendChild(markLabel('消えざる絆（ルージュ）'));
+  head.appendChild(sideLabel('rouge', 'ルージュ'));
+
+  return head;
+}
+
 /**
  * @param {{
  *   bonds: Array<object>,
@@ -186,6 +220,11 @@ export function showBondBox({ bonds = [], readOnly = false, onSave }) {
   const listEl = document.createElement('div');
   listEl.className = 'bond-box-list';
   form.appendChild(listEl);
+
+  // 見出し。どちら側がノワールでどちらがルージュかは色だけでは分からないので、列の名前を出す。
+  // 行と同じ .bond-box-row を土台にして各列の幅を揃え、リストの中に入れて
+  // 横スクロールに追従させる（外に置くと行だけがずれる）。縦スクロール時は貼り付く。
+  listEl.appendChild(buildHeadRow());
 
   const rows = [];
 

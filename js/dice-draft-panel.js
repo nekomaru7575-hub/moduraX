@@ -24,7 +24,8 @@ import { canOperateToken } from './room-authority.js';
 import { getPluginDiceDraftSpec } from './parameters/registry.js';
 import { normalizeSkillList } from './parameters/skill/skill-model.js';
 import {
-  acceptsDie, countDice, createDie, evaluatePlacement, moveDie, placedDice, readTargetModifier
+  acceptsDie, countDice, createDie, evaluatePlacement, filterSkillsByTab, moveDie, placedDice,
+  readTargetModifier
 } from './parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './parameters/dice-draft/dice-draft-use.js';
@@ -136,6 +137,17 @@ export function initDiceDraftPanel() {
 
   const targetChoiceKey = (skillName) => `${currentTokenId}\n${skillName}`;
   const readChosenTarget = (skillName) => chosenTargets.get(targetChoiceKey(skillName)) ?? null;
+
+  // 選んでいる絞り込み（ドラクルージュの幕：戦／常／終）。宣言の1つ目が既定。
+  // コマにも部屋にも保存しない：今どの幕を見ているかは各自の見方の問題で、
+  // 他の人と揃える必要も、部屋を出た後まで覚えておく必要も無いため。
+  let activeTabId = null;
+
+  function currentTab(spec) {
+    const tabs = spec?.skillTabs ?? [];
+    if (tabs.length === 0) return null;
+    return tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
+  }
 
   function saveDraft(draft) {
     const token = getToken();
@@ -257,6 +269,31 @@ export function initDiceDraftPanel() {
     section.appendChild(pool);
 
     return section;
+  }
+
+  // 一覧の絞り込みを選ぶ帯（ドラクルージュの 戦／常／終）。押しても状態は動かさず、
+  // 描き直すだけ（絞り込みは見た目の話で、ダイスの置き場も発動の規則も変わらない）。
+  function buildTabRow(spec, active) {
+    const row = document.createElement('div');
+    row.className = 'dice-draft-tabs';
+
+    spec.skillTabs.forEach(tab => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dice-draft-tab';
+      btn.classList.toggle('is-active', tab.id === active?.id);
+      btn.textContent = tab.label;
+      btn.title = tab.field
+        ? `${tab.label}の${spec.skillSpec.noun}だけを出す`
+        : `すべての${spec.skillSpec.noun}を出す`;
+      btn.addEventListener('click', () => {
+        activeTabId = tab.id;
+        render();
+      });
+      row.appendChild(btn);
+    });
+
+    return row;
   }
 
   // スキル1枠。正方形のカードで、上から 名前 / ダイスの置き場 / 状態 / 発動ボタン。
@@ -450,15 +487,26 @@ export function initDiceDraftPanel() {
     heading.textContent = 'スキル';
     skillSection.appendChild(heading);
 
+    // 絞り込みの帯（ドラクルージュの幕）。宣言が無いシステムでは出ない
+    const tab = currentTab(spec);
+    if (spec.skillSpec && spec.skillTabs.length > 1) {
+      skillSection.appendChild(buildTabRow(spec, tab));
+    }
+    const shownSkills = filterSkillsByTab(skills, tab);
+
     if (!spec.skillSpec) {
       const empty = document.createElement('div');
       empty.className = 'dice-draft-empty';
       empty.textContent = NO_SKILL_NOTICE;
       skillSection.appendChild(empty);
-    } else if (skills.length === 0) {
+    } else if (shownSkills.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'dice-draft-empty';
-      empty.textContent = `キャラクター更新の${spec.skillSpec.noun}一覧から登録すると、ここに並びます。`;
+      // 「1件も登録が無い」のか「この絞り込みに無いだけ」なのかで案内を変える。
+      // 同じ文言にすると、他の枠に登録済みのときに「消えた」と読めてしまう。
+      empty.textContent = skills.length === 0
+        ? `キャラクター更新の${spec.skillSpec.noun}一覧から登録すると、ここに並びます。`
+        : `「${tab.label}」に出す${spec.skillSpec.noun}はありません。`;
       skillSection.appendChild(empty);
     } else {
       // 目標値の修正（ドラクルージュの目標値修正(TB)）は全スキル共通なので一度だけ読む
@@ -467,10 +515,24 @@ export function initDiceDraftPanel() {
       // 正方形のカードを横に並べ、幅で折り返す（CSS側の .dice-draft-skill-list）
       const list = document.createElement('div');
       list.className = 'dice-draft-skill-list';
-      skills.forEach(skill => {
+      shownSkills.forEach(skill => {
+        // ドラッグの落とし先の解決には**絞り込む前の**一覧を渡す（隠れているスキルの
+        // 下のダイスも、その場所のまま扱えるようにするため）
         list.appendChild(buildSkillCard(skill, draft, spec, canEdit, skills, targetModifier));
       });
       skillSection.appendChild(list);
+
+      // 今の絞り込みから外れたスキルにダイスが乗っていたら、その旨だけ知らせる。
+      // 黙っていると「振ったダイスが減っているのに見当たらない」ことになる。
+      const hiddenDice = skills
+        .filter(skill => !shownSkills.includes(skill))
+        .reduce((sum, skill) => sum + placedDice(draft, skill.name).length, 0);
+      if (hiddenDice > 0) {
+        const note = document.createElement('div');
+        note.className = 'dice-draft-empty';
+        note.textContent = `ここに出ていない${spec.skillSpec.noun}に ${hiddenDice}個 乗っています。`;
+        skillSection.appendChild(note);
+      }
     }
     content.appendChild(skillSection);
 

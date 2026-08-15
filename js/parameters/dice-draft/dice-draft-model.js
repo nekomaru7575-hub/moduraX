@@ -129,6 +129,12 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *     modifierLabel?: string   その修正の呼び名。状態の1行に出す（既定は「修正」）
  *     floor?: number           修正を足した後の目標値の下限。段階が潰れて重なった分は1つにまとめる
  *   },
+ *   skillTabs?: Array<{ id: string, label: string, field?: string, value?: string }>
+ *                              スキル一覧の絞り込み（ドラクルージュの幕：戦／常／終）。
+ *                              2つ以上宣言するとパネルに切り替えの帯が出る。
+ *                              fieldとvalueを書くとその欄が一致するものだけ、
+ *                              書かなければ全部（「終」のような「すべて」の枠）。
+ *                              **絞るのは見た目だけ**で、置いたダイスも発動の規則も変わらない。
  *   expiresCheckPhaseOnUse?: boolean
  *                              発動したら「判定終了」を発出するか（＝そのコマの
  *                              「判定終了で消滅」バフを剥がす）。1回きりの修正を
@@ -143,7 +149,7 @@ export function createDiceDraftSpec(definition) {
   const {
     id, label, diceSides = 6, bcdiceSystem,
     skillSpec = null, requirement = null, legacyCountParameters = [],
-    expiresCheckPhaseOnUse = false
+    skillTabs = [], expiresCheckPhaseOnUse = false
   } = definition;
 
   if (!id) throw new Error('[dice-draft] idが必要です');
@@ -152,11 +158,15 @@ export function createDiceDraftSpec(definition) {
   if (requirement && !REQUIREMENT_KINDS.has(requirement.kind)) {
     throw new Error(`[dice-draft] ${id}: requirement.kindが不明です: ${requirement.kind}`);
   }
+  skillTabs.forEach(tab => {
+    if (!tab?.id || !tab?.label) throw new Error(`[dice-draft] ${id}: skillTabsにはidとlabelが必要です`);
+  });
 
   return Object.freeze({
     id, label, bcdiceSystem, skillSpec, expiresCheckPhaseOnUse,
     diceSides: Number.isInteger(diceSides) && diceSides > 0 ? diceSides : 6,
     requirement: requirement ? Object.freeze({ ...requirement }) : null,
+    skillTabs: Object.freeze(skillTabs.map(tab => Object.freeze({ ...tab }))),
     legacyCountParameters: Object.freeze(legacyCountParameters.map(entry => Object.freeze({ ...entry })))
   });
 }
@@ -179,6 +189,23 @@ function readNumberField(skill, fieldKey) {
 //              どれを狙うかは使う人が決めるので、選択肢を返して画面とコマンドに選ばせる。
 // 区切り記号は書く人によって揺れるので、見かける形は全部受ける。
 const TARGET_RANGE_PATTERN = /^(\d+)\s*[~～〜ー－–—-]\s*(\d+)$/;
+
+/**
+ * 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。
+ *
+ * 【見た目だけの操作であること】ここで外れたスキルも、乗っているダイスはそのまま残り、
+ * 発動の規則も変わらない。**この結果を readDraft の knownSkillNames へ渡さないこと**：
+ * 渡すと、絞り込みで隠れているスキルの下のダイスが「行き場を失った」と見なされて
+ * プールへ戻される（normalizeDraft）。
+ *
+ * @param {object[]} skills 正規化済みのスキル一覧
+ * @param {{id:string, label:string, field?:string, value?:string}|null} tab
+ * @returns {object[]} tabがnull、または絞り込みの指定が無ければ元の一覧のまま
+ */
+export function filterSkillsByTab(skills, tab) {
+  if (!tab?.field || tab.value === undefined || tab.value === null) return skills;
+  return skills.filter(skill => String(skill?.fields?.[tab.field] ?? '') === String(tab.value));
+}
 
 /**
  * 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。

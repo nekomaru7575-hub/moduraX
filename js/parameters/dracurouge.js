@@ -667,6 +667,14 @@ const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
     modifierLabel: 'TB',
     floor: DEED_TARGET_FLOOR
   },
+  // 幕ごとに使える行いが違うので、パネルの一覧を切り替えられるようにする。
+  // 「終」は終の幕＝戦の行いも常の行いも使えるので、絞り込みを書かない（＝すべて）。
+  // 既定は先頭の「戦」。絞るのは見た目だけで、置いたダイスも発動の規則も変わらない。
+  skillTabs: [
+    { id: 'war', label: '戦', field: 'kind', value: '戦' },
+    { id: 'common', label: '常', field: 'kind', value: '常' },
+    { id: 'end', label: '終' }
+  ],
   // 行いを発動したらそのコマの「判定終了で消滅」バフを剥がす。1回きりの目標値修正を
   // 表現するためのもので、発出するのはrunDiceDraftUse。
   //

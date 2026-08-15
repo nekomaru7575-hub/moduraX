@@ -718,6 +718,38 @@
       color: #8ec98e;
     }
 
+    /* スキル一覧の絞り込み（ドラクルージュの 戦／常／終）。パネルが狭いので折り返す */
+    .dice-draft-tabs {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    .dice-draft-tab {
+      flex: 1 1 auto;
+      min-width: 40px;
+      padding: 3px 6px;
+      background-color: #2a2a2a;
+      color: #bbb;
+      border: 1px solid #555;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    .dice-draft-tab:hover {
+      background-color: #333;
+      color: #fff;
+    }
+
+    .dice-draft-tab.is-active {
+      background-color: #2a4a2a;
+      color: #dfd;
+      border-color: #4a6a4a;
+    }
+
     /* 目標値に幅があるスキルの「どれを狙うか」。枠の幅を超えないよう横幅は目一杯にする */
     .dice-draft-target {
       flex: 0 0 auto;

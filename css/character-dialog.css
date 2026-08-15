@@ -161,6 +161,13 @@
   width: 156px;
 }
 
+/* 上限がシステム側で決まっている期間（periodのfixedMax）。入力欄と同じ位置に、
+   触れないことが分かる見た目で数字だけを出す */
+.effect-box-limit-fixed {
+  color: #ddd;
+  padding: 4px 6px;
+}
+
 .effect-box-limit-slash {
   color: #888;
 }

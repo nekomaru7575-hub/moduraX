@@ -14,7 +14,9 @@
 // 盤面のコマは移動中も毎フレームdispatchしているが、あれは座標1個だけ。こちらはcomponentsを
 // 丸ごと置き換えるので、落とした瞬間に1回だけ送る。
 
-import { store, setDiceDraftPanelController } from './board-data-driven.js';
+import {
+  store, setDiceDraftPanelController, generateBuffId, getEffectiveParameterValue
+} from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { bindDragGesture } from './drag-gesture.js';
@@ -22,12 +24,11 @@ import { canOperateToken } from './room-authority.js';
 import { getPluginDiceDraftSpec } from './parameters/registry.js';
 import { normalizeSkillList } from './parameters/skill/skill-model.js';
 import {
-  acceptsDie, consumePlacement, countDice, createDie,
-  evaluatePlacement, moveDie, placedDice
+  acceptsDie, countDice, createDie, evaluatePlacement, moveDie, placedDice
 } from './parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './parameters/dice-draft/dice-draft-roll.js';
+import { runDiceDraftUse } from './parameters/dice-draft/dice-draft-use.js';
 
-const MAIN_TAB_ID = 'main';
 const NO_PLUGIN_NOTICE = 'この部屋のシステムにはダイスドラフトがありません。';
 const NO_TOKEN_NOTICE = 'チャット欄で参照キャラクターを選ぶと、そのコマのダイスを扱えます。';
 const NO_SKILL_NOTICE = 'このシステムにはまだスキル一覧がありません。プールに溜めるところまで使えます。';
@@ -133,21 +134,6 @@ export function initDiceDraftPanel() {
     if (!token) return;
     store.dispatch('SET_COMPONENT', {
       id: token.id, componentKey: DICE_DRAFT_COMPONENT_KEY, value: draft
-    });
-  }
-
-  function logToMain(spec, token, text) {
-    store.dispatch('ADD_CHAT_MESSAGE', {
-      tabId: MAIN_TAB_ID,
-      entry: {
-        system: spec.label,
-        character: token.name || '',
-        characterId: token.id || null,
-        color: token.textColor || null,
-        command: '',
-        diceDetail: '',
-        resultText: text
-      }
     });
   }
 
@@ -302,13 +288,29 @@ export function initDiceDraftPanel() {
     status.title = result.description;
     card.appendChild(status);
 
-    const useBtn = document.createElement('button');
-    useBtn.type = 'button';
-    useBtn.className = 'dice-draft-use-btn';
-    useBtn.textContent = '発動';
-    useBtn.disabled = !canEdit || !result.ready;
-    useBtn.addEventListener('click', () => activate(skill, spec));
-    card.appendChild(useBtn);
+    // 「1回だけ」に意味があるかは規則側が決める（evaluatePlacementのsupportsPartialUse）。
+    // 一致型は1個ずつ使えるので2つ、合計型は目標に届けば1回きりなので1つ。
+    const buttons = document.createElement('div');
+    buttons.className = 'dice-draft-use-row';
+
+    const addUseBtn = (label, title, mode) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dice-draft-use-btn';
+      btn.textContent = label;
+      btn.title = title;
+      btn.disabled = !canEdit || !result.ready;
+      btn.addEventListener('click', () => activate(skill, spec, mode));
+      buttons.appendChild(btn);
+    };
+
+    if (result.supportsPartialUse) {
+      addUseBtn('1回', 'ダイス1個だけ使って1回発動する', 'one');
+      addUseBtn('全て', `乗っているダイスを全部使って${result.uses || 0}回発動する`, 'all');
+    } else {
+      addUseBtn('使用', '乗っているダイスを使って発動する', 'all');
+    }
+    card.appendChild(buttons);
 
     return card;
   }
@@ -349,25 +351,22 @@ export function initDiceDraftPanel() {
     return button;
   }
 
-  function activate(skill, spec) {
+  // 発動。規則の判定・使用回数の記録・ダイスの消費は runDiceDraftUse が持っている
+  // （チャットコマンドからも同じ関数を通すので、ここには手順を書かない）。
+  function activate(skill, spec, mode) {
     const token = getToken();
     if (!token || !canOperateToken(token)) return;
 
-    const skills = readSkills(spec, token);
-    const draft = readDraft(token.components, skills.map(item => item.name));
-    const dice = placedDice(draft, skill.name);
-    const result = evaluatePlacement(spec, skill, dice);
-    if (!result.ready) return;
-
-    // 乗っていたダイスは消費する（プールへは戻さない）
-    saveDraft(consumePlacement(draft, skill.name));
-
-    // ここが js/parameters/skill/skill-use.js の runSkillUse() を差し込む一点。
-    // 通すと使用回数の記録・使用条件の判定・修正値バフの付与・警告付きのログまで面倒を見てくれる
-    // （必要なのは dispatch / getToken / getEffectiveParameterValue / generateBuffId /
-    // onSaveSkills で、どれもこの画面から渡せる）。今はまだ通していないので、
-    // 消費したことと何回ぶんかをログに流すだけ。
-    logToMain(spec, token, `スキル発動: ${skill.name}（${result.description}）`);
+    runDiceDraftUse({
+      spec,
+      skillName: skill.name,
+      mode,
+      token,
+      dispatch: store.dispatch.bind(store),
+      getToken,
+      getEffectiveParameterValue,
+      generateBuffId
+    });
   }
 
   function showNotice(text) {

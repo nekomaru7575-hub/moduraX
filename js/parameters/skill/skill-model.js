@@ -80,9 +80,18 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
  *                             （DX3の上昇侵蝕率 → DX3:corruption）。
  *   }>,
- *   periods?: Array<{key:string, label:string}>,
+ *   periods?: Array<{key:string, label:string, fixedMax?:number|string}>,
  *                              回数制限の期間。keyはフェーズ終了のリセット
  *                              （resetSkillUsageOnPhaseEnd）で渡される名前と一致させる。
+ *                              fixedMaxを付けると上限がシステム側で決まり、利用者は直せない
+ *                              （ドラクルージュの行いは全て「ラウンド1回」）。保存済みの値も
+ *                              読み出しのたびにこの値へ揃うので、手でJSONを書き換えられても
+ *                              上限は緩まない。
+ *   allowMods?: boolean,       既定true。falseにすると「使用時の修正」を扱わない。
+ *                              modTargetsを空にするだけでは、ボックスの「その他のパラメータ」
+ *                              から全パラメータが選べてしまうため、そういうシステムはこちらで切る。
+ *   allowExpirePhase?: boolean, 既定true。falseにすると「効果時間」を扱わない。
+ *                              修正を持たないスキルには意味が無い欄なので隠せるようにしてある。
  *   modTargets?: Array<{
  *     paramId: string, label: string,
  *     extra?: { key:string, label:string, metaKey:string, hint?:string }
@@ -103,7 +112,9 @@ export function createSkillSpec(definition) {
     periods = [],
     modTargets = [],
     defaultExpirePhase = null,
-    legacyModMap = {}
+    legacyModMap = {},
+    allowMods = true,
+    allowExpirePhase = true
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -124,6 +135,8 @@ export function createSkillSpec(definition) {
     periods: Object.freeze(periods.map(period => Object.freeze({ ...period }))),
     modTargets: Object.freeze(modTargets.map(target => Object.freeze({ ...target }))),
     defaultExpirePhase,
+    allowMods,
+    allowExpirePhase,
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
     findModTarget: (paramId) => modTargetByParamId.get(paramId) ?? null
@@ -262,7 +275,11 @@ export function normalizeSkill(spec, raw) {
     const limit = rawCounts?.[period.key];
     counts[period.key] = {
       current: Math.max(0, Math.round(toNumber(limit?.current))),
-      max: normalizeLimitMax(limit?.max)
+      // fixedMaxを宣言した期間は保存値を読まずに宣言値へ揃える。読み出しのたびに直すので、
+      // 保存済みデータや手で書き換えられたJSONでも上限が緩まない。
+      max: period.fixedMax !== undefined && period.fixedMax !== null
+        ? normalizeLimitMax(period.fixedMax)
+        : normalizeLimitMax(limit?.max)
     };
   });
 
@@ -270,9 +287,13 @@ export function normalizeSkill(spec, raw) {
     ? raw.limits.conditions.map(normalizeCondition).filter(c => c.left !== '' || c.right !== '')
     : [];
 
-  const mods = Array.isArray(raw?.mods)
-    ? raw.mods.map(mod => normalizeMod(spec, mod)).filter(Boolean)
-    : modsFromLegacyCombo(spec, raw?.combo);
+  // 修正を扱わないシステムでは、保存済みのmodsが残っていても捨てる。残したままだと
+  // runSkillUseが画面に出ていない修正でバフを撒いてしまう。
+  const mods = !spec.allowMods
+    ? []
+    : (Array.isArray(raw?.mods)
+      ? raw.mods.map(mod => normalizeMod(spec, mod)).filter(Boolean)
+      : modsFromLegacyCombo(spec, raw?.combo));
 
   const storedExpirePhase = typeof raw?.expirePhase === 'string' && EXPIRE_PHASE_KEYS.has(raw.expirePhase)
     ? raw.expirePhase
@@ -282,7 +303,7 @@ export function normalizeSkill(spec, raw) {
     name: typeof raw?.name === 'string' ? raw.name : '',
     note: typeof raw?.note === 'string' ? raw.note : '',
     fields,
-    expirePhase: storedExpirePhase,
+    expirePhase: spec.allowExpirePhase ? storedExpirePhase : '',
     limits: { counts, conditions },
     mods
   };

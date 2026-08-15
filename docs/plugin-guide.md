@@ -528,6 +528,28 @@ function handleMyChatCommand(rawInput, { token, dispatch, rollBCDice }) {
 }
 ```
 
+**発動**（乗せたダイスを使ってスキルを使う）は `runDiceDraftUse()`。パネルの発動ボタンも
+これを呼ぶので、チャットコマンドから呼べば **ボタンと完全に同じ規則で動く**。
+
+```js
+import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
+
+const USE_PATTERN = buildSkillUseCommandPattern(MY_SKILL_SPEC);  // 「行い使用(名前)」
+
+const match = input.match(USE_PATTERN);
+if (match) {
+  runDiceDraftUse({
+    spec: MY_DRAFT_SPEC, skillName: match[1].trim(), token, dispatch,
+    getEffectiveParameterValue, generateBuffId, chatCommand: input
+  });
+  return true;
+}
+```
+
+中では `runSkillUse()`（[6.1](#61-スキル枠組みjsparametersskill)）を回数ぶん呼ぶので、
+使用回数の記録・上限の判定・ログまで面倒を見てくれる。**上限で弾かれた回のダイスは減らない。**
+`mode: 'one'` を渡すと1回ぶんだけ使う（一致型で1個だけ消費したいとき）。
+
 プールは `token.components.diceDraft` に入る（`{ pool: [die], placements: { [スキル名]: [die] } }`、
 `die` は `{ id, sides, value }`）。**ダイス1個は必ずプールかいずれか1つのスキルの下にだけ存在する**
 という不変条件で組まれているので、直接書き換えず `dice-draft-model.js` の関数を通すこと。
@@ -667,6 +689,14 @@ const MY_SKILL_SPEC = createSkillSpec({
 
 **`availableWhen(fields)`**: その欄がそのスキルで意味を持つ条件。偽なら入力させず、式にも
 コストにも数えない。ただし **保存値は消さない**（条件が戻ったときに入れ直させないため）。
+
+**使わない仕組みは畳める**。既定は全部 `true` 相当なので、宣言しなければ今までどおり。
+
+| 宣言 | 効果 |
+|---|---|
+| `periods: [{ key, label, fixedMax: 1 }]` | 上限をシステム側で固定し、利用者に触らせない（ドラクルージュの行いは全て「ラウンド1回」）。**読み出しのたびに宣言値へ揃える**ので、保存済みデータや手で書き換えられた JSON でも上限は緩まない |
+| `allowMods: false` | 「使用時の修正」を扱わない。**`modTargets` を空にするだけでは足りない**：ボックスの「その他のパラメータ」から全パラメータが選べてしまう。保存済みの修正も読み出しで捨てるので、画面に出ていない修正でバフが飛ぶこともない |
+| `allowExpirePhase: false` | 「効果時間」を扱わない。修正を持たないスキルには意味が無い欄なので隠せる |
 
 ### 6.2 特技表（`js/parameters/saikoro-fiction/`）
 

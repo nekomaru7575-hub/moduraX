@@ -674,14 +674,24 @@
       height: 26px;
     }
 
-    .dice-draft-use-btn {
+    /* 発動ボタンの行。一致型は「1回」「全て」の2つ、合計型は「使用」1つ。
+       どちらでも高さが変わらないよう、幅は等分にして折り返さない。 */
+    .dice-draft-use-row {
       flex: 0 0 auto;
-      padding: 2px 6px;
+      display: flex;
+      gap: 3px;
+    }
+
+    .dice-draft-use-btn {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 2px 2px;
       background-color: #2a4a2a;
       color: #dfd;
       border: 1px solid #4a6a4a;
       border-radius: 4px;
       font-size: 0.72rem;
+      white-space: nowrap;
       cursor: pointer;
     }
 

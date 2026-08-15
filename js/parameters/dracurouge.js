@@ -25,6 +25,11 @@ import { lockFormControls } from '../read-only-form.js';
 import { BOND_COMPONENT_KEY, normalizeBondList, showBondBox } from './dracurouge-bond-box.js';
 import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
+import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
+import {
+  buildSkillUseCommandPattern, createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd
+} from './skill/skill-model.js';
+import { showSkillBox } from './skill/skill-box.js';
 
 const PLUGIN_ID = 'DRACUROUGE';
 
@@ -76,6 +81,39 @@ const PC_PARAM_IDS = PC_PARAMETERS.map(paramIdOf);
 const NPC_PARAM_IDS = NPC_PARAMETERS.map(paramIdOf);
 // 種別によって一覧への出し入れが切り替わるパラメータ全部（種別そのものは常に非表示）
 const TYPED_PARAM_IDS = [...PC_PARAM_IDS, ...NPC_PARAM_IDS];
+
+// 行い。名称と効果は枠組みの組み込み欄（name / note）なので宣言しない。
+// 目標値はダイスドラフト（合計型）の目標値になる：ここに書いた数値以上の目を積めば発動できる。
+//
+// 使用制限はこのシステムでは全て「ラウンド1回」なので、利用者に上限を触らせない
+// （periodのfixedMax）。修正値も効果時間も持たないので、その欄ごと出さない
+// （allowMods / allowExpirePhase）。modTargetsを空にするだけでは、ボックスの
+// 「その他のパラメータ」から全パラメータが選べてしまう。
+const DEED_COMPONENT_KEY = 'deeds';
+
+const DEED_SPEC = createSkillSpec({
+  id: 'dracurouge-deed',
+  noun: '行い',
+  componentKey: DEED_COMPONENT_KEY,
+  fields: [
+    {
+      key: 'kind', label: '種別', type: 'select', className: 'effect-box-level',
+      options: [{ value: '戦', label: '戦' }, { value: '常', label: '常' }]
+    },
+    { key: 'target', label: '目標値', type: 'number', className: 'effect-box-level' },
+    { key: 'range', label: '間合', type: 'text', className: 'effect-box-timing' }
+  ],
+  periods: [{ key: 'round', label: 'ラウンド', fixedMax: 1 }],
+  allowMods: false,
+  allowExpirePhase: false
+});
+
+const DEED_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DEED_SPEC);
+
+// componentsから正規形の行い一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
+function readDracurougeDeeds(components) {
+  return normalizeSkillList(DEED_SPEC, components?.[DEED_COMPONENT_KEY] ?? []);
+}
 
 function buildDracurougeCharacterParameters() {
   return buildParameters(PLUGIN_ID, [CHAR_TYPE_PARAMETER, ...PC_PARAMETERS, ...NPC_PARAMETERS]);
@@ -258,13 +296,40 @@ function renderDracurougeCharacterPanel({
     if (row) row.input.value = after;
   }
 
-  // --- 絆一覧（ボックス）---
+  // --- 行い一覧・絆一覧（ボックス）---
   // 既存キャラクターの更新時のみ開ける（新規作成時はまだcomponentsを持たないため対象外。
   // 既存プラグインのボックス系ボタンと同じ扱い）。
+  let deedBtn = null;
   let bondBtn = null;
   if (isEditing && onComponentChange) {
     const readComponents = () => (getComponents ? getComponents() : components) ?? {};
     const readBonds = () => normalizeBondList(readComponents()[BOND_COMPONENT_KEY]);
+    const readDeeds = () => readDracurougeDeeds(readComponents());
+
+    deedBtn = document.createElement('button');
+    deedBtn.type = 'button';
+    deedBtn.className = 'dialog-add-row-btn';
+    deedBtn.style.marginTop = '8px';
+
+    const updateDeedBtnLabel = () => {
+      deedBtn.textContent = `${DEED_SPEC.noun}一覧を開く（${readDeeds().length}件）`;
+    };
+    updateDeedBtnLabel();
+
+    deedBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: DEED_SPEC,
+        skills: readDeeds(),
+        // 式に書ける{パラメータ名}の検証・提示に使う（修正は持たないので対象選択には使わない）
+        parameters,
+        readOnly: !canEdit,
+        onSave: (nextDeeds) => {
+          onComponentChange(DEED_COMPONENT_KEY, nextDeeds);
+          updateDeedBtnLabel();
+        }
+      });
+    });
+    container.appendChild(deedBtn);
 
     bondBtn = document.createElement('button');
     bondBtn.type = 'button';
@@ -294,7 +359,7 @@ function renderDracurougeCharacterPanel({
   // 表示だけの人には入力を固め、ボックスを開くボタンだけ残す
   // （ボックスの中身はreadOnlyで表示専用になる）。
   if (!canEdit) {
-    lockFormControls(container, { keep: [bondBtn] });
+    lockFormControls(container, { keep: [deedBtn, bondBtn] });
   }
 
   return {
@@ -335,44 +400,72 @@ function renameHpToExistence({ readParameters, dispatch, tokenId }) {
 }
 
 // ダイスドラフト。treat(n) で振った目がプールへ溜まり、パネル（js/dice-draft-panel.js）で
-// スキルへ割り当てる。
-//
-// このシステムのスキルは「合計が目標値以上で使用」＝ requirement の kind:'sum' になるが、
-// ドラクルージュにはまだスキル一覧の仕組み自体が無いので skillSpec も requirement も未設定。
-// パネルはプールだけを見せる。スキル一覧（createSkillSpecで目標値の欄を持つもの）を作ったら、
-// ここへ skillSpec と requirement: { kind:'sum', targetField:'目標値の欄のkey' } を足すだけで
-// 割り当てまで動く。
+// 行いへ割り当てる。行いの「目標値」がそのまま合計の目標になる（kind:'sum'）。
 const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   id: 'dracurouge-draft',
   label: '血の宴',
   diceSides: 6,
-  bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM
+  bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM,
+  skillSpec: DEED_SPEC,
+  requirement: { kind: 'sum', targetField: 'target' }
 });
 
 const TREAT_COMMAND_PATTERN = /^treat\((\d+)\)$/i;
 
 function looksLikeDracurougeChatCommand(rawInput) {
-  return TREAT_COMMAND_PATTERN.test(String(rawInput).trim());
+  const input = String(rawInput).trim();
+  return TREAT_COMMAND_PATTERN.test(input) || DEED_USE_COMMAND_PATTERN.test(input);
 }
 
-// 個数の検証・コマ未選択・ダイスを振れない画面の案内は runDiceDraftRoll がまとめて行うので、
-// ここは書式の判定だけをする。
-function handleDracurougeChatCommand(rawInput, { token, dispatch, rollBCDice }) {
+// treat(n) … ダイスを振ってプールへ入れる
+// 行い使用(名前) … 乗せたダイスで行いを発動する（パネルの「使用」ボタンと同じ経路）
+//
+// 個数の検証・コマ未選択・ダイスを振れない画面の案内・使えない理由の説明は、それぞれ
+// runDiceDraftRoll と runDiceDraftUse がまとめて行うので、ここは書式の判定だけをする。
+function handleDracurougeChatCommand(rawInput, context) {
   const input = String(rawInput).trim();
-  const match = input.match(TREAT_COMMAND_PATTERN);
-  if (!match) return false;
+  const { token, dispatch, rollBCDice, getEffectiveParameterValue, generateBuffId } = context;
 
-  runDiceDraftRoll({
-    spec: DRACUROUGE_DRAFT_SPEC,
-    token,
-    dispatch,
-    rollBCDice,
-    count: Number(match[1]),
-    chatCommand: input
-  });
+  const treat = input.match(TREAT_COMMAND_PATTERN);
+  if (treat) {
+    runDiceDraftRoll({
+      spec: DRACUROUGE_DRAFT_SPEC,
+      token,
+      dispatch,
+      rollBCDice,
+      count: Number(treat[1]),
+      knownSkillNames: readDracurougeDeeds(token?.components).map(deed => deed.name),
+      chatCommand: input
+    });
+    // 書式が合った時点で必ずtrueを返す（falseだとCoreがただのダイスコマンドとして再解釈する）
+    return true;
+  }
 
-  // 書式が合った時点で必ずtrueを返す（falseだとCoreがただのダイスコマンドとして再解釈する）
-  return true;
+  const use = input.match(DEED_USE_COMMAND_PATTERN);
+  if (use) {
+    runDiceDraftUse({
+      spec: DRACUROUGE_DRAFT_SPEC,
+      skillName: use[1].trim(),
+      token,
+      dispatch,
+      getEffectiveParameterValue,
+      generateBuffId,
+      chatCommand: input
+    });
+    return true;
+  }
+
+  return false;
+}
+
+// ラウンド終了で行いの使用回数（periods: round）を戻す
+// （js/parameters/stella-knights.jsのresetStellaKnightsComponentsOnPhaseEndと同型）。
+// 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
+function resetDracurougeComponentsOnPhaseEnd(components, phase) {
+  const deeds = components?.[DEED_COMPONENT_KEY];
+  const nextDeeds = resetSkillUsageOnPhaseEnd(DEED_SPEC, deeds, phase);
+
+  return nextDeeds === deeds ? components : { ...components, [DEED_COMPONENT_KEY]: nextDeeds };
 }
 
 export const DRACUROUGE_PLUGIN = {
@@ -382,6 +475,7 @@ export const DRACUROUGE_PLUGIN = {
   renderCharacterPanel: renderDracurougeCharacterPanel,
   handleChatCommand: handleDracurougeChatCommand,
   looksLikeOwnChatCommand: looksLikeDracurougeChatCommand,
+  resetComponentsOnPhaseEnd: resetDracurougeComponentsOnPhaseEnd,
   diceDraft: DRACUROUGE_DRAFT_SPEC,
   bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM
   // computeDerivedParametersは実装しない。潤い・渇きは利用者が手でも増減させる値で、

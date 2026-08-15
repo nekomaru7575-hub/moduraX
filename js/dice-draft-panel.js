@@ -265,30 +265,21 @@ export function initDiceDraftPanel() {
     return section;
   }
 
-  function buildSkillRow(skill, draft, spec, canEdit, skills) {
+  // スキル1枠。正方形のカードで、上から 名前 / ダイスの置き場 / 状態 / 発動ボタン。
+  // 名前も状態も長くなりうるので、はみ出す分は省略記号に逃がす（枠の形を崩さないため。
+  // 全文はtitle属性で読める）。
+  function buildSkillCard(skill, draft, spec, canEdit, skills) {
     const dice = placedDice(draft, skill.name);
     const result = evaluatePlacement(spec, skill, dice);
 
-    const row = document.createElement('div');
-    row.className = 'dice-draft-skill';
+    const card = document.createElement('div');
+    card.className = 'dice-draft-skill';
 
-    const head = document.createElement('div');
-    head.className = 'dice-draft-skill-head';
-
-    const name = document.createElement('span');
+    const name = document.createElement('div');
     name.className = 'dice-draft-skill-name';
     name.textContent = skill.name;
-    head.appendChild(name);
-
-    const useBtn = document.createElement('button');
-    useBtn.type = 'button';
-    useBtn.className = 'dice-draft-use-btn';
-    useBtn.textContent = '発動';
-    useBtn.disabled = !canEdit || !result.ready;
-    useBtn.addEventListener('click', () => activate(skill, spec));
-    head.appendChild(useBtn);
-
-    row.appendChild(head);
+    name.title = skill.name;
+    card.appendChild(name);
 
     const slot = document.createElement('div');
     slot.className = 'dice-draft-slot';
@@ -297,20 +288,29 @@ export function initDiceDraftPanel() {
     if (dice.length === 0) {
       const empty = document.createElement('span');
       empty.className = 'dice-draft-empty';
-      empty.textContent = 'ここへドラッグ';
+      empty.textContent = 'ドラッグ';
       slot.appendChild(empty);
     } else {
       dice.forEach(die => slot.appendChild(buildDie(die, spec, skills, canEdit)));
     }
-    row.appendChild(slot);
+    card.appendChild(slot);
 
     const status = document.createElement('div');
     status.className = 'dice-draft-status';
     status.classList.toggle('is-ready', result.ready);
     status.textContent = result.description;
-    row.appendChild(status);
+    status.title = result.description;
+    card.appendChild(status);
 
-    return row;
+    const useBtn = document.createElement('button');
+    useBtn.type = 'button';
+    useBtn.className = 'dice-draft-use-btn';
+    useBtn.textContent = '発動';
+    useBtn.disabled = !canEdit || !result.ready;
+    useBtn.addEventListener('click', () => activate(skill, spec));
+    card.appendChild(useBtn);
+
+    return card;
   }
 
   // ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行
@@ -423,9 +423,13 @@ export function initDiceDraftPanel() {
       empty.textContent = `キャラクター更新の${spec.skillSpec.noun}一覧から登録すると、ここに並びます。`;
       skillSection.appendChild(empty);
     } else {
+      // 正方形のカードを横に並べ、幅で折り返す（CSS側の .dice-draft-skill-list）
+      const list = document.createElement('div');
+      list.className = 'dice-draft-skill-list';
       skills.forEach(skill => {
-        skillSection.appendChild(buildSkillRow(skill, draft, spec, canEdit, skills));
+        list.appendChild(buildSkillCard(skill, draft, spec, canEdit, skills));
       });
+      skillSection.appendChild(list);
     }
     content.appendChild(skillSection);
 

@@ -620,40 +620,68 @@
       transform: scale(1.1);
     }
 
+    /* スキルは正方形のカードを横に連ね、パネルの幅で折り返す。
+       1fr で伸ばさず固定幅にしてあるのは、伸ばすと aspect-ratio で高さまで一緒に伸びて
+       パネルの半分がカード1枚で埋まってしまうため。 */
+    .dice-draft-skill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
     .dice-draft-skill {
+      flex: 0 0 auto;
+      /* 枠線と余白を含めて116px四方。border-boxを明示しないとこのページの既定
+         （content-box）で余白のぶんだけ広がり、1行に並ぶ枚数がずれる。
+         116pxは「名前・ダイス1段・状態・発動ボタン」がちょうど収まる最小の高さで、
+         これより小さくするとダイスの段が26pxを割ってスクロールが出る。 */
+      box-sizing: border-box;
+      width: 116px;
+      aspect-ratio: 1;
       display: flex;
       flex-direction: column;
       gap: 3px;
-      padding: 6px;
+      padding: 5px;
+      overflow: hidden;
       background-color: #333;
       border: 1px solid #444;
       border-radius: 5px;
     }
 
-    .dice-draft-skill-head {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
+    /* 名前も状態も枠より長くなりうる。折り返して高さを増やすと正方形が崩れるので、
+       1行に収めて省略記号へ逃がす（全文は title で読める）。 */
     .dice-draft-skill-name {
-      flex: 1;
-      min-width: 0;
+      flex: 0 0 auto;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: #fff;
+    }
+
+    /* カードの中で余った高さを全部もらう。ダイスが増えたらここだけが縦にスクロールする */
+    .dice-draft-skill .dice-draft-slot {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      align-content: flex-start;
+      gap: 3px;
+      padding: 3px;
+    }
+
+    .dice-draft-skill .dice-draft-die {
+      width: 26px;
+      height: 26px;
     }
 
     .dice-draft-use-btn {
       flex: 0 0 auto;
-      padding: 3px 10px;
+      padding: 2px 6px;
       background-color: #2a4a2a;
       color: #dfd;
       border: 1px solid #4a6a4a;
       border-radius: 4px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       cursor: pointer;
     }
 
@@ -668,7 +696,11 @@
     }
 
     .dice-draft-status {
-      font-size: 0.7rem;
+      flex: 0 0 auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.62rem;
       color: #999;
     }
 

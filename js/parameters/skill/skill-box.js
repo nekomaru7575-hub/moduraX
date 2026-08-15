@@ -198,19 +198,23 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     item.appendChild(noteInput);
 
     // --- 効果時間：このスキルが与えるバフがいつ切れるか ---
-    const expireField = createElement('div', 'effect-box-combo-field');
-    expireField.appendChild(createElement('span', 'effect-box-combo-label', '効果時間'));
-    const expireSelect = document.createElement('select');
-    EXPIRE_PHASE_CHOICES.forEach(choice => {
-      const option = document.createElement('option');
-      option.value = choice.key;
-      option.textContent = choice.label;
-      expireSelect.appendChild(option);
-    });
-    expireSelect.value = skill?.expirePhase ?? '';
-    expireSelect.title = '「（使用時の既定）」は、単体で使うかコンボに組み込むかで自動的に決まります';
-    expireField.appendChild(expireSelect);
-    item.appendChild(expireField);
+    // 修正を持たないシステム（allowExpirePhase:false）では意味を持たないので出さない。
+    let expireSelect = null;
+    if (spec.allowExpirePhase) {
+      const expireField = createElement('div', 'effect-box-combo-field');
+      expireField.appendChild(createElement('span', 'effect-box-combo-label', '効果時間'));
+      expireSelect = document.createElement('select');
+      EXPIRE_PHASE_CHOICES.forEach(choice => {
+        const option = document.createElement('option');
+        option.value = choice.key;
+        option.textContent = choice.label;
+        expireSelect.appendChild(option);
+      });
+      expireSelect.value = skill?.expirePhase ?? '';
+      expireSelect.title = '「（使用時の既定）」は、単体で使うかコンボに組み込むかで自動的に決まります';
+      expireField.appendChild(expireSelect);
+      item.appendChild(expireField);
+    }
 
     // --- 使用制限：期間ごとの回数 ---
     const limitsWrap = createElement('div', 'effect-box-limits');
@@ -230,14 +234,23 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
 
       limitRow.appendChild(createElement('span', 'effect-box-limit-slash', '/'));
 
-      // 上限は「EB回まで」のようなスキルがあるため、数値ではなく式を書けるようにしてある
-      const maxInput = document.createElement('input');
-      maxInput.type = 'text';
-      maxInput.className = 'effect-box-limit-max';
-      maxInput.placeholder = '無制限';
-      maxInput.title = `空欄で無制限。数値のほか式も使える（使える名前: ${formulaNamesHint}）`;
-      maxInput.value = limit.max ?? '';
-      limitRow.appendChild(maxInput);
+      // 上限がシステム側で決まっている期間（fixedMax）は入力欄を出さず、文字で見せる。
+      // 使用済み回数（current）だけは数え間違いを直せるよう残す。
+      let maxInput = null;
+      if (period.fixedMax !== undefined && period.fixedMax !== null) {
+        const fixed = createElement('span', 'effect-box-limit-fixed', String(period.fixedMax));
+        fixed.title = 'このシステムでは上限が決まっています';
+        limitRow.appendChild(fixed);
+      } else {
+        // 上限は「EB回まで」のようなスキルがあるため、数値ではなく式を書けるようにしてある
+        maxInput = document.createElement('input');
+        maxInput.type = 'text';
+        maxInput.className = 'effect-box-limit-max';
+        maxInput.placeholder = '無制限';
+        maxInput.title = `空欄で無制限。数値のほか式も使える（使える名前: ${formulaNamesHint}）`;
+        maxInput.value = limit.max ?? '';
+        limitRow.appendChild(maxInput);
+      }
 
       limitRow.appendChild(createElement('span', null, '回'));
       limitsWrap.appendChild(limitRow);
@@ -306,13 +319,20 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     conditionsWrap.appendChild(addConditionBtn);
     item.appendChild(conditionsWrap);
 
+    // 評価できない式は使用時に黙って0として扱われる（＝バフが付かない）ため、入力した時点で
+    // 理由を出す。保存自体はブロックしない（式を後から埋める運用を邪魔しないため）。
+    // 修正欄を出さないシステムでも、上限と使用条件の式は検証するので常に置く。
+    const errorEl = createElement('div', 'effect-box-combo-error');
+    errorEl.style.display = 'none';
+
     // --- 使用時の修正：対象パラメータ＋式。何件でも持てる ---
+    // 修正を扱わないシステム（allowMods:false）では節ごと出さない。modTargetsを空にする
+    // だけでは、下の「その他のパラメータ」から全パラメータが選べてしまうため。
+    const modRows = [];
     const modsWrap = createElement('div', 'effect-box-combo-mods');
     modsWrap.appendChild(createElement('div', 'effect-box-combo-title', '使用時の修正（自身に付与）'));
     const modListEl = createElement('div', 'effect-box-limits');
     modsWrap.appendChild(modListEl);
-
-    const modRows = [];
 
     function addModRow(mod) {
       const row = createElement('div', 'effect-box-limit-row');
@@ -390,19 +410,17 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       modRows.push({ row, targetSelect, formulaInput, extraInput });
     }
 
-    (skill?.mods ?? []).forEach(addModRow);
+    if (spec.allowMods) {
+      (skill?.mods ?? []).forEach(addModRow);
 
-    const addModBtn = createElement('button', 'dialog-add-row-btn', '+ 修正を追加');
-    addModBtn.type = 'button';
-    addModBtn.addEventListener('click', () => addModRow(null));
-    modsWrap.appendChild(addModBtn);
+      const addModBtn = createElement('button', 'dialog-add-row-btn', '+ 修正を追加');
+      addModBtn.type = 'button';
+      addModBtn.addEventListener('click', () => addModRow(null));
+      modsWrap.appendChild(addModBtn);
 
-    // 評価できない式は使用時に黙って0として扱われる（＝バフが付かない）ため、入力した時点で
-    // 理由を出す。保存自体はブロックしない（式を後から埋める運用を邪魔しないため）。
-    const errorEl = createElement('div', 'effect-box-combo-error');
-    errorEl.style.display = 'none';
-    modsWrap.appendChild(errorEl);
-    item.appendChild(modsWrap);
+      item.appendChild(modsWrap);
+    }
+    item.appendChild(errorEl);
 
     function validate() {
       const fieldValues = readFieldValues();
@@ -418,7 +436,10 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       });
 
       spec.periods.forEach(period => {
-        const message = describeFormulaProblem(limitControls[period.key].maxInput.value, fieldValues);
+        // 上限が固定の期間は入力欄が無い（＝式も書けない）ので検証する対象が無い
+        const maxInput = limitControls[period.key].maxInput;
+        if (!maxInput) return;
+        const message = describeFormulaProblem(maxInput.value, fieldValues);
         if (message) problems.push(`${period.label}の上限: ${message}`);
       });
 
@@ -434,7 +455,7 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     }
 
     spec.periods.forEach(period => {
-      limitControls[period.key].maxInput.addEventListener('input', validate);
+      limitControls[period.key].maxInput?.addEventListener('input', validate);
     });
     // {Lv}のようにフィールドを参照する式があるため、フィールドを直したら検証し直す
     Object.values(fieldInputs).forEach(input => input.addEventListener('input', validate));
@@ -484,7 +505,9 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
         const counts = {};
         spec.periods.forEach(period => {
           const { currentInput, maxInput } = row.limitControls[period.key];
-          const rawMax = maxInput.value.trim();
+          // 上限が固定の期間は入力欄が無いので宣言値をそのまま書く
+          // （読み出し側のnormalizeSkillも同じ値へ揃えるので、どちらから来ても一致する）
+          const rawMax = maxInput ? maxInput.value.trim() : String(period.fixedMax);
           counts[period.key] = {
             current: Number(currentInput.value) || 0,
             // 式のまま保存し、使用時に解決する（数値へ丸めると{EB}等が失われるため）
@@ -517,7 +540,8 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
           name: row.nameInput.value.trim(),
           note: row.noteInput.value,
           fields,
-          expirePhase: row.expireSelect.value,
+          // 効果時間を扱わないシステムでは選択欄そのものが無い
+          expirePhase: row.expireSelect ? row.expireSelect.value : '',
           limits: { counts, conditions },
           mods
         };

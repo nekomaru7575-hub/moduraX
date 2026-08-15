@@ -185,38 +185,47 @@ export function acceptsDie(spec, skill, die) {
 
 /**
  * 今そのスキルに乗っているダイスで発動できるか。
- * @returns {{ ready: boolean, uses: number, description: string }}
- *   description はパネルとチャットログの両方に出す1行
+ *
+ * @returns {{
+ *   ready: boolean,
+ *   uses: number,               乗っているダイスを全部使うと何回ぶんになるか
+ *   perUseDice: number,         1回ぶんが何個のダイスを食うか
+ *   supportsPartialUse: boolean 「1回だけ使う」に意味があるか。
+ *                               画面がkindで分岐しなくて済むよう、ここで答えを出す
+ *   description: string         パネルとチャットログの両方に出す1行
+ * }}
  */
 export function evaluatePlacement(spec, skill, dice = []) {
   const requirement = spec?.requirement;
   const count = dice.length;
+  const no = (description) => ({ ready: false, uses: 0, perUseDice: 0, supportsPartialUse: false, description });
 
-  if (!requirement) {
-    return { ready: false, uses: 0, description: 'ダイスの割り当て規則がありません' };
-  }
+  if (!requirement) return no('ダイスの割り当て規則がありません');
 
   if (requirement.kind === 'match') {
     const wanted = readNumberField(skill, requirement.valueField);
-    if (wanted === null) {
-      return { ready: false, uses: 0, description: '対応する数字が設定されていません' };
-    }
-    if (count === 0) {
-      return { ready: false, uses: 0, description: `${wanted}の目が必要です` };
-    }
-    return { ready: true, uses: count, description: `${wanted}の目 ×${count} → ${count}回使用` };
+    if (wanted === null) return no('対応する数字が設定されていません');
+    if (count === 0) return { ...no(`${wanted}の目が必要です`), supportsPartialUse: true };
+
+    // 1個で1回。何個乗せてもよく、乗せた数だけ使える
+    return {
+      ready: true, uses: count, perUseDice: 1, supportsPartialUse: true,
+      description: `${wanted}の目 ×${count} → ${count}回使用`
+    };
   }
 
-  // kind: 'sum'
+  // kind: 'sum' … 合計が目標値に届けば1回。「1回だけ」と「全部」に違いが無いので
+  // supportsPartialUse は false（画面のボタンも1つになる）。
   const target = readNumberField(skill, requirement.targetField);
+  if (target === null) return no('目標値が設定されていません');
+
   const total = dice.reduce((sum, die) => sum + die.value, 0);
-  if (target === null) {
-    return { ready: false, uses: 0, description: '目標値が設定されていません' };
-  }
-  if (total < target) {
-    return { ready: false, uses: 0, description: `合計 ${total} / 目標 ${target}（あと ${target - total}）` };
-  }
-  return { ready: true, uses: 1, description: `合計 ${total} / 目標 ${target}` };
+  if (total < target) return no(`合計 ${total} / 目標 ${target}（あと ${target - total}）`);
+
+  return {
+    ready: true, uses: 1, perUseDice: count, supportsPartialUse: false,
+    description: `合計 ${total} / 目標 ${target}`
+  };
 }
 
 // ------------------------------------------------------------------
@@ -293,13 +302,21 @@ export function moveDie(draft, dieId, toSkillName, { spec = null, skill = null }
   };
 }
 
-/** 発動時。そのスキルに乗っているダイスを捨てる（プールへは戻さない）。 */
-export function consumePlacement(draft, skillName) {
+/**
+ * 発動時。そのスキルに乗っているダイスを先頭から count 個だけ捨てる（プールへは戻さない）。
+ * count を省くと全部。先頭から取るのは、利用者が並べた順を尊重するため
+ * （「大きい目から使う」等の最適化を勝手にやると、意図した組み合わせが崩れる）。
+ */
+export function consumePlacement(draft, skillName, count = Infinity) {
   const base = draft ?? createEmptyDraft();
-  if (!base.placements[skillName]) return base;
+  const dice = base.placements[skillName];
+  if (!dice || count <= 0) return base;
 
   const placements = { ...base.placements };
-  delete placements[skillName];
+  const rest = dice.slice(count);
+  if (rest.length === 0) delete placements[skillName];
+  else placements[skillName] = rest;
+
   return { pool: [...base.pool], placements };
 }
 

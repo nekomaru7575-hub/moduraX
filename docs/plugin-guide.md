@@ -129,6 +129,7 @@ const PLUGINS = {
 | `computeDerivedRoomParameters` | `(roomParameters, context) => Record<paramId, number>` | ルーム変数の自動計算（[3.10](#310-computederivedroomparametersroomparameters-context)） |
 | `renderCharacterPanel` | `(context) => ({ getValues })` | コマ作成/更新ダイアログの専用スペースを描く |
 | `importCharacterJson` | `(json) => result` | 外部キャラシートツールの JSON を読む |
+| `characterSheetSource` | `{ label, origin, ... }` | シートのURLから取り込める置き場の宣言（[3.8.1](#381-charactersheetsource)） |
 | `handleChatCommand` | `(rawInput, context) => boolean` | 独自のチャットコマンドを実行する |
 | `looksLikeOwnChatCommand` | `(rawInput) => boolean` | 「これは自分のコマンドの書式だ」の判定 |
 | `resetComponentsOnPhaseEnd` | `(components, phase) => components` | シーン/ラウンド終了時に使用回数などを戻す |
@@ -380,6 +381,35 @@ function importMyCharacterJson(json) {
 ```
 
 実装しない場合は Core の汎用読み込み（`js/character-json-import.js`）が使われる。
+
+---
+
+### 3.8.1 `characterSheetSource`
+
+「シートのURLを貼ると取り込める」ようにする宣言。URLを解釈して JSON を読むところは
+`importCharacterJson` がそのまま使われるので、**どのURLを受け付けるかだけ**を書く。
+システムによってシート置き場は違い、そもそも無いシステムもあるため、Core は住所を1つも持たない。
+
+```js
+characterSheetSource: {
+  label: 'Webキャラクターシート（ドラクルージュ）',
+  origin: 'https://character-sheets.appspot.com',  // プロトコル込みの完全一致
+  pathPrefix: '/dracurouge/',                       // 同じサービスの他システムを掴まない
+  keyParam: 'key',
+  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
+  fetchPath: (key) => `/dracurouge/display?ajax=1&key=${encodeURIComponent(key)}`,
+  hint: '.../edit.html?key=... の形のURL'          // 入力欄に添える説明（任意）
+}
+```
+
+**関数でURLを作るのはサーバーだけ。** 画面（`js/character-sheet-import.js`）は貼られたURLを
+この宣言で検査して**キーだけ**を取り出し、`GET /api/character-sheet?plugin=...&key=...` を叩く。
+サーバー（`server/index.js` の `handleCharacterSheet`）が同じ宣言を読んで `origin + fetchPath(key)`
+を組み立て、そこへ取りに行く。画面からURLを渡せる作りにすると、そのAPIは「サーバーに任意の
+宛先を取りに行かせる口」になってしまうため、**この形を崩さないこと**。
+
+外部サービスへ出ていくので、サーバー側では回数制限（`RATE_LIMITS.sheet`）・タイムアウト・
+応答サイズの上限・リダイレクト追跡の禁止も合わせて効いている。
 
 ---
 

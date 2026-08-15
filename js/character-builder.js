@@ -12,8 +12,11 @@
 // 委譲されるため、このページにプラグイン固有のコードは書かない。
 
 import { ImmutableStore, generateBuffId, getEffectiveParameterValue } from './game-store.js';
-import { listPlugins, pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
+import {
+  listPlugins, pluginHasCharacterImport, importCharacterJsonForPlugin, getPluginSheetSource
+} from './parameters/registry.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
+import { promptForCharacterSheetJson } from './character-sheet-import.js';
 import { showCharacterEditDialog, applyCharacterEditResult } from './character-dialog.js';
 import { pickFileAsText } from './file-uploader.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
@@ -79,10 +82,38 @@ function renderLandingForm() {
   loadBtn.textContent = 'JSONファイルを読み込んで編集';
   card.appendChild(loadBtn);
 
+  // シートのURLから直接取り込む道。受け付け先を宣言しているシステムを選んだときだけ出す
+  // （宣言が無いシステムでは、貼れるURLが1つも無いのでボタンごと隠す）。
+  const urlBtn = document.createElement('button');
+  urlBtn.type = 'button';
+  urlBtn.className = 'builder-primary-btn';
+  urlBtn.style.marginTop = '8px';
+  card.appendChild(urlBtn);
+
   const errorEl = document.createElement('p');
   errorEl.className = 'builder-error';
   errorEl.style.display = 'none';
   card.appendChild(errorEl);
+
+  function syncUrlButton() {
+    const source = getPluginSheetSource(pluginSelect.value || null);
+    urlBtn.style.display = source ? '' : 'none';
+    urlBtn.textContent = source ? `${source.label}のURLから読み込んで編集` : '';
+  }
+  syncUrlButton();
+  pluginSelect.addEventListener('change', syncUrlButton);
+
+  urlBtn.addEventListener('click', async () => {
+    errorEl.style.display = 'none';
+    const pluginId = pluginSelect.value || null;
+    const source = getPluginSheetSource(pluginId);
+    if (!source) return;
+
+    const json = await promptForCharacterSheetJson(pluginId, source);
+    if (!json) return;
+
+    startEditing(pluginId, json, errorEl);
+  });
 
   loadBtn.addEventListener('click', async () => {
     errorEl.style.display = 'none';

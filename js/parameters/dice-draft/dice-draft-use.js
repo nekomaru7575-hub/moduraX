@@ -18,6 +18,8 @@ import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
  *   spec: object,              createDiceDraftSpec() の戻り値
  *   skillName: string,
  *   mode?: 'one'|'all',        'one' は1回ぶんだけ。既定は 'all'
+ *   targetValue?: number|null, 幅のある目標値（"3～12"）でどれを狙うか。
+ *                              省略時は合計で届く一番大きい目標値（evaluatePlacement）
  *   token: object|null,
  *   dispatch: (action: string, payload: object) => void,
  *   getToken?: () => object|null,
@@ -29,7 +31,7 @@ import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
  * @returns {{ used: number, diceSpent: number }} 使えなかったときは used:0
  */
 export function runDiceDraftUse({
-  spec, skillName, mode = 'all', token, dispatch,
+  spec, skillName, mode = 'all', targetValue = null, token, dispatch,
   getToken, getEffectiveParameterValue, generateBuffId,
   chatCommand = '', notify = (message) => alert(message)
 }) {
@@ -56,7 +58,7 @@ export function runDiceDraftUse({
 
   const draft = readDraft(latest.components, workingSkills.map(s => s.name));
   const dice = placedDice(draft, skillName);
-  const result = evaluatePlacement(spec, skill, dice);
+  const result = evaluatePlacement(spec, skill, dice, { targetValue });
   if (!result.ready) {
     notify(`${skillName}はまだ使えません。（${result.description}）`);
     return none;

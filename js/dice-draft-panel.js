@@ -118,6 +118,11 @@ export function initDiceDraftPanel() {
   let currentTokenId = null;
   // ドラッグ中は描き直さない（掴んでいる要素が消えてしまう）
   let dragging = false;
+  // 目標値に幅があるスキルで、利用者が選び直した目標値。`コマID\nスキル名` -> 目標値。
+  // 状態（コマ）には保存しない：どの目標値を狙うかは発動するその瞬間の判断で、他の人と
+  // 共有する必要も、部屋を出た後まで覚えておく必要も無いため。描き直しで戻らないよう
+  // ここに持つだけ。
+  const chosenTargets = new Map();
   // 直前に描いた材料。参照が変わったときだけ組み直す（js/character-panel.jsと同じ）
   let lastKey = null;
 
@@ -128,6 +133,9 @@ export function initDiceDraftPanel() {
     if (!spec?.skillSpec) return [];
     return normalizeSkillList(spec.skillSpec, token?.components?.[spec.skillSpec.componentKey] ?? []);
   }
+
+  const targetChoiceKey = (skillName) => `${currentTokenId}\n${skillName}`;
+  const readChosenTarget = (skillName) => chosenTargets.get(targetChoiceKey(skillName)) ?? null;
 
   function saveDraft(draft) {
     const token = getToken();
@@ -256,7 +264,7 @@ export function initDiceDraftPanel() {
   // 全文はtitle属性で読める）。
   function buildSkillCard(skill, draft, spec, canEdit, skills) {
     const dice = placedDice(draft, skill.name);
-    const result = evaluatePlacement(spec, skill, dice);
+    const result = evaluatePlacement(spec, skill, dice, { targetValue: readChosenTarget(skill.name) });
 
     const card = document.createElement('div');
     card.className = 'dice-draft-skill';
@@ -288,6 +296,31 @@ export function initDiceDraftPanel() {
     status.title = result.description;
     card.appendChild(status);
 
+    // 目標値に幅があるスキル（ドラクルージュの「3～12」）は、どれを狙うかを選ばせる。
+    // 既定は「今の合計で届く一番大きい目標値」（evaluatePlacement）なので、たいていは
+    // 触らなくてよく、低い目標値でわざと使いたいときだけ変える。
+    if (result.targetOptions.length > 1) {
+      const select = document.createElement('select');
+      select.className = 'dice-draft-target';
+      select.title = '狙う目標値（判定値）';
+      select.disabled = !canEdit;
+
+      result.targetOptions.forEach(value => {
+        const option = document.createElement('option');
+        option.value = String(value);
+        // 届かない目標値も選べる（あと何点かを見ながら積むため）。選んだ時点では使えないだけ
+        option.textContent = `目標 ${value}`;
+        select.appendChild(option);
+      });
+      select.value = String(result.targetValue);
+
+      select.addEventListener('change', () => {
+        chosenTargets.set(targetChoiceKey(skill.name), Number(select.value));
+        render(); // 使用ボタンの可否と状態の1行を選び直した目標値で出し直す
+      });
+      card.appendChild(select);
+    }
+
     // 「1回だけ」に意味があるかは規則側が決める（evaluatePlacementのsupportsPartialUse）。
     // 一致型は1個ずつ使えるので2つ、合計型は目標に届けば1回きりなので1つ。
     const buttons = document.createElement('div');
@@ -300,7 +333,7 @@ export function initDiceDraftPanel() {
       btn.textContent = label;
       btn.title = title;
       btn.disabled = !canEdit || !result.ready;
-      btn.addEventListener('click', () => activate(skill, spec, mode));
+      btn.addEventListener('click', () => activate(skill, spec, mode, result.targetValue));
       buttons.appendChild(btn);
     };
 
@@ -353,20 +386,24 @@ export function initDiceDraftPanel() {
 
   // 発動。規則の判定・使用回数の記録・ダイスの消費は runDiceDraftUse が持っている
   // （チャットコマンドからも同じ関数を通すので、ここには手順を書かない）。
-  function activate(skill, spec, mode) {
+  function activate(skill, spec, mode, targetValue) {
     const token = getToken();
     if (!token || !canOperateToken(token)) return;
 
-    runDiceDraftUse({
+    const { used } = runDiceDraftUse({
       spec,
       skillName: skill.name,
       mode,
+      targetValue,
       token,
       dispatch: store.dispatch.bind(store),
       getToken,
       getEffectiveParameterValue,
       generateBuffId
     });
+
+    // 使い終わったら選び直しは無かったことにする（次に積むときは既定＝届く最大へ戻す）
+    if (used > 0) chosenTargets.delete(targetChoiceKey(skill.name));
   }
 
   function showNotice(text) {

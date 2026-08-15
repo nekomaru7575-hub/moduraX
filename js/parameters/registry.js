@@ -109,6 +109,30 @@ export function importCharacterJsonForPlugin(pluginId, json) {
 }
 
 /**
+ * そのシステムのキャラクターシートを置いているWebサービスの宣言（characterSheetSource）。
+ * 「URLから取り込む」の受け付け先はこの宣言が全てで、宣言に無いURLは取り込まない。
+ *
+ * 宣言はデータだけにしてあり、URLを組み立てるのはサーバー（server/index.js）。画面から
+ * 渡すのはシートのキーだけで、URLそのものは渡さない（渡せると、サーバーに任意の宛先へ
+ * 取りに行かせる口になる）。サーバーもこの同じ宣言を読んで検査するため、画面側の検査が
+ * 破られても宛先は変わらない。
+ *
+ * @param {string} pluginId
+ * @returns {{
+ *   label: string, origin: string, pathPrefix: string, keyParam: string,
+ *   keyPattern: RegExp, fetchPath: (key: string) => string, hint?: string
+ * } | null}
+ */
+export function getPluginSheetSource(pluginId) {
+  return PLUGINS[pluginId]?.characterSheetSource ?? null;
+}
+
+// 指定プラグインがURLからのシート取り込みを持つか（画面に入口を出すかの判定）
+export function pluginHasSheetImport(pluginId) {
+  return !!getPluginSheetSource(pluginId);
+}
+
+/**
  * チャット欄に入力されたテキストを、ルームに適用中のプラグイン固有のコマンドとして
  * 解釈・実行させる（例: DX3の combo.awk(コンボ名) 等）。Coreはコマンドの構文を解釈せず、
  * プラグインのhandleChatCommandにそのまま委ねる。

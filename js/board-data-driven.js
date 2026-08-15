@@ -8,7 +8,10 @@ import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, appl
 import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
-import { pluginHasCharacterImport, importCharacterJsonForPlugin } from './parameters/registry.js';
+import {
+  pluginHasCharacterImport, importCharacterJsonForPlugin, getPluginSheetSource
+} from './parameters/registry.js';
+import { promptForCharacterSheetJson } from './character-sheet-import.js';
 import { pickFileAsText } from './file-uploader.js';
 import { adoptImageIntoRoom } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
@@ -101,6 +104,32 @@ function resolveCharacterImport(json) {
 async function adoptSnapshotImage(snapshot) {
   if (!snapshot?.image) return snapshot;
   return { ...snapshot, image: await adoptImageIntoRoom(snapshot.image, 'token') };
+}
+
+// 「シートのURLから取り込む」の1項目。適用中プラグインが受け付け先を宣言しているときだけ出す
+// （宣言が無いシステムでは項目自体が無い）。取り込んだ後の道は「JSONを読み込む」と同じ。
+function sheetImportMenuItems(tokenId, canOperate, denyReason) {
+  const activePluginId = store.state.room?.activePlugin ?? null;
+  const source = activePluginId ? getPluginSheetSource(activePluginId) : null;
+  if (!source) return [];
+
+  return [{
+    label: 'シートのURLから取り込む',
+    disabled: !canOperate,
+    title: denyReason,
+    onSelect: async () => {
+      const json = await promptForCharacterSheetJson(activePluginId, source);
+      if (!json) return;
+
+      const importResult = resolveCharacterImport(json);
+      if (!importResult) {
+        alert('このシートを読み込めませんでした。');
+        return;
+      }
+
+      dispatchCharacterImport(tokenId, importResult);
+    }
+  }];
 }
 
 function dispatchCharacterImport(id, importResult) {
@@ -410,6 +439,9 @@ function bindTokenDrag(element) {
           dispatchCharacterImport(tokenId, importResult);
         }
       },
+      // シートのURLから直接取り込む。宣言を持つシステムの部屋でだけ出す
+      // （どのサービスを受け付けるかはプラグインの宣言が全て。js/character-sheet-import.js）
+      ...sheetImportMenuItems(tokenId, canOperate, denyReason),
       {
         label: 'バフ/デバフを付与',
         onSelect: () => {

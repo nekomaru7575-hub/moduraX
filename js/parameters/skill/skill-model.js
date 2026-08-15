@@ -92,6 +92,9 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              から全パラメータが選べてしまうため、そういうシステムはこちらで切る。
  *   allowExpirePhase?: boolean, 既定true。falseにすると「効果時間」を扱わない。
  *                              修正を持たないスキルには意味が無い欄なので隠せるようにしてある。
+ *   allowConditions?: boolean, 既定true。falseにすると「使用条件」を扱わない。
+ *                              使用という概念を持たない一覧（ドラクルージュの逸話）のためのもの。
+ *                              falseのときは保存時にも条件を書かない（空配列になる）。
  *   defaultSkills?: Array<object>,
  *                              まだ1件も登録が無いコマに配る初期の一覧（ステラナイツの
  *                              出目1〜6）。「枠が最初から決まっていて、利用者は中身を
@@ -122,6 +125,7 @@ export function createSkillSpec(definition) {
     legacyModMap = {},
     allowMods = true,
     allowExpirePhase = true,
+    allowConditions = true,
     defaultSkills = []
   } = definition;
 
@@ -145,6 +149,7 @@ export function createSkillSpec(definition) {
     defaultExpirePhase,
     allowMods,
     allowExpirePhase,
+    allowConditions,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。

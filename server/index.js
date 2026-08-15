@@ -31,6 +31,8 @@ import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
+// キャラクターシートの取り込み先の宣言。どのURLを取りに行ってよいかはプラグインだけが知る。
+import { getPluginSheetSource } from '../js/parameters/registry.js';
 import { adoptImportedState } from '../js/state-import.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 import {
@@ -2120,6 +2122,89 @@ async function handleBcdiceSystemInfo(req, res, systemId) {
   }
 }
 
+// --- キャラクターシートの取り込み中継 ---
+// 外部のキャラクターシート置き場（ドラクルージュならcharacter-sheets.appspot.com）は
+// CORSを許していないので、ブラウザから直接は取れない。ここが代わりに取りに行く。
+//
+// 【この中継の安全性はどこから来るか】受け取るのは「プラグインID」と「シートのキー」だけで、
+// URLは受け取らない。取得先はプラグインの宣言（characterSheetSource）から**サーバーが**
+// 組み立てる。宛先はプラグインが宣言した1か所しか表現できないので、このAPIを踏み台にして
+// 任意のホスト（社内アドレス・クラウドのメタデータ等）を叩かせることができない。
+// キーの形も宣言のkeyPatternで確かめてから埋める。
+const SHEET_FETCH_TIMEOUT_MS = 10 * 1000;
+// シート1件は数十KB。1MBは「壊れた応答や巨大な何かを掴まされたら降りる」ための線。
+const MAX_SHEET_BYTES = 1024 * 1024;
+
+// 上限を超えたら読むのをやめる。Content-Lengthは自己申告なので、実際に読んだ量でも数える。
+async function readCappedText(response, maxBytes) {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error('応答が大きすぎます');
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error('応答が大きすぎます');
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString('utf8');
+}
+
+// GET /api/character-sheet?plugin={プラグインID}&key={シートのキー}
+async function handleCharacterSheet(req, res, url) {
+  const pluginId = url.searchParams.get('plugin') ?? '';
+  const key = url.searchParams.get('key') ?? '';
+
+  const source = getPluginSheetSource(pluginId);
+  if (!source) {
+    sendJson(res, 400, { error: 'このシステムはURLからの取り込みに対応していません。' });
+    return;
+  }
+  if (!source.keyPattern.test(key)) {
+    sendJson(res, 400, { error: 'シートのキーの形が正しくありません。' });
+    return;
+  }
+
+  // 取得先はここで組み立てる。呼び出し側から来た文字列はkeyだけで、それも上で形を確かめてある。
+  const target = `${source.origin}${source.fetchPath(key)}`;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), SHEET_FETCH_TIMEOUT_MS);
+
+  try {
+    // リダイレクトは追わない。追うと、宣言した相手の一存で別のホストへ行かされる
+    const response = await fetch(target, { signal: abort.signal, redirect: 'manual' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const text = await readCappedText(response, MAX_SHEET_BYTES);
+    // 中身は外から来たJSON。危険なキーを落として読み、読めたものを組み立て直して返す
+    // （上流のバイト列をそのまま流さない）
+    const data = parseUntrustedJson(text);
+    if (!data || typeof data !== 'object') throw new Error('シートの形式が想定と違います');
+
+    // 上流は「そのシートは無い」もHTTP 200 + {error:"..."} で返してくる。そのまま通すと
+    // 画面には「読み込めませんでした」としか出ないので、ここで見分けて理由を返す。
+    if (typeof data.error === 'string' && Object.keys(data).length === 1) {
+      sendJson(res, 404, { error: `シートが見つかりませんでした（${data.error}）。URLを確かめてください。` });
+      return;
+    }
+
+    sendJson(res, 200, data, { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    console.warn(`[server] キャラクターシートを取得できませんでした (${pluginId}):`, error.message);
+    sendJson(res, 502, { error: 'シートを取得できませんでした。URLと公開設定を確かめてください。' });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // --- 呼び出し回数の制限 ---
 // 誰でもURLを踏める前提だと、認証の要らない・あるいは入室できれば通るAPIは、そのまま
 // 連打の的になる。困るのは落ちることより、こちらの財布と居場所が削られること：
@@ -2127,6 +2212,7 @@ async function handleBcdiceSystemInfo(req, res, systemId) {
 //   アップロード  … R2の保存容量と転送量がそのまま課金になる
 //   書き出し      … 1回で最大64MBぶんの画像をR2から読み直す（MAX_EXPORT_EMBED_BYTES）
 //   BCDice        … キャッシュに無いIDは上流へ転送される。踏み台にされると相手に迷惑がかかる
+//   シート取り込み … 1回ごとに外のサービスへ取りに行く。BCDiceと同じく踏み台にさせない
 //
 // 窓を区切って数えるだけの素朴な方式にする。人間の操作としてはどれも十分な余裕があり、
 // 厳密さより「壊れないこと・依存を増やさないこと」を優先する。
@@ -2134,7 +2220,8 @@ const RATE_LIMITS = {
   createRoom: { windowMs: 10 * 60 * 1000, max: 10 },
   upload: { windowMs: 10 * 60 * 1000, max: 60 },
   export: { windowMs: 10 * 60 * 1000, max: 20 },
-  bcdice: { windowMs: 10 * 60 * 1000, max: 120 }
+  bcdice: { windowMs: 10 * 60 * 1000, max: 120 },
+  sheet: { windowMs: 10 * 60 * 1000, max: 30 }
 };
 
 // `種別:IP` -> { windowStart, count }
@@ -2310,6 +2397,12 @@ const httpServer = http.createServer(async (req, res) => {
     if (exceedsRateLimit(req, 'bcdice')) { rejectTooManyRequests(res); return; }
     const systemId = decodeURIComponent(url.pathname.slice('/api/bcdice/game_system/'.length));
     await handleBcdiceSystemInfo(req, res, systemId);
+    return;
+  }
+
+  if (url.pathname === '/api/character-sheet' && req.method === 'GET') {
+    if (exceedsRateLimit(req, 'sheet')) { rejectTooManyRequests(res); return; }
+    await handleCharacterSheet(req, res, url);
     return;
   }
 

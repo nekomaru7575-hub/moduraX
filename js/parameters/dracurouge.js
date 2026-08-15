@@ -22,7 +22,9 @@
 
 import { buildParameters } from './paramFactory.js';
 import { lockFormControls } from '../read-only-form.js';
-import { BOND_COMPONENT_KEY, normalizeBondList, showBondBox } from './dracurouge-bond-box.js';
+import {
+  BOND_COMPONENT_KEY, normalizeBondList, sealFilledBonds, showBondBox
+} from './dracurouge-bond-box.js';
 import { createDie, createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
@@ -76,6 +78,8 @@ const paramIdOf = (definition) => `${PLUGIN_ID}:${definition.key}`;
 const CHAR_TYPE_PARAM_ID = paramIdOf(CHAR_TYPE_PARAMETER);
 const MOISTURE_PARAM_ID = `${PLUGIN_ID}:moisture`;
 const THIRST_PARAM_ID = `${PLUGIN_ID}:thirst`;
+const APPLAUSE_PARAM_ID = `${PLUGIN_ID}:applause`;
+const PATH_PARAM_ID = `${PLUGIN_ID}:path`;
 
 const PC_PARAM_IDS = PC_PARAMETERS.map(paramIdOf);
 const NPC_PARAM_IDS = NPC_PARAMETERS.map(paramIdOf);
@@ -100,12 +104,32 @@ const DEED_SPEC = createSkillSpec({
       key: 'kind', label: '種別', type: 'select', className: 'effect-box-level',
       options: [{ value: '戦', label: '戦' }, { value: '常', label: '常' }]
     },
-    { key: 'target', label: '目標値', type: 'number', className: 'effect-box-level' },
-    { key: 'range', label: '間合', type: 'text', className: 'effect-box-timing' }
+    // 目標値は数値ではなく文字列で持つ。《軽やかに剣舞う》の「3～12」のように、
+    // 幅のある目標値（最小値の倍数から選ぶ）を書く行いがあるため（読み方はparseDeedTarget）。
+    { key: 'target', label: '目標値', type: 'text', className: 'effect-box-level' },
+    { key: 'range', label: '間合', type: 'text', className: 'effect-box-timing' },
+    // 対象（「他の一体」「エリア」など）は文章なので数値にはしない。判定には使わず、
+    // 行い一覧とチャットログで読むためだけの欄。キーをtargetにできないのは目標値が使っているため。
+    { key: 'subject', label: '対象', type: 'text', className: 'effect-box-timing' }
   ],
   periods: [{ key: 'round', label: 'ラウンド', fixedMax: 1 }],
   allowMods: false,
   allowExpirePhase: false
+});
+
+// 逸話。名称と効果だけを持つ一覧で、使用回数も修正も使用条件も持たない。
+// 固有の欄を1つも宣言していないのは、skill-modelの組み込み欄（name / note）が
+// そのまま逸話の「名称」「効果」になるため。
+const EPISODE_COMPONENT_KEY = 'episodes';
+
+const EPISODE_SPEC = createSkillSpec({
+  id: 'dracurouge-episode',
+  noun: '逸話',
+  componentKey: EPISODE_COMPONENT_KEY,
+  periods: [],
+  allowMods: false,
+  allowExpirePhase: false,
+  allowConditions: false
 });
 
 const DEED_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DEED_SPEC);
@@ -113,6 +137,10 @@ const DEED_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DEED_SPEC);
 // componentsから正規形の行い一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
 function readDracurougeDeeds(components) {
   return normalizeSkillList(DEED_SPEC, components?.[DEED_COMPONENT_KEY] ?? []);
+}
+
+function readDracurougeEpisodes(components) {
+  return normalizeSkillList(EPISODE_SPEC, components?.[EPISODE_COMPONENT_KEY] ?? []);
 }
 
 function buildDracurougeCharacterParameters() {
@@ -301,10 +329,12 @@ function renderDracurougeCharacterPanel({
   // 既存プラグインのボックス系ボタンと同じ扱い）。
   let deedBtn = null;
   let bondBtn = null;
+  let episodeBtn = null;
   if (isEditing && onComponentChange) {
     const readComponents = () => (getComponents ? getComponents() : components) ?? {};
     const readBonds = () => normalizeBondList(readComponents()[BOND_COMPONENT_KEY]);
     const readDeeds = () => readDracurougeDeeds(readComponents());
+    const readEpisodes = () => readDracurougeEpisodes(readComponents());
 
     deedBtn = document.createElement('button');
     deedBtn.type = 'button';
@@ -354,12 +384,36 @@ function renderDracurougeCharacterPanel({
       });
     });
     container.appendChild(bondBtn);
+
+    episodeBtn = document.createElement('button');
+    episodeBtn.type = 'button';
+    episodeBtn.className = 'dialog-add-row-btn';
+    episodeBtn.style.marginTop = '8px';
+
+    const updateEpisodeBtnLabel = () => {
+      episodeBtn.textContent = `${EPISODE_SPEC.noun}一覧を開く（${readEpisodes().length}件）`;
+    };
+    updateEpisodeBtnLabel();
+
+    episodeBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: EPISODE_SPEC,
+        skills: readEpisodes(),
+        parameters,
+        readOnly: !canEdit,
+        onSave: (nextEpisodes) => {
+          onComponentChange(EPISODE_COMPONENT_KEY, nextEpisodes);
+          updateEpisodeBtnLabel();
+        }
+      });
+    });
+    container.appendChild(episodeBtn);
   }
 
   // 表示だけの人には入力を固め、ボックスを開くボタンだけ残す
   // （ボックスの中身はreadOnlyで表示専用になる）。
   if (!canEdit) {
-    lockFormControls(container, { keep: [deedBtn, bondBtn] });
+    lockFormControls(container, { keep: [deedBtn, bondBtn, episodeBtn] });
   }
 
   return {
@@ -397,6 +451,156 @@ function renameHpToExistence({ readParameters, dispatch, tokenId }) {
     id: tokenId,
     labelOverrides: { [HP_PARAM_ID]: EXISTENCE_LABEL }
   });
+}
+
+// ------------------------------------------------------------------
+// キャラクターシートの取り込み
+// ------------------------------------------------------------------
+// 対象はWebキャラクターシート（character-sheets.appspot.com）のドラクルージュ用シートが
+// 返すJSON。ファイルから読ませる道（盤面の「JSONを読み込む」）と、URLから取る道
+// （js/character-sheet-import.js）の両方がこの関数に合流する。
+//
+// シートにあってこのアプリが持っていない項目（血統・家門・紋章・原風景などの設定欄、
+// 経歴メモ）は取り込まない。パラメータ化していないものを隠しパラメータとして持たせても、
+// 画面のどこにも出ず、書き出したJSONだけが太るため。
+
+// URLから取り込むときの受け付け先。**データだけを宣言する**。
+// 画面（js/character-sheet-import.js）はこの宣言でURLを検査してキーだけを取り出し、
+// サーバー（server/index.js）が同じ宣言から取得先を組み立てる。宣言に無いURLは
+// どちらの側でも通らないので、「任意の宛先へ取りに行かせる」ことができない。
+//
+// edit.html / display.html はどちらも人が見るページなので、キーだけを取り出して
+// JSONを返す口（display?ajax=1）へ付け替える。利用者はブラウザのURLをそのまま貼れる。
+const DRACUROUGE_SHEET_SOURCE = {
+  label: 'Webキャラクターシート（ドラクルージュ）',
+  origin: 'https://character-sheets.appspot.com',
+  pathPrefix: '/dracurouge/',
+  keyParam: 'key',
+  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
+  fetchPath: (key) => `/dracurouge/display?ajax=1&key=${encodeURIComponent(key)}`,
+  hint: 'character-sheets.appspot.com/dracurouge/edit.html?key=... の形のURL'
+};
+
+function sheetText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+// シートの数値欄は文字列（"0"）で、未入力はnull。数値として読めた場合だけ上書きする。
+function assignSheetNumber(target, paramId, raw) {
+  if (raw === null || raw === undefined || raw === '') return;
+  const value = Number(raw);
+  if (Number.isFinite(value)) target[paramId] = Math.trunc(value);
+}
+
+// 戦の行い（waractions）／常の行い（generalactions）を、種別だけ変えて同じ形に読む。
+// シートの列と行いの欄は素直に1対1で対応する（対象＝subject、効果＝組み込みのnote）。
+function importDeedsOfKind(rawList, kind) {
+  if (!Array.isArray(rawList)) return [];
+
+  return rawList
+    .map(raw => ({
+      name: sheetText(raw?.name),
+      note: sheetText(raw?.effect),
+      fields: {
+        kind,
+        target: sheetText(raw?.desiredvalue),
+        range: sheetText(raw?.range),
+        subject: sheetText(raw?.target)
+      }
+    }))
+    .filter(deed => deed.name !== '');
+}
+
+function importDracurougeDeedsFromSheet(json) {
+  return normalizeSkillList(DEED_SPEC, [
+    ...importDeedsOfKind(json?.waractions, '戦'),
+    ...importDeedsOfKind(json?.generalactions, '常')
+  ]);
+}
+
+function importDracurougeEpisodesFromSheet(json) {
+  const rawList = Array.isArray(json?.episodes) ? json.episodes : [];
+
+  return normalizeSkillList(EPISODE_SPEC, rawList
+    .map(raw => ({ name: sheetText(raw?.title), note: sheetText(raw?.effect) }))
+    .filter(episode => episode.name !== ''));
+}
+
+// 絆の片側。シートは rouge1..rouge5 と rougeremmain（消えざる絆のチェック）に分かれている。
+// 枠の値（憐・友…）はシート側の選択肢のほうが広い（異端用の記号を含む）が、絆ボックスは
+// 選択肢に無い値も現在値として残すので、そのまま入れてよい（dracurouge-bond-box.js）。
+function importBondSide(raw, side) {
+  return {
+    eternal: raw?.[`${side}remmain`] === 'on',
+    slots: [1, 2, 3, 4, 5].map(index => sheetText(raw?.[`${side}${index}`])),
+    sealed: false
+  };
+}
+
+function importDracurougeBondsFromSheet(json) {
+  const rawList = Array.isArray(json?.bonds) ? json.bonds : [];
+
+  const bonds = rawList
+    .map(raw => ({
+      name: sheetText(raw?.name),
+      rouge: importBondSide(raw, 'rouge'),
+      noir: importBondSide(raw, 'noir')
+    }))
+    // シートは空の行を1つ持って返してくる。名前も枠も空の行は取り込まない
+    .filter(bond => bond.name !== ''
+      || bond.rouge.slots.some(slot => slot !== '')
+      || bond.noir.slots.some(slot => slot !== ''));
+
+  // 【要】5つ埋まっている側は封印済みとして取り込む。封印しないと、取り込んだ絆を
+  // 絆ボックスで開いて保存した瞬間に「新たに5つ揃った」と数えられ、潤い／渇きが
+  // もう一度加算される（シートから取り込んだ値には既に反映されている）。
+  return sealFilledBonds(normalizeBondList(bonds)).bonds;
+}
+
+// 道は文字列なので valueOverrides では入らない（Coreは数値しか受け付けない）。
+// パラメータの定義ごと差し替える形で渡す。定義はPC_PARAMETERSのものを流用するので、
+// ラベルも編集可否もこのプラグインの宣言と必ず一致する。
+function importDracurougePath(json) {
+  const path = sheetText(json?.base?.tao);
+  if (path === '') return {};
+
+  const definition = PC_PARAMETERS.find(entry => entry.key === 'path');
+  return buildParameters(PLUGIN_ID, [{ ...definition, value: path }]);
+}
+
+/**
+ * Webキャラクターシート（ドラクルージュ）のJSONを取り込む。
+ * @param {any} json
+ * @returns {{name?:string, valueOverrides:object, labelOverrides:object,
+ *            newParameters:object, components:object} | null}
+ */
+function importDracurougeCharacterJson(json) {
+  if (!json || typeof json !== 'object') return null;
+
+  // ドラクルージュのシートらしさの確認。他システムのシートを黙って空のコマとして
+  // 取り込んでしまわないよう、このシステム特有のキーが1つも無ければ断る。
+  const looksLikeSheet = ['base', 'waractions', 'generalactions', 'bonds', 'episodes', 'thirstpoint']
+    .some(key => json[key] !== undefined);
+  if (!looksLikeSheet) return null;
+
+  const valueOverrides = {};
+  assignSheetNumber(valueOverrides, THIRST_PARAM_ID, json.thirstpoint);
+  assignSheetNumber(valueOverrides, MOISTURE_PARAM_ID, json.mellifluouspoint);
+  assignSheetNumber(valueOverrides, APPLAUSE_PARAM_ID, json.applausepoint);
+
+  const name = sheetText(json?.base?.name);
+
+  return {
+    name: name === '' ? undefined : name,
+    valueOverrides,
+    labelOverrides: {},
+    newParameters: importDracurougePath(json),
+    components: {
+      [DEED_COMPONENT_KEY]: importDracurougeDeedsFromSheet(json),
+      [BOND_COMPONENT_KEY]: importDracurougeBondsFromSheet(json),
+      [EPISODE_COMPONENT_KEY]: importDracurougeEpisodesFromSheet(json)
+    }
+  };
 }
 
 // ダイスドラフト。treat で振った目がプールへ溜まり、パネル（js/dice-draft-panel.js）で
@@ -460,9 +664,26 @@ function looksLikeDracurougeChatCommand(rawInput) {
   return TREAT_LOOKALIKE_PATTERN.test(input) || DEED_USE_COMMAND_PATTERN.test(input);
 }
 
+// 「行い使用(名前)」の中身を、行いの名前と目標値に分ける。
+// 目標値に幅がある行い（《軽やかに剣舞う》の「3～12」）を、どれを狙うか決めて使うための
+// 省略できる引数。書式は「行い使用(名前,9)」。
+//
+// 末尾の「,数字」だけを目標値として切り出す。共通のコマンド書式
+// （buildSkillUseCommandPattern）は括弧の中を丸ごと1つの名前として渡してくるので、
+// 分けるのはこのシステムの都合＝ここの仕事。名前に読点が入っていても、その後ろが
+// 数字でなければ切らないので巻き添えにならない。
+function splitDeedUseArgument(rawArgument) {
+  const text = String(rawArgument).trim();
+  const match = text.match(/^(.+?)\s*,\s*(\d+)$/);
+  if (!match) return { skillName: text, targetValue: null };
+
+  return { skillName: match[1].trim(), targetValue: Number(match[2]) };
+}
+
 // treat(n) … n個のダイスを振ってプールへ入れる（DRn+渇き）
 // treat     … 個数を書かない形。BCDiceの既定である4個で振る（DR+渇き）
 // 行い使用(名前) … 乗せたダイスで行いを発動する（パネルの「使用」ボタンと同じ経路）
+// 行い使用(名前,目標値) … 目標値に幅がある行いで、狙う目標値を決めて使う
 //
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内・使えない理由の説明は、それぞれ
 // runDiceDraftRoll と runDiceDraftUse がまとめて行うので、ここは書式の判定と、
@@ -501,9 +722,12 @@ function handleDracurougeChatCommand(rawInput, context) {
 
   const use = input.match(DEED_USE_COMMAND_PATTERN);
   if (use) {
+    const { skillName, targetValue } = splitDeedUseArgument(use[1]);
+
     runDiceDraftUse({
       spec: DRACUROUGE_DRAFT_SPEC,
-      skillName: use[1].trim(),
+      skillName,
+      targetValue,
       token,
       dispatch,
       getEffectiveParameterValue,
@@ -531,6 +755,8 @@ export const DRACUROUGE_PLUGIN = {
   label: 'ドラクルージュ',
   buildCharacterParameters: buildDracurougeCharacterParameters,
   renderCharacterPanel: renderDracurougeCharacterPanel,
+  importCharacterJson: importDracurougeCharacterJson,
+  characterSheetSource: DRACUROUGE_SHEET_SOURCE,
   handleChatCommand: handleDracurougeChatCommand,
   looksLikeOwnChatCommand: looksLikeDracurougeChatCommand,
   resetComponentsOnPhaseEnd: resetDracurougeComponentsOnPhaseEnd,

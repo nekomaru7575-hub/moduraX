@@ -311,13 +311,17 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       conditionRows.push({ row, leftInput, comparatorSelect, rightInput });
     }
 
-    (skill?.limits?.conditions ?? []).forEach(addConditionRow);
+    // 使用という概念が無い一覧（allowConditions:false）では節ごと出さない。
+    // 行が1つも作られないので、保存時の条件も自動的に空になる。
+    if (spec.allowConditions) {
+      (skill?.limits?.conditions ?? []).forEach(addConditionRow);
 
-    const addConditionBtn = createElement('button', 'dialog-add-row-btn', '+ 使用条件を追加');
-    addConditionBtn.type = 'button';
-    addConditionBtn.addEventListener('click', () => addConditionRow(null));
-    conditionsWrap.appendChild(addConditionBtn);
-    item.appendChild(conditionsWrap);
+      const addConditionBtn = createElement('button', 'dialog-add-row-btn', '+ 使用条件を追加');
+      addConditionBtn.type = 'button';
+      addConditionBtn.addEventListener('click', () => addConditionRow(null));
+      conditionsWrap.appendChild(addConditionBtn);
+      item.appendChild(conditionsWrap);
+    }
 
     // 評価できない式は使用時に黙って0として扱われる（＝バフが付かない）ため、入力した時点で
     // 理由を出す。保存自体はブロックしない（式を後から埋める運用を邪魔しないため）。

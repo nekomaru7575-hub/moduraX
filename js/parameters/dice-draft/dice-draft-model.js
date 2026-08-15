@@ -163,6 +163,36 @@ function readNumberField(skill, fieldKey) {
   return Number.isFinite(value) ? value : null;
 }
 
+// 目標値（kind:'sum'）の書き方は2通りある。
+//   "7"      … その値ちょうど。従来からの書き方
+//   "3～12"  … 最小値の倍数から選ぶ（ドラクルージュの《軽やかに剣舞う》は3・6・9・12）。
+//              どれを狙うかは使う人が決めるので、選択肢を返して画面とコマンドに選ばせる。
+// 区切り記号は書く人によって揺れるので、見かける形は全部受ける。
+const TARGET_RANGE_PATTERN = /^(\d+)\s*[~～〜ー－–—-]\s*(\d+)$/;
+
+/**
+ * 目標値の欄を読み、選べる目標値の一覧にする。読めなければnull。
+ * @returns {{ options: number[] }|null} optionsは昇順。単一の目標値なら1件
+ */
+function parseSumTarget(raw) {
+  if (raw === '' || raw === null || raw === undefined) return null;
+  const text = String(raw).trim();
+
+  const range = text.match(TARGET_RANGE_PATTERN);
+  if (range) {
+    const min = Number(range[1]);
+    const max = Number(range[2]);
+    if (!(min > 0) || max < min) return null;
+
+    const options = [];
+    for (let value = min; value <= max; value += min) options.push(value);
+    return { options };
+  }
+
+  const value = Number(text);
+  return Number.isFinite(value) ? { options: [value] } : null;
+}
+
 /**
  * その目をそのスキルへ置いてよいか。
  * @returns {{ ok: boolean, reason: string }} reasonは置けないときの1行説明
@@ -186,19 +216,30 @@ export function acceptsDie(spec, skill, die) {
 /**
  * 今そのスキルに乗っているダイスで発動できるか。
  *
+ * @param {object} spec
+ * @param {object} skill
+ * @param {object[]} dice
+ * @param {{ targetValue?: number|null }} [options]
+ *   targetValue … 幅のある目標値（"3～12"）でどれを狙うか。選択肢に無い値は無視して
+ *                 「今の合計で届く一番大きい目標値」を採る（画面もコマンドも同じ規則）。
  * @returns {{
  *   ready: boolean,
  *   uses: number,               乗っているダイスを全部使うと何回ぶんになるか
  *   perUseDice: number,         1回ぶんが何個のダイスを食うか
  *   supportsPartialUse: boolean 「1回だけ使う」に意味があるか。
  *                               画面がkindで分岐しなくて済むよう、ここで答えを出す
+ *   targetOptions: number[],    選べる目標値。2件以上なら画面に選択欄を出す
+ *   targetValue: number|null,   今回狙う目標値（判定値）
  *   description: string         パネルとチャットログの両方に出す1行
  * }}
  */
-export function evaluatePlacement(spec, skill, dice = []) {
+export function evaluatePlacement(spec, skill, dice = [], { targetValue = null } = {}) {
   const requirement = spec?.requirement;
   const count = dice.length;
-  const no = (description) => ({ ready: false, uses: 0, perUseDice: 0, supportsPartialUse: false, description });
+  const no = (description) => ({
+    ready: false, uses: 0, perUseDice: 0, supportsPartialUse: false,
+    targetOptions: [], targetValue: null, description
+  });
 
   if (!requirement) return no('ダイスの割り当て規則がありません');
 
@@ -216,15 +257,40 @@ export function evaluatePlacement(spec, skill, dice = []) {
 
   // kind: 'sum' … 合計が目標値に届けば1回。「1回だけ」と「全部」に違いが無いので
   // supportsPartialUse は false（画面のボタンも1つになる）。
-  const target = readNumberField(skill, requirement.targetField);
+  //
+  // 【使用回数は必ず1回】幅のある目標値では効果が「判定値/3回」のように増えることがあるが、
+  // それは1回の行いの効果であって使用回数ではない。ここでusesを増やすと、runDiceDraftUseが
+  // その回数だけ使用を記録し、「ラウンド1回」の上限に自分でぶつかる。
+  const target = parseSumTarget(skill?.fields?.[requirement.targetField]);
   if (target === null) return no('目標値が設定されていません');
 
+  const options = target.options;
   const total = dice.reduce((sum, die) => sum + die.value, 0);
-  if (total < target) return no(`合計 ${total} / 目標 ${target}（あと ${target - total}）`);
+
+  // 狙う目標値。指定が無ければ「今の合計で届く一番大きいもの」、1つも届かないなら最小値
+  // （どれだけ足りないかを出すため）。
+  const affordable = options.filter(value => value <= total);
+  const chosen = options.includes(targetValue)
+    ? targetValue
+    : (affordable.length > 0 ? affordable[affordable.length - 1] : options[0]);
+
+  const label = options.length > 1
+    ? `${options[0]}～${options[options.length - 1]}`
+    : String(options[0]);
+
+  if (total < chosen) {
+    return {
+      ...no(`合計 ${total} / 目標 ${chosen}（あと ${chosen - total}）`),
+      targetOptions: options, targetValue: chosen
+    };
+  }
 
   return {
     ready: true, uses: 1, perUseDice: count, supportsPartialUse: false,
-    description: `合計 ${total} / 目標 ${target}`
+    targetOptions: options, targetValue: chosen,
+    description: options.length > 1
+      ? `合計 ${total} / 判定値 ${chosen}（目標 ${label}）`
+      : `合計 ${total} / 目標 ${chosen}`
   };
 }
 

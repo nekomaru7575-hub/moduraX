@@ -351,6 +351,108 @@
   font-family: inherit;
 }
 
+/* 絆一覧の編集ボックス（ドラクルージュ）。
+   1行が「ノワール5枠・消えざる絆・名称・消えざる絆・ルージュ5枠」と横に長いので、
+   ロイス一覧のように折り返さず、横スクロールで1行のまま見せる。 */
+.bond-box-dialog {
+  width: 100%;
+  max-width: 820px;
+}
+
+.bond-box-summary {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+.bond-box-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.bond-box-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 8px;
+  /* 横スクロールする親の中で、行が縮んで潰れないようにする */
+  width: max-content;
+  min-width: 100%;
+}
+
+.bond-box-side {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* 5つ揃って封印された側。触れないことを見た目でも示す */
+.bond-box-side.is-sealed {
+  opacity: 0.65;
+}
+
+/* 1字分の幅のドロップダウン。.dialog-custom-row input の flex:1 は select には効かないが、
+   中身が1文字でもブラウザ既定の最小幅が付くので明示的に詰める */
+.bond-box-slot {
+  flex: 0 0 auto;
+  width: 3.4em;
+  min-width: 0;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+.bond-box-side-rouge .bond-box-slot {
+  border-color: #8a5555;
+}
+
+.bond-box-side-noir .bond-box-slot {
+  border-color: #555a75;
+}
+
+/* 消えざる絆。名称の左隣がノワール側、右隣がルージュ側 */
+.bond-box-eternal {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.bond-box-eternal.is-sealed {
+  cursor: default;
+  opacity: 0.65;
+}
+
+/* .dialog-custom-row input 向けの指定（flex:1・背景・枠・余白）が効かない位置だが、
+   チェックボックスが伸びないよう明示しておく（.dialog-visible-toggle と同じ理由） */
+.bond-box-eternal input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  accent-color: #c05a5a;
+}
+
+.bond-box-name {
+  flex: 0 0 160px;
+  min-width: 0;
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
 /* 能力・技能値の表示ボックス */
 .ability-box-dialog {
   width: 100%;

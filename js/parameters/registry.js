@@ -4,12 +4,14 @@
 import { DX3_PLUGIN } from './dx3.js';
 import { SHINOBIGAMI_PLUGIN } from './shinobigami.js';
 import { STELLA_KNIGHTS_PLUGIN } from './stella-knights.js';
+import { DRACUROUGE_PLUGIN } from './dracurouge.js';
 // import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
 
 const PLUGINS = {
   DX3: DX3_PLUGIN,
   SHINOBIGAMI: SHINOBIGAMI_PLUGIN,
   STELLA_KNIGHTS: STELLA_KNIGHTS_PLUGIN,
+  DRACUROUGE: DRACUROUGE_PLUGIN,
   // GCREST: GCREST_PLUGIN,
 };
 
@@ -275,6 +277,32 @@ export function applyPluginDerivedRoomParameters(pluginId, parameters, context =
 export function listPluginStamps(pluginId) {
   const plugin = PLUGINS[pluginId];
   return Array.isArray(plugin?.stamps) ? plugin.stamps : [];
+}
+
+/**
+ * そのシステムで使うBCDiceのシステムID（記述子のbcdiceSystem）をそのまま返す。
+ * stampsと同じく、Coreは中身を解釈せず文字列として受け取るだけ。
+ * ダイスコマンドの解釈規則（room.bcdiceSystem）はプラグインとは別軸の設定なので、
+ * これは「このシステムを選んだ時の既定はこれ」という宣言でしかない。実際に切り替えるかは
+ * 呼び出し側（js/main.jsのプラグイン選択）が決める。
+ * @param {string|null} pluginId
+ * @returns {string|null} 宣言が無ければnull
+ */
+export function getPluginBcdiceSystem(pluginId) {
+  const system = PLUGINS[pluginId]?.bcdiceSystem;
+  return typeof system === 'string' && system !== '' ? system : null;
+}
+
+/**
+ * ダイスドラフト（振った目をスキルへ割り当てて使う仕組み）の宣言をそのまま返す。
+ * Coreは中身を解釈せず、パネル（js/dice-draft-panel.js）へ渡すだけ。
+ * 何が置けるか・いつ発動できるかの規則は、宣言と
+ * js/parameters/dice-draft/dice-draft-model.js の側にある。
+ * @param {string|null} pluginId
+ * @returns {object|null} 宣言が無ければnull
+ */
+export function getPluginDiceDraftSpec(pluginId) {
+  return PLUGINS[pluginId]?.diceDraft ?? null;
 }
 
 /**

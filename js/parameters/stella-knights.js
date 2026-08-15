@@ -1,11 +1,11 @@
-import { MAX_ANIMATED_DICE } from '../dice-notation.js';
 import { buildParameters } from './paramFactory.js';
 import { createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd } from './skill/skill-model.js';
 import { showSkillBox } from './skill/skill-box.js';
+import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
+import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 const CHARGE_COMMAND_PATTERN = /^charge\((\d+)\)$/i;
-const MAIN_TAB_ID = 'main';
 const SKILL_COMPONENT_KEY = 'stellaKnightsSkills';
 
 const FACE_PARAMETERS = [
@@ -43,6 +43,27 @@ const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
   }))
 });
 
+// チャージで振った目は「ダイスドラフト」のプールへ入り、パネル（js/dice-draft-panel.js）で
+// スキルへドラッグして使う。スキルの「対応する数字」と同じ目だけが置け、置いた個数だけ使用できる
+// ＝ requirement の kind:'match'。この宣言が入るまで、「対応する数字」は表示用のメモでしかなく、
+// どのコードとも繋がっていなかった。
+//
+// legacyCountParameters は face1..face6 からの移行元。以前のcharge()は出目を数えてこれらへ
+// 加算していたので、値が残っているコマではパネルに「プールへ移す」ボタンが出る。
+// face1..face6 自体は残す：スキルの修正対象（modTargets）として今も使われ、手入力もできる。
+const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
+  id: 'stella-knights-draft',
+  label: '出目',
+  diceSides: 6,
+  bcdiceSystem: STELLA_KNIGHTS_BCDICE_SYSTEM,
+  skillSpec: STELLA_KNIGHTS_SKILL_SPEC,
+  requirement: { kind: 'match', valueField: 'number' },
+  legacyCountParameters: FACE_PARAMETERS.map((definition, index) => ({
+    paramId: `STELLA_KNIGHTS:${definition.key}`,
+    value: index + 1
+  }))
+});
+
 function buildStellaKnightsCharacterParameters() {
   return buildParameters('STELLA_KNIGHTS', FACE_PARAMETERS);
 }
@@ -75,16 +96,6 @@ function computeStellaKnightsDerivedRoomParameters(parameters, context = {}) {
 
 function looksLikeStellaKnightsChatCommand(rawInput) {
   return CHARGE_COMMAND_PATTERN.test(String(rawInput).trim());
-}
-
-function countFaces(diceValues) {
-  const counts = [0, 0, 0, 0, 0, 0];
-  (diceValues ?? []).forEach(rand => {
-    if (rand?.sides !== 6 || !Number.isInteger(rand.value)) return;
-    if (rand.value < 1 || rand.value > 6) return;
-    counts[rand.value - 1] += 1;
-  });
-  return counts;
 }
 
 function readFaceValue(parameters, face) {
@@ -192,81 +203,26 @@ function resetStellaKnightsComponentsOnPhaseEnd(components, phase) {
   return nextSkills === skills ? components : { ...components, [key]: nextSkills };
 }
 
-function buildChargeLines(token, counts, dispatch) {
-  return counts.flatMap((count, index) => {
-    if (count === 0) return [];
-
-    const face = index + 1;
-    const paramId = `STELLA_KNIGHTS:face${face}`;
-    const param = token.parameters?.[paramId];
-    const before = Number(param?.value ?? 0);
-    const after = before + count;
-
-    dispatch('SET_PARAMETER', { characterId: token.id, paramId, value: after });
-
-    const label = param?.label ?? FACE_PARAMETERS[index].label;
-    return `${label}: ${before} -> ${after} (+${count})`;
-  });
-}
-
+// チャージ。振った目はダイスドラフトのプールへ入る（以前はface1..face6へ個数として
+// 加算していた。残っている値の移行はパネル側の「プールへ移す」ボタンが担当する）。
+// 個数の検証・コマ未選択・ダイスを振れない画面の案内は runDiceDraftRoll がまとめて行うので、
+// ここは書式の判定だけをする。
 function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice }) {
   const input = String(rawInput).trim();
   const match = input.match(CHARGE_COMMAND_PATTERN);
   if (!match) return false;
 
-  if (!token) {
-    alert('チャージを行うキャラクターを選択してください。');
-    return true;
-  }
-  if (!rollBCDice) {
-    alert('この画面ではダイスを振れません。部屋の中で実行してください。');
-    return true;
-  }
-
-  const diceCount = Number(match[1]);
-  if (!Number.isInteger(diceCount) || diceCount < 1) {
-    alert('charge() のダイス数には 1 以上の整数を指定してください。');
-    return true;
-  }
-
-  const command = `${diceCount}B6`;
-  rollBCDice(STELLA_KNIGHTS_BCDICE_SYSTEM, command).then(({ success, resultText, diceValues }) => {
-    if (!success) {
-      alert(`チャージロールに失敗しました: ${resultText}`);
-      return;
-    }
-
-    const counts = countFaces(diceValues);
-    const changeLines = buildChargeLines(token, counts, dispatch);
-    const diceDetail = diceValues?.length ? diceValues.map(d => d.value).join(', ') : '';
-
-    if (diceValues?.length) {
-      dispatch('ROLL_DICE_ANIMATION', {
-        tabId: MAIN_TAB_ID,
-        dice: diceValues.slice(0, MAX_ANIMATED_DICE)
-      });
-    }
-
-    dispatch('ADD_CHAT_MESSAGE', {
-      tabId: MAIN_TAB_ID,
-      entry: {
-        system: '銀剣のステラナイツ',
-        character: token.name || '',
-        characterId: token.id || null,
-        color: token.textColor || null,
-        command: input,
-        diceDetail,
-        resultText: [
-          `チャージ: ${command}`,
-          resultText,
-          changeLines.length ? changeLines.join('\n') : '加算される出目はありませんでした。'
-        ].join('\n')
-      }
-    });
-  }).catch(error => {
-    alert(`チャージロールでエラーが発生しました: ${error.message}`);
+  runDiceDraftRoll({
+    spec: STELLA_KNIGHTS_DRAFT_SPEC,
+    token,
+    dispatch,
+    rollBCDice,
+    count: Number(match[1]),
+    knownSkillNames: readStellaKnightsSkills(token?.components).map(skill => skill.name),
+    chatCommand: input
   });
 
+  // 書式が合った時点で必ずtrueを返す（falseだとCoreがただのダイスコマンドとして再解釈する）
   return true;
 }
 
@@ -280,6 +236,7 @@ export const STELLA_KNIGHTS_PLUGIN = {
   handleChatCommand: handleStellaKnightsChatCommand,
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,
   resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd,
+  diceDraft: STELLA_KNIGHTS_DRAFT_SPEC,
   stamps: [
     {id:`bouquet`, label : `ブーケ`,file:`bouquet.png`}
   ]

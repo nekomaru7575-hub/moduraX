@@ -33,7 +33,7 @@ import { showChatTabDialog } from './chat-tab-dialog.js';
 import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK } from './visibility.js';
 import {
   handlePluginChatCommand, findPluginForChatCommand,
-  parsePluginBuffExtra, describePluginBuffMeta
+  parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem
 } from './parameters/registry.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
@@ -51,6 +51,7 @@ import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initStampLayer, requestStamp } from './stamp-layer.js';
 import { initStampPanel } from './stamp-panel.js';
+import { initDiceDraftPanel } from './dice-draft-panel.js';
 import { findStampByName, listStampLabels } from './stamp-registry.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
@@ -1838,7 +1839,18 @@ if (roomPluginSelect) {
       roomPluginSelect.value = store.state.room.activePlugin || '';
       return;
     }
-    store.dispatch('SET_ACTIVE_PLUGIN', { pluginId: roomPluginSelect.value || null });
+    const pluginId = roomPluginSelect.value || null;
+    store.dispatch('SET_ACTIVE_PLUGIN', { pluginId });
+
+    // そのシステムがBCDice側のシステムを宣言していれば、ダイスコマンドの解釈規則も
+    // 合わせて切り替える（「システムを選んだのにダイスが別システムのまま」を避ける）。
+    // 宣言していないプラグイン・プラグインなしの場合は今の設定のままにする。
+    // SET_BCDICE_SYSTEMもGM限定アクションだが、既に上のcanOperateAsGm()の内側なので
+    // 追加の権限判定は要らない。
+    const bcdiceSystem = getPluginBcdiceSystem(pluginId);
+    if (bcdiceSystem && bcdiceSystem !== store.state.room.bcdiceSystem) {
+      store.dispatch('SET_BCDICE_SYSTEM', { system: bcdiceSystem });
+    }
   });
 }
 
@@ -2145,10 +2157,20 @@ window.addEventListener('DOMContentLoaded', () => {
   const infoPanel = initInfoPanel();
   const characterPanel = initCharacterPanel();
   const stampPanel = initStampPanel();
+  const diceDraftPanel = initDiceDraftPanel();
 
-  // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル4枚を
+  // ダイスドラフトはチャット欄の参照キャラクターのコマを扱う。選ぶ場所を2つに増やすと、
+  // 「charge()を撃ったコマ」と「パネルに出ているコマ」が食い違うので、こちらを追従させる。
+  if (characterParamSelect) {
+    diceDraftPanel.setCharacter(characterParamSelect.value || null);
+    characterParamSelect.addEventListener('change', () => {
+      diceDraftPanel.setCharacter(characterParamSelect.value || null);
+    });
+  }
+
+  // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル5枚を
   // 中央スペースのタブに切り替える。PC幅では何も起きない。
-  // キャラ・情報・スタンプは1枚のタブに束ねる（groupが同じもの同士）。タブは375px幅で
+  // キャラ・情報・スタンプ・ダイスは1枚のタブに束ねる（groupが同じもの同士）。タブは375px幅で
   // 1枚70px弱しか取れず、6枚並べると文字が読めなくなるため。打鍵中に行き来する
   // パレットだけは、束ねずに1タップで開けるところへ残す。
   initMobileLayout({
@@ -2156,7 +2178,8 @@ window.addEventListener('DOMContentLoaded', () => {
       { id: 'palette', label: 'パレット', panel: chatPalettePanel },
       { id: 'characters', label: 'キャラ', group: 'panels', panel: characterPanel },
       { id: 'info', label: '情報', group: 'panels', panel: infoPanel },
-      { id: 'stamps', label: 'スタンプ', group: 'panels', panel: stampPanel }
+      { id: 'stamps', label: 'スタンプ', group: 'panels', panel: stampPanel },
+      { id: 'diceDraft', label: 'ダイス', group: 'panels', panel: diceDraftPanel }
     ]
   });
 

@@ -135,6 +135,8 @@ const PLUGINS = {
 | `buildRoundPhaseTemplate` | `() => phase[]` | ラウンド進行のフェーズ構成 |
 | `buffFields` | `{ render, parseExtra, describe }` | バフに独自の追加情報を持たせる |
 | `stamps` | `{ id, label, file }[]` | そのシステム用のスタンプを足す |
+| `bcdiceSystem` | `string` | このシステムを選んだときの BCDice のシステムID（[3.11](#311-bcdicesystem)） |
+| `diceDraft` | `spec` | 振った目をスキルへ割り当てて使う仕組みの宣言（[3.12](#312-dicedraft)） |
 
 以下、それぞれの詳細。
 
@@ -458,6 +460,84 @@ computeDerivedRoomParameters(parameters, context = {}) {
 > 選び直すと `room.parameters` ごと差し替わり、利用者が自分で追加したルーム変数まで消える。
 
 ルーム変数はチャットで `{ブーケ合計}` のように参照できる（`key` でも `label` でも引ける）。
+
+---
+
+### 3.11 `bcdiceSystem`
+
+ダイスコマンドの解釈規則（BCDice のシステム）は `room.bcdiceSystem` にあり、プラグインとは
+**別軸のルーム設定**。だが「システムを選んだのにダイスだけ別システムのまま」になりやすいので、
+既定をプラグインから宣言できるようにしてある。`stamps` と同じく **データだけを宣言する**。
+
+```js
+bcdiceSystem: 'StellarKnights'
+```
+
+ルーム設定でそのシステムを選んだとき（GM のみ）、BCDice のシステムも合わせて切り替わる
+（`js/main.js` のプラグイン選択）。宣言しなければ今の設定のまま。
+切り替えたあと GM が手で別のシステムを選ぶこともでき、そちらが優先される
+（この宣言が効くのはプラグインを選び直した瞬間だけ）。
+
+**IDは BCDice 側の表記と一字一句同じにすること**（`/api/bcdice/game_system` の一覧で確認できる）。
+存在しないIDを書くと、その部屋のダイスロールが全部失敗する。
+
+---
+
+### 3.12 `diceDraft`
+
+「振った目を1個ずつ取っておき、スキルへ割り当てて使う」システム（ドラクルージュ、
+銀剣のステラナイツ）のための宣言。UI（浮動パネル・ドラッグ・ダイスの絵）は Core 側の
+`js/dice-draft-panel.js` が持ち、**何が置けるか・いつ発動できるかだけをプラグインが決める**。
+
+```js
+import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
+
+diceDraft: createDiceDraftSpec({
+  id: 'mysystem-draft',
+  label: '出目',                 // パネルの見出しとチャットログの発言種別
+  diceSides: 6,                  // 振るダイスの面数（既定6）
+  bcdiceSystem: 'MySystem',      // 振るときのシステムID（room.bcdiceSystemとは別軸）
+  skillSpec: MY_SKILL_SPEC,      // 割り当て先の一覧（6.1のcreateSkillSpec）
+  requirement: { kind: 'match', valueField: 'number' }
+})
+```
+
+**`requirement` の2種類**
+
+| kind | 宣言 | 置ける目 | 発動条件 | 使用回数 |
+|---|---|---|---|---|
+| `'match'` | `{ valueField }` | `skill.fields[valueField]` と同じ目だけ | 1個以上 | 置いた個数 |
+| `'sum'` | `{ targetField }` | 制限なし | 合計 ≧ `skill.fields[targetField]` | 1回 |
+
+`skillSpec` を省くと「まだスキル一覧が無いシステム」として扱われ、プールに溜めるところまで動く。
+
+**ダイスをプールへ入れる**のは `runDiceDraftRoll()`。チャットコマンドのハンドラから呼ぶ。
+個数の検証・コマ未選択・ダイスを振れない画面の案内・演出・ログまで面倒を見るので、
+プラグイン側は書式の判定だけをすればよい。
+
+```js
+import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
+
+const ROLL_PATTERN = /^charge\((\d+)\)$/i;
+
+function handleMyChatCommand(rawInput, { token, dispatch, rollBCDice }) {
+  const match = String(rawInput).trim().match(ROLL_PATTERN);
+  if (!match) return false;
+  runDiceDraftRoll({ spec: MY_DRAFT_SPEC, token, dispatch, rollBCDice, count: Number(match[1]) });
+  return true;   // 書式が合った時点で必ずtrue
+}
+```
+
+プールは `token.components.diceDraft` に入る（`{ pool: [die], placements: { [スキル名]: [die] } }`、
+`die` は `{ id, sides, value }`）。**ダイス1個は必ずプールかいずれか1つのスキルの下にだけ存在する**
+という不変条件で組まれているので、直接書き換えず `dice-draft-model.js` の関数を通すこと。
+
+> 3D ダイスの演出（`ROLL_DICE_ANIMATION`）は状態に載らないので、リロードしても
+> 過去のロールが転がり直したりはしない。プールだけが残る。
+
+**ドラフト導入前に「目ごとの個数」をパラメータで持っていた**場合は
+`legacyCountParameters: [{ paramId, value }]` を宣言しておくと、値が残っているコマにだけ
+パネルへ「プールへ移す」ボタンが出る（ステラナイツの `face1`〜`face6` がこれ）。
 
 ---
 

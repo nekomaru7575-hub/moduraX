@@ -1,0 +1,309 @@
+// js/parameters/dice-draft/dice-draft-model.js
+// ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。
+//
+// このファイルは DOM も store も触らない。理由は2つある。
+//   1. server/index.js → game-store.js → registry.js → プラグイン → ここ、という import 連鎖が
+//      あるため、トップレベルで document を触ると本番サーバーが起動しなくなる
+//   2. 判定の規則（何が置けるか・いつ発動できるか）を、UIとは切り離して1か所に集めるため
+// UI（ドラッグ・ダイスの絵・store操作）は js/dice-draft-panel.js が持つ。
+//
+// 保存する形（token.components.diceDraft）:
+//   { pool: [die], placements: { [スキル名]: [die] } }   die = { id, sides, value }
+// 【不変条件】ダイス1個は pool か、いずれか1つのスキルの下か、必ずどちらか一方にだけ存在する。
+// ドラッグは配列間の移動でしかなく、この不変条件さえ守れば整合性は保たれる。
+
+// 壊れた（あるいは意図的に膨らませた）保存データで状態が肥大しないよう、読み出し時に切る。
+const POOL_SAFETY_MAX = 60;
+const PLACEMENT_SAFETY_MAX = 20;
+
+/** 空のドラフト。componentsを持たない古いコマの既定値。 */
+export function createEmptyDraft() {
+  return { pool: [], placements: {} };
+}
+
+let dieSeq = 0;
+
+/**
+ * ダイス1個を作る。idは再描画とドラッグの対応付けに使う
+ * （配列のindexで指すと、移動のたびに指し先がズレる）。
+ */
+export function createDie(sides, value) {
+  dieSeq += 1;
+  return {
+    id: `d${Date.now().toString(36)}-${dieSeq.toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    sides: Number.isInteger(sides) && sides > 0 ? sides : 6,
+    value: Number.isInteger(value) ? value : 0
+  };
+}
+
+function normalizeDie(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!Number.isInteger(raw.value)) return null;
+  const sides = Number.isInteger(raw.sides) && raw.sides > 0 ? raw.sides : 6;
+  const id = typeof raw.id === 'string' && raw.id !== '' ? raw.id : createDie(sides, raw.value).id;
+  return { id, sides, value: raw.value };
+}
+
+/**
+ * 保存済みのドラフトを正規化する。読み出しは必ずここを通すこと。
+ *
+ * knownSkillNames を渡すと、そこに無い名前の下にいるダイスを**プールへ戻す**。
+ * スキルを消した・改名したときにダイスが行き場を失って消えてしまうのを防ぐため
+ * （黙って捨てるより、拾い直せる場所へ返すほうが事故が小さい）。
+ *
+ * @param {any} raw
+ * @param {string[]|null} [knownSkillNames] 省略・nullなら置き場の検査をしない
+ */
+export function normalizeDraft(raw, knownSkillNames = null) {
+  const known = Array.isArray(knownSkillNames) ? new Set(knownSkillNames) : null;
+  const seenIds = new Set();
+
+  // 同じidが2か所に現れる壊れたデータでも不変条件を保つ（先に見つけたほうを採る）
+  const takeDice = (list, max) => {
+    if (!Array.isArray(list)) return [];
+    const result = [];
+    for (const item of list) {
+      if (result.length >= max) break;
+      const die = normalizeDie(item);
+      if (!die || seenIds.has(die.id)) continue;
+      seenIds.add(die.id);
+      result.push(die);
+    }
+    return result;
+  };
+
+  const pool = takeDice(raw?.pool, POOL_SAFETY_MAX);
+  const placements = {};
+  const orphans = [];
+
+  const rawPlacements = (raw?.placements && typeof raw.placements === 'object') ? raw.placements : {};
+  Object.entries(rawPlacements).forEach(([skillName, list]) => {
+    if (typeof skillName !== 'string' || skillName === '') return;
+    const dice = takeDice(list, PLACEMENT_SAFETY_MAX);
+    if (dice.length === 0) return;
+    if (known && !known.has(skillName)) {
+      orphans.push(...dice);
+      return;
+    }
+    placements[skillName] = dice;
+  });
+
+  return { pool: [...pool, ...orphans].slice(0, POOL_SAFETY_MAX), placements };
+}
+
+/** そのドラフトが持っているダイスの総数（プール＋配置済み）。 */
+export function countDice(draft) {
+  const placed = Object.values(draft?.placements ?? {})
+    .reduce((sum, dice) => sum + (Array.isArray(dice) ? dice.length : 0), 0);
+  return (draft?.pool?.length ?? 0) + placed;
+}
+
+/** そのスキルに乗っているダイス。無ければ空配列。 */
+export function placedDice(draft, skillName) {
+  return draft?.placements?.[skillName] ?? [];
+}
+
+// ------------------------------------------------------------------
+// 宣言（プラグインが書くもの）
+// ------------------------------------------------------------------
+
+const REQUIREMENT_KINDS = new Set(['match', 'sum']);
+
+/**
+ * ダイスドラフトの宣言。
+ *
+ * @param {{
+ *   id: string,                必須。宣言の識別子
+ *   label: string,             必須。パネルの見出しとチャットログの発言種別に使う
+ *   diceSides?: number,        振るダイスの面数（既定6）
+ *   bcdiceSystem: string,      振るときのBCDiceシステムID（room.bcdiceSystemとは別軸）
+ *   skillSpec?: object|null,   割り当て先の一覧（createSkillSpec の戻り値）。
+ *                              nullなら「まだスキル一覧が無いシステム」＝プールだけを扱う
+ *   requirement?: {
+ *     kind: 'match'|'sum',
+ *     valueField?: string,     kind:'match' … この欄と同じ目だけ置ける。使用回数＝置いた個数
+ *     targetField?: string     kind:'sum'   … 合計がこの欄の値以上で発動。使用回数＝1
+ *   },
+ *   legacyCountParameters?: { paramId: string, value: number }[]
+ *     ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行元。
+ *     宣言しておくと、値が残っているときだけパネルに「プールへ移す」ボタンが出る
+ *     （ステラナイツの face1..face6 がこれ）。編集できるパラメータであること。
+ * }} definition
+ */
+export function createDiceDraftSpec(definition) {
+  const {
+    id, label, diceSides = 6, bcdiceSystem,
+    skillSpec = null, requirement = null, legacyCountParameters = []
+  } = definition;
+
+  if (!id) throw new Error('[dice-draft] idが必要です');
+  if (!label) throw new Error(`[dice-draft] ${id}: labelが必要です`);
+  if (!bcdiceSystem) throw new Error(`[dice-draft] ${id}: bcdiceSystemが必要です`);
+  if (requirement && !REQUIREMENT_KINDS.has(requirement.kind)) {
+    throw new Error(`[dice-draft] ${id}: requirement.kindが不明です: ${requirement.kind}`);
+  }
+
+  return Object.freeze({
+    id, label, bcdiceSystem, skillSpec,
+    diceSides: Number.isInteger(diceSides) && diceSides > 0 ? diceSides : 6,
+    requirement: requirement ? Object.freeze({ ...requirement }) : null,
+    legacyCountParameters: Object.freeze(legacyCountParameters.map(entry => Object.freeze({ ...entry })))
+  });
+}
+
+// ------------------------------------------------------------------
+// 判定（規則を足すときはこの2つだけを触る）
+// ------------------------------------------------------------------
+
+// スキルの欄から数値を1つ読む。未設定・数字でないものはnull（＝「決まっていない」）。
+function readNumberField(skill, fieldKey) {
+  const raw = skill?.fields?.[fieldKey];
+  if (raw === '' || raw === null || raw === undefined) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * その目をそのスキルへ置いてよいか。
+ * @returns {{ ok: boolean, reason: string }} reasonは置けないときの1行説明
+ */
+export function acceptsDie(spec, skill, die) {
+  const requirement = spec?.requirement;
+  if (!requirement) return { ok: false, reason: 'このシステムにはダイスの割り当て規則がありません' };
+  if (!die) return { ok: false, reason: '' };
+
+  if (requirement.kind === 'match') {
+    const wanted = readNumberField(skill, requirement.valueField);
+    if (wanted === null) return { ok: false, reason: '対応する数字が設定されていません' };
+    if (die.value !== wanted) return { ok: false, reason: `${wanted}の目だけを置けます` };
+    return { ok: true, reason: '' };
+  }
+
+  // kind: 'sum' … 目は選ばない。目標値が未設定でも置くこと自体は許し、発動側で止める
+  return { ok: true, reason: '' };
+}
+
+/**
+ * 今そのスキルに乗っているダイスで発動できるか。
+ * @returns {{ ready: boolean, uses: number, description: string }}
+ *   description はパネルとチャットログの両方に出す1行
+ */
+export function evaluatePlacement(spec, skill, dice = []) {
+  const requirement = spec?.requirement;
+  const count = dice.length;
+
+  if (!requirement) {
+    return { ready: false, uses: 0, description: 'ダイスの割り当て規則がありません' };
+  }
+
+  if (requirement.kind === 'match') {
+    const wanted = readNumberField(skill, requirement.valueField);
+    if (wanted === null) {
+      return { ready: false, uses: 0, description: '対応する数字が設定されていません' };
+    }
+    if (count === 0) {
+      return { ready: false, uses: 0, description: `${wanted}の目が必要です` };
+    }
+    return { ready: true, uses: count, description: `${wanted}の目 ×${count} → ${count}回使用` };
+  }
+
+  // kind: 'sum'
+  const target = readNumberField(skill, requirement.targetField);
+  const total = dice.reduce((sum, die) => sum + die.value, 0);
+  if (target === null) {
+    return { ready: false, uses: 0, description: '目標値が設定されていません' };
+  }
+  if (total < target) {
+    return { ready: false, uses: 0, description: `合計 ${total} / 目標 ${target}（あと ${target - total}）` };
+  }
+  return { ready: true, uses: 1, description: `合計 ${total} / 目標 ${target}` };
+}
+
+// ------------------------------------------------------------------
+// 状態を動かす（すべて新しいオブジェクトを返す。変化が無ければ同じ参照）
+// ------------------------------------------------------------------
+
+/** プールへダイスを足す。上限を超える分は捨てる（超えた個数を overflow で返す）。 */
+export function addDiceToPool(draft, dice) {
+  if (!Array.isArray(dice) || dice.length === 0) return { draft, added: 0, overflow: 0 };
+
+  const base = draft ?? createEmptyDraft();
+  const room = Math.max(0, POOL_SAFETY_MAX - base.pool.length);
+  const accepted = dice.slice(0, room);
+  if (accepted.length === 0) return { draft: base, added: 0, overflow: dice.length };
+
+  return {
+    draft: { pool: [...base.pool, ...accepted], placements: { ...base.placements } },
+    added: accepted.length,
+    overflow: dice.length - accepted.length
+  };
+}
+
+// 指定のダイスを今どこにあっても取り出す。見つからなければ null。
+function extractDie(draft, dieId) {
+  const poolIndex = draft.pool.findIndex(die => die.id === dieId);
+  if (poolIndex !== -1) {
+    const die = draft.pool[poolIndex];
+    const pool = [...draft.pool];
+    pool.splice(poolIndex, 1);
+    return { die, from: null, next: { pool, placements: { ...draft.placements } } };
+  }
+
+  for (const [skillName, dice] of Object.entries(draft.placements)) {
+    const index = dice.findIndex(die => die.id === dieId);
+    if (index === -1) continue;
+
+    const die = dice[index];
+    const rest = [...dice];
+    rest.splice(index, 1);
+    const placements = { ...draft.placements };
+    if (rest.length === 0) delete placements[skillName];
+    else placements[skillName] = rest;
+    return { die, from: skillName, next: { pool: [...draft.pool], placements } };
+  }
+
+  return null;
+}
+
+/**
+ * ダイスを1個動かす。toSkillName に null を渡すとプールへ戻す。
+ * 置けない組み合わせ・動かす必要が無い場合は**元のdraftをそのまま返す**
+ * （呼び出し側が参照比較で「変化なし」を判定できるようにするため）。
+ */
+export function moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {}) {
+  const base = draft ?? createEmptyDraft();
+  const found = extractDie(base, dieId);
+  if (!found) return base;
+  if (found.from === (toSkillName ?? null)) return base;
+
+  const { die, next } = found;
+
+  if (toSkillName === null || toSkillName === undefined) {
+    return { pool: [...next.pool, die], placements: next.placements };
+  }
+
+  if (spec && !acceptsDie(spec, skill, die).ok) return base;
+
+  const current = next.placements[toSkillName] ?? [];
+  if (current.length >= PLACEMENT_SAFETY_MAX) return base;
+
+  return {
+    pool: next.pool,
+    placements: { ...next.placements, [toSkillName]: [...current, die] }
+  };
+}
+
+/** 発動時。そのスキルに乗っているダイスを捨てる（プールへは戻さない）。 */
+export function consumePlacement(draft, skillName) {
+  const base = draft ?? createEmptyDraft();
+  if (!base.placements[skillName]) return base;
+
+  const placements = { ...base.placements };
+  delete placements[skillName];
+  return { pool: [...base.pool], placements };
+}
+
+/** プールも配置も全部捨てる。 */
+export function clearDraft() {
+  return createEmptyDraft();
+}

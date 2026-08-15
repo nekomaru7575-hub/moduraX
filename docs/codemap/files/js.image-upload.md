@@ -1,6 +1,6 @@
 ---
 source: js/image-upload.js
-lines: 164
+lines: 196
 exports: 5
 imported_by: 4
 api_sha: 7b008ae3d053
@@ -25,13 +25,13 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 31 | fn | isImageUploadAvailable | `async isImageUploadAvailable()` | アップロードが使える環境か。 |
-| 43 | fn | imageUploadMaxBytes | `imageUploadMaxBytes()` | サーバーが許す1枚あたりの上限バイト数（取得できていなければnull）。 |
-| 63 | fn | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | JSONから取り込んだ画像を、この部屋の持ち物にする。 |
-| 116 | fn | uploadImageFile | `async uploadImageFile(file, purpose)` | 画像をアップロードして公開URLとキーを受け取る。 |
-| 146 | fn | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。 |
+| 63 | fn | isImageUploadAvailable | `async isImageUploadAvailable()` | アップロードが使える環境か。 |
+| 75 | fn | imageUploadMaxBytes | `imageUploadMaxBytes()` | サーバーが許す1枚あたりの上限バイト数（取得できていなければnull）。 |
+| 95 | fn | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | JSONから取り込んだ画像を、この部屋の持ち物にする。 |
+| 148 | fn | uploadImageFile | `async uploadImageFile(file, purpose)` | 画像をアップロードして公開URLとキーを受け取る。 |
+| 178 | fn | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -39,11 +39,12 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 18 | currentRoomId | `currentRoomId()` | 3 |  |
-| 31 | isImageUploadAvailable | `async isImageUploadAvailable()` | 10 | ✓ |
-| 43 | imageUploadMaxBytes | `imageUploadMaxBytes()` | 3 | ✓ |
-| 63 | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | 45 | ✓ |
-| 116 | uploadImageFile | `async uploadImageFile(file, purpose)` | 18 | ✓ |
-| 146 | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 18 | ✓ |
+| 39 | fetchUpload | `async fetchUpload(url, options)` | 18 |  |
+| 63 | isImageUploadAvailable | `async isImageUploadAvailable()` | 10 | ✓ |
+| 75 | imageUploadMaxBytes | `imageUploadMaxBytes()` | 3 | ✓ |
+| 95 | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | 45 | ✓ |
+| 148 | uploadImageFile | `async uploadImageFile(file, purpose)` | 18 | ✓ |
+| 178 | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 18 | ✓ |
 
 ## 依存
 

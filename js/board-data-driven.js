@@ -61,6 +61,13 @@ export function setStampPanelController(controller) {
   stampPanelController = controller;
 }
 
+let diceDraftPanelController = null;
+
+/** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
+export function setDiceDraftPanelController(controller) {
+  diceDraftPanelController = controller;
+}
+
 // 進行中のドラッグ（コマ・パネル・視点移動のうち1つ）。2本指になったら
 // ピンチズームへ操作を明け渡すため、ここから打ち切れるようにしておく。
 let activeBoardDrag = null;
@@ -987,7 +994,10 @@ window.addEventListener('DOMContentLoaded', () => {
       // このパネルのタブに統合したので、しまったコマを取り出す導線もここから辿る。
       ...panelToggleItem(characterPanelController, 'キャラクター一覧'),
       // スタンプ送信も既定で非表示なので、ここが唯一の出しどころ（生成はjs/stamp-panel.js）。
-      ...panelToggleItem(stampPanelController, 'スタンプ送信')
+      ...panelToggleItem(stampPanelController, 'スタンプ送信'),
+      // ダイスドラフトも既定で非表示（生成はjs/dice-draft-panel.js）。ダイスの割り当てを
+      // 持たないシステムの部屋でも項目は出す：中を開けば理由が読めるようにしてある。
+      ...panelToggleItem(diceDraftPanelController, 'ダイスドラフト')
     ]);
   }
 

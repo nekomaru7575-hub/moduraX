@@ -32,8 +32,8 @@ const BOND_LIST_SAFETY_MAX = 100;
 // リストに無い値（旧リストの値）は、その枠の選択肢として一時的に追加される
 // （buildSlotSelect参照。dx3-lois-box.jsの感情表（仮）と同じ手当て）。
 // ------------------------------------------------------------------
-export const BOND_ROUGE_OPTIONS = ['王', '剣', '花', '月', '血', '涙'];
-export const BOND_NOIR_OPTIONS = ['骸', '牙', '霧', '闇', '灰', '棘'];
+export const BOND_ROUGE_OPTIONS = ['憐', '友', '信', '恋', '敬', '主'];
+export const BOND_NOIR_OPTIONS = ['侮', '妬', '欲', '怒', '殺', '仇'];
 
 /** 空の絆1件ぶんの片側（ルージュ or ノワール）。 */
 function createEmptyBondSide() {

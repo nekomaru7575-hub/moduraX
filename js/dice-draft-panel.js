@@ -24,7 +24,7 @@ import { canOperateToken } from './room-authority.js';
 import { getPluginDiceDraftSpec } from './parameters/registry.js';
 import { normalizeSkillList } from './parameters/skill/skill-model.js';
 import {
-  acceptsDie, countDice, createDie, evaluatePlacement, moveDie, placedDice
+  acceptsDie, countDice, createDie, evaluatePlacement, moveDie, placedDice, readTargetModifier
 } from './parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './parameters/dice-draft/dice-draft-use.js';
@@ -262,9 +262,11 @@ export function initDiceDraftPanel() {
   // スキル1枠。正方形のカードで、上から 名前 / ダイスの置き場 / 状態 / 発動ボタン。
   // 名前も状態も長くなりうるので、はみ出す分は省略記号に逃がす（枠の形を崩さないため。
   // 全文はtitle属性で読める）。
-  function buildSkillCard(skill, draft, spec, canEdit, skills) {
+  function buildSkillCard(skill, draft, spec, canEdit, skills, targetModifier) {
     const dice = placedDice(draft, skill.name);
-    const result = evaluatePlacement(spec, skill, dice, { targetValue: readChosenTarget(skill.name) });
+    const result = evaluatePlacement(spec, skill, dice, {
+      targetValue: readChosenTarget(skill.name), targetModifier
+    });
 
     const card = document.createElement('div');
     card.className = 'dice-draft-skill';
@@ -459,11 +461,14 @@ export function initDiceDraftPanel() {
       empty.textContent = `キャラクター更新の${spec.skillSpec.noun}一覧から登録すると、ここに並びます。`;
       skillSection.appendChild(empty);
     } else {
+      // 目標値の修正（ドラクルージュの目標値修正(TB)）は全スキル共通なので一度だけ読む
+      const targetModifier = readTargetModifier(spec, token, getEffectiveParameterValue);
+
       // 正方形のカードを横に並べ、幅で折り返す（CSS側の .dice-draft-skill-list）
       const list = document.createElement('div');
       list.className = 'dice-draft-skill-list';
       skills.forEach(skill => {
-        list.appendChild(buildSkillCard(skill, draft, spec, canEdit, skills));
+        list.appendChild(buildSkillCard(skill, draft, spec, canEdit, skills, targetModifier));
       });
       skillSection.appendChild(list);
     }
@@ -489,6 +494,9 @@ export function initDiceDraftPanel() {
       skills: (spec?.skillSpec && token?.components?.[spec.skillSpec.componentKey]) ?? null,
       // 移行ボタンの出し入れに効くので、移行元パラメータの参照も見る
       parameters: token?.parameters ?? null,
+      // 目標値の修正はバフ/デバフで動く。ADD_BUFFはparametersを書き換えないので、
+      // ここでbuffsを見ないと修正を足しても目標値の表示が古いまま残る
+      buffs: token?.buffs ?? null,
       name: token?.name ?? null
     };
 
@@ -498,6 +506,7 @@ export function initDiceDraftPanel() {
       && lastKey.draft === key.draft
       && lastKey.skills === key.skills
       && lastKey.parameters === key.parameters
+      && lastKey.buffs === key.buffs
       && lastKey.name === key.name) return;
 
     lastKey = key;

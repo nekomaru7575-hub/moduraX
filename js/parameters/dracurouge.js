@@ -25,7 +25,7 @@ import { lockFormControls } from '../read-only-form.js';
 import {
   BOND_COMPONENT_KEY, normalizeBondList, sealFilledBonds, showBondBox
 } from './dracurouge-bond-box.js';
-import { createDie, createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
+import { createDie, createDiceDraftSpec, readTargetModifier } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
 import {
@@ -54,6 +54,21 @@ const CHAR_TYPE_PARAMETER = {
   locked: true, editable: true, visible: false
 };
 
+// 目標値修正。行いの目標値を全部まとめて増減させる（適用はevaluatePlacement）。
+// 手では動かさずバフ/デバフだけが動かすので editable:false（DX3のAnB/AcBと同じ扱い）。
+// 常に0の行がキャラクター一覧に増えても邪魔なだけなので visible:false。
+//
+// キーが短いのはバフ()コマンドの都合。ラベルに「(」を含むパラメータはキー名で指定する
+// 仕様（js/main.jsのtryHandleBuffCommand）なので、TBにしておくと
+// 「バフ(祝福,TB,-1,判定)」と書ける。ダイアログからは「目標値修正(TB)」の名前で選べる。
+const TARGET_BONUS_PARAMETER = {
+  key: 'TB', label: '目標値修正(TB)', value: 0,
+  locked: true, editable: false, visible: false
+};
+
+// 目標値の下限。どれだけ修正が乗っても、これより低い目標値にはならない。
+const DEED_TARGET_FLOOR = 2;
+
 // fieldはこのファイル内でのUIの出し分けにだけ使う目印。buildParametersは
 // key/label/value/locked/editable/visible/roundOnly以外を読まないので、混ぜても害は無い。
 const PC_PARAMETERS = [
@@ -76,6 +91,7 @@ const PATH_OPTIONS = ['野獣', '狩人', '遍歴', '近衛', '領主', '賢者'
 const paramIdOf = (definition) => `${PLUGIN_ID}:${definition.key}`;
 
 const CHAR_TYPE_PARAM_ID = paramIdOf(CHAR_TYPE_PARAMETER);
+const TARGET_BONUS_PARAM_ID = paramIdOf(TARGET_BONUS_PARAMETER);
 const MOISTURE_PARAM_ID = `${PLUGIN_ID}:moisture`;
 const THIRST_PARAM_ID = `${PLUGIN_ID}:thirst`;
 const APPLAUSE_PARAM_ID = `${PLUGIN_ID}:applause`;
@@ -143,8 +159,12 @@ function readDracurougeEpisodes(components) {
   return normalizeSkillList(EPISODE_SPEC, components?.[EPISODE_COMPONENT_KEY] ?? []);
 }
 
+// 種別と目標値修正は種別によらず常に持つので、PC/NPCのどちらの一覧にも入れない
+// （TYPED_PARAM_IDSに入れると、種別の切り替えで一覧への出し入れの対象になってしまう）。
 function buildDracurougeCharacterParameters() {
-  return buildParameters(PLUGIN_ID, [CHAR_TYPE_PARAMETER, ...PC_PARAMETERS, ...NPC_PARAMETERS]);
+  return buildParameters(PLUGIN_ID, [
+    CHAR_TYPE_PARAMETER, TARGET_BONUS_PARAMETER, ...PC_PARAMETERS, ...NPC_PARAMETERS
+  ]);
 }
 
 function readCharType(parameters) {
@@ -197,7 +217,7 @@ function buildTypeSelect(charType) {
 
 function renderDracurougeCharacterPanel({
   container, mode, canEdit = true, parameters = {}, components,
-  onComponentChange, getComponents, dispatch, getToken, tokenId
+  onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, tokenId
 }) {
   container.innerHTML = '';
 
@@ -278,6 +298,34 @@ function renderDracurougeCharacterPanel({
     });
   }
   renderParamRows();
+
+  // --- 目標値修正（表示だけ）---
+  // 動かすのはバフ/デバフだけなので入力欄は出さない。それでも今いくつ乗っているかは
+  // 見えないと困る（行いの目標値が変わった理由が分からなくなる）ので、実効値を文字で出す。
+  const bonusRow = document.createElement('div');
+  bonusRow.className = 'dialog-custom-row';
+
+  const bonusLabel = document.createElement('label');
+  bonusLabel.className = 'dialog-param-label';
+  bonusLabel.textContent = TARGET_BONUS_PARAMETER.label;
+  bonusLabel.style.alignSelf = 'center';
+  bonusLabel.style.color = '#ccc';
+  bonusLabel.style.fontSize = '0.85rem';
+
+  const bonusValue = document.createElement('span');
+  bonusValue.style.alignSelf = 'center';
+  bonusValue.style.color = '#ddd';
+  bonusValue.style.fontSize = '0.85rem';
+  bonusValue.title = 'バフ/デバフで増減します。行いの目標値がこの分だけ動きます';
+
+  const bonus = readTargetModifier(DRACUROUGE_DRAFT_SPEC, getToken?.() ?? null, getEffectiveParameterValue);
+  bonusValue.textContent = bonus === 0
+    ? '0（バフ/デバフで増減）'
+    : `${bonus > 0 ? '+' : ''}${bonus}（下限 ${DEED_TARGET_FLOOR}）`;
+
+  bonusRow.appendChild(bonusLabel);
+  bonusRow.appendChild(bonusValue);
+  container.appendChild(bonusRow);
 
   // 描いた直後に一度揃える。作成時に種別だけ選んだコマ（visibleはまだPCの形）を、
   // 最初に更新画面を開いた時点で正しい見え方にするため。
@@ -611,7 +659,20 @@ const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   diceSides: 6,
   bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM,
   skillSpec: DEED_SPEC,
-  requirement: { kind: 'sum', targetField: 'target' }
+  requirement: {
+    kind: 'sum',
+    targetField: 'target',
+    // 目標値修正(TB)の実効値を、段階のある目標値なら段階すべてに足す（下限はDEED_TARGET_FLOOR）
+    modifierParamId: TARGET_BONUS_PARAM_ID,
+    modifierLabel: 'TB',
+    floor: DEED_TARGET_FLOOR
+  },
+  // 行いを発動したらそのコマの「判定終了で消滅」バフを剥がす。1回きりの目標値修正を
+  // 表現するためのもので、発出するのはrunDiceDraftUse。
+  //
+  // treat（ダイスを振る側）では発出しない。振った時点で消すと、その修正を乗せたまま
+  // 行いを使うことができなくなる。
+  expiresCheckPhaseOnUse: true
 });
 
 // treat / treat() / treat(n)。個数を書かなければBCDice側の既定（4個）になる。

@@ -122,8 +122,17 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *   requirement?: {
  *     kind: 'match'|'sum',
  *     valueField?: string,     kind:'match' … この欄と同じ目だけ置ける。使用回数＝置いた個数
- *     targetField?: string     kind:'sum'   … 合計がこの欄の値以上で発動。使用回数＝1
+ *     targetField?: string,    kind:'sum'   … 合計がこの欄の値以上で発動。使用回数＝1
+ *     modifierParamId?: string kind:'sum'   … このパラメータの実効値を目標値へ足す
+ *                              （ドラクルージュの「目標値修正(TB)」）。読むのは呼び出し側で、
+ *                              このファイルはstoreを触らない（readTargetModifier）
+ *     modifierLabel?: string   その修正の呼び名。状態の1行に出す（既定は「修正」）
+ *     floor?: number           修正を足した後の目標値の下限。段階が潰れて重なった分は1つにまとめる
  *   },
+ *   expiresCheckPhaseOnUse?: boolean
+ *                              発動したら「判定終了」を発出するか（＝そのコマの
+ *                              「判定終了で消滅」バフを剥がす）。1回きりの修正を
+ *                              表現するためのもので、発出するのは runDiceDraftUse。
  *   legacyCountParameters?: { paramId: string, value: number }[]
  *     ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行元。
  *     宣言しておくと、値が残っているときだけパネルに「プールへ移す」ボタンが出る
@@ -133,7 +142,8 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
 export function createDiceDraftSpec(definition) {
   const {
     id, label, diceSides = 6, bcdiceSystem,
-    skillSpec = null, requirement = null, legacyCountParameters = []
+    skillSpec = null, requirement = null, legacyCountParameters = [],
+    expiresCheckPhaseOnUse = false
   } = definition;
 
   if (!id) throw new Error('[dice-draft] idが必要です');
@@ -144,7 +154,7 @@ export function createDiceDraftSpec(definition) {
   }
 
   return Object.freeze({
-    id, label, bcdiceSystem, skillSpec,
+    id, label, bcdiceSystem, skillSpec, expiresCheckPhaseOnUse,
     diceSides: Number.isInteger(diceSides) && diceSides > 0 ? diceSides : 6,
     requirement: requirement ? Object.freeze({ ...requirement }) : null,
     legacyCountParameters: Object.freeze(legacyCountParameters.map(entry => Object.freeze({ ...entry })))
@@ -171,6 +181,25 @@ function readNumberField(skill, fieldKey) {
 const TARGET_RANGE_PATTERN = /^(\d+)\s*[~～〜ー－–—-]\s*(\d+)$/;
 
 /**
+ * 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。
+ *
+ * このファイルはstoreを触らないので、読み方（getEffectiveParameterValue）は引数で受け取る。
+ * パネルからも発動からも同じ値が出るよう、読み出しは必ずここを通すこと。
+ *
+ * @param {object} spec createDiceDraftSpec()の戻り値
+ * @param {object|null} token
+ * @param {Function} getEffectiveParameterValue
+ * @returns {number} 宣言が無い・読めない場合は0
+ */
+export function readTargetModifier(spec, token, getEffectiveParameterValue) {
+  const paramId = spec?.requirement?.modifierParamId;
+  if (!paramId || !token || typeof getEffectiveParameterValue !== 'function') return 0;
+
+  const value = Number(getEffectiveParameterValue(token, paramId));
+  return Number.isFinite(value) ? Math.trunc(value) : 0;
+}
+
+/**
  * 目標値の欄を読み、選べる目標値の一覧にする。読めなければnull。
  * @returns {{ options: number[] }|null} optionsは昇順。単一の目標値なら1件
  */
@@ -191,6 +220,24 @@ function parseSumTarget(raw) {
 
   const value = Number(text);
   return Number.isFinite(value) ? { options: [value] } : null;
+}
+
+/**
+ * 目標値の段階すべてに修正を足し、下限で切る。
+ *
+ * 段階のある目標値（3～12 → 3・6・9・12）では、**最終的な段階のそれぞれに**足す。
+ * 修正-1なら 2・5・8・11 になり、刻み（3）は変わらない。
+ * 下限で複数の段階が同じ値へ潰れたときは、重なった分を1つにまとめる
+ * （選択肢に同じ数字が並んでも選びようがないため）。
+ */
+function applyTargetModifier(options, modifier, floor) {
+  const hasFloor = Number.isFinite(floor);
+  const moved = options.map(value => {
+    const next = value + modifier;
+    return hasFloor ? Math.max(floor, next) : next;
+  });
+
+  return [...new Set(moved)]; // 元が昇順なので、まとめた後も昇順のまま
 }
 
 /**
@@ -219,9 +266,10 @@ export function acceptsDie(spec, skill, die) {
  * @param {object} spec
  * @param {object} skill
  * @param {object[]} dice
- * @param {{ targetValue?: number|null }} [options]
- *   targetValue … 幅のある目標値（"3～12"）でどれを狙うか。選択肢に無い値は無視して
- *                 「今の合計で届く一番大きい目標値」を採る（画面もコマンドも同じ規則）。
+ * @param {{ targetValue?: number|null, targetModifier?: number }} [options]
+ *   targetValue    … 幅のある目標値（"3～12"）でどれを狙うか。選択肢に無い値は無視して
+ *                    「今の合計で届く一番大きい目標値」を採る（画面もコマンドも同じ規則）。
+ *   targetModifier … 目標値へ足す修正（readTargetModifierの戻り値）。
  * @returns {{
  *   ready: boolean,
  *   uses: number,               乗っているダイスを全部使うと何回ぶんになるか
@@ -233,7 +281,7 @@ export function acceptsDie(spec, skill, die) {
  *   description: string         パネルとチャットログの両方に出す1行
  * }}
  */
-export function evaluatePlacement(spec, skill, dice = [], { targetValue = null } = {}) {
+export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {}) {
   const requirement = spec?.requirement;
   const count = dice.length;
   const no = (description) => ({
@@ -264,7 +312,7 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null }
   const target = parseSumTarget(skill?.fields?.[requirement.targetField]);
   if (target === null) return no('目標値が設定されていません');
 
-  const options = target.options;
+  const options = applyTargetModifier(target.options, targetModifier, requirement.floor);
   const total = dice.reduce((sum, die) => sum + die.value, 0);
 
   // 狙う目標値。指定が無ければ「今の合計で届く一番大きいもの」、1つも届かないなら最小値
@@ -278,9 +326,16 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null }
     ? `${options[0]}～${options[options.length - 1]}`
     : String(options[0]);
 
+  // 修正が乗っているときは、目標値が動いた理由が状態の1行だけで分かるようにする
+  // （行いに書いてある目標値と違う数字が出る唯一の理由がこれなので、黙って変えない）。
+  const modifierNote = targetModifier === 0
+    ? ''
+    : `${requirement.modifierLabel ?? '修正'} ${targetModifier > 0 ? '+' : ''}${targetModifier}`;
+  const trailing = modifierNote ? `（${modifierNote}）` : '';
+
   if (total < chosen) {
     return {
-      ...no(`合計 ${total} / 目標 ${chosen}（あと ${chosen - total}）`),
+      ...no(`合計 ${total} / 目標 ${chosen}（あと ${chosen - total}）${trailing}`),
       targetOptions: options, targetValue: chosen
     };
   }
@@ -289,8 +344,8 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null }
     ready: true, uses: 1, perUseDice: count, supportsPartialUse: false,
     targetOptions: options, targetValue: chosen,
     description: options.length > 1
-      ? `合計 ${total} / 判定値 ${chosen}（目標 ${label}）`
-      : `合計 ${total} / 目標 ${chosen}`
+      ? `合計 ${total} / 判定値 ${chosen}（目標 ${label}${modifierNote ? `・${modifierNote}` : ''}）`
+      : `合計 ${total} / 目標 ${chosen}${trailing}`
   };
 }
 

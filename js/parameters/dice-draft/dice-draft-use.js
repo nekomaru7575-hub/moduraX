@@ -8,7 +8,9 @@
 
 import { runSkillUse } from '../skill/skill-use.js';
 import { findSkillByName, normalizeSkillList } from '../skill/skill-model.js';
-import { evaluatePlacement, consumePlacement, placedDice } from './dice-draft-model.js';
+import {
+  evaluatePlacement, consumePlacement, placedDice, readTargetModifier
+} from './dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
 
 /**
@@ -58,13 +60,27 @@ export function runDiceDraftUse({
 
   const draft = readDraft(latest.components, workingSkills.map(s => s.name));
   const dice = placedDice(draft, skillName);
-  const result = evaluatePlacement(spec, skill, dice, { targetValue });
+  // 目標値の修正は「今このコマに乗っている分」で判定する。剥がすのは使い終わった後
+  // （下のEXPIRE_BUFFS）なので、1回きりの修正もこの発動には効く。
+  const targetModifier = readTargetModifier(spec, latest, getEffectiveParameterValue);
+  const result = evaluatePlacement(spec, skill, dice, { targetValue, targetModifier });
   if (!result.ready) {
     notify(`${skillName}はまだ使えません。（${result.description}）`);
     return none;
   }
 
   const plannedUses = mode === 'one' ? 1 : result.uses;
+
+  // 発動で「判定終了」を迎えるシステム（ドラクルージュ）では、この発動で消えるバフの名前を
+  // 先に控えておき、発動のログへ併記する。独立したシステム発言にすると、1回の発動でログが
+  // 2行進んで直前の結果が流れてしまうため（js/main.jsのDICE_ROLL_REQUESTED・
+  // js/parameters/dx3-combo-box.jsのrunComboCheckと同じ扱い）。
+  // 文言はgame-store.jsのformatExpiredBuffsNoteと揃えてある。あちらをimportすると
+  // game-store.js → registry.js → プラグイン → ここ という循環になるため、同じ整形を置いている。
+  const expiringNames = spec.expiresCheckPhaseOnUse
+    ? (latest.buffs || []).filter(buff => buff.expirePhase === 'check').map(buff => buff.name)
+    : [];
+  const expiredNote = expiringNames.length > 0 ? `\n判定終了で消滅: ${expiringNames.join('、')}` : '';
 
   // 使用回数は runSkillUse が1回につき1しか増やさないので、回数ぶん呼ぶ。
   // 【ここが要】次の回へ workingSkills を引き継がないと、2回目以降が「まだ0回」の
@@ -88,7 +104,8 @@ export function runDiceDraftUse({
       logTitle: plannedUses > 1
         ? `${skillSpec.noun}使用: ${skillName}（${i + 1}/${plannedUses}回目）`
         : `${skillSpec.noun}使用: ${skillName}`,
-      logDetail: result.description,
+      // 消滅の知らせは最後の1回にだけ添える（複数回使えるシステムで毎回繰り返さないため）
+      logDetail: i === plannedUses - 1 ? `${result.description}${expiredNote}` : result.description,
       logSystem: spec.label,
       chatCommand
     });
@@ -112,6 +129,13 @@ export function runDiceDraftUse({
     componentKey: DICE_DRAFT_COMPONENT_KEY,
     value: consumePlacement(draft, skillName, diceSpent)
   });
+
+  // 判定が済んだので、このコマの「判定終了で消滅」バフを剥がす。
+  // 【順番が要】評価と発動が終わってから撃つこと。先に撃つと、1回きりのつもりで乗せた
+  // 修正がこの発動に効かないまま消える。消えた旨は上のログへ併記済み。
+  if (spec.expiresCheckPhaseOnUse) {
+    dispatch('EXPIRE_BUFFS', { phase: 'check', tokenId: token.id });
+  }
 
   return { used, diceSpent };
 }

@@ -92,6 +92,13 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              から全パラメータが選べてしまうため、そういうシステムはこちらで切る。
  *   allowExpirePhase?: boolean, 既定true。falseにすると「効果時間」を扱わない。
  *                              修正を持たないスキルには意味が無い欄なので隠せるようにしてある。
+ *   defaultSkills?: Array<object>,
+ *                              まだ1件も登録が無いコマに配る初期の一覧（ステラナイツの
+ *                              出目1〜6）。「枠が最初から決まっていて、利用者は中身を
+ *                              埋めるだけ」というシステムのためのもの。
+ *                              **nameは必ず入れること**：空名は一覧から落とされるうえ、
+ *                              ダイスドラフトはスキル名をキーに置き場を持つため、
+ *                              名無しが複数あると区別できない。
  *   modTargets?: Array<{
  *     paramId: string, label: string,
  *     extra?: { key:string, label:string, metaKey:string, hint?:string }
@@ -114,7 +121,8 @@ export function createSkillSpec(definition) {
     defaultExpirePhase = null,
     legacyModMap = {},
     allowMods = true,
-    allowExpirePhase = true
+    allowExpirePhase = true,
+    defaultSkills = []
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -137,6 +145,7 @@ export function createSkillSpec(definition) {
     defaultExpirePhase,
     allowMods,
     allowExpirePhase,
+    defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
     findModTarget: (paramId) => modTargetByParamId.get(paramId) ?? null
@@ -312,10 +321,18 @@ export function normalizeSkill(spec, raw) {
 /**
  * componentsに保存された一覧を正規形の配列にする。名前が空のものは落とす
  * （旧UIも保存時に同じ条件で捨てていた）。
+ *
+ * 1件も残らなかった場合は spec.defaultSkills を配る（ステラナイツの出目1〜6のように、
+ * 枠が最初から決まっているシステム）。保存前のコマにも最初から枠が並ぶ。
+ * 全部消すと既定へ戻るが、それが「標準で備える」枠の意味なのでそのままにしてある。
  */
 export function normalizeSkillList(spec, rawList) {
-  if (!Array.isArray(rawList)) return [];
-  return rawList.map(raw => normalizeSkill(spec, raw)).filter(skill => skill.name !== '');
+  const list = Array.isArray(rawList)
+    ? rawList.map(raw => normalizeSkill(spec, raw)).filter(skill => skill.name !== '')
+    : [];
+
+  if (list.length > 0 || spec.defaultSkills.length === 0) return list;
+  return spec.defaultSkills.map(raw => normalizeSkill(spec, raw));
 }
 
 /** 一覧から名前（完全一致）で1件引く。チャットコマンドの引数解決に使う。 */

@@ -1,7 +1,11 @@
 // js/parameters/dice-draft/dice-draft-roll.js
 // 「ダイスを振ってドラフトのプールへ入れる」共通処理。
-// ステラナイツの charge(n) も、ドラクルージュの treat(n) も、書式が違うだけで中身は同じなので
+// ステラナイツの charge(n) も、ドラクルージュの treat も、書式が違うだけで中身は同じなので
 // ここへ寄せてある。各プラグインのコマンドハンドラは書式の判定だけをすればよい。
+//
+// BCDiceへ送る文字列と、結果からプールへ入れる目の拾い方は、システム固有の判定コマンドを
+// 使う場合だけ差し替えられる（buildCommand / readRolledDice）。既定は「nB面数」で振って
+// 生の出目（rands）をそのまま入れる、いちばん素直な振り方。
 //
 // js/parameters/saikoro-fiction/skill-check.js の runSkillCheck と同じ流儀で、
 // dispatch / rollBCDice といった依存は全部引数で受け取る（game-store.js を import すると
@@ -29,13 +33,22 @@ export function readDraft(components, knownSkillNames = null) {
  *   token: object|null,      参照キャラクター
  *   dispatch: (action: string, payload: object) => void,
  *   rollBCDice: ((system: string, command: string) => Promise<object>)|null,
- *   count: number,           振る個数
+ *   count: number|null,      振る個数。nullは「個数を書かない」＝コマンド側の既定に任せる
+ *                            （buildCommandを持つシステムだけが使える）
+ *   buildCommand?: ((count: number|null) => string)|null,
+ *                            BCDiceへ送る文字列の組み立て。省略時は「nB面数」
+ *   readRolledDice?: (((result: { diceValues: object[], resultText: string }) => object[])|null),
+ *                            結果からプールへ入れるダイス（createDieの戻り値）を取り出す。
+ *                            省略時はBCDiceが返した生の出目（rands）をそのまま入れる。
+ *                            コマンド側が出目を加工するシステム（ドラクルージュの渇き修正・
+ *                            栄光のダイス）は、randsに加工後の目が入らないのでここで拾い直す
  *   knownSkillNames?: string[]|null,
  *   chatCommand?: string     これを起こしたチャットコマンド（ログに残す）
  * }} options
  */
 export function runDiceDraftRoll({
-  spec, token, dispatch, rollBCDice, count, knownSkillNames = null, chatCommand = ''
+  spec, token, dispatch, rollBCDice, count, buildCommand = null, readRolledDice = null,
+  knownSkillNames = null, chatCommand = ''
 }) {
   if (!token) {
     alert('ダイスを振るキャラクターを選択してください。');
@@ -45,13 +58,18 @@ export function runDiceDraftRoll({
     alert('この画面ではダイスを振れません。部屋の中で実行してください。');
     return;
   }
-  if (!Number.isInteger(count) || count < 1) {
+  // countがnullなら個数を書かない。個数を省ける書式を持つシステム（buildCommand）だけの話で、
+  // 既定の「nB面数」には書きようが無いので、そちらは今まで通り個数を必須にする。
+  const hasCount = count !== null && count !== undefined;
+  if (hasCount ? (!Number.isInteger(count) || count < 1) : !buildCommand) {
     alert('ダイスの個数には 1 以上の整数を指定してください。');
     return;
   }
 
   // B はバラ振り＝合計せず個々の目を返す記法。ドラフトは1個ずつ扱うのでこれでなければならない。
-  const command = `${count}B${spec.diceSides}`;
+  const command = buildCommand
+    ? buildCommand(hasCount ? count : null)
+    : `${count}B${spec.diceSides}`;
 
   rollBCDice(spec.bcdiceSystem, command).then(({ success, resultText, diceValues }) => {
     if (!success) {
@@ -61,9 +79,11 @@ export function runDiceDraftRoll({
 
     // プールへは切り詰めずに全件入れる。MAX_ANIMATED_DICE は演出だけの上限で、
     // ゲーム上の個数を削ってはいけない（js/parameters/stella-knights.js の charge と同じ扱い）。
-    const rolled = (diceValues ?? [])
-      .filter(rand => Number.isInteger(rand?.value))
-      .map(rand => createDie(rand.sides, rand.value));
+    const rolled = readRolledDice
+      ? readRolledDice({ diceValues: diceValues ?? [], resultText })
+      : (diceValues ?? [])
+        .filter(rand => Number.isInteger(rand?.value))
+        .map(rand => createDie(rand.sides, rand.value));
 
     const before = readDraft(token.components, knownSkillNames);
     const { draft, added, overflow } = addDiceToPool(before, rolled);

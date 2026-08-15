@@ -23,7 +23,7 @@
 import { buildParameters } from './paramFactory.js';
 import { lockFormControls } from '../read-only-form.js';
 import { BOND_COMPONENT_KEY, normalizeBondList, showBondBox } from './dracurouge-bond-box.js';
-import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
+import { createDie, createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
 import {
@@ -399,7 +399,7 @@ function renameHpToExistence({ readParameters, dispatch, tokenId }) {
   });
 }
 
-// ダイスドラフト。treat(n) で振った目がプールへ溜まり、パネル（js/dice-draft-panel.js）で
+// ダイスドラフト。treat で振った目がプールへ溜まり、パネル（js/dice-draft-panel.js）で
 // 行いへ割り当てる。行いの「目標値」がそのまま合計の目標になる（kind:'sum'）。
 const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   id: 'dracurouge-draft',
@@ -410,30 +410,88 @@ const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   requirement: { kind: 'sum', targetField: 'target' }
 });
 
-const TREAT_COMMAND_PATTERN = /^treat\((\d+)\)$/i;
+// treat / treat() / treat(n)。個数を書かなければBCDice側の既定（4個）になる。
+const TREAT_COMMAND_PATTERN = /^treat(?:\(\s*(\d*)\s*\))?$/i;
+
+// 行い判定はこのシステム専用のコマンドで振る（BCDiceの DRx+y。x：ダイス数、y：渇き修正）。
+// ただのバラ振り（nB6）にすると、渇き修正と栄光のダイスが乗らない。
+//
+// 渇きは判定のたびに変わるので、コマンドを組み立てる直前に実効値（バフ込み）を読む。
+// BCDiceの書式は「+数字」しか受け付けないので、負や小数はここで0へ丸める。
+function readThirstModifier(token, getEffectiveParameterValue) {
+  const raw = typeof getEffectiveParameterValue === 'function'
+    ? getEffectiveParameterValue(token, THIRST_PARAM_ID)
+    : token?.parameters?.[THIRST_PARAM_ID]?.value;
+  const value = Math.trunc(Number(raw));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+// BCDiceのDRは、振った目そのもの（rands）と最終的な出目が食い違う。
+//   ・1が2個ごと／6が2個ごとに「栄光のダイス」10が1個増える
+//   ・渇き修正は、6以下でいちばん大きい目に足される
+// randsには加工前の6面の目しか入らないので、結果テキストの最後の [ ... ] から拾い直す。
+// 例）(DR6+2) ＞ 6D6+2 ＞ [ 1, 1, 2, 3, 3, 5+2, 10 ] ＞ [ 1, 1, 2, 3, 3, 7, 10 ]
+// 拾えなかったときは生の出目へ落とす（書式が変わっても「振ったのに0個」にはしない）。
+const DICE_LIST_PATTERN = /\[([^\]]*)\]/g;
+
+function readTreatDice({ diceValues, resultText }) {
+  const lists = String(resultText ?? '').match(DICE_LIST_PATTERN);
+  const last = lists?.[lists.length - 1];
+  if (last) {
+    const values = last.slice(1, -1).split(',').map(text => Number(text.trim()));
+    if (values.length > 0 && values.every(value => Number.isInteger(value) && value > 0)) {
+      // 10（栄光のダイス）も渇き修正の乗った目も、面数はd6のまま扱う。
+      // パネルは1〜6以外を数字で描くので、そのまま見分けがつく（js/dice-draft-panel.js）。
+      return values.map(value => createDie(DRACUROUGE_DRAFT_SPEC.diceSides, value));
+    }
+  }
+  return diceValues
+    .filter(rand => Number.isInteger(rand?.value))
+    .map(rand => createDie(rand.sides, rand.value));
+}
+
+// 「このコマンドは別システムのものです」の案内（js/main.jsのtryHandlePluginChatCommand）用。
+// 括弧の無いただの treat は、他システムの部屋では普通の発言でありうるので拾わない
+// （拾うと、英単語を1つ書いただけで発言できなくなる）。
+const TREAT_LOOKALIKE_PATTERN = /^treat\(\s*\d*\s*\)$/i;
 
 function looksLikeDracurougeChatCommand(rawInput) {
   const input = String(rawInput).trim();
-  return TREAT_COMMAND_PATTERN.test(input) || DEED_USE_COMMAND_PATTERN.test(input);
+  return TREAT_LOOKALIKE_PATTERN.test(input) || DEED_USE_COMMAND_PATTERN.test(input);
 }
 
-// treat(n) … ダイスを振ってプールへ入れる
+// treat(n) … n個のダイスを振ってプールへ入れる（DRn+渇き）
+// treat     … 個数を書かない形。BCDiceの既定である4個で振る（DR+渇き）
 // 行い使用(名前) … 乗せたダイスで行いを発動する（パネルの「使用」ボタンと同じ経路）
 //
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内・使えない理由の説明は、それぞれ
-// runDiceDraftRoll と runDiceDraftUse がまとめて行うので、ここは書式の判定だけをする。
+// runDiceDraftRoll と runDiceDraftUse がまとめて行うので、ここは書式の判定と、
+// このシステム固有のコマンドの組み立てだけをする。
 function handleDracurougeChatCommand(rawInput, context) {
   const input = String(rawInput).trim();
   const { token, dispatch, rollBCDice, getEffectiveParameterValue, generateBuffId } = context;
 
   const treat = input.match(TREAT_COMMAND_PATTERN);
   if (treat) {
+    const count = treat[1] ? Number(treat[1]) : null;
+
+    // BCDiceのDRは末尾が0の個数を受け付けない（^DR(\d*[1-9])?(\+\d+)?$）。
+    // そのまま送ると「コマンドとして認識されませんでした」としか出ず、理由が分からない。
+    if (count !== null && count > 0 && count % 10 === 0) {
+      alert('ダイスの個数に10の倍数は指定できません（BCDiceのDRコマンドが受け付けないため）。');
+      return true;
+    }
+
+    const thirst = readThirstModifier(token, getEffectiveParameterValue);
+
     runDiceDraftRoll({
       spec: DRACUROUGE_DRAFT_SPEC,
       token,
       dispatch,
       rollBCDice,
-      count: Number(treat[1]),
+      count,
+      buildCommand: (diceCount) => `DR${diceCount ?? ''}+${thirst}`,
+      readRolledDice: readTreatDice,
       knownSkillNames: readDracurougeDeeds(token?.components).map(deed => deed.name),
       chatCommand: input
     });

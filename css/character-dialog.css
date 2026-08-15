@@ -353,10 +353,25 @@
 
 /* 絆一覧の編集ボックス（ドラクルージュ）。
    1行が「ノワール5枠・消えざる絆・名称・消えざる絆・ルージュ5枠」と横に長いので、
-   ロイス一覧のように折り返さず、横スクロールで1行のまま見せる。 */
-.bond-box-dialog {
+   ロイス一覧のように折り返さず、1行のまま見せる。
+
+   .character-dialog と両方のクラスを持つので、同じ詳細度だと後に書かれている
+   .character-dialog の max-width:720px に負ける。複合セレクタで確実に上書きする。
+   1行の実寸は約780px（内訳は下の --bond-* 変数の合計）で、860px はそれにダイアログの
+   余白と、フォントが変わった時のための余地を足した幅。
+   画面がそれより狭い時は 96vw まで縮み、収まらない分は横スクロールへ逃がす。 */
+.character-dialog.bond-box-dialog {
   width: 100%;
-  max-width: 820px;
+  max-width: min(860px, 96vw);
+
+  /* 各列の幅。見出し行（.bond-box-head）と入力行（.bond-box-row）は同じクラスで
+     組み立てられており、幅の定義はここ1か所しかない。片方だけずれることが起きない。
+     em ではなく rem を使う：em は要素自身の font-size で決まるため、見出しだけ
+     文字を小さくしてある分、列幅が行とずれてしまう。 */
+  --bond-slot-w: 3rem;
+  --bond-slot-gap: 3px;
+  --bond-name-w: 160px;
+  --bond-mark-w: 18px;
 }
 
 .bond-box-summary {
@@ -376,6 +391,9 @@
 }
 
 .bond-box-row {
+  /* min-width:100% は親の内側の幅を指すので、border-box にしないと余白と枠のぶん
+     （左右で18px）だけ必ずはみ出し、収まっているのに横スクロールが出続ける */
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -388,10 +406,38 @@
   min-width: 100%;
 }
 
+/* 見出し行。行と同じ土台（.bond-box-row）を使って列幅を揃えるので、左右の余白と枠線の幅は
+   そのままにし、色だけ消す（border:none にすると1pxぶん行とずれる）。
+   リストの中にあるので横スクロールには行と一緒に付いていき、縦には貼り付いて残る。 */
+.bond-box-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #2a2a2a;
+  border-color: transparent;
+  padding-top: 0;
+  padding-bottom: 2px;
+  font-size: 0.75rem;
+  color: #bbb;
+}
+
+.bond-box-head .bond-box-side {
+  justify-content: center;
+}
+
+.bond-box-head-name {
+  flex: 0 0 var(--bond-name-w);
+  min-width: 0;
+  text-align: center;
+}
+
 .bond-box-side {
   display: flex;
   align-items: center;
-  gap: 3px;
+  flex: 0 0 auto;
+  gap: var(--bond-slot-gap);
+  /* 枠5つぶん。見出しの「ノワール」「ルージュ」もこの幅で並ぶ */
+  width: calc(var(--bond-slot-w) * 5 + var(--bond-slot-gap) * 4);
 }
 
 /* 5つ揃って封印された側。触れないことを見た目でも示す */
@@ -400,10 +446,12 @@
 }
 
 /* 1字分の幅のドロップダウン。.dialog-custom-row input の flex:1 は select には効かないが、
-   中身が1文字でもブラウザ既定の最小幅が付くので明示的に詰める */
+   中身が1文字でもブラウザ既定の最小幅が付くので明示的に詰める。
+   box-sizing を明示しないと余白と枠のぶん広がり、見出しの幅計算とずれる */
 .bond-box-slot {
+  box-sizing: border-box;
   flex: 0 0 auto;
-  width: 3.4em;
+  width: var(--bond-slot-w);
   min-width: 0;
   background-color: #3a3a3a;
   color: #fff;
@@ -421,11 +469,13 @@
   border-color: #555a75;
 }
 
-/* 消えざる絆。名称の左隣がノワール側、右隣がルージュ側 */
+/* 消えざる絆。名称の左隣がノワール側、右隣がルージュ側。
+   幅を決め打ちするのは、見出しの「消」と列を揃えるため */
 .bond-box-eternal {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  justify-content: center;
+  flex: 0 0 var(--bond-mark-w);
   cursor: pointer;
 }
 
@@ -444,7 +494,8 @@
 }
 
 .bond-box-name {
-  flex: 0 0 160px;
+  box-sizing: border-box;
+  flex: 0 0 var(--bond-name-w);
   min-width: 0;
   background-color: #3a3a3a;
   color: #fff;

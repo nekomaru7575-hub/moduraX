@@ -86,7 +86,7 @@ const NPC_PARAMETERS = [];
 
 // 道の選択肢（仮）。ここに無い値（旧リストの値）も、保存されていればその行の選択肢として
 // 一時的に追加される（buildPathSelect）。
-const PATH_OPTIONS = ['野獣', '狩人', '遍歴', '近衛', '領主', '賢者'];
+const PATH_OPTIONS = ['夜獣', '狩人', '遍歴', '近衛', '領主', '賢者',`将軍`,`僧正`,`空駆`,`船長`,`異端`];
 
 const paramIdOf = (definition) => `${PLUGIN_ID}:${definition.key}`;
 

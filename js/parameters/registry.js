@@ -44,7 +44,9 @@ export function buildRoomParameters(pluginId) {
 //   これで、値の意味（大きいほど先に動く）はCore側に固定。範囲だけプラグインが決める。
 // turnOrder: 手番順の出どころ（perCharacterのみ意味を持つ）。
 //   省略時＝'initiative'（core:initiativeの実効値の降順）。'plot'ならプロット値の降順。
-//   詳しくはjs/game-store.jsのsortForTurnOrder。
+//   { paramId, direction }（directionは省略時'asc'）を書くと、そのパラメータの実効値の順。
+//   同値はイニシアチブ降順で解けるので、順位を粗く振れば「この群はイニシアチブ順」を
+//   宣言なしに表現できる（ドラクルージュの道とNPC）。詳しくはjs/game-store.jsのsortForTurnOrder。
 const DEFAULT_ROUND_PHASE_TEMPLATE = [
   { id: 'setup', label: 'セットアップ', kind: 'once', expirePhaseOnComplete: null, preTurnStep: null },
   {
@@ -190,6 +192,30 @@ export function resetPluginComponentsOnPhaseEnd(pluginId, components, phase) {
   const plugin = PLUGINS[pluginId];
   if (!plugin?.resetComponentsOnPhaseEnd) return components;
   return plugin.resetComponentsOnPhaseEnd(components, phase) ?? components;
+}
+
+/**
+ * ラウンド進行がフェーズへ入るときに、そのシステム固有のパラメータを動かす
+ * （ドラクルージュのラウンド頭の「喝采点+1・抗う力を2に戻す」）。
+ *
+ * 上のresetComponentsOnPhaseEndと対になるもので、あちらはフェーズ終了時のcomponents、
+ * こちらはフェーズ開始時のパラメータ。Coreは「どのフェーズに入ったか」という事実と
+ * 材料だけを渡し、誰が対象でいくつ動くのかは一切解釈しない。返ってきた値を基礎値へ
+ * 書き、logTextをそのままチャットへ流すだけ（js/game-store.jsのapplyRoundPhaseStart）。
+ *
+ * 【基礎値を返すこと】getEffectiveParameterValueの結果を返すとバフの分が基礎値へ
+ * 混入して二重に効く。読むのもtoken.parameters[paramId].valueにすること。
+ *
+ * @param {string} pluginId
+ * @param {object} phase 入ったフェーズ（テンプレートの1件そのまま）
+ * @param {{ tokens: Record<string, object>, participants: string[], roundNumber: number }} context
+ * @returns {{ changes: Array<{tokenId: string, paramId: string, value: number}>, logText?: string }|null}
+ *   nullなら何もしない
+ */
+export function applyPluginRoundPhaseStart(pluginId, phase, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.applyRoundPhaseStart || !phase) return null;
+  return plugin.applyRoundPhaseStart(phase, context) ?? null;
 }
 
 /**

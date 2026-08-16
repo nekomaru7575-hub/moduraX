@@ -66,8 +66,19 @@ const TARGET_BONUS_PARAMETER = {
   locked: true, editable: false, visible: false
 };
 
+// 手番順。道と種別から自動で決まる内部の数値で、手では動かさない（editable:false）。
+// ラウンド進行がこの実効値の昇順で手番を回す（buildDracurougeRoundPhaseTemplateのturnOrder）。
+// 常に0の行が一覧に増えても邪魔なだけなので visible:false。
+const TURN_ORDER_PARAMETER = {
+  key: 'turnOrder', label: '手番順', value: 1,
+  locked: true, editable: false, visible: false
+};
+
 // 目標値の下限。どれだけ修正が乗っても、これより低い目標値にはならない。
 const DEED_TARGET_FLOOR = 2;
+
+// ラウンドの頭に戻る抗う力の値。
+const RESIST_PER_ROUND = 2;
 
 // fieldはこのファイル内でのUIの出し分けにだけ使う目印。buildParametersは
 // key/label/value/locked/editable/visible/roundOnly以外を読まないので、混ぜても害は無い。
@@ -75,6 +86,9 @@ const PC_PARAMETERS = [
   { key: 'moisture', label: '潤い', value: 0, locked: true, editable: true, visible: true, field: 'number' },
   { key: 'thirst', label: '渇き', value: 0, locked: true, editable: true, visible: true, field: 'number' },
   { key: 'applause', label: '喝采点', value: 0, locked: true, editable: true, visible: true, field: 'number' },
+  // ラウンドの頭に2へ戻り、使うと減る。手でも動かす値なので editable:true。
+  // 戻すのは applyDracurougeRoundPhaseStart（ラウンド進行のセットアップの段）。
+  { key: 'resist', label: '抗う力', value: RESIST_PER_ROUND, locked: true, editable: true, visible: true, field: 'number' },
   { key: 'path', label: '道', value: '', locked: true, editable: true, visible: true, field: 'path' }
 ];
 
@@ -86,15 +100,36 @@ const NPC_PARAMETERS = [];
 
 // 道の選択肢（仮）。ここに無い値（旧リストの値）も、保存されていればその行の選択肢として
 // 一時的に追加される（buildPathSelect）。
-const PATH_OPTIONS = ['夜獣', '狩人', '遍歴', '近衛', '領主', '賢者',`将軍`,`僧正`,`空駆`,`船長`,`異端`];
+const PATH_OPTIONS = ['夜獣', '狩人', '遍歴', '近衛', '領主', '賢者',`将軍`,`僧正`,`空駆`,`船長`,`異端`,`星読`,`後見`];
+
+// 道ごとの手番順。小さいほど先に動く（ラウンド進行のturnOrder）。
+// ここに無い道と未設定は異端と同じ扱い＝先頭。同じ番号の道どうしはイニシアチブ降順で解ける
+// （js/game-store.jsのsortForTurnOrder）ので、群にしたい道は同じ番号でよい。
+const PATH_TURN_ORDER = {
+  異端: 1,
+  夜獣: 2,
+  狩人: 3,
+  遍歴: 4, 将軍: 4, 空駆: 4,
+  近衛: 5,
+  領主: 6, 船長: 6,
+  賢者: 7, 僧正: 7, 星読: 7,
+  後見: 8
+};
+const DEFAULT_TURN_ORDER = PATH_TURN_ORDER['異端'];
+
+// NPCはPCが全員動いた後。PCの最大（後見の8）より必ず大きい値にすること。
+// NPC同士の順番は同値のタイブレーク＝イニシアチブ降順で決まる。
+const NPC_TURN_ORDER = 100;
 
 const paramIdOf = (definition) => `${PLUGIN_ID}:${definition.key}`;
 
 const CHAR_TYPE_PARAM_ID = paramIdOf(CHAR_TYPE_PARAMETER);
 const TARGET_BONUS_PARAM_ID = paramIdOf(TARGET_BONUS_PARAMETER);
+const TURN_ORDER_PARAM_ID = paramIdOf(TURN_ORDER_PARAMETER);
 const MOISTURE_PARAM_ID = `${PLUGIN_ID}:moisture`;
 const THIRST_PARAM_ID = `${PLUGIN_ID}:thirst`;
 const APPLAUSE_PARAM_ID = `${PLUGIN_ID}:applause`;
+const RESIST_PARAM_ID = `${PLUGIN_ID}:resist`;
 const PATH_PARAM_ID = `${PLUGIN_ID}:path`;
 
 const PC_PARAM_IDS = PC_PARAMETERS.map(paramIdOf);
@@ -159,11 +194,12 @@ function readDracurougeEpisodes(components) {
   return normalizeSkillList(EPISODE_SPEC, components?.[EPISODE_COMPONENT_KEY] ?? []);
 }
 
-// 種別と目標値修正は種別によらず常に持つので、PC/NPCのどちらの一覧にも入れない
+// 種別・目標値修正・手番順は種別によらず常に持つので、PC/NPCのどちらの一覧にも入れない
 // （TYPED_PARAM_IDSに入れると、種別の切り替えで一覧への出し入れの対象になってしまう）。
 function buildDracurougeCharacterParameters() {
   return buildParameters(PLUGIN_ID, [
-    CHAR_TYPE_PARAMETER, TARGET_BONUS_PARAMETER, ...PC_PARAMETERS, ...NPC_PARAMETERS
+    CHAR_TYPE_PARAMETER, TARGET_BONUS_PARAMETER, TURN_ORDER_PARAMETER,
+    ...PC_PARAMETERS, ...NPC_PARAMETERS
   ]);
 }
 
@@ -819,10 +855,79 @@ function resetDracurougeComponentsOnPhaseEnd(components, phase) {
   return nextDeeds === deeds ? components : { ...components, [DEED_COMPONENT_KEY]: nextDeeds };
 }
 
+// --- ラウンド進行 ---------------------------------------------------
+//
+// 毎ラウンド セットアップ → 手番 → ラウンド終了 の3段。
+//
+// 手番はPCが道の順、続けてNPCがイニシアチブ順。段を2つに割らずに済むのは、手番順を
+// 「PCは道の番号（1〜8）、NPCは100」という1つの数値へ落としているから
+// （computeDracurougeDerivedParameters）。同値のタイブレークはCore側が
+// イニシアチブ降順で持っているので、NPC同士がイニシアチブ順になるのは自動でついてくる。
+const SETUP_PHASE_ID = 'setup';
+
+function buildDracurougeRoundPhaseTemplate() {
+  return [
+    // ラベルが「セットアップ」なのはログが「ラウンドN - ○○開始。」の形だから
+    // （「ラウンド開始」にすると「ラウンド開始開始」になる）。
+    { id: SETUP_PHASE_ID, label: 'セットアップ', kind: 'once', expirePhaseOnComplete: null, preTurnStep: null },
+    {
+      id: 'action', label: '手番', kind: 'perCharacter',
+      turnOrder: { paramId: TURN_ORDER_PARAM_ID, direction: 'asc' },
+      // preTurnStepを置かない＝ルーム設定の「イニシアチブプロセスを挟む」はこのシステムでは
+      // 効かない。手番順の根拠が道（手番の合間に動かない値）なので、直前に計算し直す段に
+      // 意味が無いため（シノビガミがプロットで同じ判断をしている）。
+      expirePhaseOnComplete: null, preTurnStep: null
+    },
+    { id: 'roundEnd', label: 'ラウンド終了', kind: 'once', expirePhaseOnComplete: 'round', preTurnStep: null }
+  ];
+}
+
+// 手番順だけを自動計算する。潤い・渇き・喝采点には触れない（利用者が手でも増減させる値で、
+// 毎回上書きすると手入力が効かなくなる。加算はapplyAward）。
+function computeDracurougeDerivedParameters(parameters = {}) {
+  const order = readCharType(parameters) === CHAR_TYPE_NPC
+    ? NPC_TURN_ORDER
+    : (PATH_TURN_ORDER[parameters[PATH_PARAM_ID]?.value] ?? DEFAULT_TURN_ORDER);
+
+  return { [TURN_ORDER_PARAM_ID]: order };
+}
+
+// ラウンドの頭（セットアップの段）にPCへ配る手当て。
+// 【基礎値を読んで基礎値を返す】実効値（バフ込み）を返すとバフの分が基礎値へ混入して
+// 二重に効く（docs/plugin-guide.mdの7章）。Coreは返した値をそのまま書くだけ。
+function applyDracurougeRoundPhaseStart(phase, { tokens = {}, participants = [] } = {}) {
+  if (phase?.id !== SETUP_PHASE_ID) return null;
+
+  const changes = [];
+  const names = [];
+
+  participants.forEach(tokenId => {
+    const token = tokens[tokenId];
+    // NPCは対象外（喝采点も抗う力もPCだけが持つ）
+    if (!token || readCharType(token.parameters) === CHAR_TYPE_NPC) return;
+
+    const applause = Number(token.parameters?.[APPLAUSE_PARAM_ID]?.value) || 0;
+    changes.push({ tokenId, paramId: APPLAUSE_PARAM_ID, value: applause + 1 });
+    changes.push({ tokenId, paramId: RESIST_PARAM_ID, value: RESIST_PER_ROUND });
+    names.push(token.name || '');
+  });
+
+  // 対象が1人もいなければ黙る（NPCしかいない場面でログだけが増えないように）
+  if (changes.length === 0) return null;
+
+  return {
+    changes,
+    logText: `喝采点+1／抗う力を${RESIST_PER_ROUND}に戻しました（${names.join('、')}）。`
+  };
+}
+
 export const DRACUROUGE_PLUGIN = {
   id: PLUGIN_ID,
   label: 'ドラクルージュ',
   buildCharacterParameters: buildDracurougeCharacterParameters,
+  computeDerivedParameters: computeDracurougeDerivedParameters,
+  buildRoundPhaseTemplate: buildDracurougeRoundPhaseTemplate,
+  applyRoundPhaseStart: applyDracurougeRoundPhaseStart,
   renderCharacterPanel: renderDracurougeCharacterPanel,
   importCharacterJson: importDracurougeCharacterJson,
   characterSheetSource: DRACUROUGE_SHEET_SOURCE,
@@ -831,6 +936,4 @@ export const DRACUROUGE_PLUGIN = {
   resetComponentsOnPhaseEnd: resetDracurougeComponentsOnPhaseEnd,
   diceDraft: DRACUROUGE_DRAFT_SPEC,
   bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM
-  // computeDerivedParametersは実装しない。潤い・渇きは利用者が手でも増減させる値で、
-  // 自動計算で毎回上書きすると手入力が効かなくなるため（加算はapplyAward）。
 };

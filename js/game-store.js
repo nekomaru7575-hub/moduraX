@@ -7,7 +7,8 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters } from './parameters/core.js';
 import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
-  applyPluginDerivedRoomParameters, getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd
+  applyPluginDerivedRoomParameters, getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd,
+  applyPluginRoundPhaseStart
 } from './parameters/registry.js';
 // スタンプの集計（COUNT_STAMP）で「その部屋に実在するスタンプか」を確かめるためだけに使う。
 import { findStamp } from './stamp-registry.js';
@@ -212,6 +213,38 @@ function recomputeDerivedForRound(tokensState, activePlugin, round) {
     );
     if (parameters !== character.parameters) patchCharacter(tokensState, id, { parameters });
   });
+}
+
+/**
+ * フェーズに入るときの、プラグイン固有のパラメータ操作を適用する
+ * （ドラクルージュのラウンド頭の「喝采点+1・抗う力を2に戻す」）。
+ *
+ * 何を動かすかはプラグインが決め（applyPluginRoundPhaseStart、js/parameters/registry.js）、
+ * Coreは返ってきた値を基礎値へ書くだけ。手入力ではないのでwithEditableParamFieldsではなく
+ * withParamFieldsを通す：editable:falseのパラメータでも、プラグイン自身の宣言なら動かしてよい
+ * （SET_PARAMETERのガードは「利用者の手入力」を止めるためのもの）。
+ *
+ * @param {object} tokensState 作業用コピー（patchCharacterで書き換えてよいもの）
+ * @param {object} round 反映後のラウンド状態
+ * @returns {string} チャットへ足す1行（無ければ空文字）
+ */
+function applyRoundPhaseStart(tokensState, activePlugin, phase, round) {
+  if (!activePlugin) return '';
+
+  const result = applyPluginRoundPhaseStart(activePlugin, phase, {
+    tokens: tokensState,
+    participants: round?.participants || [],
+    roundNumber: round?.roundNumber || 0
+  });
+
+  (result?.changes || []).forEach(({ tokenId, paramId, value }) => {
+    const character = tokensState[tokenId];
+    if (!character) return;
+    const parameters = withParamFields(character.parameters, paramId, { value });
+    if (parameters) patchCharacter(tokensState, tokenId, { parameters });
+  });
+
+  return result?.logText || '';
 }
 
 // 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。
@@ -533,6 +566,7 @@ function sortByInitiative(tokensState, participantIds) {
 // 今このラウンドで手番順の根拠になっているフェーズ（turnOrderを宣言したperCharacterフェーズ）。
 // プロットの段にいる間も「公開後の手番順」を先に見せたいので、現在のphaseIndexではなく
 // テンプレート全体から探す。
+// 戻り値は 'initiative' | 'plot' | { paramId, direction }（sortForTurnOrder参照）。
 function turnOrderSourceOf(round) {
   const template = round.template || [];
   return template.find(phase => phase.kind === 'perCharacter')?.turnOrder || 'initiative';
@@ -545,7 +579,8 @@ function plotValueOf(round, tokenId) {
 }
 
 /**
- * 手番順の並べ替え。turnOrderが'plot'ならプロット値の降順、それ以外は従来どおり
+ * 手番順の並べ替え。turnOrderが'plot'ならプロット値の降順、パラメータの宣言
+ * （{ paramId, direction }）ならその実効値の昇順、それ以外は従来どおり
  * core:initiativeの実効値の降順。
  *
  * プロットが同値のときは、ルール上は同時処理でも卓の運用では順番が要る（判定の準備が
@@ -555,9 +590,29 @@ function plotValueOf(round, tokenId) {
  * この既定を覆したいときはGMが「次の手番に割り込ませる」（ROUND_SET_INTERRUPT）で指名する。
  */
 function sortForTurnOrder(tokensState, round, participantIds) {
+  const source = turnOrderSourceOf(round);
+
+  // パラメータ順（ドラクルージュの「道」）。Coreはその数値が何を表すかを知らず、
+  // 小さい順に並べるだけ。意味はプラグインがcomputeDerivedParametersで詰める。
+  //
+  // 先にイニシアチブ降順へ並べてから安定ソートで並べ直すので、**同値はイニシアチブ降順のまま
+  // 残る**。順位を粗く振れば「この群はイニシアチブ順」を宣言なしに表現できる
+  // （ドラクルージュのNPCが全員同じ順位で、その中はイニシアチブ順、というのがこれ）。
+  if (source?.paramId) {
+    const sign = source.direction === 'desc' ? -1 : 1;
+    const valueOf = (id) => {
+      const token = tokensState[id];
+      const value = token ? getEffectiveParameterValue(token, source.paramId) : null;
+      // 読めないコマ（そのパラメータを持たない）は最後尾。手番が消えるより後ろに回るほうが軽い
+      return Number.isFinite(value) ? value : Infinity;
+    };
+    return sortByInitiative(tokensState, participantIds)
+      .sort((a, b) => sign * (valueOf(a) - valueOf(b)));
+  }
+
   // 公開前にプロット順で並べると、値を伏せていても並び順から大小が読めてしまう
   // （手番順の詳細リストは全員に見えている）。公開されるまでは従来の並びのままにする。
-  if (turnOrderSourceOf(round) !== 'plot' || !round.plotsRevealed) {
+  if (source !== 'plot' || !round.plotsRevealed) {
     return sortByInitiative(tokensState, participantIds);
   }
 
@@ -1181,6 +1236,10 @@ export class ImmutableStore {
           currentActorId
         };
 
+        // ラウンド1の先頭フェーズにも、以降のラウンドと同じ手当てを入れる
+        // （ドラクルージュの喝采点+1はラウンド1から走る）。ROUND_ADVANCE_PHASE側と対。
+        const startPhaseLog = applyRoundPhaseStart(nextTokensState, activePlugin, firstPhase, startedRound);
+
         // 戦闘が始まった時点でも自動計算を引き直す。プロットの公開・ラウンドの終了と同じで、
         // コマ自体は触っていないのに計算の前提（roundActive・ラウンド番号）が変わるため。
         // ここを飛ばすと、シノビガミの「ラウンド」が0のまま＝ラウンド1のプロット公開前に
@@ -1191,7 +1250,11 @@ export class ImmutableStore {
         this.#commit(prevState, {
           tokens: nextTokensState,
           round: startedRound,
-          chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
+          chatLogs: withSystemLog(
+            prevState.chatLogs,
+            [logText, startPhaseLog].filter(Boolean).join('\n'),
+            payload?.time
+          )
         });
         return;
       }
@@ -1333,6 +1396,14 @@ export class ImmutableStore {
           }
 
           const newPhase = round.template[phaseIndex];
+
+          // 段に入るときのプラグイン固有の手当て（ドラクルージュの喝采点+1・抗う力=2）。
+          // 【手番を決める前に済ませる】ここで動かした値が手番順に効くシステムもありうるので、
+          // pickNextActorより先に反映させる。知らせは下の「ラウンドN - ○○開始。」の後に足す。
+          const startPhaseLog = applyRoundPhaseStart(
+            tokensForRound, activePlugin, newPhase, { ...round, roundNumber }
+          );
+
           step = initialStepForPhase(newPhase, useInitiativeProcess);
           if (newPhase.kind === 'perCharacter' && step === 'act') {
             currentActorId = pickNextActor(tokensForRound, { ...round, plots, acted: [], interruptId: null });
@@ -1351,6 +1422,7 @@ export class ImmutableStore {
             : step === 'preTurn' ? `（${newPhase.preTurnStep.label}）`
             : '';
           logParts.push(`ラウンド${roundNumber} - ${newPhase.label}開始${turnLabel}。`);
+          if (startPhaseLog) logParts.push(startPhaseLog);
         }
 
         const nextRound = {

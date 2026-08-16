@@ -134,6 +134,7 @@ const PLUGINS = {
 | `looksLikeOwnChatCommand` | `(rawInput) => boolean` | 「これは自分のコマンドの書式だ」の判定 |
 | `resetComponentsOnPhaseEnd` | `(components, phase) => components` | シーン/ラウンド終了時に使用回数などを戻す |
 | `buildRoundPhaseTemplate` | `() => phase[]` | ラウンド進行のフェーズ構成 |
+| `applyRoundPhaseStart` | `(phase, context) => ({ changes, logText })` | 段に入るときにパラメータを動かす（[3.6.1](#361-applyroundphasestartphase-context)） |
 | `buffFields` | `{ render, parseExtra, describe }` | バフに独自の追加情報を持たせる |
 | `stamps` | `{ id, label, file }[]` | そのシステム用のスタンプを足す |
 | `bcdiceSystem` | `string` | このシステムを選んだときの BCDice のシステムID（[3.11](#311-bcdicesystem)） |
@@ -337,10 +338,79 @@ function buildMyRoundPhaseTemplate() {
 | `expirePhaseOnComplete` | このフェーズを抜けるとき剥がすバフの期間（`'round'` 等）。`null` なら剥がさない |
 | `preTurnStep` | 各手番の直前に挟む段（`perCharacter` のみ）。`{ id, label }` |
 | `plot` | 出せる数字の範囲 `{ min, max }`（`kind: 'plot'` のみ） |
-| `turnOrder` | 手番順の根拠（`perCharacter` のみ）。省略で `'initiative'`、`'plot'` ならプロット値の降順 |
+| `turnOrder` | 手番順の根拠（`perCharacter` のみ）。省略で `'initiative'`、`'plot'` ならプロット値の降順、`{ paramId, direction }` ならそのパラメータの実効値順 |
 
 `kind: 'plot'` を使うと、伏せて提出 → 進行役が一斉公開 → 公開値で手番順、という流れが
 Core 側だけで完結する。提出値は **公開されるまで他人の画面に出ない**。
+
+#### パラメータで手番順を決める
+
+```js
+turnOrder: { paramId: 'DRACUROUGE:turnOrder', direction: 'asc' }   // directionは省略で'asc'
+```
+
+その数値が何を表すかを Core は知らない。**小さい順（`'desc'` なら大きい順）に並べるだけ**で、
+意味は `computeDerivedParameters` で詰める。
+
+**同値はイニシアチブ降順で解ける。** これを使うと、順位を粗く振るだけで
+「この群はイニシアチブ順」を宣言なしに表現できる。ドラクルージュの手番がこれで、
+PC は道ごとに 1〜8、NPC は全員 100 を持たせてある。1つの `perCharacter` の段のまま
+「PC が道の順 → NPC がイニシアチブ順」になり、段を2つに割る必要が無い。
+
+```js
+// PC/NPCと道から、手番順の数値を1つ作る（値は他の値から導くだけなので editable:false）
+function computeDracurougeDerivedParameters(parameters) {
+  const order = readCharType(parameters) === 'NPC'
+    ? 100                                              // PCの最大より必ず大きい値
+    : (PATH_TURN_ORDER[parameters['DRACUROUGE:path']?.value] ?? 1);
+  return { 'DRACUROUGE:turnOrder': order };
+}
+```
+
+読むのは実効値（バフ込み）なので、`ADD_BUFF` で手番順を前後させることもできる。
+そのパラメータを持たないコマは最後尾に回る（手番が消えるより軽い扱い）。
+
+---
+
+### 3.6.1 `applyRoundPhaseStart(phase, context)`
+
+ラウンド進行が段に**入るとき**に、そのシステム固有のパラメータを動かす。
+`resetComponentsOnPhaseEnd`（段の**終了**時の components）と対になるフック。
+
+ドラクルージュのラウンドの頭の「喝采点+1・抗う力を2に戻す」がこれ。
+
+```js
+function applyDracurougeRoundPhaseStart(phase, { tokens, participants, roundNumber }) {
+  if (phase.id !== 'setup') return null;   // 自分が仕掛けたい段だけを見る
+
+  const changes = [];
+  participants.forEach(tokenId => {
+    const token = tokens[tokenId];
+    if (!token || readCharType(token.parameters) === 'NPC') return;
+    const applause = Number(token.parameters?.['DRACUROUGE:applause']?.value) || 0;
+    changes.push({ tokenId, paramId: 'DRACUROUGE:applause', value: applause + 1 });
+  });
+
+  if (changes.length === 0) return null;   // 対象が居なければ黙る（ログだけ増やさない）
+  return { changes, logText: '喝采点+1（…）。' };
+}
+```
+
+| 受け取るもの | 中身 |
+|---|---|
+| `phase` | 入った段（テンプレートの1件そのまま） |
+| `context.tokens` | 全コマ `{ [tokenId]: token }` |
+| `context.participants` | そのラウンドの参加者の tokenId |
+| `context.roundNumber` | 何ラウンド目か |
+
+**返すのは基礎値。** `getEffectiveParameterValue` の結果を返すとバフの分が基礎値へ混入して
+二重に効く。読むのも `token.parameters[paramId].value` にすること。
+
+`editable: false` のパラメータも動かせる（`SET_PARAMETER` のガードは「利用者の手入力」を
+止めるためのもので、プラグイン自身の宣言には掛からない）。
+
+**ラウンド1の先頭の段でも走る**。以降のラウンドと同じ手当てが初回から入る。
+一方、`ROUND_PROGRESSION_END`（進行の終了）では走らない。
 
 ---
 

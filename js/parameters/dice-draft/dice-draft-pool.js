@@ -28,15 +28,20 @@ const MAIN_TAB_ID = 'main';
 const DICE_CHANGE_PATTERN = /^dice\.change\(\s*(\d+)\s*[>＞]\s*(\d+)\s*(?:,\s*(\d+)\s*)?\)$/i;
 const DICE_ADD_PATTERN = /^dice\.add\(\s*(\d+)\s*(?:[*×＊]\s*(\d+)\s*)?\)$/i;
 
+// 目の上限。面数（spec.diceSides）では縛らない：能力で「振っては出ない目」を作る
+// システムがありうる（d6の盤面に7の目を置く等）ためで、一致型の置き場に対応する数字が
+// 無ければ置けないだけ＝プールに残るので、それ自体は壊れない。
+// ただし青天井にすると保存データも見た目も破綻するので、当面の頭打ちとして99を置く。
+// 1〜6以外の目はピップではなく数字で描かれる（js/dice-draft-panel.jsのrenderDieFace）。
+const MAX_FACE_VALUE = 99;
+
 // 目の呼び方はパネル・チャットログで揃える（「3の目」）。
 function faceLabel(value) {
   return `${value}の目`;
 }
 
-// spec.diceSides の範囲に収まる目か。範囲外を黙って受けると、置き場のどの数字にも
-// 一致しないダイスがプールに残り、利用者は理由が分からないまま詰まる。
-function validFace(spec, value) {
-  return Number.isInteger(value) && value >= 1 && value <= spec.diceSides;
+function validFace(value) {
+  return Number.isInteger(value) && value >= 1 && value <= MAX_FACE_VALUE;
 }
 
 // 共通の前置き検査。使えないときだけ理由の文字列を返す（使えるなら null）。
@@ -44,8 +49,8 @@ function rejectReason(spec, token, faces, count) {
   if (!token) return 'キャラクターを選択してください。';
   if (!spec) return 'このシステムはダイスドラフトを使いません。';
 
-  const bad = faces.find(value => !validFace(spec, value));
-  if (bad !== undefined) return `目は 1〜${spec.diceSides} の整数で指定してください（${bad}）。`;
+  const bad = faces.find(value => !validFace(value));
+  if (bad !== undefined) return `目は 1〜${MAX_FACE_VALUE} の整数で指定してください（${bad}）。`;
   if (!Number.isInteger(count) || count < 1) return 'ダイスの個数には 1 以上の整数を指定してください。';
 
   return null;

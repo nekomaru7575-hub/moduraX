@@ -5,6 +5,7 @@ import { DX3_PLUGIN } from './dx3.js';
 import { SHINOBIGAMI_PLUGIN } from './shinobigami.js';
 import { STELLA_KNIGHTS_PLUGIN } from './stella-knights.js';
 import { DRACUROUGE_PLUGIN } from './dracurouge.js';
+import { handleDiceDraftPoolCommand } from './dice-draft/dice-draft-pool.js';
 // import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
 
 const PLUGINS = {
@@ -136,6 +137,11 @@ export function pluginHasSheetImport(pluginId) {
  * チャット欄に入力されたテキストを、ルームに適用中のプラグイン固有のコマンドとして
  * 解釈・実行させる（例: DX3の combo.awk(コンボ名) 等）。Coreはコマンドの構文を解釈せず、
  * プラグインのhandleChatCommandにそのまま委ねる。
+ *
+ * 例外はダイスドラフトの dice.change / dice.add で、これは特定のシステムの能力ではなく
+ * プール（＝Coreのパネル）そのものへの操作なので、diceDraftを宣言しているプラグインには
+ * ここで自動的に生やす。どのシステムでも同じ書式・同じ規則で動かすため、プラグインの
+ * handleChatCommandより先に見る（うっかり奪われないように）。
  * @param {string} pluginId
  * @param {string} rawInput
  * @param {object} context プラグインが実行に必要とする値一式（token/dispatch等）
@@ -143,7 +149,16 @@ export function pluginHasSheetImport(pluginId) {
  */
 export function handlePluginChatCommand(pluginId, rawInput, context) {
   const plugin = PLUGINS[pluginId];
-  if (!plugin?.handleChatCommand) return false;
+  if (!plugin) return false;
+
+  // knownSkillNamesは渡さない。registryはcomponentsの形を知らないし、
+  // 置き場の検査をしなくてもプールの操作には影響しない（readDraftの引数はnull可）。
+  if (plugin.diceDraft
+      && handleDiceDraftPoolCommand(rawInput, { ...context, spec: plugin.diceDraft })) {
+    return true;
+  }
+
+  if (!plugin.handleChatCommand) return false;
   return plugin.handleChatCommand(rawInput, context);
 }
 

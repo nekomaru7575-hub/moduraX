@@ -35,6 +35,7 @@ import {
   handlePluginChatCommand, findPluginForChatCommand,
   parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem
 } from './parameters/registry.js';
+import { looksLikeDiceDraftPoolCommand } from './parameters/dice-draft/dice-draft-pool.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
@@ -1511,6 +1512,14 @@ function tryHandlePluginChatCommand(rawInput, character) {
   const owner = findPluginForChatCommand(rawInput);
   if (owner && owner.id !== activePluginId) {
     alert(`このコマンドは「${owner.label}」のものです。この部屋には適用されていないため実行できません。`);
+    return true;
+  }
+
+  // dice.* はどれか1つのプラグインのものではない（ダイスドラフトを使うシステム共通の操作）ので、
+  // findPluginForChatCommandには載せられない。ここまで来たということは、この部屋のシステムが
+  // ドラフトを使っていない＝実行のしようが無い。素通りしてただの発言になる前に理由を伝える。
+  if (looksLikeDiceDraftPoolCommand(rawInput)) {
+    alert('dice.change / dice.add は、ダイスドラフトを使うシステムの部屋でだけ使えます。');
     return true;
   }
 

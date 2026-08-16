@@ -631,6 +631,42 @@ if (match) {
 `legacyCountParameters: [{ paramId, value }]` を宣言しておくと、値が残っているコマにだけ
 パネルへ「プールへ移す」ボタンが出る（ステラナイツの `face1`〜`face6` がこれ）。
 
+#### プールを振らずに動かす（`dice.change` / `dice.add`）
+
+`diceDraft` を宣言すると、**プラグイン側に1行も書かずに**次の2つのコマンドが生える
+（`registry.js` の `handlePluginChatCommand` が、プラグインの `handleChatCommand` より先に見る）。
+
+```
+dice.change(3>5)      プールにある3の目を1個、5の目へ変える
+dice.change(3>5,2)    2個変える。そろっていなければ1個も変えない
+dice.add(6)           6の目を1個プールへ足す
+dice.add(6*3)         3個足す
+```
+
+触るのは**プールだけ**。スキルの下に乗っているダイスは対象外で、`kind: 'match'` の
+「乗っている目＝対応する数字」という不変条件は崩れない。
+
+**同じ操作を自分のコマンドへ組み込む**なら `runDiceChange()` / `runDiceAdd()` を呼ぶ。
+書式の解釈とは切り離してあるので、条件や対価だけを足せばよい。
+
+```js
+import { runDiceChange } from './dice-draft/dice-draft-pool.js';
+
+const result = runDiceChange({
+  spec: MY_DRAFT_SPEC, token, dispatch, from, to, count: 1,
+  knownSkillNames, silent: true   // ログは自分で1行だけ出す
+});
+if (!result.ok) return true;   // 目が足りない。理由はrunDiceChangeが伝えている
+```
+
+**対価を取るなら、状態を1つも変えないうちに使えるかどうかを決め切ること。**
+`runDiceChange` は個数がそろわなければ 1個も変えずに `ok: false` を返すので、
+「先に残量を見る → 変える → 払う」の順にすれば、片方だけ進む壊れ方をしない
+（ステラナイツの `プチラッキー(a>b)` がこの形）。
+
+`silent: true` はログを出さない指定。1回の操作でログが2行進むと直前の結果が流れるので、
+合成コマンドは自分で1行だけ出す。
+
 ---
 
 ## 4. パラメータ

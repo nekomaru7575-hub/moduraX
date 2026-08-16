@@ -3,10 +3,16 @@ import { createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd } from '
 import { showSkillBox } from './skill/skill-box.js';
 import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
+import { runDiceChange } from './dice-draft/dice-draft-pool.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 const CHARGE_COMMAND_PATTERN = /^charge\((\d+)\)$/i;
+// プチラッキー(a>b) … プールの目aを1個bへ変え、ブーケを |a-b|×3 払う。
+// 区切りは全角の＞も受ける（dice.change と揃える）。
+const PETIT_LUCKY_COMMAND_PATTERN = /^プチラッキー\(\s*(\d+)\s*[>＞]\s*(\d+)\s*\)$/;
+const PETIT_LUCKY_COST_PER_STEP = 3;
 const SKILL_COMPONENT_KEY = 'stellaKnightsSkills';
+const MAIN_TAB_ID = 'main';
 
 const FACE_NUMBERS = [1, 2, 3, 4, 5, 6];
 const FACE_LABELS = ['１', '２', '３', '４', '５', '６'];
@@ -54,6 +60,25 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   requirement: { kind: 'match', valueField: 'number' }
 });
 
+// --- ブーケ（コマのパラメータ） ---
+// プチラッキーのような能力の対価に払う持ち点。手で増減させる値なので editable:true、
+// 一覧に出す値なので visible:true。locked:true は削除させないためと、既にこのシステムで
+// 動いている部屋のコマにも後から補完させるため（js/parameters/registry.jsの
+// withMissingPluginParameters）。
+//
+// 部屋が持つ「ブーケ合計」（下のルーム変数）とは別物。あちらはブーケのスタンプが押された
+// 回数の集計で、こちらは各コマの持ち点。paramIdもラベルも違うので、チャットの
+// {ブーケ} / {ブーケ合計} も取り違えない。
+const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
+
+const CHARACTER_PARAMETERS = [
+  { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true }
+];
+
+function buildStellaKnightsCharacterParameters() {
+  return buildParameters('STELLA_KNIGHTS', CHARACTER_PARAMETERS);
+}
+
 // --- ブーケ合計（ルーム変数） ---
 // この部屋でブーケのスタンプが押された回数の、参加者全員ぶんの合計。
 // 数え札そのものはCoreが持っている（js/game-store.jsのstampCounts）ので、ここは
@@ -81,7 +106,8 @@ function computeStellaKnightsDerivedRoomParameters(parameters, context = {}) {
 }
 
 function looksLikeStellaKnightsChatCommand(rawInput) {
-  return CHARGE_COMMAND_PATTERN.test(String(rawInput).trim());
+  const input = String(rawInput).trim();
+  return CHARGE_COMMAND_PATTERN.test(input) || PETIT_LUCKY_COMMAND_PATTERN.test(input);
 }
 
 // componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
@@ -152,11 +178,75 @@ function resetStellaKnightsComponentsOnPhaseEnd(components, phase) {
   return nextSkills === skills ? components : { ...components, [key]: nextSkills };
 }
 
+// プチラッキー(a>b) … プールの目aを1個bへ変え、ブーケを |a-b|×3 払う。払えないなら使えない。
+//
+// 中身は共通の dice.change（runDiceChange）そのもので、足しているのは対価だけ。
+// 【順番が要】状態を1つも変えないうちに「使えるかどうか」を決め切る。ブーケの残りを先に見て、
+// 次に runDiceChange（目が足りなければ1個も変えずに失敗する）を通す。こうしておけば
+// 「ブーケだけ減って目が変わらない」「目が変わったのに払っていない」が起きない。
+function runPetitLucky(input, { token, dispatch }) {
+  const match = input.match(PETIT_LUCKY_COMMAND_PATTERN);
+  if (!match) return false;
+
+  if (!token) {
+    alert('キャラクターを選択してください。');
+    return true;
+  }
+
+  const from = Number(match[1]);
+  const to = Number(match[2]);
+  const cost = Math.abs(from - to) * PETIT_LUCKY_COST_PER_STEP;
+
+  // 読むのも書くのも基礎値。getEffectiveParameterValueの結果をSET_PARAMETERで書き戻すと
+  // バフの分が基礎値へ混入して二重に効く（docs/plugin-guide.mdの7章）。
+  const current = Number(token.parameters?.[BOUQUET_PARAM_ID]?.value) || 0;
+  if (current - cost < 0) {
+    alert(`ブーケが足りません（必要 ${cost} / 現在 ${current}）。`);
+    return true;
+  }
+
+  // ログは下で1行だけ出すのでsilent。1回の操作でログが2行進むと、直前の結果が流れてしまう
+  // （js/parameters/dice-draft/dice-draft-use.jsが消滅の知らせを畳んでいるのと同じ理由）。
+  const changed = runDiceChange({
+    spec: STELLA_KNIGHTS_DRAFT_SPEC,
+    token,
+    dispatch,
+    from,
+    to,
+    count: 1,
+    knownSkillNames: readStellaKnightsSkills(token.components).map(skill => skill.name),
+    silent: true
+  });
+  // 目が足りなかった。理由はrunDiceChangeが伝えているので、ブーケは減らさずに終わる
+  if (!changed.ok) return true;
+
+  dispatch('SET_PARAMETER', {
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
+  });
+
+  dispatch('ADD_CHAT_MESSAGE', {
+    tabId: MAIN_TAB_ID,
+    entry: {
+      system: STELLA_KNIGHTS_DRAFT_SPEC.label,
+      character: token.name || '',
+      characterId: token.id || null,
+      color: token.textColor || null,
+      command: input,
+      resultText: `プチラッキー: ${from}の目 → ${to}の目\nブーケ -${cost}（${current} → ${current - cost}）`
+    }
+  });
+
+  return true;
+}
+
 // チャージ。振った目はダイスドラフトのプールへ入る。
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内は runDiceDraftRoll がまとめて行うので、
 // ここは書式の判定だけをする。
 function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice }) {
   const input = String(rawInput).trim();
+
+  if (runPetitLucky(input, { token, dispatch })) return true;
+
   const match = input.match(CHARGE_COMMAND_PATTERN);
   if (!match) return false;
 
@@ -177,8 +267,8 @@ function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice 
 export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
-  // buildCharacterParameters は持たない：出目の在庫はダイスドラフトのプールが持つので、
-  // コマ固有のパラメータが1つも要らなくなった（ルーム変数のブーケ合計だけが残る）
+  // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータはブーケ（持ち点）だけ
+  buildCharacterParameters: buildStellaKnightsCharacterParameters,
   buildRoomParameters: buildStellaKnightsRoomParameters,
   computeDerivedRoomParameters: computeStellaKnightsDerivedRoomParameters,
   renderCharacterPanel: renderStellaKnightsCharacterPanel,

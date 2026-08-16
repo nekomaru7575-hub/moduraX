@@ -13,7 +13,9 @@
 // ドラッグは配列間の移動でしかなく、この不変条件さえ守れば整合性は保たれる。
 
 // 壊れた（あるいは意図的に膨らませた）保存データで状態が肥大しないよう、読み出し時に切る。
-const POOL_SAFETY_MAX = 60;
+// exportしているのは、プールへ足すコマンド（dice-draft-pool.jsのdice.add）が
+// 「入り切らない個数を先に弾く」ために同じ上限を見る必要があるため。
+export const POOL_SAFETY_MAX = 60;
 const PLACEMENT_SAFETY_MAX = 20;
 
 /** 空のドラフト。componentsを持たない古いコマの既定値。 */
@@ -394,6 +396,44 @@ export function addDiceToPool(draft, dice) {
     added: accepted.length,
     overflow: dice.length - accepted.length
   };
+}
+
+/**
+ * プールにある目 from のダイスを count 個だけ to へ変える。
+ *
+ * 【触るのはプールだけ】スキルの下に乗っているダイスは対象にしない。kind:'match' の
+ * システムでは「乗っているダイスの目＝スキルの対応する数字」が不変条件なので、乗ったまま
+ * 目を書き換えると置き場と矛盾する。変えたければ一度プールへ戻してもらう。
+ *
+ * 【全部そろわなければ何もしない】count 個に足りないときは1個も変えずに元のdraftを返す。
+ * 部分的に変えると、対価を払う合成コマンド（ステラナイツのプチラッキー）が
+ * 「半分だけ効いたのに満額払った」という壊れ方をする。
+ *
+ * 先頭から取るのは consumePlacement と同じ理由＝利用者が並べた順を尊重するため。
+ * idは変えない（同じダイスの目が変わっただけ。パネルの再描画とドラッグの対応付けが飛ばない）。
+ *
+ * @returns {{ draft: object, changed: number, available: number }}
+ *   available は変更前にプールにあった目 from の個数（呼び出し側が理由の説明に使う）
+ */
+export function changePoolDice(draft, from, to, count = 1) {
+  const base = draft ?? createEmptyDraft();
+  const available = base.pool.reduce((sum, die) => sum + (die.value === from ? 1 : 0), 0);
+  if (!Number.isInteger(count) || count < 1 || available < count) {
+    return { draft: base, changed: 0, available };
+  }
+
+  let remaining = count;
+  const pool = base.pool.map(die => {
+    if (remaining === 0 || die.value !== from) return die;
+    remaining -= 1;
+    return { ...die, value: to };
+  });
+
+  // 目が変わらない指定（from === to）は状態を動かさない。呼び出し側が参照比較で
+  // 「変化なし」を判定できるよう、元のdraftをそのまま返す
+  if (from === to) return { draft: base, changed: count, available };
+
+  return { draft: { pool, placements: { ...base.placements } }, changed: count, available };
 }
 
 // 指定のダイスを今どこにあっても取り出す。見つからなければ null。

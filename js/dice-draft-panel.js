@@ -482,6 +482,11 @@ export function initDiceDraftPanel() {
 
     const skillSection = document.createElement('div');
     skillSection.className = 'dice-draft-section';
+    // 中身を詰める前に足しておく。この先で1枚でも組み立てに失敗すると、最後にまとめて
+    // 足す作りでは**スキルの列がまるごと出ない**（内容が空なのか描画が落ちたのか
+    // 見分けられない壊れ方をする）。先に足しておけば被害はその1枚で止まる。
+    content.appendChild(skillSection);
+
     const heading = document.createElement('div');
     heading.className = 'dice-draft-heading';
     heading.textContent = 'スキル';
@@ -534,7 +539,6 @@ export function initDiceDraftPanel() {
         skillSection.appendChild(note);
       }
     }
-    content.appendChild(skillSection);
 
     if (canEdit) {
       const migrate = buildMigration(spec, token);

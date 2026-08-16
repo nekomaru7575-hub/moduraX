@@ -325,9 +325,13 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
     if (wanted === null) return no('対応する数字が設定されていません');
     if (count === 0) return { ...no(`${wanted}の目が必要です`), supportsPartialUse: true };
 
-    // 1個で1回。何個乗せてもよく、乗せた数だけ使える
+    // 1個で1回。何個乗せてもよく、乗せた数だけ使える。
+    // targetOptions/targetValue は一致型には無い概念だが、**戻り値の形は必ず揃える**。
+    // 画面は kind で分岐せずに result.targetOptions.length を読む（js/dice-draft-panel.js）ので、
+    // 欠けていると描画の途中で落ち、スキルの列がまるごと出なくなる。
     return {
       ready: true, uses: count, perUseDice: 1, supportsPartialUse: true,
+      targetOptions: [], targetValue: null,
       description: `${wanted}の目 ×${count} → ${count}回使用`
     };
   }

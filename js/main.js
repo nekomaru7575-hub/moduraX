@@ -1509,7 +1509,11 @@ function tryHandlePluginChatCommand(rawInput, character) {
       dispatch: store.dispatch.bind(store),
       getEffectiveParameterValue,
       generateBuffId,
-      rollBCDice
+      rollBCDice,
+      // 部屋が持つ値（Coreの「現在のラウンド」、プラグインのブーケ合計）。コマ1体では
+      // 決まらない値をコマンドの中で読めるようにするために渡す（ステラナイツの
+      // 個数を書かないcharge）。Coreは中身を解釈せず、そのまま渡すだけ。
+      roomParameters: store.state.room?.parameters ?? {}
     });
     if (handled) return true;
   }

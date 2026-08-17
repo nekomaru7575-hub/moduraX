@@ -285,6 +285,17 @@ function handleMyChatCommand(rawInput, { token, dispatch, getEffectiveParameterV
 }
 ```
 
+**受け取れる context**
+
+| キー | 説明 |
+|---|---|
+| `token` | 参照キャラクター。**選ばれていなければ `null`** |
+| `dispatch(action, payload)` | 状態を変える |
+| `getEffectiveParameterValue(token, paramId)` | 基礎値＋バフの実効値 |
+| `generateBuffId()` | バフ用の ID を発行 |
+| `rollBCDice(system, command)` | ダイスを振る。部屋の外（コマ作成ツール等）では `null` |
+| `roomParameters` | 部屋のルーム変数（Core の `core:round` ＝現在のラウンド、プラグインの自動計算値）。コマ 1 体では決まらない値をコマンドから読むために渡される |
+
 **戻り値の意味**
 
 - `true` … このプラグインが処理した。Core はそれ以上何もしない

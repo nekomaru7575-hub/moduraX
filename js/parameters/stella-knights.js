@@ -6,7 +6,13 @@ import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceChange } from './dice-draft/dice-draft-pool.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
-const CHARGE_COMMAND_PATTERN = /^charge\((\d+)\)$/i;
+// charge(n) … n個振る。charge / charge() … 個数を書かない形で、チャットに
+// {チャージダイス数}+{現在のラウンド} と書いたのと同じ個数を振る（readImplicitChargeCount）。
+const CHARGE_COMMAND_PATTERN = /^charge(?:\(\s*(\d+)?\s*\))?$/i;
+// このシステムが適用されていない部屋での案内（looksLikeOwnChatCommand）に使う形。
+// かっこ付きだけを自分のものと見なす：裸の charge はただの英単語かもしれないので、
+// 他システムの部屋で発言を横取りしない。
+const CHARGE_COMMAND_HINT_PATTERN = /^charge\(\s*\d*\s*\)$/i;
 // プチラッキー(a>b) … プールの目aを1個bへ変え、ブーケを |a-b|×3 払う。
 // 区切りは全角の＞も受ける（dice.change と揃える）。
 const PETIT_LUCKY_COMMAND_PATTERN = /^プチラッキー\(\s*(\d+)\s*[>＞]\s*(\d+)\s*\)$/;
@@ -86,6 +92,10 @@ const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
 // ラベルは触らない（利用者が付けた名前を勝手に上書きしないため）。
 const HP_PARAM_ID = 'core:hp';
 
+// 個数を書かない charge の個数に足す、Coreのルーム変数「現在のラウンド」
+// （js/parameters/core.jsのCORE_DEFAULT_ROOM_PARAMETERS）。値はCoreが維持する。
+const ROUND_ROOM_PARAM_ID = 'core:round';
+
 const CHARACTER_PARAMETERS = [
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
@@ -131,7 +141,7 @@ function computeStellaKnightsDerivedRoomParameters(parameters, context = {}) {
 
 function looksLikeStellaKnightsChatCommand(rawInput) {
   const input = String(rawInput).trim();
-  return CHARGE_COMMAND_PATTERN.test(input) || PETIT_LUCKY_COMMAND_PATTERN.test(input);
+  return CHARGE_COMMAND_HINT_PATTERN.test(input) || PETIT_LUCKY_COMMAND_PATTERN.test(input);
 }
 
 // componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
@@ -301,10 +311,26 @@ function runPetitLucky(input, { token, dispatch }) {
   return true;
 }
 
+// 個数を書かない charge / charge() の個数。チャットへ {チャージダイス数}+{現在のラウンド} と
+// 書いたのと同じ値にする。チャージダイス数はバフ込みの実効値（{}参照と揃えるため）、
+// 現在のラウンドはCoreのルーム変数で、ラウンド進行中でなければ0＝シートの値そのままになる。
+function readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue) {
+  if (!token) return 0;
+
+  const charge = getEffectiveParameterValue
+    ? Number(getEffectiveParameterValue(token, CHARGE_PARAM_ID))
+    : Number(token.parameters?.[CHARGE_PARAM_ID]?.value);
+  const round = Number(roomParameters?.[ROUND_ROOM_PARAM_ID]?.value);
+
+  return (Number.isFinite(charge) ? charge : 0) + (Number.isFinite(round) ? round : 0);
+}
+
 // チャージ。振った目はダイスドラフトのプールへ入る。
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内は runDiceDraftRoll がまとめて行うので、
-// ここは書式の判定だけをする。
-function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice }) {
+// ここは書式の判定と、個数を書かない形の個数を決めることだけをする。
+function handleStellaKnightsChatCommand(
+  rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters }
+) {
   const input = String(rawInput).trim();
 
   if (runPetitLucky(input, { token, dispatch })) return true;
@@ -317,7 +343,9 @@ function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice 
     token,
     dispatch,
     rollBCDice,
-    count: Number(match[1]),
+    count: match[1] !== undefined
+      ? Number(match[1])
+      : readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue),
     knownSkillNames: readStellaKnightsSkills(token?.components).map(skill => skill.name),
     chatCommand: input
   });

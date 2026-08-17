@@ -701,7 +701,7 @@ function importDracurougeCharacterJson(json) {
 // 行いへ割り当てる。行いの「目標値」がそのまま合計の目標になる（kind:'sum'）。
 const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   id: 'dracurouge-draft',
-  label: '血の宴',
+  label: '行い判定',
   diceSides: 6,
   bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM,
   skillSpec: DEED_SPEC,

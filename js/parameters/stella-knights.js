@@ -64,24 +64,44 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   requirement: { kind: 'match', valueField: 'number' }
 });
 
-// --- ブーケ（コマのパラメータ） ---
-// プチラッキーのような能力の対価に払う持ち点。手で増減させる値なので editable:true、
-// 一覧に出す値なので visible:true。locked:true は削除させないためと、既にこのシステムで
-// 動いている部屋のコマにも後から補完させるため（js/parameters/registry.jsの
-// withMissingPluginParameters）。
+// --- コマのパラメータ ---
+// どれも手で増減させる値なので editable:true。locked:true は削除させないためと、
+// 既にこのシステムで動いている部屋のコマにも後から補完させるため
+// （js/parameters/registry.jsのwithMissingPluginParameters）。
 //
-// 部屋が持つ「ブーケ合計」（下のルーム変数）とは別物。あちらはブーケのスタンプが押された
-// 回数の集計で、こちらは各コマの持ち点。paramIdもラベルも違うので、チャットの
+// 防御力とチャージダイス数はシートに載っている値で、URLからの取り込みでも埋まる。
+// チャージダイス数を visible:false にしてあるのは、卓の全員が常時見たい値ではなく
+// 「charge(n) の n をいくつにするか」の控えだから。一覧には出ないが、更新画面では
+// 直せるし、スキルの式からは {チャージダイス数} で読める。
+//
+// ブーケはプチラッキーのような能力の対価に払う持ち点。部屋が持つ「ブーケ合計」
+// （下のルーム変数）とは別物で、あちらはブーケのスタンプが押された回数の集計、
+// こちらは各コマの持ち点。paramIdもラベルも違うので、チャットの
 // {ブーケ} / {ブーケ合計} も取り違えない。
+const DEFENSE_PARAM_ID = 'STELLA_KNIGHTS:defense';
+const CHARGE_PARAM_ID = 'STELLA_KNIGHTS:charge';
 const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
 
+// 耐久力はCoreの既定パラメータ（HP）をそのまま使う。取り込みの書き込み先にするだけで、
+// ラベルは触らない（利用者が付けた名前を勝手に上書きしないため）。
+const HP_PARAM_ID = 'core:hp';
+
 const CHARACTER_PARAMETERS = [
+  { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
+  { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true }
 ];
 
 function buildStellaKnightsCharacterParameters() {
   return buildParameters('STELLA_KNIGHTS', CHARACTER_PARAMETERS);
 }
+
+// 更新画面のプラグイン専用スペースに出す入力欄。並び順はシートの見出し（耐久力・防御力・
+// チャージダイス数）に合わせてある。labelは、コマ側にパラメータがまだ無いとき用の控え。
+const PANEL_PARAM_ROWS = CHARACTER_PARAMETERS.map(def => ({
+  paramId: `STELLA_KNIGHTS:${def.key}`,
+  label: def.label
+}));
 
 // --- ブーケ合計（ルーム変数） ---
 // この部屋でブーケのスタンプが押された回数の、参加者全員ぶんの合計。
@@ -131,7 +151,40 @@ function renderStellaKnightsCharacterPanel({
   container.appendChild(title);
 
   // 出目の在庫はダイスドラフトのプール（js/dice-draft-panel.js）が持つので、
-  // この列に並べるパラメータはもう無い。
+  // 並べるのはシートに載っている値と持ち点だけ。
+  //
+  // 【この欄が要る理由】プラグインが専用スペースを持つと、そのプラグイン由来のパラメータは
+  // 更新画面の汎用一覧から外される（js/character-dialog.jsのpluginOwnsDisplay）。
+  // ここに入力欄を出さないと、手で直せる場所がどこにも無くなる。
+  const list = document.createElement('div');
+  list.className = 'dialog-custom-list';
+  container.appendChild(list);
+
+  const rows = PANEL_PARAM_ROWS.map(({ paramId, label: fallbackLabel }) => {
+    const row = document.createElement('div');
+    row.className = 'dialog-custom-row';
+
+    const label = document.createElement('label');
+    label.className = 'dialog-param-label';
+    // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
+    label.textContent = parameters[paramId]?.label ?? fallbackLabel;
+    label.style.alignSelf = 'center';
+    label.style.color = '#ccc';
+    label.style.fontSize = '0.85rem';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1';
+    input.value = Number(parameters[paramId]?.value) || 0;
+    input.disabled = !canEdit;
+
+    row.appendChild(label);
+    row.appendChild(input);
+    list.appendChild(row);
+
+    return { paramId, input };
+  });
 
   // スキル一覧（ボックス）。既存キャラクターの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外。js/parameters/dx3.jsのエフェクト欄と同じ扱い）。
@@ -167,8 +220,13 @@ function renderStellaKnightsCharacterPanel({
     container.appendChild(skillBtn);
   }
 
-  // このシステムはコマ固有のパラメータを持たないので、返す値も無い
-  return { getValues: () => ({}) };
+  // 描いた行だけを返す。どれも0未満にはならない値なので、ここで下限を切っておく
+  // （ブーケが負のままだとプチラッキーの残高の判定が意味を失う）。
+  return {
+    getValues: () => Object.fromEntries(rows.map(({ paramId, input }) => [
+      paramId, Math.max(0, Math.trunc(Number(input.value) || 0))
+    ]))
+  };
 }
 
 // シナリオ終了時、スキルの使用回数（periods: scenario）を戻す
@@ -268,14 +326,115 @@ function handleStellaKnightsChatCommand(rawInput, { token, dispatch, rollBCDice 
   return true;
 }
 
+// ------------------------------------------------------------------
+// キャラクターシートの取り込み
+// ------------------------------------------------------------------
+// 対象はWebキャラクターシート（character-sheets.appspot.com）の銀剣のステラナイツ用シートが
+// 返すJSON。ファイルから読ませる道（盤面の「JSONを読み込む」）と、URLから取る道
+// （js/character-sheet-import.js）の両方がこの関数に合流する。
+//
+// シートにあってこのアプリが持っていない項目（花章・願い・あなたの物語などの設定欄、
+// パートナー、歪みの共鳴、勲章）は取り込まない。パラメータ化していないものを隠しパラメータ
+// として持たせても、画面のどこにも出ず、書き出したJSONだけが太るため。
+
+// URLから取り込むときの受け付け先。**データだけを宣言する**。
+// 画面（js/character-sheet-import.js）はこの宣言でURLを検査してキーだけを取り出し、
+// サーバー（server/index.js）が同じ宣言から取得先を組み立てる。宣言に無いURLは
+// どちらの側でも通らないので、「任意の宛先へ取りに行かせる」ことができない。
+//
+// edit.html / display.html はどちらも人が見るページなので、キーだけを取り出して
+// JSONを返す口（display?ajax=1）へ付け替える。利用者はブラウザのURLをそのまま貼れる。
+const STELLA_KNIGHTS_SHEET_SOURCE = {
+  label: 'Webキャラクターシート（銀剣のステラナイツ）',
+  origin: 'https://character-sheets.appspot.com',
+  // 同じサービスの他システム（/dracurouge/ 等）のシートを掴まないための絞り込み
+  pathPrefix: '/stellar/',
+  keyParam: 'key',
+  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
+  fetchPath: (key) => `/stellar/display?ajax=1&key=${encodeURIComponent(key)}`,
+  hint: 'character-sheets.appspot.com/stellar/edit.html?key=... の形のURL'
+};
+
+function sheetText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+// シートの数値欄は文字列（"16"）で、未入力はnull。数値として読めた場合だけ上書きする。
+function assignSheetNumber(target, paramId, raw) {
+  if (raw === null || raw === undefined || raw === '') return;
+  const value = Number(raw);
+  if (Number.isFinite(value)) target[paramId] = Math.trunc(value);
+}
+
+// スキル一覧。シートの列（名前・種別・タイミング・効果）はこのプラグインのスキルと
+// 素直に1対1で対応する。
+//
+// 【「対応する数字」は埋まらない】シート側にその欄が無いため（Noの列は行番号であって
+// 出目ではない）、取り込んだスキルは数字が空のまま入る。空のスキルはダイスドラフトで
+// 「対応する数字が設定されていません」となりダイスを置けないので、取り込んだ後に
+// スキル一覧を開いて1〜6を割り当ててもらう。
+//
+// シートのスキルが0件なら、normalizeSkillListが既定の6枠（１の目〜６の目）を配る。
+// 空のシートを取り込んで枠まで消える、ということにはならない。
+function importStellaKnightsSkillsFromSheet(json) {
+  const rawList = Array.isArray(json?.skills) ? json.skills : [];
+
+  return normalizeSkillList(STELLA_KNIGHTS_SKILL_SPEC, rawList
+    .map(raw => ({
+      name: sheetText(raw?.name),
+      note: sheetText(raw?.effect),
+      fields: { type: sheetText(raw?.type), timing: sheetText(raw?.timing), number: '' }
+    }))
+    // シートは空の行を1つ持って返してくる。名前の無い行は取り込まない
+    .filter(skill => skill.name !== ''));
+}
+
+/**
+ * Webキャラクターシート（銀剣のステラナイツ）のJSONを取り込む。
+ * @param {any} json
+ * @returns {{name?:string, valueOverrides:object, labelOverrides:object,
+ *            newParameters:object, components:object} | null}
+ */
+function importStellaKnightsCharacterJson(json) {
+  if (!json || typeof json !== 'object') return null;
+
+  // ステラナイツのシートらしさの確認。他システムのシートを黙って空のコマとして
+  // 取り込んでしまわないよう、このシステム特有のキーが1つも無ければ断る。
+  // baseやpartnerは他システムのシートも持つので数えない。
+  const looksLikeSheet = ['status', 'skills', 'skillshead', 'sheath']
+    .some(key => json[key] !== undefined);
+  if (!looksLikeSheet) return null;
+
+  // 耐久力はCoreのHPへ入れる。防御力とチャージダイス数はこのプラグインのパラメータ。
+  const valueOverrides = {};
+  assignSheetNumber(valueOverrides, HP_PARAM_ID, json?.status?.hp);
+  assignSheetNumber(valueOverrides, DEFENSE_PARAM_ID, json?.status?.defense);
+  assignSheetNumber(valueOverrides, CHARGE_PARAM_ID, json?.status?.charge);
+
+  const name = sheetText(json?.base?.name);
+
+  return {
+    name: name === '' ? undefined : name,
+    valueOverrides,
+    labelOverrides: {},
+    newParameters: {},
+    components: {
+      [SKILL_COMPONENT_KEY]: importStellaKnightsSkillsFromSheet(json)
+    }
+  };
+}
+
 export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
-  // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータはブーケ（持ち点）だけ
+  // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータは
+  // 防御力・チャージダイス数・ブーケ（持ち点）の3つ
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
   buildRoomParameters: buildStellaKnightsRoomParameters,
   computeDerivedRoomParameters: computeStellaKnightsDerivedRoomParameters,
   renderCharacterPanel: renderStellaKnightsCharacterPanel,
+  importCharacterJson: importStellaKnightsCharacterJson,
+  characterSheetSource: STELLA_KNIGHTS_SHEET_SOURCE,
   handleChatCommand: handleStellaKnightsChatCommand,
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,
   resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd,

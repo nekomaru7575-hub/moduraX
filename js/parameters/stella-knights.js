@@ -17,6 +17,17 @@ const CHARGE_COMMAND_HINT_PATTERN = /^charge\(\s*\d*\s*\)$/i;
 // 区切りは全角の＞も受ける（dice.change と揃える）。
 const PETIT_LUCKY_COMMAND_PATTERN = /^プチラッキー\(\s*(\d+)\s*[>＞]\s*(\d+)\s*\)$/;
 const PETIT_LUCKY_COST_PER_STEP = 3;
+
+// ブーケを払うだけのコマンド（下の runBouquetSpend）。
+// ダイス追加(n) … 1個につき4、nは3個まで。リロール … 一律5。
+// プールも出目も動かさないのは、卓が実際にどう振り直すかまでは決めないため
+// （プールへ目を足したいときはCore共通の dice.add、目を変えるなら dice.change がある）。
+const DICE_ADD_COMMAND_PATTERN = /^ダイス追加\(\s*(\d+)\s*\)$/;
+const DICE_ADD_COST_PER_DIE = 4;
+const DICE_ADD_MAX_COUNT = 3;
+// リロールは引数を取らないが、他のコマンドと揃えて「リロール()」の形も受ける。
+const REROLL_COMMAND_PATTERN = /^リロール(?:\(\s*\))?$/;
+const REROLL_COST = 5;
 const SKILL_COMPONENT_KEY = 'stellaKnightsSkills';
 const MAIN_TAB_ID = 'main';
 
@@ -141,7 +152,12 @@ function computeStellaKnightsDerivedRoomParameters(parameters, context = {}) {
 
 function looksLikeStellaKnightsChatCommand(rawInput) {
   const input = String(rawInput).trim();
-  return CHARGE_COMMAND_HINT_PATTERN.test(input) || PETIT_LUCKY_COMMAND_PATTERN.test(input);
+  // リロールは裸のchargeと同じ扱いで、かっこ付きの形だけを自分のものと見なす
+  // （「リロール」の一言は他システムの部屋ではただの発言かもしれない）。
+  return CHARGE_COMMAND_HINT_PATTERN.test(input)
+    || PETIT_LUCKY_COMMAND_PATTERN.test(input)
+    || DICE_ADD_COMMAND_PATTERN.test(input)
+    || /^リロール\(\s*\)$/.test(input);
 }
 
 // componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
@@ -311,6 +327,67 @@ function runPetitLucky(input, { token, dispatch }) {
   return true;
 }
 
+/**
+ * ブーケを払うだけのコマンド（ダイス追加(n) / リロール）。
+ *
+ * プールにも出目にも触れず、対価の支払いと残高の記録だけを引き受ける。実際にダイスを
+ * 足したり振り直したりするのは卓の運用に任せる（必要ならCore共通の dice.add / dice.change、
+ * charge を使う）。プチラッキーと違って「払ったのに効果が出ない」の心配が無いぶん、
+ * 順番に気を遣う必要も無い。
+ *
+ * @returns {boolean} このコマンドとして処理したか（書式が違えばfalse）
+ */
+function runBouquetSpend(input, { token, dispatch }) {
+  const diceAdd = input.match(DICE_ADD_COMMAND_PATTERN);
+  const reroll = input.match(REROLL_COMMAND_PATTERN);
+  if (!diceAdd && !reroll) return false;
+
+  if (!token) {
+    alert('キャラクターを選択してください。');
+    return true;
+  }
+
+  let label;
+  let cost;
+  if (diceAdd) {
+    const count = Number(diceAdd[1]);
+    if (count < 1 || count > DICE_ADD_MAX_COUNT) {
+      alert(`ダイス追加の個数は 1〜${DICE_ADD_MAX_COUNT} で指定してください。`);
+      return true;
+    }
+    label = `ダイス追加: ${count}個`;
+    cost = count * DICE_ADD_COST_PER_DIE;
+  } else {
+    label = 'リロール';
+    cost = REROLL_COST;
+  }
+
+  // 読むのも書くのも基礎値（runPetitLuckyと同じ理由。docs/plugin-guide.mdの7章）。
+  const current = Number(token.parameters?.[BOUQUET_PARAM_ID]?.value) || 0;
+  if (current - cost < 0) {
+    alert(`ブーケが足りません（必要 ${cost} / 現在 ${current}）。`);
+    return true;
+  }
+
+  dispatch('SET_PARAMETER', {
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
+  });
+
+  dispatch('ADD_CHAT_MESSAGE', {
+    tabId: MAIN_TAB_ID,
+    entry: {
+      system: STELLA_KNIGHTS_DRAFT_SPEC.label,
+      character: token.name || '',
+      characterId: token.id || null,
+      color: token.textColor || null,
+      command: input,
+      resultText: `${label}\nブーケ -${cost}（${current} → ${current - cost}）`
+    }
+  });
+
+  return true;
+}
+
 // 個数を書かない charge / charge() の個数。チャットへ {チャージダイス数}+{現在のラウンド} と
 // 書いたのと同じ値にする。チャージダイス数はバフ込みの実効値（{}参照と揃えるため）、
 // 現在のラウンドはCoreのルーム変数で、ラウンド進行中でなければ0＝シートの値そのままになる。
@@ -334,6 +411,7 @@ function handleStellaKnightsChatCommand(
   const input = String(rawInput).trim();
 
   if (runPetitLucky(input, { token, dispatch })) return true;
+  if (runBouquetSpend(input, { token, dispatch })) return true;
 
   const match = input.match(CHARGE_COMMAND_PATTERN);
   if (!match) return false;

@@ -95,6 +95,11 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   allowConditions?: boolean, 既定true。falseにすると「使用条件」を扱わない。
  *                              使用という概念を持たない一覧（ドラクルージュの逸話）のためのもの。
  *                              falseのときは保存時にも条件を書かない（空配列になる）。
+ *   logNote?: boolean,         既定false。trueにすると使用ログに効果（note）を載せ、
+ *                              「修正値バフはありません」の断り書きを出さない。
+ *                              修正値をほとんど使わないシステム（ステラナイツのスキル、
+ *                              ドラクルージュの行い・逸話）向けで、卓が読みたいのは
+ *                              付かなかった修正よりその能力が何をするかのため。
  *   defaultSkills?: Array<object>,
  *                              まだ1件も登録が無いコマに配る初期の一覧（ステラナイツの
  *                              出目1〜6）。「枠が最初から決まっていて、利用者は中身を
@@ -126,6 +131,7 @@ export function createSkillSpec(definition) {
     allowMods = true,
     allowExpirePhase = true,
     allowConditions = true,
+    logNote = false,
     defaultSkills = []
   } = definition;
 
@@ -150,6 +156,7 @@ export function createSkillSpec(definition) {
     allowMods,
     allowExpirePhase,
     allowConditions,
+    logNote,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。

@@ -165,7 +165,9 @@ const DEED_SPEC = createSkillSpec({
   ],
   periods: [{ key: 'round', label: 'ラウンド', fixedMax: 1 }],
   allowMods: false,
-  allowExpirePhase: false
+  allowExpirePhase: false,
+  // 修正値を持たないので、使用ログには効果（note）をそのまま出す
+  logNote: true
 });
 
 // 逸話。名称と効果だけを持つ一覧で、使用回数も修正も使用条件も持たない。
@@ -180,7 +182,9 @@ const EPISODE_SPEC = createSkillSpec({
   periods: [],
   allowMods: false,
   allowExpirePhase: false,
-  allowConditions: false
+  allowConditions: false,
+  // 名称と効果しか持たない一覧なので、効果を出さないと使用ログが名前だけになる
+  logNote: true
 });
 
 const DEED_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DEED_SPEC);

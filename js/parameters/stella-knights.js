@@ -32,6 +32,10 @@ const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
     { key: 'number', label: '対応する数字', type: 'select', options: NUMBER_OPTIONS, className: 'effect-box-level' }
   ],
   periods: [{ key: 'scenario', label: 'シナリオ' }],
+  // 修正値はほとんど使わないので、使用ログには効果（note）を出す。
+  // 「修正値バフはありません」の断り書きも出なくなる（毎回出ると読みづらいだけ）。
+  // 修正の欄自体は残してある（allowMods:falseにすると保存済みの修正まで捨てられる）。
+  logNote: true,
   // このシステムは出目1〜6それぞれにスキルを持つのが基本形なので、まだ1件も登録が無いコマには
   // 6つの枠を最初から配る。利用者は名前と効果を埋めるだけでよく、ドラフトのパネルにも
   // 最初から6枠が並ぶ。

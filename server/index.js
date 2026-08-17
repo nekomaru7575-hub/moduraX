@@ -482,6 +482,9 @@ const MIME_TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  // PWAのウェブアプリマニフェスト（manifest.webmanifest）。application/jsonでも大半の
+  // ブラウザは読むが、仕様どおりの型で返さないと警告が出る。
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -503,7 +506,13 @@ const MIME_TYPES = {
 // 何でも配る」ままだと、GET /.env だけでR2の鍵・Upstashのトークン・DEVELOPER_PASSPHRASEが
 // まとめて抜ける。そこで「配ってよいものだけを挙げる」方式にし、既定を塞ぐ側へ倒す。
 // 増やすときは必ずここに明示的に足すこと。
-const PUBLIC_FILES = new Set(['index.html', 'combined_layout.html', 'character-builder.html']);
+// PWA（ホーム画面/デスクトップへのインストール）の3点も、ここに挙げないと404になる。
+// sw.jsがルート直下にあるのは、Service Workerが既定でおける自分の場所より下しか
+// 制御できないため。/以下すべてを見せたいので、ルートに置くしかない。
+const PUBLIC_FILES = new Set([
+  'index.html', 'combined_layout.html', 'character-builder.html',
+  'manifest.webmanifest', 'sw.js', 'offline.html'
+]);
 const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
 // 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の
 // 無いファイル）。以前のapplication/octet-streamへの取りこぼしはもう作らない。
@@ -519,15 +528,15 @@ function isPublicPath(filePath) {
   if (!PUBLIC_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return false;
 
   const segments = relative.split(path.sep);
-  // ルート直下のファイルは3つのHTMLだけ。それ以外は許可したディレクトリの中だけ。
+  // ルート直下はPUBLIC_FILESに挙げたものだけ。それ以外は許可したディレクトリの中だけ。
   return segments.length === 1 ? PUBLIC_FILES.has(segments[0]) : PUBLIC_DIRS.has(segments[0]);
 }
 
 // --- 応答に付ける防御 ---
 // script-srcを'self'に絞るのが要点。万一、表示名やチャット本文からタグを差し込まれても、
 // そこに書かれたスクリプトもインラインのonclick等も動かない（画面側のtextContent化と
-// 二重に守る）。この方針が成り立つのは、3つのHTMLがどれも外部ファイルの<script>しか
-// 持たず、vendorのdice-boxもeval・WebAssembly・Workerを使っていないため。
+// 二重に守る）。この方針が成り立つのは、HTMLがどれも外部ファイルの<script>しか持たず、
+// vendorのdice-boxもeval・WebAssemblyを使っていないため。
 // - style-srcに'unsafe-inline'が要るのは、3つのHTMLがインラインの<style>を持つため。
 // - img-src/media-srcでhttps:を広く許すのは、外部URLの画像・音源を貼れる機能があるため
 //   （R2の公開ドメインもここに含まれる）。data:は、R2未設定時にデータURLへ退避する経路用。
@@ -535,6 +544,9 @@ function isPublicPath(filePath) {
 //   BCDiceを併記しているのは、ダイスを振る経路（js/BCdice.js）と、サーバー側の
 //   キャッシュが使えないときの取得（js/bcdice-catalog.js）だけはブラウザから
 //   BCDiceのAPIを直接叩くため。ここを'self'だけにするとダイスが一切振れなくなる。
+// - worker-src/manifest-srcは、PWA（/sw.js と /manifest.webmanifest）のためのもの。
+//   どちらもdefault-srcの'self'で既に通るので、機能上は無くても同じ。「Service Workerを
+//   自分のファイルからだけ動かす」という意図を、後から読む人に残すために明示している。
 const BCDICE_ORIGIN = 'https://bcdice.onlinesession.app';
 
 const CONTENT_SECURITY_POLICY = [
@@ -545,6 +557,8 @@ const CONTENT_SECURITY_POLICY = [
   "media-src 'self' data: blob: https:",
   `connect-src 'self' ${BCDICE_ORIGIN}`,
   "font-src 'self'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -560,6 +574,30 @@ const SECURITY_HEADERS = {
   // frame-ancestorsを解さない古いブラウザ向けの重ね掛け
   'X-Frame-Options': 'DENY'
 };
+
+// --- どれをどれだけキャッシュさせるか ---
+// このアプリのファイル名にはハッシュが付いていない（/js/main.js のような固定名）。
+// つまりブラウザが1つでも古い版を掴むと、デプロイしてもその人だけ古いコードで動き、
+// サーバーと同期プロトコルがずれる。なので既定は「毎回サーバーへ確かめる」側に倒す。
+// - no-cache は「使うな」ではなく「使う前に必ず確かめろ」。304が返れば転送は起きない。
+// - vendor/ だけは1年の immutable にする。中身は vendor 配下のライブラリのバージョンそのもの
+//   なので、差し替えるときはディレクトリごと入れ替わる。3Dダイスのテクスチャ・効果音が
+//   115ファイル・3MBあり、再検証を省ける効果が一番大きい場所でもある。
+// - image/ を immutable にはしない。スタンプやアイコンは「同じ名前のまま中身を差し替える」
+//   ことがあり、immutableだと1年間古い絵が出続ける。1日だけ持たせて折り合いをつける。
+// - sw.js を長期キャッシュにするのは事故のもと（更新が届かなくなる）。必ず no-cache。
+const IMMUTABLE_DIRS = new Set(['vendor']);
+const SHORT_CACHE_DIRS = new Set(['image', 'background']);
+const SHORT_CACHE_SECONDS = 60 * 60 * 24;
+
+function cacheControlFor(relativePath) {
+  const segments = relativePath.split(path.sep);
+  if (segments.length > 1) {
+    if (IMMUTABLE_DIRS.has(segments[0])) return 'public, max-age=31536000, immutable';
+    if (SHORT_CACHE_DIRS.has(segments[0])) return `public, max-age=${SHORT_CACHE_SECONDS}`;
+  }
+  return 'no-cache';
+}
 
 // 盤面のHTML/JS/画像などをファイルシステムから配信する。配れるのは上の許可リストの範囲だけ。
 // ルート（/）は部屋一覧のindex.htmlを返す。盤面自体はcombined_layout.html?room=room-Nで開く。
@@ -587,7 +625,11 @@ async function serveStaticFile(req, res) {
   try {
     const data = await readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': MIME_TYPES[ext] });
+    res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': MIME_TYPES[ext],
+      'Cache-Control': cacheControlFor(path.relative(ROOT_DIR, filePath))
+    });
     res.end(data);
   } catch {
     res.writeHead(404, SECURITY_HEADERS);

@@ -1,0 +1,49 @@
+{
+  "id": "/",
+  "name": "もじゅらX",
+  "short_name": "もじゅらX",
+  "description": "オンラインセッション用の盤面・チャット・ダイスツール",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    {
+      "src": "/image/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/image/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/image/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "部屋一覧",
+      "short_name": "部屋一覧",
+      "url": "/",
+      "icons": [{ "src": "/image/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "コマ作成ツール",
+      "short_name": "コマ作成",
+      "url": "/character-builder.html",
+      "icons": [{ "src": "/image/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

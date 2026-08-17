@@ -43,6 +43,7 @@ import { showSceneListDialog } from './scene-list-dialog.js';
 import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
 import { showLogClearConfirmDialog } from './log-clear-dialog.js';
+import { registerServiceWorker } from './pwa.js';
 import { showLogEditDialog } from './log-edit-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
@@ -816,6 +817,13 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: '参加者設定',
         onSelect: openIdentityDialog
+      },
+      // ホーム画面／デスクトップにインストールして開くとアドレスバーが無く、更新ボタンも
+      // 引っ張って更新も使えない（後者はhtmlのoverscroll-behaviorでこちらが止めている）。
+      // 読み込み直す手段がここしか無くなるので、常に置いておく。
+      {
+        label: '再読み込み',
+        onSelect: () => { window.location.reload(); }
       },
       {
         label: '部屋一覧に戻る',
@@ -2196,3 +2204,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initDiceAnimation();
   store.init();
 });
+
+// 盤面のURLを直接開いた人・共有されたURLから来た人にもSWを行き渡らせる。
+// 「アプリとして追加」のボタンを出すのは部屋一覧だけ（js/room-index.js）。
+registerServiceWorker();

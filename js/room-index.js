@@ -9,6 +9,7 @@ import { listPlugins } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
+import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
 
 const roomListEl = document.getElementById('roomList');
 
@@ -271,3 +272,8 @@ async function loadRooms() {
 }
 
 loadRooms();
+
+// 「アプリとして追加」の導線は部屋一覧にだけ置く（盤面の狭いヘッダーには置き場が無く、
+// セッション中に出ても邪魔なだけなので）。
+registerServiceWorker();
+mountInstallPrompt(document.querySelector('.header-links'));

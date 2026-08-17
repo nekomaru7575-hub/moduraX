@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>もじゅらX - オフライン</title>
+<meta name="theme-color" content="#1a1a1a">
+<link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+<!-- 通信が成立しなかったページ遷移のときに sw.js が返す控えのページ。
+     インラインの<script>はCSP（script-src 'self'）で動かないので、
+     「押すと再試行」は素のリンクだけで組む。 -->
+<style>
+  body {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    box-sizing: border-box;
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    margin: 0 0 12px;
+  }
+
+  p {
+    color: #aaa;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin: 0 0 20px;
+    max-width: 30em;
+  }
+
+  .btn {
+    background-color: #007acc;
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 12px 20px;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 1rem;
+  }
+</style>
+</head>
+<body>
+  <h1>📡 つながりませんでした</h1>
+  <p>
+    ネットワークに届かないため、このページを開けませんでした。<br>
+    電波・Wi-Fiを確かめて、もう一度お試しください。
+  </p>
+  <p>
+    部屋の中にいた場合、盤面やチャットの内容はサーバー側に残っています。
+    つながり直せばそのまま続けられます。
+  </p>
+  <a class="btn" href="/">部屋一覧をひらく</a>
+</body>
+</html>

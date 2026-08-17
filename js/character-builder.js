@@ -16,6 +16,7 @@ import {
   listPlugins, pluginHasCharacterImport, importCharacterJsonForPlugin, getPluginSheetSource
 } from './parameters/registry.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
+import { registerServiceWorker } from './pwa.js';
 import { promptForCharacterSheetJson } from './character-sheet-import.js';
 import { showCharacterEditDialog, applyCharacterEditResult } from './character-dialog.js';
 import { pickFileAsText } from './file-uploader.js';
@@ -234,3 +235,7 @@ function renderPostSaveActions(pluginId, name) {
 }
 
 renderLandingForm();
+
+// このページを直接開いた人にもSWを行き渡らせる（scopeは/なので、どのページから
+// 登録しても同じものが働く）。「アプリとして追加」のボタンは部屋一覧だけに置く。
+registerServiceWorker();

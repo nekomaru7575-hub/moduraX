@@ -3,16 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <!-- 盤面が自前でズームを持つので、ブラウザのページズームは殺す（js/no-browser-zoom.js）。
-       maximum-scale=1.0は「入力欄をタップすると勝手に拡大する」（iOS Safari）にも効く。 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+       maximum-scale=1.0は「入力欄をタップすると勝手に拡大する」（iOS Safari）にも効く。
+       viewport-fit=coverが要るのは、下のenv(safe-area-inset-*)を効かせるため。これが無いと
+       insetは常に0を返し、ホームバーを避けるための指定が黙って無視される。 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>もじゅらX</title>
   <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
   <link rel="stylesheet" href="/css/character-dialog.css">
+
+  <!-- PWA。3つのHTMLで同じものを並べている。意図は index.html 側のコメントに書いた。 -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="もじゅらX">
+  <link rel="apple-touch-icon" href="/image/apple-touch-icon-180.png">
   <style>
     /* ピンチズーム／ダブルタップズームを外す（スクロールは残す）。
        #board-viewport等のtouch-action:noneは要素側が優先されるので盤面の自前ピンチは動く。 */
     html {
       touch-action: pan-x pan-y;
+      /* 「引っ張って更新」と端でのゴム跳ねを止める。盤面やチャット欄を指で動かすたびに
+         ページ全体が動いたり読み込み直したりされると操作にならない。
+         ホーム画面から起動した状態（standalone）でもAndroid Chromeは引っ張って更新が
+         生きているので、そちらにも効かせる意味がある。 */
+      overscroll-behavior: none;
     }
 
     body {
@@ -1994,6 +2010,11 @@
     @media (max-width: 900px) {
       body {
         padding: 0;
+        /* 横向きのiPhoneではノッチが画面の左右に来る。上下（padding-top/bottom）を
+           足さないのは、ステータスバーをblack（不透過）にしてあるぶん縦は食い込まず、
+           下端はチャット欄側の.chat-send-panelがすでにホームバーを避けているため。 */
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
       }
 
       /* 上部は「タイトルとメニューだけの細い帯」に徹して、残りを全部中央スペースへ渡す */

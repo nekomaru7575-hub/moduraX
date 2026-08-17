@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 274
+lines: 280
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-14
+generated: 2026-08-17
 tags: [codemap]
 ---
 
@@ -32,14 +32,14 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 20 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
-| 36 | buildOccupiedCard | `buildOccupiedCard(room)` | 35 |  |
-| 72 | buildVacantCard | `buildVacantCard(room)` | 173 |  |
-| 246 | loadRooms | `async loadRooms()` | 26 |  |
+| 21 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
+| 37 | buildOccupiedCard | `buildOccupiedCard(room)` | 35 |  |
+| 73 | buildVacantCard | `buildVacantCard(room)` | 173 |  |
+| 247 | loadRooms | `async loadRooms()` | 26 |  |
 
 ## 依存
 
-- import → [[js.bcdice-catalog]], [[js.parameters.registry]], [[js.room-entry]], [[js.untrusted-json]]
+- import → [[js.bcdice-catalog]], [[js.parameters.registry]], [[js.pwa]], [[js.room-entry]], [[js.untrusted-json]]
 - imported by → なし（エントリポイント）
 
 ## 注意

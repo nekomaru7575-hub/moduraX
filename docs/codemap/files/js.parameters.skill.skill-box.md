@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 534
+lines: 562
 exports: 1
-imported_by: 3
+imported_by: 4
 api_sha: cb1570ce8c3b
 prose_sha: cb1570ce8c3b
-generated: 2026-08-14
+generated: 2026-08-17
 tags: [codemap]
 ---
 
@@ -37,12 +37,12 @@ _(未記入)_
 | 16 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
 | 45 | ensureDialog | `ensureDialog()` | 7 |  |
 | 53 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 70 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave })` | **464** | ✓ |
+| 70 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave })` | **492** | ✓ |
 
 ## 依存
 
 - import → [[js.parameters.skill.skill-formula]], [[js.parameters.skill.skill-model]], [[js.read-only-form]]
-- imported by → [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
+- imported by → [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
 
 ## 注意
 

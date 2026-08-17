@@ -2,10 +2,10 @@
 source: js/drag-gesture.js
 lines: 154
 exports: 1
-imported_by: 2
+imported_by: 3
 api_sha: fcbe71fb8df5
 prose_sha: fcbe71fb8df5
-generated: 2026-08-14
+generated: 2026-08-17
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.board-data-driven]], [[js.floating-panel]]
+- imported by → [[js.board-data-driven]], [[js.dice-draft-panel]], [[js.floating-panel]]
 
 ## 注意
 

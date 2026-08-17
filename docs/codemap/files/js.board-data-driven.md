@@ -1,11 +1,11 @@
 ---
 source: js/board-data-driven.js
-lines: 1152
+lines: 1184
 exports: 5
-imported_by: 6
+imported_by: 7
 api_sha: 912144ddf544
 prose_sha: 912144ddf544
-generated: 2026-08-14
+generated: 2026-08-17
 tags: [codemap]
 ---
 
@@ -25,47 +25,48 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 39 | fn | setChatPaletteController | `setChatPaletteController(controller)` |  |
-| 46 | fn | setInfoPanelController | `setInfoPanelController(controller)` |  |
-| 53 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
-| 60 | fn | setStampPanelController | `setStampPanelController(controller)` |  |
-| 67 | fn | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` |  |
+| 42 | fn | setChatPaletteController | `setChatPaletteController(controller)` |  |
+| 49 | fn | setInfoPanelController | `setInfoPanelController(controller)` |  |
+| 56 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
+| 63 | fn | setStampPanelController | `setStampPanelController(controller)` |  |
+| 70 | fn | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（23）
+## トップレベル関数（LOCAL TASKS 候補）（24）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 39 | setChatPaletteController | `setChatPaletteController(controller)` | 3 | ✓ |
-| 46 | setInfoPanelController | `setInfoPanelController(controller)` | 3 | ✓ |
-| 53 | setCharacterPanelController | `setCharacterPanelController(controller)` | 3 | ✓ |
-| 60 | setStampPanelController | `setStampPanelController(controller)` | 3 | ✓ |
-| 67 | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` | 3 | ✓ |
-| 77 | panelToggleItem | `panelToggleItem(controller, label)` | 8 |  |
-| 92 | resolveCharacterImport | `resolveCharacterImport(json)` | 6 |  |
-| 101 | adoptSnapshotImage | `async adoptSnapshotImage(snapshot)` | 4 |  |
-| 106 | dispatchCharacterImport | `dispatchCharacterImport(id, importResult)` | 10 |  |
-| 127 | scheduleBoardTransform | `scheduleBoardTransform(board)` | 7 |  |
-| 139 | getContentBounds | `getContentBounds(board)` | 26 |  |
-| 166 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
-| 175 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
-| 203 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
-| 239 | applyBoardBackground | `applyBoardBackground(board, room)` | 34 |  |
-| 276 | bindTokenDrag | `bindTokenDrag(element)` | **213** |  |
-| 494 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
-| 519 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
-| 542 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 24 |  |
-| 569 | bindPanelDrag | `bindPanelDrag(element)` | 139 |  |
-| 711 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 10 |  |
-| 722 | clampPan | `clampPan(viewport, board)` | 20 |  |
-| 745 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
+| 42 | setChatPaletteController | `setChatPaletteController(controller)` | 3 | ✓ |
+| 49 | setInfoPanelController | `setInfoPanelController(controller)` | 3 | ✓ |
+| 56 | setCharacterPanelController | `setCharacterPanelController(controller)` | 3 | ✓ |
+| 63 | setStampPanelController | `setStampPanelController(controller)` | 3 | ✓ |
+| 70 | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` | 3 | ✓ |
+| 80 | panelToggleItem | `panelToggleItem(controller, label)` | 8 |  |
+| 95 | resolveCharacterImport | `resolveCharacterImport(json)` | 6 |  |
+| 104 | adoptSnapshotImage | `async adoptSnapshotImage(snapshot)` | 4 |  |
+| 111 | sheetImportMenuItems | `sheetImportMenuItems(tokenId, canOperate, denyReason)` | 23 |  |
+| 135 | dispatchCharacterImport | `dispatchCharacterImport(id, importResult)` | 10 |  |
+| 156 | scheduleBoardTransform | `scheduleBoardTransform(board)` | 7 |  |
+| 168 | getContentBounds | `getContentBounds(board)` | 26 |  |
+| 195 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
+| 204 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
+| 232 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
+| 268 | applyBoardBackground | `applyBoardBackground(board, room)` | 34 |  |
+| 305 | bindTokenDrag | `bindTokenDrag(element)` | **216** |  |
+| 526 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
+| 551 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
+| 574 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 24 |  |
+| 601 | bindPanelDrag | `bindPanelDrag(element)` | 139 |  |
+| 743 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 10 |  |
+| 754 | clampPan | `clampPan(viewport, board)` | 20 |  |
+| 777 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
 
 ## 依存
 
-- import → [[js.BCdice]], [[js.EventBus]], [[js.audience-picker]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.character-json-import]], [[js.character-snapshot]], [[js.context-menu]], [[js.drag-gesture]], [[js.file-uploader]], [[js.game-store]], [[js.image-dimensions]], [[js.image-upload]], [[js.local-identity]], [[js.panel-dialog]], [[js.parameters.registry]], [[js.room-authority]], [[js.visibility]]
-- imported by → [[js.character-panel]], [[js.info-panel]], [[js.main]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]]
+- import → [[js.BCdice]], [[js.EventBus]], [[js.audience-picker]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.character-json-import]], [[js.character-sheet-import]], [[js.character-snapshot]], [[js.context-menu]], [[js.drag-gesture]], [[js.file-uploader]], [[js.game-store]], [[js.image-dimensions]], [[js.image-upload]], [[js.local-identity]], [[js.panel-dialog]], [[js.parameters.registry]], [[js.room-authority]], [[js.visibility]]
+- imported by → [[js.character-panel]], [[js.dice-draft-panel]], [[js.info-panel]], [[js.main]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]]
 
 ## 注意
 

@@ -2,16 +2,38 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- viewport-fit=coverが要るのは、env(safe-area-inset-*)を効かせるため。これが無いと
+     insetは常に0を返し、ノッチやホームバーを避ける指定が黙って無視される。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>もじゅらX - 部屋一覧</title>
 <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+
+<!-- PWA（ホーム画面／デスクトップへのインストール）。詳しくは manifest.webmanifest と sw.js。 -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1a1a1a">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- iOSはmobile-web-app-capableをまだ見ないので、旧名も並べる -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- black-translucentにすると全画面になる代わりに中身がステータスバーの下へ潜り込む。
+     ヘッダーを作り直す必要が出るので、不透過のblackにしている。 -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="もじゅらX">
+<!-- iOSは透過PNGの透明部分を黒く塗るので、これだけ背景を焼き込んだ別画像 -->
+<link rel="apple-touch-icon" href="/image/apple-touch-icon-180.png">
 <style>
+  html {
+    /* ホーム画面から起動した状態で「引っ張って更新」が暴発しないようにする */
+    overscroll-behavior: none;
+  }
+
   body {
     background-color: #1a1a1a;
     color: #e0e0e0;
     font-family: 'Helvetica Neue', Arial, sans-serif;
     margin: 0;
-    padding: 20px;
+    /* 20pxを下限に、ノッチ・ホームバーのぶんだけ広げる（横向きのiPhone等） */
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+             max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -178,7 +200,9 @@
   /* 狭幅（スマホ）。1カラムなので大きくは崩れないが、余白と当たり判定を詰め直す */
   @media (max-width: 900px) {
     body {
-      padding: 12px;
+      /* 下限だけ12pxへ詰める。safe-areaのぶんは残す（上のbodyと同じ組み立て） */
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+               max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .room-card-header {

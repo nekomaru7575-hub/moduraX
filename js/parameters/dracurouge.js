@@ -19,11 +19,13 @@
 //    計算し直すと手入力が効かなくなる。そこで「新たに5つ揃った絆の数」だけを
 //    絆ボックスから受け取り、その分をSET_PARAMETERで加算する（applyAward）。
 //    二重加算しない根拠は絆データ側のsealedフラグ（dracurouge-bond-box.js）。
+//    消えざる絆だけはsealedにせず、最初の1つを残して積み直させる＝何度でも加算される
+//    （二重加算にならないのは、加算と同時に枠が空くため）。
 
 import { buildParameters } from './paramFactory.js';
 import { lockFormControls } from '../read-only-form.js';
 import {
-  BOND_COMPONENT_KEY, normalizeBondList, sealFilledBonds, showBondBox
+  BOND_COMPONENT_KEY, normalizeBondList, settleFilledBonds, showBondBox
 } from './dracurouge-bond-box.js';
 import { createDie, createDiceDraftSpec, readTargetModifier } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
@@ -642,7 +644,11 @@ function importDracurougeBondsFromSheet(json) {
   // 【要】5つ埋まっている側は封印済みとして取り込む。封印しないと、取り込んだ絆を
   // 絆ボックスで開いて保存した瞬間に「新たに5つ揃った」と数えられ、潤い／渇きが
   // もう一度加算される（シートから取り込んだ値には既に反映されている）。
-  return sealFilledBonds(normalizeBondList(bonds)).bonds;
+  //
+  // 消えざる絆も、ここでは積み直さずに封印する（recycleEternal:false）。積み直すと
+  // シートに書かれている4つを黙って捨てることになるため。取り込んだ後で消えざる絆として
+  // 回したい場合は、その行を作り直してもらう。
+  return settleFilledBonds(normalizeBondList(bonds), { recycleEternal: false }).bonds;
 }
 
 // 道は文字列なので valueOverrides では入らない（Coreは数値しか受け付けない）。

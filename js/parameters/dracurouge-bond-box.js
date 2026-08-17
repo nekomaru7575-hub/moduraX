@@ -5,7 +5,11 @@
 //
 // 1行は「1つの名称に対するノワール側の絆とルージュ側の絆」の2つを持つ。
 // 同じ名称でもルージュとノワールは別の絆として数えるため、5つ埋まったかどうかの判定も、
-// 埋まった後の編集ロック（sealed）も左右それぞれ独立している。
+// 埋まった後の始末（封印 or 積み直し）も左右それぞれ独立している。
+//
+// 5つ埋まった側の始末は「消えざる絆」のチェックで変わる（settleFilledBonds）:
+//   チェック無し … 封印（sealed）して以後編集させない。加算は1回きり
+//   チェック有り … 封印せず、最初の1つだけ残して積み直させる。積むたびに加算される
 //
 // パラメータ「潤い」「渇き」への加算はここでは行わない。片側が5つ埋まった数だけを
 // onSaveの第2引数で報告し、dispatchはdracurouge.js側が行う。ここでgame-store.jsを
@@ -18,7 +22,7 @@ import { lockFormControls } from '../read-only-form.js';
 // components に絆一覧を保存するときのキー。
 export const BOND_COMPONENT_KEY = 'bonds';
 
-// ルージュ／ノワールそれぞれの枠の数。5つ埋まると潤い／渇きが1増えて、その側は封印される。
+// ルージュ／ノワールそれぞれの枠の数。5つ埋まると潤い／渇きが1増える。
 export const BOND_SLOT_COUNT = 5;
 
 // 絆の件数に上限は無い。ただし壊れた（あるいは意図的に膨らませた）保存データで
@@ -90,26 +94,50 @@ export function isBondSideFilled(side) {
   return normalizeBondSide(side).slots.every(value => value !== '');
 }
 
+// 消えざる絆が一巡したときに残す枠の数。1つ残すのは、その絆自体は消えていないことを
+// 盤面に留めておくため（消えるのは今回の加算に使った分だけ）。
+const ETERNAL_KEEP_COUNT = 1;
+
+// 5つ埋まった側を、加算した後どうするか。
+//   消えざる絆でない … 封印する（sealed）。以後その側は編集できず、二度と加算されない
+//   消えざる絆       … 封印せず、最初の1つだけ残して残りを空に戻す。また5つ積めば再び加算される
+function settleFilledSide(side) {
+  if (!side.eternal) return { ...side, sealed: true };
+
+  return {
+    ...side,
+    slots: side.slots.map((value, index) => (index < ETERNAL_KEEP_COUNT ? value : ''))
+  };
+}
+
 /**
- * 保存時に、5つ埋まった側を封印して「今回新たに封印された数」を数える。
+ * 保存時に、5つ埋まった側を清算して「今回新たに加算する数」を数える。
  * 既にsealedの側は数えない＝二重加算しない。
+ *
  * @param {Array<object>} bonds 正規化済みの絆一覧
+ * @param {{ recycleEternal?: boolean }} [options]
+ *   recycleEternal … 消えざる絆の側を封印せず積み直させるか（既定true）。
+ *     falseにすると消えざる絆も封印する。シートからの取り込みだけがこちらを使う
+ *     （取り込み元に既に5つ入っている絆を積み直すと、その4つを黙って捨てることになるため。
+ *     js/parameters/dracurouge.jsのimportDracurougeBondsFromSheet）。
  * @returns {{bonds: Array<object>, rougeSealed: number, noirSealed: number}}
  */
-export function sealFilledBonds(bonds) {
+export function settleFilledBonds(bonds, { recycleEternal = true } = {}) {
   let rougeSealed = 0;
   let noirSealed = 0;
 
+  const settle = (side) => (recycleEternal ? settleFilledSide(side) : { ...side, sealed: true });
+
   const nextBonds = bonds.map(bond => {
-    const rouge = { ...bond.rouge };
-    const noir = { ...bond.noir };
+    let rouge = { ...bond.rouge };
+    let noir = { ...bond.noir };
 
     if (!rouge.sealed && isBondSideFilled(rouge)) {
-      rouge.sealed = true;
+      rouge = settle(rouge);
       rougeSealed += 1;
     }
     if (!noir.sealed && isBondSideFilled(noir)) {
-      noir.sealed = true;
+      noir = settle(noir);
       noirSealed += 1;
     }
 
@@ -256,7 +284,7 @@ export function showBondBox({ bonds = [], readOnly = false, onSave }) {
   // 集計は「保存したらこうなる」数でなければ意味が無いので、捨てる行は数えない
   function refreshSummary() {
     const current = collectBonds().filter(hasContent);
-    const { rougeSealed, noirSealed } = sealFilledBonds(current);
+    const { rougeSealed, noirSealed } = settleFilledBonds(current);
 
     const pending = [];
     if (rougeSealed > 0) pending.push(`潤い +${rougeSealed}`);
@@ -381,7 +409,7 @@ export function showBondBox({ bonds = [], readOnly = false, onSave }) {
       event.preventDefault();
 
       const { bonds: nextBonds, rougeSealed, noirSealed } =
-        sealFilledBonds(collectBonds().filter(hasContent));
+        settleFilledBonds(collectBonds().filter(hasContent));
 
       dialog.close();
       onSave(nextBonds, { rougeSealed, noirSealed });

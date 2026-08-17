@@ -4,7 +4,7 @@
 // 両方からimportして、同じreducerを共有するために切り出している。
 
 import { EventBus } from './EventBus.js';
-import { buildDefaultParameters } from './parameters/core.js';
+import { buildDefaultParameters, buildDefaultRoomParameters } from './parameters/core.js';
 import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
   applyPluginDerivedRoomParameters, getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd,
@@ -17,21 +17,47 @@ import { findStamp } from './stamp-registry.js';
 // 壊れないようにするための歯止めで、実際の使用でここに届くことは想定していない。
 const MAX_STAMP_COUNT = 1_000_000;
 
+// Core自身のルーム変数「現在のラウンド」（js/parameters/core.js）のID。
+const ROUND_ROOM_PARAM_ID = 'core:round';
+
 /**
- * 「部屋全体から決まるルーム変数」を計算し直したroomを返す（ステラナイツのブーケ合計）。
- * 何を計算するかはプラグイン側（computeDerivedRoomParameters）が決め、Coreは材料を
- * 渡すだけで中身を解釈しない。変化が無ければ同じroomの参照を返す。
+ * Coreのルーム変数を、今のラウンド進行の状態に合わせる。
+ * プラグインの自動計算（computeDerivedRoomParameters）と同じ「材料から導く値」で、
+ * 進行していない間は0。この機能より前に作られた部屋にはそもそも変数が無いので、
+ * 無ければここで作る（registry.jsのwithMissingPluginRoomParametersと同じ狙い）。
+ * 変化が無ければ同じ参照を返す。
+ */
+function withCoreRoomParameters(parameters, round) {
+  const roundNumber = round?.active ? (round.roundNumber || 0) : 0;
+
+  const current = parameters[ROUND_ROOM_PARAM_ID];
+  if (current && current.value === roundNumber) return parameters;
+
+  const base = current || buildDefaultRoomParameters()[ROUND_ROOM_PARAM_ID];
+  return { ...parameters, [ROUND_ROOM_PARAM_ID]: Object.freeze({ ...base, value: roundNumber }) };
+}
+
+/**
+ * 「部屋全体から決まるルーム変数」を計算し直したroomを返す（Coreの現在のラウンド、
+ * ステラナイツのブーケ合計）。プラグイン側の分は何を計算するかをプラグイン
+ * （computeDerivedRoomParameters）が決め、Coreは材料を渡すだけで中身を解釈しない。
+ * 変化が無ければ同じroomの参照を返す。
  *
- * 呼ぶのは「材料が変わりうるところ」すべて：スタンプの集計（COUNT_STAMP・
+ * 呼ぶのは「材料が変わりうるところ」すべて：ラウンド進行（ROUND_PROGRESSION_START・
+ * ROUND_ADVANCE_PHASE・ROUND_PROGRESSION_END）、スタンプの集計（COUNT_STAMP・
  * RESET_STAMP_COUNTS）、システムの切り替え（SET_ACTIVE_PLUGIN）、そして状態の丸ごと
  * 差し替え（hydrate）。hydrateでも通すのが肝で、こうしておくとルーム変数は常に
  * 材料から導かれた値になり、単独でズレたまま残ることがない。
  */
-function withDerivedRoomParameters(room, stampCounts) {
+function withDerivedRoomParameters(room, stampCounts, round) {
   const parameters = applyPluginDerivedRoomParameters(
-    room?.activePlugin ?? null, room?.parameters || {}, { stampCounts: stampCounts || {} }
+    room?.activePlugin ?? null,
+    withCoreRoomParameters(room?.parameters || {}, round),
+    { stampCounts: stampCounts || {} }
   );
-  return parameters === room.parameters ? room : { ...room, parameters };
+  // プラグイン未適用のときはapplyPluginDerivedRoomParametersが素通しで返すので、
+  // withCoreRoomParametersが作った新しいオブジェクトはここで凍らせる。
+  return parameters === room.parameters ? room : { ...room, parameters: Object.freeze(parameters) };
 }
 
 export { listPlugins };
@@ -786,10 +812,12 @@ export class ImmutableStore {
       }
     };
 
-    // 部屋全体から決まるルーム変数（ステラナイツのブーケ合計）を、読み込んだ材料から
-    // 計算し直す。プラグインへ後から足したぶんの補完もここで効く（この機能より前に
-    // 保存された状態には、そのルーム変数自体が無いため）。
-    normalized.room = withDerivedRoomParameters(normalized.room, normalized.stampCounts);
+    // 部屋全体から決まるルーム変数（現在のラウンド、ステラナイツのブーケ合計）を、
+    // 読み込んだ材料から計算し直す。Core・プラグインへ後から足したぶんの補完もここで効く
+    // （この機能より前に保存された状態には、そのルーム変数自体が無いため）。
+    normalized.room = withDerivedRoomParameters(
+      normalized.room, normalized.stampCounts, normalized.round
+    );
 
     this.#state = this.#createProtectedProxy(normalized);
     EventBus.emit('STATE_CHANGED', this.#state);
@@ -1250,6 +1278,9 @@ export class ImmutableStore {
         this.#commit(prevState, {
           tokens: nextTokensState,
           round: startedRound,
+          // ルーム変数「現在のラウンド」を追随させる（進行中でなければ0）。
+          // 以下ROUND_ADVANCE_PHASE・ROUND_PROGRESSION_ENDも対。
+          room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, startedRound),
           chatLogs: withSystemLog(
             prevState.chatLogs,
             [logText, startPhaseLog].filter(Boolean).join('\n'),
@@ -1451,6 +1482,7 @@ export class ImmutableStore {
             // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
             // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
           },
+          room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, nextRound),
           chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'), payload?.time)
         });
         return;
@@ -1609,9 +1641,12 @@ export class ImmutableStore {
         tokensAfterEnd = { ...tokensAfterEnd };
         recomputeDerivedForRound(tokensAfterEnd, activePlugin, endedRound);
 
+        const clearedRound = createInitialRoundState();
         this.#commit(prevState, {
           tokens: tokensAfterEnd,
-          round: createInitialRoundState(),
+          round: clearedRound,
+          // 進行が終われば「現在のラウンド」は0へ戻る
+          room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, clearedRound),
           chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, payload?.time)
         });
         return;
@@ -1651,11 +1686,13 @@ export class ImmutableStore {
         this.#commit(prevState, {
           // 作り直したルーム変数にも、既に溜まっている集計からの自動計算を当てておく
           // （切り替えた直後だけブーケ合計が0に見える、という食い違いを作らない）
+          // Coreのルーム変数（現在のラウンド）はwithDerivedRoomParametersが補うので、
+          // ここではプラグインのぶんだけを作り直せばよい。
           room: withDerivedRoomParameters({
             ...prevRoom,
             activePlugin: pluginId,
             parameters: buildRoomParameters(pluginId)
-          }, prevState.stampCounts),
+          }, prevState.stampCounts, prevState.round),
           tokens: nextTokensState
         });
 
@@ -1780,7 +1817,7 @@ export class ImmutableStore {
         this.#commit(prevState, {
           stampCounts: nextStampCounts,
           // 集計から決まるルーム変数（ブーケ合計）を追随させる
-          room: withDerivedRoomParameters(prevState.room, nextStampCounts)
+          room: withDerivedRoomParameters(prevState.room, nextStampCounts, prevState.round)
         });
         return;
       }
@@ -1794,7 +1831,7 @@ export class ImmutableStore {
         this.#commit(prevState, {
           stampCounts: emptyCounts,
           // 集計を0にしたら、そこから決まるルーム変数（ブーケ合計）も0に戻る
-          room: withDerivedRoomParameters(prevState.room, emptyCounts)
+          room: withDerivedRoomParameters(prevState.room, emptyCounts, prevState.round)
         });
         return;
       }
@@ -2474,7 +2511,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // 最初から配る。以前は常に空で始めていたため、SET_ACTIVE_PLUGINを一度通すまで
       // プラグインのルーム変数（ステラナイツのブーケ合計、グランクレストの混沌レベル）が
       // 存在しなかった。
-      parameters: buildRoomParameters(activePlugin),
+      parameters: Object.freeze({
+        ...buildDefaultRoomParameters(), // Core共通のルーム変数（現在のラウンド）
+        ...buildRoomParameters(activePlugin)
+      }),
       backgroundImage: null, // null = CSS側のデフォルト背景をそのまま使う
       // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
       // データURLではnull。音源のtrack.keyと同じ役割。

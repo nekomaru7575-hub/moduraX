@@ -20,7 +20,7 @@ generated: 2026-08-17
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 93 | 351 | 765 | 24 | 0 |
+| 93 | 353 | 767 | 24 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -74,7 +74,7 @@ generated: 2026-08-17
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
-| [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通のデフォルトパラメータ（HP・イニシアチブ）の定義。 | 2 | 2 |
+| [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 2 |
 | [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 16 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |

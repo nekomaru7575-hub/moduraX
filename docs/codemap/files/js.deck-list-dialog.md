@@ -1,6 +1,6 @@
 ---
 source: js/deck-list-dialog.js
-lines: 185
+lines: 189
 exports: 1
 imported_by: 1
 api_sha: 637983c73a2b
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 72 | fn | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
+| 76 | fn | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -36,8 +36,8 @@ tags: [codemap]
 |---:|---|---|---:|:-:|
 | 13 | ensureDialog | `ensureDialog()` | 7 |  |
 | 21 | sectionHeading | `sectionHeading(text)` | 6 |  |
-| 29 | buildRow | `buildRow({ label, title, onPlace, actions })` | 24 |  |
-| 72 | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 113 | ✓ |
+| 29 | buildRow | `buildRow({ label, title, onPlace, actions })` | 28 |  |
+| 76 | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 113 | ✓ |
 
 ## 依存
 

@@ -1131,6 +1131,33 @@
       cursor: default;
     }
 
+    /* カードストッカー（カードを収納できるパネル）。箱だと分かるよう枠を実線にし、
+       右下に枚数を出す（js/board-data-driven.jsのapplyPanelAppearance）。 */
+    .panel-object.stocker {
+      border-width: 2px;
+      border-style: solid;
+      border-color: rgba(120, 200, 255, 0.55);
+    }
+
+    .panel-stocker-count {
+      position: absolute;
+      right: 2px;
+      bottom: 0;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      pointer-events: none;
+    }
+
+    /* カードを落とせる場所（ストッカー・元のデッキ）のハイライト。ドラッグ中にJS側が
+       is-drop-hoverを付け外しする（ダイスドラフトのスロットと同じ見せ方）。 */
+    .panel-object.is-drop-hover,
+    .deck-object.is-drop-hover {
+      outline: 2px solid #4caf50;
+      outline-offset: 1px;
+    }
+
     /* カード（表と裏を持つ盤面オブジェクト）とデッキ（その束）。
        パネルと同じ#panel-layerに入り、同じstackOrderの物差しで前後が決まる
        （js/board-data-driven.jsのSTATE_CHANGED）。層のz-indexにより、どちらも

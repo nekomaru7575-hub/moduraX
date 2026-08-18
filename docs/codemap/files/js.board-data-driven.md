@@ -1,6 +1,6 @@
 ---
 source: js/board-data-driven.js
-lines: 1566
+lines: 1821
 exports: 6
 imported_by: 7
 api_sha: 25166c376dd2
@@ -30,9 +30,9 @@ tags: [codemap]
 | 57 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
 | 64 | fn | setStampPanelController | `setStampPanelController(controller)` |  |
 | 71 | fn | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` |  |
-| 1108 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。 |
+| 1336 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（36）
+## トップレベル関数（LOCAL TASKS 候補）（43）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -50,31 +50,38 @@ tags: [codemap]
 | 112 | sheetImportMenuItems | `sheetImportMenuItems(tokenId, canOperate, denyReason)` | 23 |  |
 | 136 | dispatchCharacterImport | `dispatchCharacterImport(id, importResult)` | 10 |  |
 | 157 | scheduleBoardTransform | `scheduleBoardTransform(board)` | 7 |  |
-| 169 | getContentBounds | `getContentBounds(board)` | 31 |  |
-| 201 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
-| 210 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
-| 238 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
-| 274 | applyBoardBackground | `applyBoardBackground(board, room)` | 34 |  |
-| 311 | bindTokenDrag | `bindTokenDrag(element)` | **216** |  |
-| 532 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
-| 557 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
-| 580 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 24 |  |
-| 609 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu })` | 45 |  |
-| 655 | bindPanelDrag | `bindPanelDrag(element)` | 99 |  |
-| 757 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 10 |  |
-| 780 | applyObjectImage | `applyObjectImage(img, url)` | 13 |  |
-| 797 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
-| 802 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 29 |  |
-| 832 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 13 |  |
-| 847 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
-| 860 | seenByNames | `seenByNames(cardData)` | 3 |  |
-| 864 | bindCardDrag | `bindCardDrag(element)` | 91 |  |
-| 956 | createCardElement | `createCardElement(cardData, panelLayer)` | 21 |  |
-| 978 | bindDeckDrag | `bindDeckDrag(element)` | 97 |  |
-| 1076 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
-| 1108 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 16 | ✓ |
-| 1125 | clampPan | `clampPan(viewport, board)` | 20 |  |
-| 1148 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
+| 169 | getContentBounds | `getContentBounds(board)` | 32 |  |
+| 202 | applyBoardTransform | `applyBoardTransform(board)` | 3 |  |
+| 211 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
+| 239 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
+| 275 | applyBoardBackground | `applyBoardBackground(board, room)` | 34 |  |
+| 312 | bindTokenDrag | `bindTokenDrag(element)` | **216** |  |
+| 533 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
+| 558 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
+| 585 | canUseStocker | `canUseStocker(panelData)` | 6 |  |
+| 593 | stockerOwnerName | `stockerOwnerName(panelData)` | 6 |  |
+| 601 | storedCardsOf | `storedCardsOf(panelId)` | 5 |  |
+| 610 | actingUserPayload | `actingUserPayload()` | 3 |  |
+| 614 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 49 |  |
+| 670 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null })` | 49 |  |
+| 720 | bindPanelDrag | `bindPanelDrag(element)` | 168 |  |
+| 891 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 16 |  |
+| 920 | applyObjectImage | `applyObjectImage(img, url)` | 13 |  |
+| 937 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
+| 942 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 29 |  |
+| 972 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 17 |  |
+| 991 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
+| 1004 | seenByNames | `seenByNames(cardData)` | 3 |  |
+| 1012 | dropTargetAt | `dropTargetAt(clientX, clientY, draggedEl)` | 9 |  |
+| 1022 | clearDropHighlights | `clearDropHighlights()` | 3 |  |
+| 1027 | resolveCardDrop | `resolveCardDrop(targetEl, cardData)` | 20 |  |
+| 1048 | bindCardDrag | `bindCardDrag(element)` | 135 |  |
+| 1184 | createCardElement | `createCardElement(cardData, panelLayer)` | 21 |  |
+| 1206 | bindDeckDrag | `bindDeckDrag(element)` | 97 |  |
+| 1304 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
+| 1336 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 25 | ✓ |
+| 1362 | clampPan | `clampPan(viewport, board)` | 20 |  |
+| 1385 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
 
 ## 依存
 

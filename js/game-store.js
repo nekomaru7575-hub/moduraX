@@ -578,7 +578,8 @@ function normalizeSeenBy(seenBy) {
 // どこから入っても同じ形・同じ上限になる。
 function buildCard({
   id, face, back, x = 0, y = 0, faceUp = false,
-  stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = []
+  stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = [],
+  stockerId = null, stockerSeq = 0
 }) {
   return Object.freeze({
     id,
@@ -592,7 +593,13 @@ function buildCard({
     face: normalizeCardFace(face),
     back: normalizeCardBack(back),
     seenBy: normalizeSeenBy(seenBy), // 「カードを見る」で表面を確認した人（MARK_CARD_SEEN）
-    deckId: typeof deckId === 'string' && deckId ? deckId : null // 出自のデッキ
+    deckId: typeof deckId === 'string' && deckId ? deckId : null, // 出自のデッキ
+    // カードストッカー（isStockerのパネル）へ収納されているか。入っている間は盤面に
+    // 描かれない（コマのinBackyardと同じ扱い）。実体はここに残るのでfaceやseenByは保たれる。
+    stockerId: typeof stockerId === 'string' && stockerId ? stockerId : null,
+    // 収納した順。ストッカーの中身を並べる唯一の根拠（パネル側にID配列を持たせると
+    // カードやパネルの削除で2か所がずれるため、順番もカード側に持たせる）。
+    stockerSeq: Math.max(0, Math.round(Number(stockerSeq) || 0))
   });
 }
 
@@ -644,6 +651,20 @@ function normalizeCardMap(cards) {
       .filter(isNamedObjectEntry)
       .map(([id, card]) => [id, buildCard({ ...card, id })])
   ));
+}
+
+// 実在しないパネル（もう箱ではないパネルも含む）を指すstockerIdを外す。hydrate専用の安全網で、
+// 位置は保存されていた(x,y)をそのまま使う（箱に入る前の場所なので、盤面のどこかには出る）。
+function withoutLostStockerCards(cards, panels) {
+  const entries = Object.entries(cards);
+  const lost = entries.filter(([, card]) => card.stockerId && !panels?.[card.stockerId]?.isStocker);
+  if (lost.length === 0) return cards;
+
+  const next = { ...cards };
+  lost.forEach(([id, card]) => {
+    next[id] = Object.freeze({ ...card, stockerId: null, stockerSeq: 0 });
+  });
+  return Object.freeze(next);
 }
 
 function normalizeDeckMap(decks) {
@@ -704,6 +725,66 @@ function findFreeCardSpot(cards, x, y, gridSize) {
   }
 
   return { x, y: spotY };
+}
+
+// --- カードストッカー（isStockerのパネル） ---
+// カードをドラッグして収納できる箱。所有者を設定した箱は、入れる・見る・取り出すの
+// すべてが所有者だけに限られる（設定しない箱は誰でも自由に使える）。
+// 所有者の持ち方はコマのバックヤードと同じで、表示名を設定していれば参加者ID、
+// ゲストならブラウザ単位のIDで持つ（MOVE_TO_BACKYARD参照）。
+//
+// 【秘匿の水準】所有者の箱でも、中のカードは状態として全員へ配られている。隠しているのは
+// 画面の側だけで、開発者ツールを開けば読める（js/visibility.js冒頭と同じ「うっかり見えない」）。
+
+/**
+ * その人がこの箱を使ってよいか。所有者の設定が無い箱は誰でも使える。
+ * 判定材料はすべてpayloadに載って配られるので、どのクライアントで再実行しても同じ答えになる。
+ */
+function stockerAllowsUser(panel, participantId, localUserId) {
+  if (!panel?.isStocker) return false;
+  if (!panel.stockerOwnerId && !panel.stockerOwnerLocalId) return true; // 所有者なし＝誰でも
+  if (panel.stockerOwnerId) return !!participantId && panel.stockerOwnerId === participantId;
+  return !!localUserId && panel.stockerOwnerLocalId === localUserId;
+}
+
+// 収納の順番。今ある最大＋1で、状態だけから決まる（reducerで時刻や乱数を使わない）。
+function nextStockerSeq(cards) {
+  return Object.values(cards).reduce((max, card) => Math.max(max, card.stockerSeq || 0), 0) + 1;
+}
+
+// ストッカーの中身を、入れた順に取り出す。
+function listStockerCards(cards, panelId) {
+  return Object.values(cards)
+    .filter(card => card.stockerId === panelId)
+    .sort((a, b) => a.stockerSeq - b.stockerSeq);
+}
+
+/**
+ * 箱の中のカードを盤面へ出す。箱が消える・箱でなくなるすべての経路（REMOVE_PANEL、
+ * ストッカー解除、シーンでのパネル総入れ替え）から通す。ここを通さないと、
+ * 消えたパネルを指したままのカードがどこにも描かれない迷子になる。
+ *
+ * @param {object} cards state.cards
+ * @param {object} panel 消える（箱でなくなる）パネル。位置の基準に使う
+ * @param {number} gridSize 描画側のマスの大きさ（payloadで受け取る。DRAW_CARDS参照）
+ */
+function releaseStockerCards(cards, panel, gridSize) {
+  const stored = listStockerCards(cards, panel?.id);
+  if (stored.length === 0) return cards;
+
+  const grid = Math.max(1, Math.round(Number(gridSize) || 25));
+  let next = cards;
+
+  stored.forEach((card, index) => {
+    // 箱の右へ1枚ずつ。既に埋まっていれば1段下へ逃がす（DRAW_CARDSと同じ並べ方）
+    const baseX = (panel.x || 0) + (CARD_COLS + 1) * grid * (index + 1);
+    const spot = findFreeCardSpot(next, baseX, panel.y || 0, grid);
+    next = withMapEntry(next, card.id, Object.freeze({
+      ...card, stockerId: null, stockerSeq: 0, x: spot.x, y: spot.y
+    }));
+  });
+
+  return next;
 }
 
 // 値がundefinedのキーを落とす。既存オブジェクトへの部分更新をスプレッドで作るとき、
@@ -1045,7 +1126,10 @@ export class ImmutableStore {
       // この機能より前に保存された状態にはカード・デッキが無いため、既定値を補う。
       // 取り込んだ部屋データ（信用しないJSON）もここを通るので、形の整えと上限も
       // まとめて掛かる（normalizeCardMap／normalizeDeckMap）。
-      cards: normalizeCardMap(newState.cards),
+      // 実在しないパネルを指したままのstockerIdはここで外す。放っておくと、
+      // どこにも描かれず取り出す口も無いカードとして残り続ける（安全網。通常は
+      // ストッカーが消える経路すべてでreleaseStockerCardsが中身を出している）。
+      cards: withoutLostStockerCards(normalizeCardMap(newState.cards), newState.panels),
       decks: normalizeDeckMap(newState.decks),
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
@@ -2290,12 +2374,22 @@ export class ImmutableStore {
         // 触るのはパネルだけで、カード・デッキ（state.cards／state.decks）には手を付けない。
         // コマと同じ扱いで、引いた手札や場に出ている札が場面転換で巻き戻ったり消えたり
         // しないようにするため。
+        // 消えるストッカーの中身は盤面へ出す。カード自体はシーンで触らないので、
+        // ここで出さないと「消えたパネルを指したまま、どこにも描かれないカード」が残る。
         // 「シーンチェンジで残す」パネルは、遷移先のパネルへ重ねて持ち越す。
         // 同じidが両方にある場合（この属性より前に保存したシーン等）は盤面側を採る：
         // 保存したあとに動かした位置・大きさを巻き戻したくないため。
         const keptPanels = Object.fromEntries(
           Object.entries(prevState.panels || {}).filter(([, panel]) => panel.keepOnSceneChange)
         );
+
+        // 遷移後に居なくなるストッカーの中身を、消える前に盤面へ出す
+        const nextPanels = freezePanelMap({ ...scene.panels, ...keptPanels });
+        let nextCards = prevState.cards;
+        Object.values(prevState.panels || {}).forEach(panel => {
+          if (!panel.isStocker || nextPanels[panel.id]) return;
+          nextCards = releaseStockerCards(nextCards, panel, payload.gridSize);
+        });
 
         this.#commit(prevState, {
           room: {
@@ -2311,7 +2405,8 @@ export class ImmutableStore {
             }),
             audioPlayback: withMapEntry(playback, 'bgm', nextBgm)
           },
-          panels: freezePanelMap({ ...scene.panels, ...keptPanels }),
+          panels: nextPanels,
+          ...(nextCards === prevState.cards ? {} : { cards: nextCards }),
           tokens,
           chatLogs: withSystemLog(
             withSystemLog(prevState.chatLogs, logText, payload.time),
@@ -2640,20 +2735,59 @@ export class ImmutableStore {
           // 実体は常に1つ（js/main.jsのcurrentBoardSnapshotとAPPLY_SCENE参照）
           keepOnSceneChange: !!keepOnSceneChange,
           // パネル同士の重なり順。同値のパネル同士はこのマップの並び（＝追加順）で決まる
-          stackOrder: normalizeStackOrder(stackOrder)
+          stackOrder: normalizeStackOrder(stackOrder),
+          // カードストッカー（カードを収納できる箱）。既定は普通のパネル。
+          // 切り替えとその所有者はSET_PANEL_STOCKERで決める
+          isStocker: false,
+          stockerOwnerId: null,
+          stockerOwnerLocalId: null
         });
 
         this.#commit(prevState, { panels: withMapEntry(prevState.panels, id, panel) });
         return;
       }
 
+      // パネルをカードストッカーにする／やめる。所有者を決めるのもここ（PANEL_FIELD_PATCHESに
+      // 混ぜないのは、やめるときに中のカードを盤面へ出す必要があるため）。
+      // 所有者を付けると、入れる・見る・取り出すのすべてがその人だけになる。
+      case 'SET_PANEL_STOCKER': {
+        const { id, isStocker, ownerId = null, localUserId = null, gridSize } = payload;
+        const panel = prevState.panels[id];
+        if (!panel) return;
+
+        const nextPanel = Object.freeze({
+          ...panel,
+          isStocker: !!isStocker,
+          // 所有者を付けないときは両方null（＝誰でも使える箱）。表示名を設定している人は
+          // 参加者IDで持ち、ゲストはブラウザ単位のIDへ退避する（MOVE_TO_BACKYARDと同じ）
+          stockerOwnerId: isStocker ? (ownerId || null) : null,
+          stockerOwnerLocalId: isStocker && !ownerId ? (localUserId || null) : null
+        });
+
+        // 箱でなくなるなら、中のカードは盤面へ出す（消えると取り返しがつかない）
+        const cards = isStocker ? prevState.cards : releaseStockerCards(prevState.cards, panel, gridSize);
+
+        this.#commit(prevState, {
+          panels: withMapEntry(prevState.panels, id, nextPanel),
+          ...(cards === prevState.cards ? {} : { cards })
+        });
+        return;
+      }
+
       // パネルの項目変更（固定/移動/サイズ/画像/テキスト）はPANEL_FIELD_PATCHESで共通処理する。
 
       case 'REMOVE_PANEL': {
-        const { id } = payload;
-        if (!prevState.panels[id]) return;
+        const { id, gridSize } = payload;
+        const panel = prevState.panels[id];
+        if (!panel) return;
 
-        this.#commit(prevState, { panels: withoutMapEntry(prevState.panels, id) });
+        // ストッカーごと消すときは、中のカードを盤面へ出してから消す
+        const cards = releaseStockerCards(prevState.cards, panel, gridSize);
+
+        this.#commit(prevState, {
+          panels: withoutMapEntry(prevState.panels, id),
+          ...(cards === prevState.cards ? {} : { cards })
+        });
         return;
       }
 
@@ -2704,6 +2838,61 @@ export class ImmutableStore {
         return;
       }
 
+      // --- カードストッカーへの出し入れ（stockerAllowsUser の節を参照） ---
+      // 収納したカードは盤面から消えるが、状態としては残る（stockerIdが入るだけ）。
+      // 所有者付きの箱は、操作した人がその所有者のときだけ受け付ける。
+      case 'STORE_CARD_IN_STOCKER': {
+        const { cardId, panelId, participantId = null, localUserId = null } = payload;
+        const card = prevState.cards[cardId];
+        const panel = prevState.panels[panelId];
+        if (!card || !panel) return;
+        if (card.stockerId) return; // 既にどこかの箱の中
+        if (!stockerAllowsUser(panel, participantId, localUserId)) return;
+
+        this.#commit(prevState, {
+          cards: withMapEntry(prevState.cards, cardId, Object.freeze({
+            ...card, stockerId: panelId, stockerSeq: nextStockerSeq(prevState.cards)
+          }))
+        });
+        return;
+      }
+
+      // 箱から1枚取り出す。置き場所は箱の位置から決めるので、全員の画面で同じ位置に出る。
+      case 'TAKE_CARD_FROM_STOCKER': {
+        const { cardId, gridSize, participantId = null, localUserId = null } = payload;
+        const card = prevState.cards[cardId];
+        if (!card?.stockerId) return;
+
+        const panel = prevState.panels[card.stockerId];
+        // 箱そのものが既に無い場合は、誰でも取り出せる扱いにする（迷子のままにしない）
+        if (panel && !stockerAllowsUser(panel, participantId, localUserId)) return;
+
+        const grid = Math.max(1, Math.round(Number(gridSize) || 25));
+        const baseX = (panel?.x ?? card.x) + (CARD_COLS + 1) * grid;
+        const spot = findFreeCardSpot(prevState.cards, baseX, panel?.y ?? card.y, grid);
+
+        this.#commit(prevState, {
+          cards: withMapEntry(prevState.cards, cardId, Object.freeze({
+            ...card, stockerId: null, stockerSeq: 0, x: spot.x, y: spot.y
+          }))
+        });
+        return;
+      }
+
+      // 箱の中身をまとめて盤面へ出す（メニューの「すべて取り出す」）。
+      case 'RELEASE_STOCKER_CARDS': {
+        const { panelId, gridSize, participantId = null, localUserId = null } = payload;
+        const panel = prevState.panels[panelId];
+        if (!panel) return;
+        if (!stockerAllowsUser(panel, participantId, localUserId)) return;
+
+        const cards = releaseStockerCards(prevState.cards, panel, gridSize);
+        if (cards === prevState.cards) return;
+
+        this.#commit(prevState, { cards });
+        return;
+      }
+
       // --- デッキ（カードの束。裏向きでセットする） ---
       // 束ねる札のIDは配置する側（js/deck-dialog.js）が発番して渡す。reducerで採番すると、
       // 同じアクションを各クライアントが再実行したときに別々のIDになってしまう。
@@ -2751,6 +2940,31 @@ export class ImmutableStore {
           decks: withMapEntry(prevState.decks, id, Object.freeze({
             ...deck,
             cards: Object.freeze(shuffled)
+          }))
+        });
+        return;
+      }
+
+      // 盤面のカードをデッキへ戻す。戻る先は山の**一番下**（＝cardsの末尾）で、
+      // 残りが0枚でも同じ（空の山に1枚だけ入る）。
+      // どのデッキへ戻すかは呼び出し側が決めるが、そのカードの出自（deckId）と違う山は
+      // 受け付けない（js/board-data-driven.jsのドロップ処理でも同じ判定をしている）。
+      // 戻したカードは盤面から消える。裏面は捨てる（裏面はデッキが持つため）。
+      case 'RETURN_CARD_TO_DECK': {
+        const { cardId, deckId } = payload;
+        const card = prevState.cards[cardId];
+        const deck = prevState.decks[deckId];
+        if (!card || !deck) return;
+        if (card.deckId !== deck.id) return;
+        // 同じidの札が山に居るなら二重に増やさない（連打・再送への歯止め）
+        if (deck.cards.some(entry => entry.id === card.id)) return;
+        if (deck.cards.length >= MAX_DECK_CARDS) return;
+
+        this.#commit(prevState, {
+          cards: withoutMapEntry(prevState.cards, cardId),
+          decks: withMapEntry(prevState.decks, deck.id, Object.freeze({
+            ...deck,
+            cards: Object.freeze([...deck.cards, Object.freeze({ id: card.id, face: card.face })])
           }))
         });
         return;

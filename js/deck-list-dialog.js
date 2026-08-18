@@ -35,7 +35,11 @@ function buildRow({ label, title, onPlace, actions }) {
   placeBtn.className = 'dialog-table-name-btn';
   placeBtn.textContent = label;
   placeBtn.title = title || '盤面に配置します';
-  placeBtn.addEventListener('click', onPlace);
+  // 配置したら閉じる。この一覧はモーダルなので、開いたままだと置いたデッキを触れない
+  placeBtn.addEventListener('click', () => {
+    dialogEl?.close();
+    onPlace();
+  });
   row.appendChild(placeBtn);
 
   actions.forEach(({ text, hint, danger, onSelect }) => {

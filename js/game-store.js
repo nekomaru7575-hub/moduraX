@@ -375,9 +375,19 @@ export function getEffectiveParameterValue(token, paramId) {
   return param.value + buffTotal;
 }
 
-// 既定のチャットタブ。システム発言の宛先でもある（withSystemLog参照）。
-// サーバーも取り込みの報告を入れるために使う（server/index.jsのwithImportNotice）。
+// 既定のチャットタブ。人が喋る場所で、タブ列の先頭に常に存在する。
 export const MAIN_CHAT_TAB_ID = 'main';
+
+// システム発言のうち「読み流してよい事務連絡」を集める固定タブ（withSystemTabLog参照）。
+// 入室・フェーズ終了に伴うバフ消滅・BGMの切り替えだけをここへ流す：どれも卓の流れとは
+// 独立していて、Mainに挟まると盤面下のカレントチャット欄（Mainの最新1件だけを映す）が
+// 埋まり、直前の台詞が読めなくなるため。
+//
+// ラウンド進行・シーン開始・ログ消去は卓の流れとして読むものなのでMainに残す
+// （withSystemLog）。どちらへ出すかは経路ごとに選ぶので、迷ったらMain側が既定。
+// Mainと同じく常に存在し、削除・公開先変更・名前変更はできない（それぞれのcaseで弾く）。
+export const SYSTEM_CHAT_TAB_ID = 'system';
+export const SYSTEM_CHAT_TAB_NAME = 'システム';
 
 // 音楽のチャンネル。BGMを流したまま効果音を重ねられるよう2枠に分けてある
 // （js/audio-player.jsが枠ごとに1つずつAudio要素を持つ）。
@@ -421,6 +431,49 @@ function freezePanelMap(panels) {
   ));
 }
 
+// 固定タブ（Main・システム）と、その空ログを必ず用意した chatTabs / chatLogs を返す。
+// システムタブより前に保存された部屋にはタブ自体が無いので、読み込み時にここで足す
+// （足さないと、システム発言の宛先が存在しないままADD_CHAT_MESSAGEに弾かれて消える）。
+// 既にMainへ流れ終わった過去のシステム発言は動かさない（履歴は履歴のまま残す）。
+// 並びはMainの直後。UI上は固定位置に出す（js/main.jsのrenderChatTabs）ので表示位置には
+// 効かないが、ログの保存ダイアログ等はこの配列順で並べるため、人のタブより前に置く。
+function withFixedChatTabs(chatTabs, chatLogs) {
+  let tabs = Array.isArray(chatTabs) ? chatTabs.filter(tab => tab && typeof tab.id === 'string') : [];
+
+  if (!tabs.some(tab => tab.id === MAIN_CHAT_TAB_ID)) {
+    tabs = [Object.freeze({ id: MAIN_CHAT_TAB_ID, name: 'Main' }), ...tabs];
+  }
+  const systemTab = Object.freeze({ id: SYSTEM_CHAT_TAB_ID, name: SYSTEM_CHAT_TAB_NAME, audience: null });
+  if (tabs.some(tab => tab.id === SYSTEM_CHAT_TAB_ID)) {
+    // 既にある場合も名前・公開先はここで固定値へ揃える。取り込んだ部屋データ（信用しないJSON）に
+    // 限定公開のシステムタブが入っていると、進行の通知が一部の人にしか届かなくなるため。
+    tabs = tabs.map(tab => (tab.id === SYSTEM_CHAT_TAB_ID ? systemTab : tab));
+  } else {
+    const mainIndex = tabs.findIndex(tab => tab.id === MAIN_CHAT_TAB_ID);
+    tabs = [...tabs.slice(0, mainIndex + 1), systemTab, ...tabs.slice(mainIndex + 1)];
+  }
+
+  const logs = { ...(chatLogs || {}) };
+  tabs.forEach(tab => {
+    if (!Array.isArray(logs[tab.id])) logs[tab.id] = [];
+  });
+
+  return { chatTabs: tabs, chatLogs: logs };
+}
+
+// BGMが切り替わったことをシステムタブへ1行残す（曲名、またはnextTrackId:nullで「停止」）。
+// 音楽ダイアログの再生・停止ボタン、再生フレーズ、シーン遷移のどれで変わっても同じ1行になるよう、
+// 経路ごとではなく「BGMの再生状態が変わったdispatch」の側から呼ぶ。
+// 同じ曲を鳴らし直しただけ（playIdだけが変わる）のときは呼び出し側が呼ばない。
+// 効果音はここでは扱わない：台詞に添えて鳴らすものなので、鳴らした人のタブへそのまま出す
+// （js/main.jsのtriggerAudioPhrase）。
+function withBgmLog(chatLogs, tracks, nextTrackId, time) {
+  const text = nextTrackId
+    ? `♪ ${AUDIO_CHANNEL_LABELS.bgm}: ${tracks?.[nextTrackId]?.name || '不明な音源'}`
+    : `♪ ${AUDIO_CHANNEL_LABELS.bgm}を止めました。`;
+  return withSystemTabLog(chatLogs, text, time);
+}
+
 // 指定タブのログへ1件追記した新しいchatLogsを返す。チャットログへ入る経路は全てここを通る
 // （ADD_CHAT_MESSAGE・withSystemLog経由の各種システムログ）。
 //
@@ -437,12 +490,24 @@ function withChatEntry(chatLogs, tabId, entry, time) {
   return withMapEntry(chatLogs, tabId, nextEntries);
 }
 
-// Mainタブへシステム発言を1件追記する。ラウンド進行・バフ期限切れの通知に使う
-// （EventBus経由の副作用にすると、同期される全クライアントでそれぞれ「受信→追記dispatch→
-// 再送信」が走ってクライアント数だけログが重複するため、1回のdispatchで完結させている）。
+// システム発言（発言者が「システム」の1行）を指定タブへ1件追記する。
+// EventBus経由の副作用にすると、同期される全クライアントでそれぞれ「受信→追記dispatch→
+// 再送信」が走ってクライアント数だけログが重複するため、1回のdispatchで完結させている。
 // timeはwithChatEntryと同じ扱い（呼び出し側のpayload.timeをそのまま渡す）。
+function withSystemLogIn(chatLogs, tabId, text, time) {
+  return withChatEntry(chatLogs, tabId, { system: SYSTEM_CHAT_TAB_NAME, resultText: text }, time);
+}
+
+// Mainタブへ出すシステム発言。ラウンド進行・シーン開始・ログ消去など、
+// 卓の流れとしてその場で読むもの。システム発言の既定の宛先はこちら。
 function withSystemLog(chatLogs, text, time) {
-  return withChatEntry(chatLogs, MAIN_CHAT_TAB_ID, { system: 'システム', resultText: text }, time);
+  return withSystemLogIn(chatLogs, MAIN_CHAT_TAB_ID, text, time);
+}
+
+// システムタブへ出すシステム発言。入室・フェーズ終了に伴うバフ消滅・BGMの切り替えなど、
+// 後から辿れれば十分で、卓の流れに挟まると邪魔になるもの（SYSTEM_CHAT_TAB_ID参照）。
+function withSystemTabLog(chatLogs, text, time) {
+  return withSystemLogIn(chatLogs, SYSTEM_CHAT_TAB_ID, text, time);
 }
 
 // パラメータマップ（コマのparameters / room.parameters）の1件を差し替える。
@@ -1131,8 +1196,9 @@ export class ImmutableStore {
       // ストッカーが消える経路すべてでreleaseStockerCardsが中身を出している）。
       cards: withoutLostStockerCards(normalizeCardMap(newState.cards), newState.panels),
       decks: normalizeDeckMap(newState.decks),
-      chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
-      chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
+      // 固定タブ（Main・システム）とその空ログを補う。システムタブが無い時代に
+      // 保存された部屋・取り込んだ部屋データもここを通って揃う（withFixedChatTabs参照）。
+      ...withFixedChatTabs(newState.chatTabs, newState.chatLogs),
       // この機能より前に保存された状態には情報（infoEntries）が無いため、既定値を補う。
       // 形の壊れたエントリ（sections欠落など）もここで落とす（normalizeInfoEntries参照）。
       infoEntries: normalizeInfoEntries(newState.infoEntries),
@@ -1594,9 +1660,11 @@ export class ImmutableStore {
           return;
         }
 
+        // 「〈フェーズ〉終了。消滅したバフ/デバフ: …」はコマの状態の後始末で、卓の流れそのもの
+        // ではない。ラウンド進行の通知（Main）に混ぜず、システムタブへ寄せる。
         this.#commit(prevState, {
           tokens,
-          chatLogs: withSystemLog(prevState.chatLogs, logText, payload?.time)
+          chatLogs: withSystemTabLog(prevState.chatLogs, logText, payload?.time)
         });
         return;
       }
@@ -1992,7 +2060,7 @@ export class ImmutableStore {
         const name = (typeof payload?.name === 'string' && payload.name.trim()) || 'ゲスト';
 
         this.#commit(prevState, {
-          chatLogs: withSystemLog(prevState.chatLogs, `${name}が入室しました。`, payload?.time)
+          chatLogs: withSystemTabLog(prevState.chatLogs, `${name}が入室しました。`, payload?.time)
         });
         return;
       }
@@ -2408,11 +2476,18 @@ export class ImmutableStore {
           panels: nextPanels,
           ...(nextCards === prevState.cards ? {} : { cards: nextCards }),
           tokens,
-          chatLogs: withSystemLog(
-            withSystemLog(prevState.chatLogs, logText, payload.time),
-            `シーン「${scene.name}」を開始しました。`,
-            payload.time
-          )
+          // フェーズ終了 → シーン開始 → BGMの順で残す（起きた順）。宛先は行ごとに違う：
+          // 前のシーンのバフ消滅とBGMはシステムタブ（EXPIRE_BUFFS・withBgmLogと同じ扱い）、
+          // 「シーンが変わった」こと自体は卓の流れなのでMainに出す。
+          chatLogs: (() => {
+            const afterScene = withSystemLog(
+              withSystemTabLog(prevState.chatLogs, logText, payload.time),
+              `シーン「${scene.name}」を開始しました。`,
+              payload.time
+            );
+            if (nextBgm?.trackId === playback.bgm?.trackId) return afterScene;
+            return withBgmLog(afterScene, room.audioTracks, nextBgm?.trackId || null, payload.time);
+          })()
         });
         return;
       }
@@ -2496,11 +2571,18 @@ export class ImmutableStore {
 
         const playback = room.audioPlayback || { bgm: null, se: null };
 
+        // 曲が実際に変わったときだけ曲名を残す。同じ曲の鳴らし直し（playIdだけの更新）では
+        // 何も書かない：効果音のように連打される使い方でログが埋まらないようにするため。
+        const bgmChanged = channel === 'bgm' && playback.bgm?.trackId !== trackId;
+
         this.#commit(prevState, {
           room: {
             ...room,
             audioPlayback: withMapEntry(playback, channel, Object.freeze({ trackId, playId }))
-          }
+          },
+          ...(bgmChanged
+            ? { chatLogs: withBgmLog(prevState.chatLogs, room.audioTracks, trackId, payload?.time) }
+            : {})
         });
         return;
       }
@@ -2517,7 +2599,10 @@ export class ImmutableStore {
         if (!playback[channel]) return;
 
         this.#commit(prevState, {
-          room: { ...room, audioPlayback: withMapEntry(playback, channel, null) }
+          room: { ...room, audioPlayback: withMapEntry(playback, channel, null) },
+          ...(channel === 'bgm'
+            ? { chatLogs: withBgmLog(prevState.chatLogs, room.audioTracks, null, payload?.time) }
+            : {})
         });
         return;
       }
@@ -2603,8 +2688,11 @@ export class ImmutableStore {
       }
 
       // 既存タブの公開先を変える（メンバーの追加・削除、限定公開↔全員公開の切り替え）。
+      // 固定タブ（Main・システム）は常に全員向けのまま：withSystemLogが宛先を選ばずに
+      // 流し込む設計なので、限定公開にすると通知が一部の人にしか届かなくなる。
       case 'SET_CHAT_TAB_AUDIENCE': {
         const { id, audience } = payload;
+        if (id === MAIN_CHAT_TAB_ID || id === SYSTEM_CHAT_TAB_ID) return;
         if (!prevState.chatTabs.some(tab => tab.id === id)) return;
 
         this.#commit(prevState, {
@@ -2616,9 +2704,12 @@ export class ImmutableStore {
       }
 
       // 既存タブの名前を変える。追加・公開先変更と同じく、誰でも呼べる（GM限定にしていない）。
+      // システムタブだけは名前も固定：役割が決まっている置き場で、名前を変えられると
+      // 「システム発言はどこへ行ったのか」が分からなくなる（Mainの名前変更は従来どおり可）。
       case 'RENAME_CHAT_TAB': {
         const { id, name } = payload;
         if (!id || !name) return;
+        if (id === SYSTEM_CHAT_TAB_ID) return;
         if (!prevState.chatTabs.some(tab => tab.id === id)) return;
 
         this.#commit(prevState, {
@@ -2629,12 +2720,12 @@ export class ImmutableStore {
         return;
       }
 
-      // チャットタブを削除する。既定タブ（Main）は先頭に常に存在する前提のタブなので削除できない。
+      // チャットタブを削除する。固定タブ（Main・システム）は常に存在する前提なので削除できない。
       // タブに紐づくログ（chatLogs）も一緒に消す。表示中タブが消えた場合の切り替えは
       // 呼び出し側（js/main.jsのensureActiveTabVisible、STATE_CHANGED購読で自動的に走る）に任せる。
       case 'REMOVE_CHAT_TAB': {
         const { id } = payload;
-        if (!id || id === MAIN_CHAT_TAB_ID) return;
+        if (!id || id === MAIN_CHAT_TAB_ID || id === SYSTEM_CHAT_TAB_ID) return;
         if (!prevState.chatTabs.some(tab => tab.id === id)) return;
 
         this.#commit(prevState, {
@@ -3259,9 +3350,13 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     cards: {},
     decks: {},
 
-    // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
-    chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
-    chatLogs: { [MAIN_CHAT_TAB_ID]: [] },
+    // チャットタブとタブごとのログ履歴。Main（人が喋る既定タブ）と
+    // システム（進行の通知だけが流れる固定タブ）は常に存在する。
+    chatTabs: [
+      { id: MAIN_CHAT_TAB_ID, name: 'Main' },
+      { id: SYSTEM_CHAT_TAB_ID, name: SYSTEM_CHAT_TAB_NAME, audience: null }
+    ],
+    chatLogs: { [MAIN_CHAT_TAB_ID]: [], [SYSTEM_CHAT_TAB_ID]: [] },
 
     // 情報（js/info-panel.js）。タイトル＋内容の組を浮動パネルのタブとして並べる共有メモ。
     // { id, title, ownerId, sections: [{ id, label, body, audience }] } の配列。

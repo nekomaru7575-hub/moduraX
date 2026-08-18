@@ -1932,6 +1932,26 @@
       border-color: #007acc;
     }
 
+    /* 「システム」タブ。進行の通知だけが流れる固定タブで、タブ列の外に置く。
+       人が喋るタブと役割が違うことが一目で分かるよう、彩度を落とした地色にしておく
+       （「？ヘルプ」ほど目立たせない：探させたい場所ではなく、常にそこにある置き場なので） */
+    .chat-tab-system {
+      background-color: #23303a;
+      color: #9fb6c4;
+      border-color: #3a5566;
+    }
+
+    .chat-tab-system:hover {
+      background-color: #2e404e;
+      color: #fff;
+    }
+
+    .chat-tab-system.active {
+      background-color: #3a6b8a;
+      color: #fff;
+      border-color: #4d88ad;
+    }
+
     /* 「？ヘルプ」タブ。他のタブと違い、選んでいなくても黄色くしておく
        （「困ったらここ」の目印なので、探させたくない） */
     .chat-tab-help {
@@ -2548,10 +2568,13 @@
              logContainerは差分追記でログを描いているので、中身を横取りすると
              その計数が壊れる -->
         <div class="help-chat" id="helpChat" hidden></div>
-        <!-- 「？ヘルプ」はスクロールするタブ列（#chatTabs）の外に置く。タブが増えても
-             流れず右端に居座り、renderChatTabsのinnerHTML=''にも巻き込まれない -->
+        <!-- 「システム」「？ヘルプ」はスクロールするタブ列（#chatTabs）の外に置く。タブが増えても
+             流れず右端に居座り、renderChatTabsのinnerHTML=''にも巻き込まれない。
+             「システム」はstore側にも実在するタブ（SYSTEM_CHAT_TAB_ID）で、ここは表示位置を
+             固定するための静的マークアップ。選択状態の反映はrenderChatTabsが行う -->
         <div class="chat-tabs-row">
           <div class="chat-tabs" id="chatTabs"></div>
+          <button type="button" class="chat-tab chat-tab-system" id="systemTabBtn" title="システムメッセージ（入室・フェーズ終了・シーン・BGMの通知）">システム</button>
           <button type="button" class="chat-tab chat-tab-help" id="helpTabBtn" title="使い方のヘルプ">？ヘルプ</button>
         </div>
       </div>

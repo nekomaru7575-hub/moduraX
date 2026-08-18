@@ -1552,6 +1552,8 @@ function droppedMediaMessage(dropped) {
 
 // 取り込みの報告を、状態のMainタブへシステム発言として直接足す。
 // hydrate前の素のオブジェクトに対して使う（storeのdispatchはまだ通せないため）。
+// システムタブではなくMainなのは、取り込みで落ちたものは読み流されては困る一度きりの
+// 警告だから（システムタブへ回すのは、後から辿れれば十分な通知だけ）。
 function withImportNotice(state, text) {
   if (!text) return state;
   const chatLogs = state.chatLogs || {};

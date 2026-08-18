@@ -11,7 +11,7 @@ import {
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
   usesInitiativeProcess, showsEntryMessages, generateDeckId, generateDeckTemplateId,
-  generateCardId, CARD_COLS, CARD_ROWS
+  generateCardId, CARD_COLS, CARD_ROWS, SYSTEM_CHAT_TAB_ID
 } from './game-store.js';
 import { showDeckListDialog } from './deck-list-dialog.js';
 import { showDeckEditorDialog } from './deck-editor-dialog.js';
@@ -84,6 +84,7 @@ const logContainer = document.getElementById('logContainer');
 const currentChatLog = document.getElementById('currentChatLog');
 const currentChatPortrait = document.getElementById('currentChatPortrait');
 const chatTabsEl = document.getElementById('chatTabs');
+const systemTabBtn = document.getElementById('systemTabBtn');
 const helpTabBtn = document.getElementById('helpTabBtn');
 const helpChatEl = document.getElementById('helpChat');
 const netStatusEl = document.getElementById('netStatus');
@@ -91,6 +92,9 @@ const typingIndicatorEl = document.getElementById('typingIndicator');
 
 // --- チャットタブ ---
 // 「Main」タブは常に存在する既定タブ。他のタブはユーザーが追加する並行チャット用。
+// 「システム」タブ（SYSTEM_CHAT_TAB_ID）も常に存在する固定タブで、進行の通知だけが流れる。
+// 「？ヘルプ」と同じくスクロールするタブ列の外に置き、タブが何枚増えても流れないようにする
+// （renderChatTabsはタブ列から除き、静的マークアップ#systemTabBtnの選択状態だけを合わせる）。
 // タブ一覧・各タブのログはstore経由でサーバーと同期される。「今どのタブを見ているか」は
 // 各クライアントのローカルUI状態（人によって見ているタブが違ってよい）としてここで保持する。
 // 盤面下のカレントチャット欄（currentChatLog）は、選択中のタブに関わらずMainタブの内容だけを表示する。
@@ -119,7 +123,7 @@ function renderChatTabs(state) {
   if (!chatTabsEl) return;
   chatTabsEl.innerHTML = '';
 
-  visibleChatTabs(state).forEach(tab => {
+  visibleChatTabs(state).filter(tab => tab.id !== SYSTEM_CHAT_TAB_ID).forEach(tab => {
     const tabBtn = document.createElement('button');
     tabBtn.type = 'button';
     // ヘルプを開いている間はログ欄が見えていないので、実タブの方は選択中に見せない
@@ -147,9 +151,14 @@ function renderChatTabs(state) {
   addBtn.addEventListener('click', addChatTab);
   chatTabsEl.appendChild(addBtn);
 
-  // ヘルプのボタンは静的マークアップ（#helpTabBtn）なのでここでは作り直さない。
-  // 選択中の見た目だけ合わせる。
+  // 「システム」「？ヘルプ」のボタンは静的マークアップ（#systemTabBtn／#helpTabBtn）なので
+  // ここでは作り直さない。選択中の見た目だけ合わせる。
+  systemTabBtn?.classList.toggle('active', activeTabId === SYSTEM_CHAT_TAB_ID && !helpOpen);
   helpTabBtn?.classList.toggle('active', helpOpen);
+}
+
+if (systemTabBtn) {
+  systemTabBtn.addEventListener('click', () => switchChatTab(SYSTEM_CHAT_TAB_ID));
 }
 
 function addChatTab() {
@@ -173,6 +182,7 @@ function addChatTab() {
 // （保険。UI側で選択できなくなった後も、この分岐だけで安全側に倒れる）。
 function openChatTabAudienceDialog(tab) {
   const isMainTab = tab.id === MAIN_TAB_ID;
+  if (tab.id === SYSTEM_CHAT_TAB_ID) return; // 名前も公開先も固定（呼ばれない想定の保険）
   showChatTabDialog({
     mode: 'edit',
     name: tab.name,
@@ -201,6 +211,7 @@ function switchChatTab(tabId) {
   if (helpOpen) closeHelp();
   activeTabId = tabId;
   lastRenderedLogTabId = null; // 強制的にlogContainerを描き直させる
+  syncChatInputLock();
   renderChatTabs(store.state);
   renderActiveTabLog(store.state);
 }
@@ -223,13 +234,27 @@ const helpPanel = helpChatEl
 // js/read-only-form.jsのlockFormControlsは「封じたら戻さない」前提の道具なので使わない。
 const COMMAND_INPUT_PLACEHOLDER = commandInput?.placeholder ?? '';
 
-function setChatInputLocked(locked) {
+function setChatInputLocked(locked, reason = '') {
   if (commandInput) {
     commandInput.disabled = locked;
-    commandInput.placeholder = locked ? 'ヘルプ表示中は入力できません' : COMMAND_INPUT_PLACEHOLDER;
+    commandInput.placeholder = locked ? reason : COMMAND_INPUT_PLACEHOLDER;
   }
   if (sendBtn) sendBtn.disabled = locked;
   if (characterParamSelect) characterParamSelect.disabled = locked;
+}
+
+// 入力欄を触れる状態にするかどうかを、今の表示（ヘルプ／システムタブ）から決め直す。
+// システムタブは進行の通知だけを溜める読み専用の置き場なので、発言も判定も受け付けない
+// （applyLogの既定の宛先は表示中タブなので、封じておかないと通知の列に手打ちの発言や
+// ロール結果が混ざってしまう）。
+function syncChatInputLock() {
+  if (helpOpen) {
+    setChatInputLocked(true, 'ヘルプ表示中は入力できません');
+  } else if (activeTabId === SYSTEM_CHAT_TAB_ID) {
+    setChatInputLocked(true, 'システムタブは読むだけの場所です（発言は他のタブへ）');
+  } else {
+    setChatInputLocked(false);
+  }
 }
 
 function openHelp() {
@@ -237,7 +262,7 @@ function openHelp() {
   helpOpen = true;
   logContainer.hidden = true;
   helpChatEl.hidden = false;
-  setChatInputLocked(true);
+  syncChatInputLock();
   helpPanel.open(); // 開くたびにあいさつを引き直して最初の層から
   renderChatTabs(store.state);
 }
@@ -247,7 +272,7 @@ function closeHelp() {
   helpOpen = false;
   helpChatEl.hidden = true;
   logContainer.hidden = false;
-  setChatInputLocked(false);
+  syncChatInputLock();
 }
 
 if (helpTabBtn) {
@@ -1623,6 +1648,10 @@ function triggerAudioPhrase(text) {
   store.dispatch('SET_AUDIO_PLAYBACK', {
     channel: track.channel, trackId: track.id, playId: `${Date.now()}`
   });
+  // BGMの曲名はストア側がシステムタブへ残す（game-store.jsのwithBgmLog）ので、ここでは書かない。
+  // 効果音は台詞に添えて鳴らすものなので、従来どおり発言と同じタブへその場で出す。
+  if (track.channel === 'bgm') return;
+
   applyLog({
     system: '音楽',
     resultText: `♪ ${AUDIO_CHANNEL_LABELS[track.channel] || track.channel}: ${track.name}`

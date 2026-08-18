@@ -1,6 +1,6 @@
 ---
 source: js/deck-dialog.js
-lines: 151
+lines: 157
 exports: 2
 imported_by: 1
 api_sha: 1585fdf1fe8e
@@ -26,7 +26,7 @@ tags: [codemap]
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 37 | fn | showCardPeekDialog | `showCardPeekDialog({ face })` | 「カードを見る」で表面を自分だけ確認するダイアログ。 |
-| 100 | fn | showDrawCountDialog | `showDrawCountDialog({ faceUp, max, onConfirm })` | 「何枚引くか」の入力ダイアログ。 |
+| 106 | fn | showDrawCountDialog | `showDrawCountDialog({ faceUp, max, onConfirm })` | 「何枚引くか」の入力ダイアログ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -37,8 +37,8 @@ tags: [codemap]
 |---:|---|---|---:|:-:|
 | 12 | ensureDialog | `ensureDialog()` | 7 |  |
 | 20 | formGroup | `formGroup(labelText, title = '')` | 9 |  |
-| 37 | showCardPeekDialog | `showCardPeekDialog({ face })` | 58 | ✓ |
-| 100 | showDrawCountDialog | `showDrawCountDialog({ faceUp, max, onConfirm })` | 51 | ✓ |
+| 37 | showCardPeekDialog | `showCardPeekDialog({ face })` | 64 | ✓ |
+| 106 | showDrawCountDialog | `showDrawCountDialog({ faceUp, max, onConfirm })` | 51 | ✓ |
 
 ## 依存
 

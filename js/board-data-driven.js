@@ -917,18 +917,25 @@ function createPanelElement(panelData, panelLayer) {
 // 画像を1枚出す共通処理。URLが変わったときだけsrcを差し替え（毎回入れ直すと画像が
 // ちらつく）、読めなかったら隠してテキスト表示へ落とす（画像を用意していなくても
 // カードとして使えるようにするため。image/trump/README.txt）。
+// 戻り値は「絵が出ているか」。出ていればカード名は描かない（絵の上に名前を重ねると
+// せっかくの絵が読みにくくなる。名前は絵が無いとき・読めないときの代わり）。
 function applyObjectImage(img, url) {
   if (!url) {
     img.removeAttribute('src');
     delete img.dataset.url;
+    delete img.dataset.failed;
     img.style.display = 'none';
-    return;
+    return false;
   }
 
-  if (img.dataset.url === url) return;
-  img.dataset.url = url;
-  img.style.display = '';
-  img.src = url;
+  if (img.dataset.url !== url) {
+    img.dataset.url = url;
+    delete img.dataset.failed; // 別の絵に差し替わったので、前回の失敗は引き継がない
+    img.style.display = '';
+    img.src = url;
+  }
+
+  return img.dataset.failed !== '1';
 }
 
 // カード名の文字の大きさ。カードの幅は4マス（100px）しかないので、「♠A」と
@@ -949,12 +956,14 @@ function applyCardAppearance(el, cardData) {
   const img = el.querySelector('.card-image');
   const text = el.querySelector('.card-text');
 
-  applyObjectImage(img, side.image);
+  const showingImage = applyObjectImage(img, side.image);
 
-  // 文字は表向きのときだけ。裏面は無地（裏に文字を出すと表面が透ける意味になる）
-  const name = cardData.faceUp ? (cardData.face.text || '') : '';
+  // 文字は表向きで、かつ絵が出ていないときだけ。絵があるならその絵がカードの顔なので、
+  // 上に名前を重ねない（画像を用意していないカードのための代わりの表示）。
+  // 裏面も無地（裏に文字を出すと表面が透ける意味になる）。
+  const name = (cardData.faceUp && !showingImage) ? (cardData.face.text || '') : '';
   text.textContent = name;
-  text.style.color = cardData.faceUp ? (cardData.face.color || '') : '';
+  text.style.color = (name && cardData.face.color) ? cardData.face.color : '';
   text.className = `card-text ${cardTextSizeClass(name)}`.trim();
 
   // カード情報はマウスオーバーのツールチップで読ませる（パネルのテキストと同じ扱い。
@@ -1189,8 +1198,14 @@ function createCardElement(cardData, panelLayer) {
   const img = document.createElement('img');
   img.className = 'card-image';
   img.alt = '';
-  // 画像が無い／読めないときはテキスト表示へ落とす（image/trump/README.txt）
-  img.addEventListener('error', () => { img.style.display = 'none'; });
+  // 画像が無い／読めないときはカード名の表示へ落とす（image/trump/README.txt）。
+  // 読み込みの失敗は描画のあとに分かるので、印を付けて見た目を作り直す。
+  img.addEventListener('error', () => {
+    img.style.display = 'none';
+    img.dataset.failed = '1';
+    const latest = store.state.cards[el.id];
+    if (latest) applyCardAppearance(el, latest);
+  });
   el.appendChild(img);
 
   const text = document.createElement('span');

@@ -1204,13 +1204,17 @@
       display: block;
     }
 
-    /* 画像が無いときに出るカード名（トランプならスートと数字）。画像があるときはその下に隠れる。
+    /* 画像が無い（または読めない）カードの代わりに出すカード名。絵があるときは
+       js/board-data-driven.js側が空にするので、絵の上に重なることはない。
        カードの幅は4マス（100px）しかないので、長い名前は折り返して小さく出す
-       （段階の切り替えはjs/board-data-driven.jsのcardTextSizeClass）。 */
+       （段階の切り替えはcardTextSizeClass）。
+       既定の色は黒90%の灰色。カード地（#f7f5ef）の上で読めるようにする
+       （トランプの赤黒のように色を持つカードは、その色で上書きされる）。 */
     .card-text {
       position: absolute;
       left: 4px;
       right: 4px;
+      color: #1a1a1a;
       font-size: 24px;
       font-weight: bold;
       line-height: 1.15;

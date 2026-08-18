@@ -48,20 +48,26 @@ export function showCardPeekDialog({ face }) {
   const card = document.createElement('div');
   card.className = 'card-peek';
 
-  // 画像があれば画像、無い／読めないときは文字（盤面の描画と同じ落とし方）
+  const text = document.createElement('span');
+  text.className = 'card-peek-text';
+  text.textContent = face.text || '';
+  if (face.color) text.style.color = face.color;
+
+  // 画像があれば画像、無い／読めないときは文字（盤面の描画と同じ落とし方）。
+  // 絵の上に名前は重ねない。
   if (face.image) {
     const img = document.createElement('img');
     img.className = 'card-peek-image';
     img.alt = '';
     img.src = face.image;
-    img.addEventListener('error', () => { img.style.display = 'none'; });
+    img.addEventListener('error', () => {
+      img.style.display = 'none';
+      text.style.display = '';
+    });
     card.appendChild(img);
+    text.style.display = 'none';
   }
 
-  const text = document.createElement('span');
-  text.className = 'card-peek-text';
-  text.textContent = face.text || '';
-  if (face.color) text.style.color = face.color;
   card.appendChild(text);
 
   form.appendChild(card);

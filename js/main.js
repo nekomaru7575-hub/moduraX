@@ -6,12 +6,13 @@ import { escapeHtml, safeCssColor } from './html-escape.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
-  BUFF_PHASE_LABELS
+  BUFF_PHASE_LABELS, getBoardDropSpot
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
-  usesInitiativeProcess, showsEntryMessages
+  usesInitiativeProcess, showsEntryMessages, generateDeckId, CARD_COLS, CARD_ROWS
 } from './game-store.js';
+import { showDeckDialog } from './deck-dialog.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
@@ -753,6 +754,20 @@ EventBus.subscribe('NET_INITIALIZED', () => {
   activateAndRegisterIdentity(storedName, getStoredDevPassphrase(currentRoomId()));
 });
 
+// デッキ（カードの束）を盤面に置く。盤面のどこかを指している操作ではないので、今見えて
+// いる範囲の真ん中へ置く（引いた札はデッキの右へ並ぶ。js/game-store.jsのDRAW_CARDS）。
+// パネルの追加と同じくGM限定にはしない。
+function placeDeck() {
+  showDeckDialog({
+    onConfirm: ({ name, back, cards }) => {
+      const spot = getBoardDropSpot({ cols: CARD_COLS, rows: CARD_ROWS });
+      store.dispatch('ADD_DECK', {
+        id: generateDeckId(), name, back, cards, x: spot.x, y: spot.y
+      });
+    }
+  });
+}
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
@@ -769,6 +784,10 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'オリジナル表一覧',
         onSelect: openOriginalTableListDialog
+      },
+      {
+        label: 'デッキを配置',
+        onSelect: placeDeck
       },
       {
         label: 'ログを保存',

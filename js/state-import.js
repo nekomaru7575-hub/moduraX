@@ -17,6 +17,9 @@
 //                  届いた時点でGMのものとして引き取られる（CLAIM_RESTORED_INFO・js/info-panel.js）。
 //                  安全側に倒しているのは、公開先を復元しようがない以上「うっかり全員に見える」
 //                  よりは「GMが配り直す」方が事故が小さいため。
+//   cards        … 「カードを見る」の記録(seenBy)は他の部屋の参加者IDなので、空にする。
+//                  残しても誰の名前にも解決できず（「不明な参加者」が並ぶだけ）、
+//                  取り込んだ先の別人の記録に見えてしまう。
 //   tokens       … バックヤードのコマのownerIdも同じ理由で失効し、誰の棚にも現れなくなる
 //                  （js/character-panel.jsのlistMyBackyardTokens参照）。ファイル側の
 //                  myBackyardTokenIds（js/main.jsのexportStateToFileが書き出す、保存した
@@ -31,7 +34,8 @@
 //                  backyardOwnerIdで判定するのと同じ規則。
 //
 // チャットタブのaudience・パネルのtextAudience等も同じ理由で失効するが、
-// 今のところ手当てしているのは情報とバックヤードのコマだけ。足すときはここへ足す。
+// 今のところ手当てしているのは情報・バックヤードのコマ・カードの「見た人」だけ。
+// 足すときはここへ足す。
 
 import { normalizeInfoEntries } from './game-store.js';
 
@@ -79,6 +83,19 @@ function restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)
   return result;
 }
 
+// カードの「見た人」(seenBy)を空にする。IDは元の部屋のものなので、この部屋の誰とも
+// 一致しない。cardsが無い（この機能より前のファイル）場合はそのまま返す（hydrate側が
+// 既定値を補う。js/game-store.jsのnormalizeCardMap）。
+function forgetCardViewers(cards) {
+  if (!cards || typeof cards !== 'object') return cards;
+
+  return Object.fromEntries(
+    Object.entries(cards).map(([id, card]) => (
+      (card && typeof card === 'object') ? [id, { ...card, seenBy: [] }] : [id, card]
+    ))
+  );
+}
+
 /**
  * 取り込んだ状態を、この部屋で使える形へ均す。何度通しても同じ結果になる（サーバーは
  * ブラウザ側で均された状態を受け取っても、自分の参加者一覧でもう一度通す）。
@@ -103,6 +120,7 @@ export function adoptImportedState(
   return {
     ...rest,
     tokens: restoreMyBackyardTokens(state.tokens, myBackyardTokenIds, myBackyardOwnerId, myBackyardOwnerLocalId),
+    cards: forgetCardViewers(state.cards),
     participants: participants || {},
     infoEntries: normalizeInfoEntries(state.infoEntries).map(adoptInfoEntry)
   };

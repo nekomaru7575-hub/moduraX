@@ -78,6 +78,20 @@ export function generatePanelId() {
   return `panel-user-${Date.now()}-${panelIdCounter}`;
 }
 
+let cardIdCounter = 0;
+
+export function generateCardId() {
+  cardIdCounter += 1;
+  return `card-user-${Date.now()}-${cardIdCounter}`;
+}
+
+let deckIdCounter = 0;
+
+export function generateDeckId() {
+  deckIdCounter += 1;
+  return `deck-user-${Date.now()}-${deckIdCounter}`;
+}
+
 let buffIdCounter = 0;
 
 export function generateBuffId() {
@@ -469,6 +483,170 @@ export function normalizeStackOrder(value) {
   return Math.max(0, Math.round(Number(value) || 0));
 }
 
+// --- カード／デッキ（js/card-catalog.js・js/deck-dialog.js・js/board-data-driven.js） ---
+// カードはパネルと同じ座標系（盤面ローカルのピクセル座標）・同じ重なり順の規則で盤面に
+// 載るが、「裏のあいだは表面を出さない」「デッキから引く」という別の語彙を持つので
+// スライスを分けてある（パネルはシーンに保存されるが、カード・デッキは保存されない、
+// という扱いの違いもある。APPLY_SCENE参照）。
+//
+// 【秘匿の水準】裏向きのカードの表面(face)も、状態として全クライアントへ配られる。
+// 隠しているのは描画だけで、開発者ツールを開けば読める（js/visibility.js冒頭・
+// docs/plugin-guide.md 8.5と同じ「うっかり見えない」まで）。公開も閲覧も誰にでも
+// 許す仕様なので、その前提で使うこと。
+
+// カードの大きさ（マス数）。縦6×横4で固定する（トランプの縦横比3:2）。
+export const CARD_COLS = 4;
+export const CARD_ROWS = 6;
+
+// カード・デッキの既定の重なり順。パネルの既定(0)より上＝パネルの上に乗る。
+// コマ(z-index:10の.token)より手前に出ないことは、描画側の層(#panel-layer)が保証する。
+export const DEFAULT_CARD_STACK_ORDER = 10;
+
+// 一度に引ける枚数の上限。押し間違いで盤面がカードで埋まるのを防ぐだけの歯止め。
+const MAX_DRAW_COUNT = 20;
+
+// クライアントが自由に作れるpayload（ADD_DECK・取り込んだ部屋データ）に対する上限。
+// 状態は全員へ配られ、Redisへも書き戻るので、ここが無いと1回のアクションで部屋を
+// 太らせられる（MAX_STAMP_COUNTと同じ趣旨の歯止め）。
+const MAX_DECK_CARDS = 200;
+const MAX_CARD_TEXT_LENGTH = 8;
+const MAX_CARD_IMAGE_LENGTH = 1000;
+const MAX_CARD_COLOR_LENGTH = 32;
+// 「見た人」(seenBy)の上限。参加者の数を超えることはないが、payloadは信用しない。
+const MAX_CARD_SEEN_BY = 100;
+
+function clampCardText(value, max) {
+  return typeof value === 'string' ? value.slice(0, max) : '';
+}
+
+// 画像URL。長すぎるもの・文字列でないものはnull（＝画像なし＝テキスト表示へ落ちる）。
+function normalizeCardImage(image) {
+  if (typeof image !== 'string' || image === '' || image.length > MAX_CARD_IMAGE_LENGTH) return null;
+  return image;
+}
+
+// カードの表面。imageがあれば画像で描き、無い／読めないときはtextをcolorで描く
+// （js/board-data-driven.jsのapplyCardAppearance）。
+function normalizeCardFace(face) {
+  const source = (face && typeof face === 'object') ? face : {};
+  return Object.freeze({
+    image: normalizeCardImage(source.image),
+    text: clampCardText(source.text, MAX_CARD_TEXT_LENGTH),
+    color: clampCardText(source.color, MAX_CARD_COLOR_LENGTH) || null
+  });
+}
+
+// カードの裏面。表面と違って文字は持たない（伏せた札は無地でよい）。
+function normalizeCardBack(back) {
+  const source = (back && typeof back === 'object') ? back : {};
+  return Object.freeze({
+    image: normalizeCardImage(source.image),
+    color: clampCardText(source.color, MAX_CARD_COLOR_LENGTH) || null
+  });
+}
+
+function normalizeSeenBy(seenBy) {
+  if (!Array.isArray(seenBy)) return Object.freeze([]);
+  const ids = [...new Set(seenBy.filter(id => typeof id === 'string' && id !== ''))];
+  return Object.freeze(ids.slice(0, MAX_CARD_SEEN_BY));
+}
+
+// カード1枚を組み立てる。ADD_CARD・DRAW_CARDS・hydrateの3経路が必ずここを通るので、
+// どこから入っても同じ形・同じ上限になる。
+function buildCard({
+  id, face, back, x = 0, y = 0, faceUp = false,
+  stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = []
+}) {
+  return Object.freeze({
+    id,
+    x: Number(x) || 0,
+    y: Number(y) || 0,
+    cols: CARD_COLS,
+    rows: CARD_ROWS,
+    stackOrder: normalizeStackOrder(stackOrder),
+    locked: !!locked,
+    faceUp: !!faceUp,          // 表向きか。裏のあいだは描画側がfaceを出さない
+    face: normalizeCardFace(face),
+    back: normalizeCardBack(back),
+    seenBy: normalizeSeenBy(seenBy), // 「カードを見る」で表面を確認した人（MARK_CARD_SEEN）
+    deckId: typeof deckId === 'string' && deckId ? deckId : null // 出自のデッキ
+  });
+}
+
+// デッキが持つ札の並び。先頭が一番上（引くのは先頭から）。IDの重複は落とす。
+function normalizeDeckCards(cards) {
+  if (!Array.isArray(cards)) return Object.freeze([]);
+
+  const seen = new Set();
+  const normalized = [];
+
+  cards.forEach(card => {
+    if (normalized.length >= MAX_DECK_CARDS) return;
+    const id = card?.id;
+    if (typeof id !== 'string' || id === '' || seen.has(id)) return;
+    seen.add(id);
+    normalized.push(Object.freeze({ id, face: normalizeCardFace(card.face) }));
+  });
+
+  return Object.freeze(normalized);
+}
+
+function buildDeck({
+  id, name = '', x = 0, y = 0, back = null, cards = [],
+  stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false
+}) {
+  return Object.freeze({
+    id,
+    name: clampCardText(name, 40),
+    x: Number(x) || 0,
+    y: Number(y) || 0,
+    cols: CARD_COLS,
+    rows: CARD_ROWS,
+    stackOrder: normalizeStackOrder(stackOrder),
+    locked: !!locked,
+    back: normalizeCardBack(back),
+    cards: normalizeDeckCards(cards)
+  });
+}
+
+// 保存済み・同期されてきたカード／デッキを、状態へ入れられる形へ均す（hydrate専用）。
+// 取り込んだ部屋データ（信用しないJSON）もここを通るので、上限もまとめて掛かる。
+function isNamedObjectEntry([id, value]) {
+  return typeof id === 'string' && id !== '' && !!value && typeof value === 'object';
+}
+
+function normalizeCardMap(cards) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(cards || {})
+      .filter(isNamedObjectEntry)
+      .map(([id, card]) => [id, buildCard({ ...card, id })])
+  ));
+}
+
+function normalizeDeckMap(decks) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(decks || {})
+      .filter(isNamedObjectEntry)
+      .map(([id, deck]) => [id, buildDeck({ ...deck, id })])
+  ));
+}
+
+// 引いたカードの置き場所。デッキの右へ1マス空けて並べ、既に同じ場所にカードがあれば
+// 1段ずつ下へ逃がす（引いたカードが見えない位置に積み上がるのを防ぐ）。reducerが計算する
+// ので、全員の画面で必ず同じ位置に出る。gridSizeは描画側の定数なのでpayloadで受け取る。
+function findFreeCardSpot(cards, x, y, gridSize) {
+  const step = (CARD_ROWS + 1) * gridSize;
+  let spotY = y;
+
+  for (let i = 0; i < 8; i += 1) {
+    const taken = Object.values(cards).some(card => card.x === x && card.y === spotY);
+    if (!taken) break;
+    spotY += step;
+  }
+
+  return { x, y: spotY };
+}
+
 // 値がundefinedのキーを落とす。既存オブジェクトへの部分更新をスプレッドで作るとき、
 // undefinedが混ざると「指定なし」ではなく「その値で上書き」になってしまうのを防ぐ。
 function definedFields(patch) {
@@ -741,6 +919,26 @@ const PANEL_FIELD_PATCHES = {
   SET_PANEL_KEEP_ON_SCENE_CHANGE: ({ keepOnSceneChange }) => ({ keepOnSceneChange: !!keepOnSceneChange })
 };
 
+// カードの「決まった項目だけを差し替える」アクション。PANEL_FIELD_PATCHESと同じ扱い。
+const CARD_FIELD_PATCHES = {
+  MOVE_CARD: ({ x, y }) => ({ x, y }),
+  SET_CARD_LOCKED: ({ locked }) => ({ locked: !!locked }),
+  SET_CARD_STACK_ORDER: ({ stackOrder }) => ({ stackOrder: normalizeStackOrder(stackOrder) }),
+  // カードの公開（裏→表）と伏せ直し。誰でも行える（表面は「見る」でも確認できるので、
+  // ここをGM限定にしても隠せるものが増えない）。
+  SET_CARD_FACE_UP: ({ faceUp }) => ({ faceUp: !!faceUp })
+};
+
+// デッキの「決まった項目だけを差し替える」アクション。
+const DECK_FIELD_PATCHES = {
+  MOVE_DECK: ({ x, y }) => ({ x, y }),
+  SET_DECK_LOCKED: ({ locked }) => ({ locked: !!locked }),
+  SET_DECK_STACK_ORDER: ({ stackOrder }) => ({ stackOrder: normalizeStackOrder(stackOrder) }),
+  // 裏面の差し替え。既に引かれて盤面に出ているカードの裏面は変わらない
+  // （引いた時点の裏面を各カードが持つため。DRAW_CARDS参照）。
+  SET_DECK_BACK: ({ back }) => ({ back: normalizeCardBack(back) })
+};
+
 export class ImmutableStore {
   #state;
 
@@ -785,6 +983,11 @@ export class ImmutableStore {
       ...newState,
       tokens: newState.tokens || {},
       panels: newState.panels || {},
+      // この機能より前に保存された状態にはカード・デッキが無いため、既定値を補う。
+      // 取り込んだ部屋データ（信用しないJSON）もここを通るので、形の整えと上限も
+      // まとめて掛かる（normalizeCardMap／normalizeDeckMap）。
+      cards: normalizeCardMap(newState.cards),
+      decks: normalizeDeckMap(newState.decks),
       chatTabs: newState.chatTabs || [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],
       chatLogs: newState.chatLogs || { [MAIN_CHAT_TAB_ID]: [] },
       // この機能より前に保存された状態には情報（infoEntries）が無いため、既定値を補う。
@@ -852,6 +1055,32 @@ export class ImmutableStore {
 
       this.#commit(prevState, {
         panels: withMapEntry(prevState.panels, id, Object.freeze({ ...panel, ...fields }))
+      });
+      return;
+    }
+
+    const cardFieldPatch = CARD_FIELD_PATCHES[action];
+    if (cardFieldPatch) {
+      const { id } = payload;
+      const card = prevState.cards[id];
+      const fields = card ? cardFieldPatch(payload) : null;
+      if (!fields) return;
+
+      this.#commit(prevState, {
+        cards: withMapEntry(prevState.cards, id, Object.freeze({ ...card, ...fields }))
+      });
+      return;
+    }
+
+    const deckFieldPatch = DECK_FIELD_PATCHES[action];
+    if (deckFieldPatch) {
+      const { id } = payload;
+      const deck = prevState.decks[id];
+      const fields = deck ? deckFieldPatch(payload) : null;
+      if (!fields) return;
+
+      this.#commit(prevState, {
+        decks: withMapEntry(prevState.decks, id, Object.freeze({ ...deck, ...fields }))
       });
       return;
     }
@@ -1964,6 +2193,9 @@ export class ImmutableStore {
         // シーンの内側であるラウンド/プロセス/判定のバフもここで一緒に消える。
         const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, 'scene');
 
+        // 触るのはパネルだけで、カード・デッキ（state.cards／state.decks）には手を付けない。
+        // コマと同じ扱いで、引いた手札や場に出ている札が場面転換で巻き戻ったり消えたり
+        // しないようにするため。
         // 「シーンチェンジで残す」パネルは、遷移先のパネルへ重ねて持ち越す。
         // 同じidが両方にある場合（この属性より前に保存したシーン等）は盤面側を採る：
         // 保存したあとに動かした位置・大きさを巻き戻したくないため。
@@ -2331,6 +2563,150 @@ export class ImmutableStore {
         return;
       }
 
+      // --- カード（表と裏を持つ盤面オブジェクト。js/board-data-driven.js） ---
+      // 位置(x,y)・重なり順の規則はパネルと同じ。単項目の変更（移動/固定/重なり順/表裏）は
+      // CARD_FIELD_PATCHESで共通処理する。
+      // シーンの保存・適用（SAVE_SCENE・APPLY_SCENE）はカードとデッキに触らない。
+      // 場面が変わってもコマが消えないのと同じ扱いで、引いた手札が場面転換で巻き戻ったり
+      // 消えたりしないようにするため。
+      case 'ADD_CARD': {
+        const { id } = payload;
+        if (!id) return;
+        if (prevState.cards[id]) return;
+
+        this.#commit(prevState, {
+          cards: withMapEntry(prevState.cards, id, buildCard(payload))
+        });
+        return;
+      }
+
+      case 'REMOVE_CARD': {
+        const { id } = payload;
+        if (!prevState.cards[id]) return;
+
+        this.#commit(prevState, { cards: withoutMapEntry(prevState.cards, id) });
+        return;
+      }
+
+      // 「カードを見る」（裏のまま自分だけ表面を確認する）で、見た人を記録する。
+      // 見ること自体は誰にでも許すので、ここで止めるものは何もない。記録は全員に配られるが、
+      // 盤面には出さず、カードの右クリックメニューを開いた人だけが読める
+      // （js/board-data-driven.jsのカードメニュー）。
+      case 'MARK_CARD_SEEN': {
+        const { id, participantId } = payload;
+        const card = prevState.cards[id];
+        if (!card || typeof participantId !== 'string' || !participantId) return;
+        // 表示名を設定していない人（参加者IDを持たない）は記録できない。名前が無い記録は
+        // 「誰が見たか」を伝えられず、数だけ増えても意味がないため。
+        if (card.seenBy.includes(participantId)) return;
+        if (card.seenBy.length >= MAX_CARD_SEEN_BY) return;
+
+        this.#commit(prevState, {
+          cards: withMapEntry(prevState.cards, id, Object.freeze({
+            ...card,
+            seenBy: Object.freeze([...card.seenBy, participantId])
+          }))
+        });
+        return;
+      }
+
+      // --- デッキ（カードの束。裏向きでセットする） ---
+      // 束ねる札のIDは配置する側（js/deck-dialog.js）が発番して渡す。reducerで採番すると、
+      // 同じアクションを各クライアントが再実行したときに別々のIDになってしまう。
+      case 'ADD_DECK': {
+        const { id } = payload;
+        if (!id) return;
+        if (prevState.decks[id]) return;
+
+        this.#commit(prevState, {
+          decks: withMapEntry(prevState.decks, id, buildDeck(payload))
+        });
+        return;
+      }
+
+      // デッキだけを消す。既に引かれて盤面に出ているカードはそのまま残す。
+      case 'REMOVE_DECK': {
+        const { id } = payload;
+        if (!prevState.decks[id]) return;
+
+        this.#commit(prevState, { decks: withoutMapEntry(prevState.decks, id) });
+        return;
+      }
+
+      // シャッフル。並び替えた結果（IDの配列）を発火側が作って渡す。reducerでMath.random()を
+      // 呼ぶと、同じアクションを実行した各クライアントが別々の並びになってしまうため。
+      // 受け取った並びは「今デッキにある札の並べ替えであること」を必ず確かめる。ここを
+      // 省くと、細工したpayloadで札を増やす・減らす・すり替えることができてしまう。
+      case 'SHUFFLE_DECK': {
+        const { id, order } = payload;
+        const deck = prevState.decks[id];
+        if (!deck) return;
+        if (!Array.isArray(order) || order.length !== deck.cards.length) return;
+
+        const remaining = new Map(deck.cards.map(card => [card.id, card]));
+        const shuffled = [];
+
+        for (const cardId of order) {
+          const card = remaining.get(cardId);
+          if (!card) return; // 知らないID、または同じIDが2回出てきた
+          remaining.delete(cardId);
+          shuffled.push(card);
+        }
+
+        this.#commit(prevState, {
+          decks: withMapEntry(prevState.decks, id, Object.freeze({
+            ...deck,
+            cards: Object.freeze(shuffled)
+          }))
+        });
+        return;
+      }
+
+      // デッキの一番上からn枚引いて盤面へ出す。表向き(faceUp:true)でも裏向きでも引ける。
+      // 置き場所はデッキの位置から導く（findFreeCardSpot）ので、全員の画面で同じ位置に出る。
+      // gridSizeは描画側の定数（js/board-data-driven.jsのGRID_SIZE）で、game-storeは画面の
+      // 都合を持たない方針なのでpayloadで受け取る。
+      case 'DRAW_CARDS': {
+        const { deckId, count = 1, faceUp = false, gridSize = 25 } = payload;
+        const deck = prevState.decks[deckId];
+        if (!deck || deck.cards.length === 0) return;
+
+        const grid = Math.max(1, Math.round(Number(gridSize) || 25));
+        const drawCount = Math.min(
+          Math.max(1, Math.round(Number(count) || 1)),
+          MAX_DRAW_COUNT,
+          deck.cards.length
+        );
+
+        const drawn = deck.cards.slice(0, drawCount);
+        let nextCards = prevState.cards;
+
+        drawn.forEach((card, index) => {
+          const baseX = deck.x + (CARD_COLS + 1) * grid * (index + 1);
+          const spot = findFreeCardSpot(nextCards, baseX, deck.y, grid);
+          nextCards = withMapEntry(nextCards, card.id, buildCard({
+            id: card.id,
+            face: card.face,
+            // 裏面は引いた時点のものをカード自身が持つ（あとでデッキの裏面を変えても、
+            // 既に出ているカードの裏は変わらない）
+            back: deck.back,
+            x: spot.x,
+            y: spot.y,
+            faceUp,
+            deckId: deck.id
+          }));
+        });
+
+        this.#commit(prevState, {
+          cards: nextCards,
+          decks: withMapEntry(prevState.decks, deck.id, Object.freeze({
+            ...deck,
+            cards: Object.freeze(deck.cards.slice(drawCount))
+          }))
+        });
+        return;
+      }
+
       // --- 情報（タイトル＋内容の共有メモ。js/info-panel.js） ---
       // idはUI側（js/info-panel.js）が採番する。sectionは必ず1件以上：0件のエントリは
       // 作成者を含む誰にも見えず、画面から消すこともできない置き土産になるため。
@@ -2564,6 +2940,11 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
 
     // パネル（盤面上／盤面外に置けるマップタイル状のオブジェクト）
     panels: {},
+
+    // カード（表と裏を持つ盤面オブジェクト）と、その束＝デッキ。
+    // パネルと同じ層に並ぶが、シーンには保存されない（コマと同じ扱い。APPLY_SCENE参照）。
+    cards: {},
+    decks: {},
 
     // チャットタブ（Mainタブは常に存在する既定タブ）とタブごとのログ履歴
     chatTabs: [{ id: MAIN_CHAT_TAB_ID, name: 'Main' }],

@@ -2,10 +2,10 @@
 source: js/image-upload.js
 lines: 196
 exports: 5
-imported_by: 4
+imported_by: 5
 api_sha: 7b008ae3d053
 prose_sha: 7b008ae3d053
-generated: 2026-08-17
+generated: 2026-08-18
 tags: [codemap]
 ---
 
@@ -49,7 +49,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.file-uploader]], [[js.local-identity]], [[js.room-entry]]
-- imported by → [[js.background-dialog]], [[js.board-data-driven]], [[js.character-dialog]], [[js.panel-dialog]]
+- imported by → [[js.background-dialog]], [[js.board-data-driven]], [[js.character-dialog]], [[js.deck-dialog]], [[js.panel-dialog]]
 
 ## 注意
 

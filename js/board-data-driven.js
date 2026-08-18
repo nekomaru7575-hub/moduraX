@@ -7,13 +7,14 @@ import { loadImageDimensions } from './image-dimensions.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
+import { showDrawCountDialog, showCardPeekDialog } from './deck-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import {
   pluginHasCharacterImport, importCharacterJsonForPlugin, getPluginSheetSource
 } from './parameters/registry.js';
 import { promptForCharacterSheetJson } from './character-sheet-import.js';
 import { pickFileAsText } from './file-uploader.js';
-import { adoptImageIntoRoom } from './image-upload.js';
+import { adoptImageIntoRoom, pickAndUploadImage } from './image-upload.js';
 import { importCharacterJsonGeneric } from './character-json-import.js';
 import { getLocalUserId, getCurrentParticipantId } from './local-identity.js';
 import { showAudienceDialog } from './audience-picker.js';
@@ -178,8 +179,13 @@ function getContentBounds(board) {
     if (y + h > maxY) maxY = y + h;
   };
 
-  Object.values(store.state.panels || {}).forEach(panel => {
-    extend(panel.x, panel.y, panel.cols * GRID_SIZE, panel.rows * GRID_SIZE);
+  // パネル・カード・デッキはどれも cols/rows（マス数）で大きさを持つ
+  [
+    ...Object.values(store.state.panels || {}),
+    ...Object.values(store.state.cards || {}),
+    ...Object.values(store.state.decks || {})
+  ].forEach(item => {
+    extend(item.x, item.y, item.cols * GRID_SIZE, item.rows * GRID_SIZE);
   });
 
   // バックヤードにしまわれたコマは盤面に描画されないので数えない
@@ -596,53 +602,57 @@ function applyPanelAppearance(el, panelData) {
   el.classList.toggle('locked', !!panelData.locked);
 }
 
-// パネルのドラッグ移動。ドロップ時にグリッドへ吸着させるだけで、置ける場所は制限しない
-// （盤面から離れた位置にも置ける）。
-function bindPanelDrag(element) {
+// パネル・カード・デッキに共通のドラッグ移動。ドロップ時にグリッドへ吸着させるだけで、
+// 置ける場所は制限しない（盤面から離れた位置にも置ける）。
+// readState＝idから今の状態（x/y/lockedを持つもの）を引く関数、moveAction＝移動の
+// アクション名、openMenu＝右クリックと長押しの共通の入口。
+function bindBoardObjectDrag(element, { readState, moveAction, openMenu }) {
   const gesture = bindDragGesture(element, {
     stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
     onStart: (event) => {
-      const panelId = element.id;
-      const currentPanelState = store.state.panels[panelId];
-      if (!currentPanelState) return false;
+      const current = readState(element.id);
+      if (!current) return false;
 
       // 固定中は移動しない。stopPropagationもされないので、その上のドラッグは
       // 盤面(viewport)へ伝播して盤面パンとして扱われる。
-      if (currentPanelState.locked) return false;
+      if (current.locked) return false;
 
       activeBoardDrag = gesture;
 
       return {
-        panelId,
         startClientX: event.clientX,
         startClientY: event.clientY,
-        startX: currentPanelState.x,
-        startY: currentPanelState.y
+        startX: current.x,
+        startY: current.y
       };
     },
 
-    onMove: (event, { panelId, startClientX, startClientY, startX, startY }) => {
+    onMove: (event, { startClientX, startClientY, startX, startY }) => {
       const deltaX = (event.clientX - startClientX) / scale;
       const deltaY = (event.clientY - startClientY) / scale;
-      store.dispatch('MOVE_PANEL', { id: panelId, x: startX + deltaX, y: startY + deltaY });
+      store.dispatch(moveAction, { id: element.id, x: startX + deltaX, y: startY + deltaY });
     },
 
-    onEnd: (event, { panelId }) => {
+    onEnd: () => {
       activeBoardDrag = null;
 
-      const latest = store.state.panels[panelId];
+      const latest = readState(element.id);
       if (!latest) return;
 
       const snappedX = Math.round(latest.x / GRID_SIZE) * GRID_SIZE;
       const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
 
-      store.dispatch('MOVE_PANEL', { id: panelId, x: snappedX, y: snappedY });
+      store.dispatch(moveAction, { id: element.id, x: snappedX, y: snappedY });
     },
 
-    onLongPress: (event) => openPanelMenu(event)
+    onLongPress: (event) => openMenu(event)
   });
 
+  element.addEventListener('contextmenu', openMenu);
+}
+
+function bindPanelDrag(element) {
   // 右クリックと長押しの共通の入口
   function openPanelMenu(event) {
     event.preventDefault();
@@ -735,7 +745,11 @@ function bindPanelDrag(element) {
     ]);
   }
 
-  element.addEventListener('contextmenu', openPanelMenu);
+  bindBoardObjectDrag(element, {
+    readState: (id) => store.state.panels[id],
+    moveAction: 'MOVE_PANEL',
+    openMenu: openPanelMenu
+  });
 }
 
 // パネルは盤面直下ではなく専用の層（#panel-layer）へ入れる。層がz-indexを持つことで、
@@ -749,6 +763,331 @@ function createPanelElement(panelData, panelLayer) {
   bindPanelDrag(el);
   panelLayer.appendChild(el);
   return el;
+}
+
+// --- カード／デッキ ---
+// カードとデッキはパネルと同じ層(#panel-layer)に入れ、同じstackOrderの物差しで前後を
+// 決める（カードの既定10 > パネルの既定0 なので、既定のままならカードがパネルの上に乗る）。
+// 層がz-indexを持つので、何番を付けてもコマより手前には出ない。
+//
+// 裏向きのカードは表面(face)を一切DOMへ出さない。状態そのものは全員へ配られているので
+// これは「うっかり見えない」までの仕組みだが、画面上で読めてしまう事故はこれで防げる
+// （js/game-store.jsのカード／デッキの節・js/visibility.js冒頭）。
+
+// 画像を1枚出す共通処理。URLが変わったときだけsrcを差し替え（毎回入れ直すと画像が
+// ちらつく）、読めなかったら隠してテキスト表示へ落とす（画像を用意していなくても
+// カードとして使えるようにするため。image/trump/README.txt）。
+function applyObjectImage(img, url) {
+  if (!url) {
+    img.removeAttribute('src');
+    delete img.dataset.url;
+    img.style.display = 'none';
+    return;
+  }
+
+  if (img.dataset.url === url) return;
+  img.dataset.url = url;
+  img.style.display = '';
+  img.src = url;
+}
+
+function applyCardAppearance(el, cardData) {
+  el.style.width = `${cardData.cols * GRID_SIZE}px`;
+  el.style.height = `${cardData.rows * GRID_SIZE}px`;
+
+  // 表向きなら表面、裏向きなら裏面。裏向きの間はface（スートと数字）に一切触れない
+  const side = cardData.faceUp ? cardData.face : cardData.back;
+
+  const img = el.querySelector('.card-image');
+  const text = el.querySelector('.card-text');
+
+  applyObjectImage(img, side.image);
+
+  // 文字は表向きのときだけ。裏面は無地（裏に文字を出すと表面が透ける意味になる）
+  text.textContent = cardData.faceUp ? (cardData.face.text || '') : '';
+  text.style.color = cardData.faceUp ? (cardData.face.color || '') : '';
+
+  el.classList.toggle('face-down', !cardData.faceUp);
+  el.classList.toggle('locked', !!cardData.locked);
+}
+
+function applyDeckAppearance(el, deckData) {
+  el.style.width = `${deckData.cols * GRID_SIZE}px`;
+  el.style.height = `${deckData.rows * GRID_SIZE}px`;
+
+  applyObjectImage(el.querySelector('.card-image'), deckData.back.image);
+
+  el.querySelector('.deck-name').textContent = deckData.name || '';
+  el.querySelector('.deck-count').textContent = `${deckData.cards.length}`;
+  el.title = `${deckData.name || 'デッキ'}（残り${deckData.cards.length}枚）`;
+
+  el.classList.toggle('empty', deckData.cards.length === 0);
+  el.classList.toggle('locked', !!deckData.locked);
+}
+
+// 盤面に出ている物すべての中で一番上の重なり順＋1。カードの「最前面へ」で使う。
+function nextTopStackOrder() {
+  const state = store.state;
+  const all = [
+    ...Object.values(state.panels || {}),
+    ...Object.values(state.cards || {}),
+    ...Object.values(state.decks || {})
+  ];
+  const top = all.reduce((max, item) => Math.max(max, normalizeStackOrder(item.stackOrder)), 0);
+  return top + 1;
+}
+
+// 「見た人」の表示。参加者一覧から引けなければ（表示名を変えた・削除された等）
+// IDのままでは意味が伝わらないのでownerNameOfと同じ言い方にそろえる。
+function seenByNames(cardData) {
+  return cardData.seenBy.map(id => store.state.participants?.[id]?.nickname || '不明な参加者');
+}
+
+function bindCardDrag(element) {
+  function openCardMenu(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const cardId = element.id;
+    const cardData = store.state.cards[cardId];
+    if (!cardData) return;
+
+    const myParticipantId = getCurrentParticipantId();
+
+    // 「誰が見たか」は盤面には出さず、このメニューを開いた人だけが読む
+    // （盤面に出すと、伏せたカードのそばに常時マークが並んで場が読みにくくなる）。
+    const names = seenByNames(cardData);
+    const seenItem = names.length ? [{
+      label: `見た人（${names.length}人）: ${names.join('、')}`,
+      disabled: true,
+      title: names.join('\n'),
+      onSelect: () => {}
+    }] : [];
+
+    // 表示名を設定していない人は参加者IDを持たないので、記録として残せない
+    // （記録できないだけで、表面を見ること自体は下の「表にする」で誰でもできる）。
+    const canRecordSeen = !!myParticipantId;
+
+    const peekItem = cardData.faceUp ? [] : [{
+      label: 'カードを見る（自分だけ）',
+      disabled: !canRecordSeen,
+      title: canRecordSeen
+        ? '裏向きのまま、自分だけ表面を確認します。見たことはカードに記録されます。'
+        : '表示名を設定すると使えます（誰が見たかを記録できないため）。',
+      onSelect: () => {
+        const latest = store.state.cards[cardId];
+        if (!latest) return;
+        showCardPeekDialog({ face: latest.face });
+        store.dispatch('MARK_CARD_SEEN', { id: cardId, participantId: myParticipantId });
+      }
+    }];
+
+    showContextMenu(event.clientX, event.clientY, [
+      ...seenItem,
+      ...peekItem,
+      {
+        label: cardData.faceUp ? '裏にする' : '表にする（全員に公開）',
+        onSelect: () => {
+          store.dispatch('SET_CARD_FACE_UP', { id: cardId, faceUp: !cardData.faceUp });
+        }
+      },
+      {
+        label: '最前面へ',
+        title: '他のカード・パネルより手前に重ねます（コマより手前には出ません）。',
+        onSelect: () => {
+          store.dispatch('SET_CARD_STACK_ORDER', { id: cardId, stackOrder: nextTopStackOrder() });
+        }
+      },
+      {
+        label: cardData.locked ? '固定を解除' : '固定',
+        onSelect: () => {
+          store.dispatch('SET_CARD_LOCKED', { id: cardId, locked: !cardData.locked });
+        }
+      },
+      {
+        label: '削除',
+        danger: true,
+        onSelect: () => {
+          store.dispatch('REMOVE_CARD', { id: cardId });
+        }
+      }
+    ]);
+  }
+
+  bindBoardObjectDrag(element, {
+    readState: (id) => store.state.cards[id],
+    moveAction: 'MOVE_CARD',
+    openMenu: openCardMenu
+  });
+}
+
+function createCardElement(cardData, panelLayer) {
+  const el = document.createElement('div');
+  el.className = 'card-object';
+  el.id = cardData.id;
+
+  const img = document.createElement('img');
+  img.className = 'card-image';
+  img.alt = '';
+  // 画像が無い／読めないときはテキスト表示へ落とす（image/trump/README.txt）
+  img.addEventListener('error', () => { img.style.display = 'none'; });
+  el.appendChild(img);
+
+  const text = document.createElement('span');
+  text.className = 'card-text';
+  el.appendChild(text);
+
+  applyCardAppearance(el, cardData);
+  bindCardDrag(el);
+  panelLayer.appendChild(el);
+  return el;
+}
+
+function bindDeckDrag(element) {
+  function openDeckMenu(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const deckId = element.id;
+    const deckData = store.state.decks[deckId];
+    if (!deckData) return;
+
+    const remaining = deckData.cards.length;
+    const emptyReason = remaining === 0 ? '残り0枚です。' : undefined;
+
+    const drawItem = (label, faceUp, count) => ({
+      label,
+      disabled: remaining === 0,
+      title: emptyReason,
+      onSelect: () => {
+        store.dispatch('DRAW_CARDS', { deckId, count, faceUp, gridSize: GRID_SIZE });
+      }
+    });
+
+    const drawManyItem = (label, faceUp) => ({
+      label,
+      disabled: remaining === 0,
+      title: emptyReason,
+      onSelect: () => {
+        const latest = store.state.decks[deckId];
+        if (!latest || latest.cards.length === 0) return;
+        showDrawCountDialog({
+          faceUp,
+          max: latest.cards.length,
+          onConfirm: (count) => {
+            store.dispatch('DRAW_CARDS', { deckId, count, faceUp, gridSize: GRID_SIZE });
+          }
+        });
+      }
+    });
+
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: `${deckData.name || 'デッキ'}（残り${remaining}枚）`,
+        disabled: true,
+        onSelect: () => {}
+      },
+      drawItem('表向きで1枚引く', true, 1),
+      drawItem('裏向きで1枚引く', false, 1),
+      drawManyItem('表向きで枚数を指定して引く', true),
+      drawManyItem('裏向きで枚数を指定して引く', false),
+      {
+        label: 'シャッフル',
+        disabled: remaining < 2,
+        title: remaining < 2 ? '混ぜるほど札がありません。' : undefined,
+        onSelect: () => {
+          const latest = store.state.decks[deckId];
+          if (!latest) return;
+          // 並びはここで作って配る。reducerでMath.random()を呼ぶと、同じアクションを
+          // 実行した各クライアントが別々の並びになってしまう（js/game-store.jsのSHUFFLE_DECK）。
+          const order = latest.cards.map(card => card.id);
+          for (let i = order.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [order[i], order[j]] = [order[j], order[i]];
+          }
+          store.dispatch('SHUFFLE_DECK', { id: deckId, order });
+        }
+      },
+      {
+        label: '裏面画像を変更',
+        title: '既に引かれて盤面に出ているカードの裏面は変わりません。',
+        onSelect: async () => {
+          const picked = await pickAndUploadImage({ purpose: 'card' });
+          if (!picked) return;
+          store.dispatch('SET_DECK_BACK', { id: deckId, back: { image: picked.url, color: null } });
+        }
+      },
+      {
+        label: deckData.locked ? '固定を解除' : '固定',
+        onSelect: () => {
+          store.dispatch('SET_DECK_LOCKED', { id: deckId, locked: !deckData.locked });
+        }
+      },
+      {
+        label: 'デッキを削除',
+        danger: true,
+        title: '盤面に出ているカードは消えません。',
+        onSelect: () => {
+          store.dispatch('REMOVE_DECK', { id: deckId });
+        }
+      }
+    ]);
+  }
+
+  bindBoardObjectDrag(element, {
+    readState: (id) => store.state.decks[id],
+    moveAction: 'MOVE_DECK',
+    openMenu: openDeckMenu
+  });
+}
+
+function createDeckElement(deckData, panelLayer) {
+  const el = document.createElement('div');
+  el.className = 'deck-object';
+  el.id = deckData.id;
+
+  const img = document.createElement('img');
+  img.className = 'card-image';
+  img.alt = '';
+  img.addEventListener('error', () => { img.style.display = 'none'; });
+  el.appendChild(img);
+
+  const name = document.createElement('span');
+  name.className = 'deck-name';
+  el.appendChild(name);
+
+  const count = document.createElement('span');
+  count.className = 'deck-count';
+  el.appendChild(count);
+
+  applyDeckAppearance(el, deckData);
+  bindDeckDrag(el);
+  panelLayer.appendChild(el);
+  return el;
+}
+
+/**
+ * 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。
+ * ルームメニューのように「盤面のどこか」を指していない操作から物を置くときに使う
+ * （js/main.jsの「デッキを配置」）。cols/rowsを渡すと、その大きさの物の左上を返す
+ * （＝物の中心が画面の中心に来る）。
+ * @param {{cols?: number, rows?: number}} size マス数
+ */
+export function getBoardDropSpot({ cols = 0, rows = 0 } = {}) {
+  const board = document.getElementById('board');
+  const viewport = document.getElementById('board-viewport');
+  if (!board || !viewport) return { x: 0, y: 0 };
+
+  const boardRect = board.getBoundingClientRect();
+  const viewportRect = viewport.getBoundingClientRect();
+
+  const centerX = (viewportRect.left + viewportRect.width / 2 - boardRect.left) / scale;
+  const centerY = (viewportRect.top + viewportRect.height / 2 - boardRect.top) / scale;
+
+  return {
+    x: Math.round((centerX - cols * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE,
+    y: Math.round((centerY - rows * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE
+  };
 }
 
 function clampPan(viewport, board) {
@@ -1113,36 +1452,47 @@ window.addEventListener('DOMContentLoaded', () => {
   EventBus.subscribe('STATE_CHANGED', (state) => {
     applyBoardBackground(board, state.room);
 
-    // --- パネルの同期（コマより下に敷く背景層） ---
+    // --- パネル・カード・デッキの同期（コマより下に敷く層） ---
+    // 3種類とも同じ層(#panel-layer)に入れ、同じstackOrderの物差しで前後を決める
+    // （カード・デッキの既定は10、パネルの既定は0）。
     const panels = state.panels || {};
-    const existingPanelIds = new Set(
-      Array.from(panelLayer.querySelectorAll('.panel-object')).map(el => el.id)
-    );
-    const panelIds = new Set(Object.keys(panels));
+    const cards = state.cards || {};
+    const decks = state.decks || {};
 
-    existingPanelIds.forEach(id => {
-      if (!panelIds.has(id)) {
+    const layerIds = new Set([...Object.keys(panels), ...Object.keys(cards), ...Object.keys(decks)]);
+    const existingLayerIds = new Set(
+      Array.from(panelLayer.querySelectorAll('.panel-object, .card-object, .deck-object')).map(el => el.id)
+    );
+
+    existingLayerIds.forEach(id => {
+      if (!layerIds.has(id)) {
         const el = document.getElementById(id);
         if (el) el.remove();
       }
     });
 
     // 重なり順（stackOrder）の小さいものから並べ、その並び順の添字をそのままz-indexにする。
-    // sortは安定なので、同値のパネルはpanelsマップの並び（＝追加された順）のまま後ろに
-    // 来る＝上に重なる。DOMの並びに頼らず全員が状態から同じ値を計算するので、シーンの適用
-    // などで要素の生成順が入れ替わっても、どの画面でも同じ重なりになる。
-    const stackedPanels = Object.values(panels)
-      .sort((a, b) => normalizeStackOrder(a.stackOrder) - normalizeStackOrder(b.stackOrder));
+    // sortは安定なので、同値の物は下の配列の並び（パネル→デッキ→カード、それぞれ状態の
+    // マップの並び＝追加された順）のまま後ろに来る＝上に重なる。DOMの並びに頼らず全員が
+    // 状態から同じ値を計算するので、シーンの適用などで要素の生成順が入れ替わっても、
+    // どの画面でも同じ重なりになる。
+    // カードをデッキより後に並べているのは、既定の重なり順が同じどうしで重ねたとき、
+    // 手で動かすカードの方が上に来るのが自然なため（デッキは置きっぱなしの台）。
+    const stacked = [
+      ...Object.values(panels).map(data => ({ data, apply: applyPanelAppearance, create: createPanelElement })),
+      ...Object.values(decks).map(data => ({ data, apply: applyDeckAppearance, create: createDeckElement })),
+      ...Object.values(cards).map(data => ({ data, apply: applyCardAppearance, create: createCardElement }))
+    ].sort((a, b) => normalizeStackOrder(a.data.stackOrder) - normalizeStackOrder(b.data.stackOrder));
 
-    stackedPanels.forEach((panelData, stackIndex) => {
-      let el = document.getElementById(panelData.id);
+    stacked.forEach(({ data, apply, create }, stackIndex) => {
+      let el = document.getElementById(data.id);
       if (!el) {
-        el = createPanelElement(panelData, panelLayer);
+        el = create(data, panelLayer);
       }
-      el.style.left = `${panelData.x}px`;
-      el.style.top = `${panelData.y}px`;
+      el.style.left = `${data.x}px`;
+      el.style.top = `${data.y}px`;
       el.style.zIndex = stackIndex;
-      applyPanelAppearance(el, panelData);
+      apply(el, data);
     });
 
     // --- コマの同期 ---

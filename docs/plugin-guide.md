@@ -925,6 +925,24 @@ const MY_SKILL_SPEC = createSkillSpec({
 | `SET_COMPONENT` | `{ id, componentKey, value }` | components を保存する |
 | `ADD_CHAT_MESSAGE` | `{ tabId: 'main', entry: {...} }` | チャットへ結果を流す |
 
+盤面のカードとデッキを扱うものは別系統にある（`js/game-store.js` の「カード／デッキ」の節）。
+
+| アクション | payload | 用途 |
+|---|---|---|
+| `ADD_DECK` | `{ id, name, x, y, back, cards: [{ id, face }] }` | デッキを盤面に置く。札の `id` は**呼び出し側で発番する** |
+| `DRAW_CARDS` | `{ deckId, count, faceUp, gridSize }` | 上から n 枚引いて盤面へ出す。置き場所は reducer が決める |
+| `SHUFFLE_DECK` | `{ id, order: [cardId...] }` | **並び替えた結果を渡す**（下記） |
+| `SET_CARD_FACE_UP` | `{ id, faceUp }` | カードの公開・伏せ直し |
+| `MARK_CARD_SEEN` | `{ id, participantId }` | 「カードを見る」で見た人を記録する |
+| `ADD_CARD` / `REMOVE_CARD` / `MOVE_CARD` | `{ id, ... }` | デッキを介さず1枚だけ扱う |
+
+デッキの中身（`face` の形）は `js/card-catalog.js` を参照。`face.image` があれば画像、無ければ `face.text` を `face.color` で描く。
+
+> **reducer で乱数・時刻を使わないこと。** 同じアクションを各クライアントが再実行するので、
+> `Math.random()` や `Date.now()` を reducer の中で呼ぶと画面ごとに結果がずれる。
+> シャッフルの並びも札の ID も**発火側で作って payload に載せる**（`SHUFFLE_DECK` の
+> `order` は「今デッキにある札の並べ替えか」を reducer 側で検証している）。
+
 `expirePhase` は `'check' | 'process' | 'round' | 'scene' | 'scenario' | null`（null は手動で外すまで）。
 入れ子は外側 → 内側で `scenario ⊃ scene ⊃ round ⊃ process ⊃ check`。外側が終了すると内側もまとめて剥がれる。
 

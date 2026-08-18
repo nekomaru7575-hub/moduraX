@@ -92,6 +92,14 @@ export function generateDeckId() {
   return `deck-user-${Date.now()}-${deckIdCounter}`;
 }
 
+let deckTemplateIdCounter = 0;
+
+// デッキの定義（room.deckTemplates）のid。盤面に置いた山札のidとは別物。
+export function generateDeckTemplateId() {
+  deckTemplateIdCounter += 1;
+  return `decktpl-${Date.now()}-${deckTemplateIdCounter}`;
+}
+
 let buffIdCounter = 0;
 
 export function generateBuffId() {
@@ -509,11 +517,22 @@ const MAX_DRAW_COUNT = 20;
 // 状態は全員へ配られ、Redisへも書き戻るので、ここが無いと1回のアクションで部屋を
 // 太らせられる（MAX_STAMP_COUNTと同じ趣旨の歯止め）。
 const MAX_DECK_CARDS = 200;
-const MAX_CARD_TEXT_LENGTH = 8;
+// カード名（画像が無いときにカードの中央へ出る文字）。トランプの「♠A」から
+// タロットの「ワンドのナイト」までが収まる長さ。
+const MAX_CARD_TEXT_LENGTH = 24;
+// カード情報（パネルのテキストと同じ役目。表向きのときだけ読める）。
+// 200枚×この長さが状態に載るので、パネルと違って上限を持たせてある。
+const MAX_CARD_INFO_LENGTH = 300;
 const MAX_CARD_IMAGE_LENGTH = 1000;
 const MAX_CARD_COLOR_LENGTH = 32;
 // 「見た人」(seenBy)の上限。参加者の数を超えることはないが、payloadは信用しない。
 const MAX_CARD_SEEN_BY = 100;
+
+// デッキの定義（room.deckTemplates）の上限。1行＝1種類のカードで、行ごとに枚数を持つ。
+// 展開後の合計はMAX_DECK_CARDSで別に切る（expandDeckTemplate・ADD_DECK）。
+const MAX_DECK_TEMPLATE_ROWS = 100;
+const MAX_DECK_TEMPLATE_ROW_COUNT = 99;
+const MAX_DECK_NAME_LENGTH = 40;
 
 function clampCardText(value, max) {
   return typeof value === 'string' ? value.slice(0, max) : '';
@@ -525,13 +544,17 @@ function normalizeCardImage(image) {
   return image;
 }
 
-// カードの表面。imageがあれば画像で描き、無い／読めないときはtextをcolorで描く
+// カードの表面。imageがあれば画像で描き、無い／読めないときはtext（カード名）をcolorで描く
 // （js/board-data-driven.jsのapplyCardAppearance）。
+// infoはカード情報で、パネルのテキストと同じくマウスオーバー・右クリックメニューで読ませる。
+// 表面の一部なので、裏向きの間は描画側が一切出さない（この機能より前のカードには
+// キーが無いので、ここで空文字を補う）。
 function normalizeCardFace(face) {
   const source = (face && typeof face === 'object') ? face : {};
   return Object.freeze({
     image: normalizeCardImage(source.image),
     text: clampCardText(source.text, MAX_CARD_TEXT_LENGTH),
+    info: clampCardText(source.info, MAX_CARD_INFO_LENGTH),
     color: clampCardText(source.color, MAX_CARD_COLOR_LENGTH) || null
   });
 }
@@ -597,7 +620,7 @@ function buildDeck({
 }) {
   return Object.freeze({
     id,
-    name: clampCardText(name, 40),
+    name: clampCardText(name, MAX_DECK_NAME_LENGTH),
     x: Number(x) || 0,
     y: Number(y) || 0,
     cols: CARD_COLS,
@@ -628,6 +651,42 @@ function normalizeDeckMap(decks) {
     Object.entries(decks || {})
       .filter(isNamedObjectEntry)
       .map(([id, deck]) => [id, buildDeck({ ...deck, id })])
+  ));
+}
+
+// --- デッキの定義（room.deckTemplates） ---
+// 「作り置きの設計図」。盤面に置かれた山札（state.decks）とは別物で、こちらは
+// 1行＝1種類のカード＋枚数で持つ（同じ札が10枚あっても行は1つ）。
+// デッキ作成UI（js/deck-editor-dialog.js）が書き、配置のときに1枚ずつへ展開する
+// （js/card-catalog.jsのexpandDeckTemplate）。オリジナル表（room.originalTables）と
+// 同じ「部屋のみんなで共有する作り置き」の置き場所。
+function buildDeckTemplateCard(card, index) {
+  const source = (card && typeof card === 'object') ? card : {};
+  return Object.freeze({
+    // 行のid。編集画面が行を識別するためのもので、盤面のカードのidとは別
+    id: typeof source.id === 'string' && source.id ? source.id.slice(0, 64) : `row-${index}`,
+    name: clampCardText(source.name, MAX_CARD_TEXT_LENGTH),
+    count: Math.max(1, Math.min(MAX_DECK_TEMPLATE_ROW_COUNT, Math.round(Number(source.count) || 1))),
+    text: clampCardText(source.text, MAX_CARD_INFO_LENGTH), // カード情報
+    image: normalizeCardImage(source.image)
+  });
+}
+
+function buildDeckTemplate({ id, name = '', back = null, cards = [] }) {
+  const rows = Array.isArray(cards) ? cards.slice(0, MAX_DECK_TEMPLATE_ROWS) : [];
+  return Object.freeze({
+    id,
+    name: clampCardText(name, MAX_DECK_NAME_LENGTH),
+    back: normalizeCardBack(back),
+    cards: Object.freeze(rows.map(buildDeckTemplateCard))
+  });
+}
+
+function normalizeDeckTemplateMap(templates) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(templates || {})
+      .filter(isNamedObjectEntry)
+      .map(([id, template]) => [id, buildDeckTemplate({ ...template, id })])
   ));
 }
 
@@ -1005,6 +1064,9 @@ export class ImmutableStore {
         bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM,
         // この機能より前に保存された状態にはroom.originalTablesが無いため、既定値を補う
         originalTables: newState.room?.originalTables || {},
+        // デッキの定義。同上で既定値を補いつつ、取り込んだ部屋データ（信用しないJSON）も
+        // ここを通るので形の整えと上限もまとめて掛かる
+        deckTemplates: normalizeDeckTemplateMap(newState.room?.deckTemplates),
         // 同上、音楽機能より前に保存された状態には無いため既定値を補う
         audioTracks: newState.room?.audioTracks || {},
         audioPlayback: newState.room?.audioPlayback || { bgm: null, se: null },
@@ -2092,6 +2154,38 @@ export class ImmutableStore {
         return;
       }
 
+      // --- デッキの定義（js/deck-list-dialog.js・js/deck-editor-dialog.js） ---
+      // 作り置きのデッキ。盤面に置いた山札（state.decks）とは別で、こちらは
+      // 1行＝1種類のカード＋枚数で持つ。オリジナル表と同じく部屋の全員で共有し、
+      // 誰でも作成・編集・削除できる。
+      // 同じidで呼べば上書き（SAVE_SCENEと同じ「キー重複＝上書き」の規則）。
+      case 'SAVE_DECK_TEMPLATE': {
+        const { id, name } = payload;
+        if (!id || !name) return;
+        const room = prevState.room;
+
+        this.#commit(prevState, {
+          room: {
+            ...room,
+            deckTemplates: withMapEntry(room.deckTemplates || {}, id, buildDeckTemplate(payload))
+          }
+        });
+        return;
+      }
+
+      // 定義を消すだけで、その定義から作って盤面に置いてある山札・カードには触らない
+      // （置いた時点で1枚ずつへ展開され、定義とは切り離されているため）。
+      case 'REMOVE_DECK_TEMPLATE': {
+        const { id } = payload;
+        const room = prevState.room;
+        if (!room.deckTemplates?.[id]) return;
+
+        this.#commit(prevState, {
+          room: { ...room, deckTemplates: withoutMapEntry(room.deckTemplates, id) }
+        });
+        return;
+      }
+
       // --- シーン（js/scene-list-dialog.js） ---
       // GMが場面ごとに盤面の見た目（背景・盤面サイズ・パネル）を保存し、1クリックで
       // 切り替えるための機能。すべてGM限定で、server/index.jsのGM_ONLY_ACTIONSにも
@@ -2911,6 +3005,11 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       showEntryMessages: true,
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
+
+      // ユーザー定義のデッキ（js/deck-editor-dialog.js）。盤面に置いた山札（state.decks）とは
+      // 別の「作り置きの設計図」で、1行＝1種類のカード＋枚数。キーはid（名前は変わりうるため）。
+      // { [id]: { id, name, back: {image,color}, cards: [{ id, name, count, text, image }] } }
+      deckTemplates: {},
 
       // 音楽（js/audio-player.js／js/audio-dialog.js）。音の実体は状態に入れずURLだけを持つ
       // （実体を入れると、アクションのたびに状態ごとRedisへ書き直されて帯域を食い潰すため。

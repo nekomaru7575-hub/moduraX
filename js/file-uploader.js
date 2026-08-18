@@ -49,6 +49,35 @@ export function pickFile({ accept = '*/*' } = {}) {
 }
 
 /**
+ * 同じくファイル選択ダイアログを開くが、複数まとめて選べる版。選択順ではなく
+ * ブラウザが返す順（多くの環境ではファイル名順）で返す。キャンセルなら空配列。
+ *
+ * デッキ作成の「画像をまとめて追加」（js/deck-editor-dialog.js）のためにある。
+ * 78枚のタロットを1枚ずつ登録させるのは現実的でないため。
+ *
+ * @param {{ accept?: string }} options
+ * @returns {Promise<File[]>}
+ */
+export function pickFiles({ accept = '*/*' } = {}) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.style.display = 'none';
+
+    input.addEventListener('change', () => {
+      const files = Array.from(input.files || []);
+      input.remove();
+      resolve(files);
+    });
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+/**
  * ネイティブのファイル選択ダイアログを開き、選択されたファイルをテキストとして読み込む。
  * JSONインポート等、バイナリ変換が不要な用途向け。キャンセルされた場合はnullを返す。
  *

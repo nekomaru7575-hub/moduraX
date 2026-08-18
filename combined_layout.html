@@ -1177,14 +1177,27 @@
       display: block;
     }
 
-    /* 画像が無いときに出るスートと数字。画像があるときはその下に隠れる。 */
+    /* 画像が無いときに出るカード名（トランプならスートと数字）。画像があるときはその下に隠れる。
+       カードの幅は4マス（100px）しかないので、長い名前は折り返して小さく出す
+       （段階の切り替えはjs/board-data-driven.jsのcardTextSizeClass）。 */
     .card-text {
       position: absolute;
+      left: 4px;
+      right: 4px;
       font-size: 24px;
       font-weight: bold;
-      line-height: 1.1;
+      line-height: 1.15;
       text-align: center;
+      overflow-wrap: anywhere;
       pointer-events: none;
+    }
+
+    .card-text.len-m {
+      font-size: 15px;
+    }
+
+    .card-text.len-l {
+      font-size: 11px;
     }
 
     /* 固定中のカード・デッキ：パネルと同じく実線枠と通常カーソルで示す */
@@ -1258,9 +1271,22 @@
 
     .card-peek-text {
       position: absolute;
-      font-size: 40px;
+      left: 8px;
+      right: 8px;
+      text-align: center;
+      font-size: 28px;
       font-weight: bold;
+      overflow-wrap: anywhere;
       color: #1b1b1b;
+    }
+
+    /* 「カードを見る」で出すカード情報（face.info）。カードの絵の下に本文として置く。 */
+    .card-peek-info {
+      margin: 0 0 8px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #ddd;
+      font-size: 0.9rem;
     }
 
     /* ログ＋チャット欄の縦並び。高さの配分は固定で、ここ自体はスクロールしない。

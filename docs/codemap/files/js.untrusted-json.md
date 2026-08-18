@@ -2,7 +2,7 @@
 source: js/untrusted-json.js
 lines: 29
 exports: 1
-imported_by: 5
+imported_by: 6
 api_sha: b23b7feae826
 prose_sha: b23b7feae826
 generated: 2026-08-18
@@ -39,7 +39,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.character-snapshot]], [[js.main]], [[js.net-sync]], [[js.room-index]], [[server.index]]
+- imported by → [[js.character-snapshot]], [[js.deck-file]], [[js.main]], [[js.net-sync]], [[js.room-index]], [[server.index]]
 
 ## 注意
 

@@ -935,8 +935,12 @@ const MY_SKILL_SPEC = createSkillSpec({
 | `SET_CARD_FACE_UP` | `{ id, faceUp }` | カードの公開・伏せ直し |
 | `MARK_CARD_SEEN` | `{ id, participantId }` | 「カードを見る」で見た人を記録する |
 | `ADD_CARD` / `REMOVE_CARD` / `MOVE_CARD` | `{ id, ... }` | デッキを介さず1枚だけ扱う |
+| `SAVE_DECK_TEMPLATE` | `{ id, name, back, cards: [{ id, name, count, text, image }] }` | 作り置きのデッキ（`room.deckTemplates`）。同じ id で上書き |
+| `REMOVE_DECK_TEMPLATE` | `{ id }` | 定義だけを消す（盤面に置いた山札は残る） |
 
-デッキの中身（`face` の形）は `js/card-catalog.js` を参照。`face.image` があれば画像、無ければ `face.text` を `face.color` で描く。
+カード1枚の見た目は `face = { image, text, info, color }`。`image` があれば画像、無ければ `text`（カード名）を `color` で描く。`info` はカード情報で、**表向きのときだけ**ツールチップと右クリックメニューに出る。
+
+作り置きのデッキは「1行＝1種類＋枚数」で持ち、盤面に置くときに `expandDeckTemplate()`（`js/card-catalog.js`）で1枚ずつへ展開する。組み込みの簡易トランプも同じファイルにある。
 
 > **reducer で乱数・時刻を使わないこと。** 同じアクションを各クライアントが再実行するので、
 > `Math.random()` や `Date.now()` を reducer の中で呼ぶと画面ごとに結果がずれる。

@@ -20,7 +20,7 @@ generated: 2026-08-18
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 98 | 377 | 842 | 24 | 0 |
+| 99 | 386 | 855 | 24 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -28,7 +28,7 @@ generated: 2026-08-18
 
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
-| [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 5 |
+| [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 6 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
 | [[js.audio-phrase\|js/audio-phrase.js]] | 音源に設定した「再生フレーズ」と発言の照合。 | 1 | 1 |
 | [[js.audio-player\|js/audio-player.js]] | 部屋の音楽（BGM・効果音）とシステム音（入室音・チャット送信音）の再生エンジン（UIは持たない。操作は[[js.audio-dialog]]側）。 | 10 | 4 |
@@ -96,6 +96,7 @@ generated: 2026-08-18
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 6 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 1 | 1 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 27 | 3 |
+| [[js.parameters.shinobigami-ougi-box\|js/parameters/shinobigami-ougi-box.js]] | シノビガミの「奥義」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 9 | 1 |
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 3 | 1 |
 | [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 4 | 1 |
 | [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 4 |
@@ -104,7 +105,7 @@ generated: 2026-08-18
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 4 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
-| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 7 |
+| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 8 |
 | [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 5 |
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
 | [[js.room-entry-dialog\|js/room-entry-dialog.js]] | 入室パスワードの入力ダイアログ。 | 2 | 1 |
@@ -121,7 +122,7 @@ generated: 2026-08-18
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 5 |
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 6 |
-| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 7 |
+| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 8 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
 | [[server.memory-budget\|server/memory-budget.js]] | 重い操作（部屋の取り込み・書き出し・ファイルのアップロード）が使うメモリを、実際に 読み込む前に見積もって予約する。 | 6 | 1 |
@@ -136,8 +137,8 @@ generated: 2026-08-18
 | [[js.local-identity\|js/local-identity.js]] | 13 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 10 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 8 |
+| [[js.read-only-form\|js/read-only-form.js]] | 8 |
+| [[js.visibility\|js/visibility.js]] | 8 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
 | [[js.file-uploader\|js/file-uploader.js]] | 7 |
-| [[js.read-only-form\|js/read-only-form.js]] | 7 |
-| [[js.visibility\|js/visibility.js]] | 7 |
-| [[js.image-upload\|js/image-upload.js]] | 6 |
+| [[js.audience-picker\|js/audience-picker.js]] | 6 |

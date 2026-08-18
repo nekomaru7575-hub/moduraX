@@ -1470,6 +1470,132 @@
   color: #e0e0e0;
 }
 
+/* --- 奥義（js/parameters/shinobigami-ougi-box.js） --- */
+/* ロイス一覧（.lois-box-*）と同じ組み方。1件を枠で囲い、中に
+   「奥義名・種類・公開先」「指定特技」「効果」「奥義改造」を縦に積む。 */
+
+.ougi-box-dialog {
+  width: 100%;
+  max-width: 640px;
+}
+
+.ougi-box-summary {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+.ougi-box-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.ougi-box-item {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ougi-box-header-row,
+.ougi-box-skill-row,
+.ougi-box-mod-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ougi-box-item input[type="text"],
+.ougi-box-item select,
+.ougi-box-effect {
+  background-color: #3a3a3a;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* 奥義名は固定幅の項目に押しつぶされないよう最低幅を確保する（lois-box-nameと同じ理由） */
+.ougi-box-name {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.ougi-box-kind {
+  flex: 0 1 120px;
+  min-width: 0;
+}
+
+.ougi-box-label {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.ougi-box-skill {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ougi-box-effect {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+/* 奥義改造。奥義本体より一段内側に見せて、どの奥義に付いているかを分かりやすくする */
+.ougi-box-mods {
+  border-top: 1px solid #444;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ougi-box-mods-title {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.ougi-box-mod-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ougi-box-mod-side {
+  flex: 0 0 76px;
+  min-width: 0;
+}
+
+.ougi-box-mod-name {
+  flex: 0 1 120px;
+  min-width: 0;
+}
+
+.ougi-box-mod-effect {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* 「＋改造を追加」は奥義1件ごとに出るので、一覧全体の追加ボタンより小さく見せる */
+.ougi-box-add-mod {
+  align-self: flex-start;
+  margin-bottom: 0;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+}
+
 /* ======================================================================
    狭幅（スマホ）。ダイアログはPC前提の2カラム・固定幅なので、
    1カラムの縦長シートに畳む。combined_layout.html側の@mediaと同じ900pxで切る。

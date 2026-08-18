@@ -17,6 +17,9 @@ import {
 } from './skill/skill-model.js';
 import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
+import {
+  OUGI_COMPONENT_KEY, showOugiBox, listVisibleOugi, customizationSideLabel
+} from './shinobigami-ougi-box.js';
 import { buildParameters } from './paramFactory.js';
 import { showSkillTableBox } from './saikoro-fiction/skill-table-box.js';
 import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/skill-check.js';
@@ -381,7 +384,8 @@ function resetShinobigamiComponentsOnPhaseEnd(components, phase) {
  */
 function renderShinobigamiCharacterPanel({
   container, mode, canEdit = true, components, onComponentChange, getComponents, getToken,
-  getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice
+  getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice,
+  participants = {}, myParticipantId = null
 }) {
   container.innerHTML = '';
 
@@ -476,17 +480,52 @@ function renderShinobigamiCharacterPanel({
   });
   container.appendChild(ninpouBtn);
 
-  // Core側の汎用パラメータ一覧に流し込む値は無い（特技表も忍法もcomponents側で即時保存される）。
+  // --- 奥義 ---
+  const ougiBtn = document.createElement('button');
+  ougiBtn.type = 'button';
+  ougiBtn.className = 'dialog-add-row-btn';
+  ougiBtn.style.marginTop = '8px';
+
+  // 件数は「自分が見られる件数」。全件を出すと、隠したはずの奥義があることが漏れる。
+  const updateOugiLabel = () => {
+    const visible = listVisibleOugi(readComponents()?.[OUGI_COMPONENT_KEY], myParticipantId);
+    ougiBtn.textContent = `奥義を開く（${visible.length}件）`;
+  };
+  updateOugiLabel();
+
+  ougiBtn.addEventListener('click', () => {
+    showOugiBox({
+      // 全件を渡す（見えない行はボックスが取り置いて、保存時に元の位置へ戻す）
+      ougiList: readComponents()?.[OUGI_COMPONENT_KEY] ?? [],
+      skillChoices: buildSkillChoices(),
+      participants,
+      myParticipantId,
+      readOnly: !canEdit,
+      onSave: (nextList) => {
+        onComponentChange(OUGI_COMPONENT_KEY, nextList);
+        updateOugiLabel();
+      }
+    });
+  });
+  container.appendChild(ougiBtn);
+
+  // Core側の汎用パラメータ一覧に流し込む値は無い（特技表・忍法・奥義はcomponents側で即時保存される）。
   return { getValues: () => ({}) };
 }
 
 // 忍法使用(name) の書式。呼び名（noun）からspecが組み立てる。
 const NINPOU_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(SHINOBIGAMI_NINPOU_SPEC);
 
+// 奥義使用(奥義名) の書式。忍法（スキル枠組み）と違って奥義は専用ボックスが持つので、
+// パターンもここで組み立てる。
+const OUGI_USE_COMMAND_PATTERN = /^奥義使用\((.+)\)$/;
+
 // この入力がシノビガミのコマンド構文に見えるか。プラグインが適用されていない部屋で
 // 打たれた場合に理由を出すために使う（js/parameters/registry.js の findPluginForChatCommand）。
 function looksLikeShinobigamiChatCommand(rawInput) {
-  return SKILL_CHECK_COMMAND_PATTERN.test(rawInput) || NINPOU_USE_COMMAND_PATTERN.test(rawInput);
+  return SKILL_CHECK_COMMAND_PATTERN.test(rawInput)
+    || NINPOU_USE_COMMAND_PATTERN.test(rawInput)
+    || OUGI_USE_COMMAND_PATTERN.test(rawInput);
 }
 
 /**
@@ -618,8 +657,67 @@ function handleNinpouUseCommand(rawInput, context) {
 }
 
 // シノビガミのチャットコマンドの入口。順に試して、扱えたものがあればそこで止める。
+/**
+ * 奥義使用(奥義名) を実行する。使用回数・コストは持たず、その奥義の内容をログへ流すだけ。
+ *
+ * ログはMainタブへ流れる（プラグインのコマンドには「今どのタブを見ているか」が渡ってこない。
+ * docs/plugin-guide.md 3.4。特技判定・忍法使用も同じ）。
+ * 使用しても公開先は変えない：シート上は伏せたまま1回だけ卓に見せる、という使い方のため。
+ *
+ * 自分が見られない奥義は名指しでも使えない。名前を知らないはずの人が打ち間違いで
+ * 他人の奥義を卓へ晒す事故を防ぐための歯止め（画面側の歯止めで、なりすましは防げない）。
+ */
+function handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null }) {
+  const match = rawInput.match(OUGI_USE_COMMAND_PATTERN);
+  if (!match) return false;
+
+  // 構文が合った時点で必ずtrueを返す（Coreが通常のダイスロールへフォールバックしないように）。
+  if (!token) {
+    alert('奥義を使う参照キャラクターを選択してください。');
+    return true;
+  }
+
+  const name = match[1].trim();
+  const visible = listVisibleOugi(token.components?.[OUGI_COMPONENT_KEY], myParticipantId);
+  const ougi = visible.find(entry => entry.name === name);
+
+  if (!ougi) {
+    alert(`奥義「${name}」が見つかりません。`);
+    return true;
+  }
+
+  // 「奥義名」:種類 ／ 効果 ／ 指定特技 ／（あれば）奥義改造。空欄の行は出さない。
+  const skillName = ougi.skill ? (getCell(SHINOBIGAMI_SKILL_TABLE, ougi.skill)?.name ?? '') : '';
+  const lines = [`「${ougi.name}」${ougi.kind ? `:${ougi.kind}` : ''}`];
+  if (ougi.effect) lines.push(ougi.effect);
+  if (skillName) lines.push(`指定特技:${skillName}`);
+
+  if (ougi.customizations.length > 0) {
+    lines.push('(奥義改造)');
+    ougi.customizations.forEach(mod => {
+      const detail = [mod.name, mod.effect].filter(Boolean).join(' ');
+      lines.push(`${customizationSideLabel(mod.side)}:${detail}`);
+    });
+  }
+
+  dispatch('ADD_CHAT_MESSAGE', {
+    tabId: 'main',
+    entry: {
+      system: '奥義',
+      character: token.name || '',
+      characterId: token.id || null,
+      color: token.textColor || null,
+      command: rawInput,
+      resultText: lines.join('\n')
+    }
+  });
+  return true;
+}
+
 function handleShinobigamiChatCommand(rawInput, context) {
-  return handleSkillCheckCommand(rawInput, context) || handleNinpouUseCommand(rawInput, context);
+  return handleSkillCheckCommand(rawInput, context)
+    || handleNinpouUseCommand(rawInput, context)
+    || handleOugiUseCommand(rawInput, context);
 }
 
 /**

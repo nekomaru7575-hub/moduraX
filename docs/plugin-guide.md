@@ -253,9 +253,20 @@ function renderMyCharacterPanel({ container, mode, canEdit, components, onCompon
 | `dispatch(action, payload)` | 状態を変える |
 | `rollBCDice(system, command)` | ダイスを振る |
 | `tokenId` | コマの ID |
+| `participants` | 参加者一覧 `{ [id]: {id, nickname, isGm} }` |
+| `myParticipantId` | 開いている人の参加者 ID。**表示名未設定なら `null`** |
 
 > `canEdit: false` のときに何を止めるかは **プラグインの判断**。Core はこの列をまとめて
 > 無効化しない（「ボックスを開いて眺める」だけは許したい、という場面があるため）。
+
+`participants` / `myParticipantId` は、**公開先（audience）を持つデータ**を扱うときに使う
+（シノビガミの奥義）。プラグインから `js/game-store.js` は読めない（循環 import）ので、
+参加者一覧は Core から渡す。判定は `canView()`（`js/visibility.js`）に通すこと。
+
+> **見えない行を消さないこと。** 公開先で隠した行を画面に出さないまま一覧を保存すると、
+> 他人のデータが消える（GM や持ち主なしのコマは他人のコマも編集できる）。
+> 隠した行は元の位置に取り置いて、保存時に混ぜ直す
+> （`js/parameters/shinobigami-ougi-box.js` の `showOugiBox` が実例）。
 
 ---
 
@@ -295,6 +306,7 @@ function handleMyChatCommand(rawInput, { token, dispatch, getEffectiveParameterV
 | `generateBuffId()` | バフ用の ID を発行 |
 | `rollBCDice(system, command)` | ダイスを振る。部屋の外（コマ作成ツール等）では `null` |
 | `roomParameters` | 部屋のルーム変数（Core の `core:round` ＝現在のラウンド、プラグインの自動計算値）。コマ 1 体では決まらない値をコマンドから読むために渡される |
+| `myParticipantId` | コマンドを打った人の参加者 ID（表示名未設定なら `null`）。公開先を持つデータをコマンドから扱うときに使う（シノビガミの `奥義使用(...)`） |
 
 **戻り値の意味**
 

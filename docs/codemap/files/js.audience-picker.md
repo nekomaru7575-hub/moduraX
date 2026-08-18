@@ -2,7 +2,7 @@
 source: js/audience-picker.js
 lines: 189
 exports: 2
-imported_by: 5
+imported_by: 6
 api_sha: 755efa722885
 prose_sha: 755efa722885
 generated: 2026-08-18
@@ -42,7 +42,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.visibility]]
-- imported by → [[js.board-data-driven]], [[js.character-dialog]], [[js.chat-tab-dialog]], [[js.info-entry-dialog]], [[js.info-panel]]
+- imported by → [[js.board-data-driven]], [[js.character-dialog]], [[js.chat-tab-dialog]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.parameters.shinobigami-ougi-box]]
 
 ## 注意
 

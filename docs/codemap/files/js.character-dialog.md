@@ -1,6 +1,6 @@
 ---
 source: js/character-dialog.js
-lines: 1096
+lines: 1101
 exports: 5
 imported_by: 2
 api_sha: ba369104a126
@@ -28,8 +28,8 @@ tags: [codemap]
 | 16 | fn | defaultImageCrop | `defaultImageCrop()` | コマ画像トリミングの既定値：ズームなし・中央。 |
 | 23 | fn | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | トリミング設定(crop)を<img>のCSSへ反映する。 |
 | 46 | fn | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | showCharacterEditDialogのonConfirmが返す結果を、Store（部屋のstore、または js/character-builder.jsが使う部屋に紐づかない使い捨てのImmutableS… |
-| 437 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
-| 716 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
+| 441 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
+| 720 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（16）
 
@@ -41,19 +41,19 @@ tags: [codemap]
 | 16 | defaultImageCrop | `defaultImageCrop()` | 3 | ✓ |
 | 23 | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | 9 | ✓ |
 | 46 | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | 67 | ✓ |
-| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false })` | 31 |  |
-| 154 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 140 |  |
-| 296 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
-| 315 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
-| 333 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
-| 357 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
-| 374 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 29 |  |
-| 407 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
-| 414 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
-| 423 | ensureDialog | `ensureDialog()` | 7 |  |
-| 437 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **233** | ✓ |
-| 673 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
-| 716 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **381** | ✓ |
+| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null })` | 35 |  |
+| 158 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 140 |  |
+| 300 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
+| 319 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
+| 337 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
+| 361 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
+| 378 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 29 |  |
+| 411 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
+| 418 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
+| 427 | ensureDialog | `ensureDialog()` | 7 |  |
+| 441 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **233** | ✓ |
+| 677 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
+| 720 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **382** | ✓ |
 
 ## 依存
 

@@ -180,6 +180,33 @@
 }
 
 /* エフェクトの「コンボ時修正」6項目。回数制限の行と同じ雰囲気で小さくまとめる */
+/* スキル1件の「効果時間・回数制限・使用条件・修正値」を畳んでおく入れ物
+   （js/parameters/skill/skill-box.js）。既定は閉じていて、summaryを押すと開く。
+   閉じている間も入力欄はDOMにあるので、畳んだまま保存しても値は失われない。 */
+.effect-box-advanced {
+  margin-top: 6px;
+  border-top: 1px dashed #444;
+  padding-top: 4px;
+}
+
+.effect-box-advanced > summary {
+  color: #aaa;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 0;
+  list-style-position: inside;
+  user-select: none;
+}
+
+.effect-box-advanced > summary:hover {
+  color: #ddd;
+}
+
+/* 開いた中身は、見出し（summary）より一段内側に見せる */
+.effect-box-advanced[open] > summary {
+  margin-bottom: 6px;
+}
+
 .effect-box-combo-mods {
   margin-top: 6px;
   padding-top: 6px;

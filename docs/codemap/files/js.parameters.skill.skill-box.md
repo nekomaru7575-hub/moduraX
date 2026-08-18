@@ -1,6 +1,6 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 562
+lines: 596
 exports: 1
 imported_by: 4
 api_sha: cb1570ce8c3b
@@ -37,7 +37,7 @@ _(未記入)_
 | 16 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
 | 45 | ensureDialog | `ensureDialog()` | 7 |  |
 | 53 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 70 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave })` | **492** | ✓ |
+| 70 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave })` | **526** | ✓ |
 
 ## 依存
 

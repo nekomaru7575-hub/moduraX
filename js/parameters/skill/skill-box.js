@@ -197,6 +197,19 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     noteInput.value = skill?.note ?? '';
     item.appendChild(noteInput);
 
+    // --- ここから下（効果時間・回数制限・使用条件・修正値）は畳んでおく ---
+    // 1件あたりの背が高く、名前と効果を見比べたいだけの時に一覧が読めなくなるため。
+    // 中身の入力欄はDOMには常にあるので、畳んだまま保存しても値は失われない。
+    // <details>にしているのは、readOnly（他人のコマを見ているだけ）でも開けるようにするため：
+    // lockFormControlsはbutton/input等を無効化するが、summaryは触らない。
+    const advanced = document.createElement('details');
+    advanced.className = 'effect-box-advanced';
+    const advancedSummary = document.createElement('summary');
+    advanced.appendChild(advancedSummary);
+
+    // 畳んだときのラベルには、中に何があるかを並べる（システムによって節の有無が変わる）。
+    const advancedSections = [];
+
     // --- 効果時間：このスキルが与えるバフがいつ切れるか ---
     // 修正を持たないシステム（allowExpirePhase:false）では意味を持たないので出さない。
     let expireSelect = null;
@@ -213,7 +226,8 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       expireSelect.value = skill?.expirePhase ?? '';
       expireSelect.title = '「（使用時の既定）」は、単体で使うかコンボに組み込むかで自動的に決まります';
       expireField.appendChild(expireSelect);
-      item.appendChild(expireField);
+      advanced.appendChild(expireField);
+      advancedSections.push('効果時間');
     }
 
     // --- 使用制限：期間ごとの回数 ---
@@ -256,7 +270,11 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       limitsWrap.appendChild(limitRow);
       limitControls[period.key] = { currentInput, maxInput };
     });
-    item.appendChild(limitsWrap);
+    // 期間を1つも宣言していないシステムでは中身が空になるので、節ごと出さない
+    if (spec.periods.length > 0) {
+      advanced.appendChild(limitsWrap);
+      advancedSections.push('回数制限');
+    }
 
     // --- 使用制限：条件（「〇〇が△以下」）。全て満たさないと使用できない ---
     const conditionsWrap = createElement('div', 'effect-box-limits');
@@ -320,7 +338,8 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       addConditionBtn.type = 'button';
       addConditionBtn.addEventListener('click', () => addConditionRow(null));
       conditionsWrap.appendChild(addConditionBtn);
-      item.appendChild(conditionsWrap);
+      advanced.appendChild(conditionsWrap);
+      advancedSections.push('使用条件');
     }
 
     // 評価できない式は使用時に黙って0として扱われる（＝バフが付かない）ため、入力した時点で
@@ -422,8 +441,23 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       addModBtn.addEventListener('click', () => addModRow(null));
       modsWrap.appendChild(addModBtn);
 
-      item.appendChild(modsWrap);
+      advanced.appendChild(modsWrap);
+      advancedSections.push('修正値');
     }
+
+    // 中身が1つも無いシステム（節を全部offにした一覧）では、開くものが無いので出さない
+    if (advancedSections.length > 0) {
+      const syncAdvancedLabel = () => {
+        advancedSummary.textContent = advanced.open
+          ? '折りたたむ'
+          : `展開（${advancedSections.join('・')}）`;
+      };
+      advanced.addEventListener('toggle', syncAdvancedLabel);
+      syncAdvancedLabel();
+      item.appendChild(advanced);
+    }
+
+    // 式の問題は畳んだ中身に対するものでも外に出す（畳んでいると気づけないため）
     item.appendChild(errorEl);
 
     function validate() {

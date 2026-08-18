@@ -89,7 +89,7 @@ export function imageUploadMaxBytes() {
  * 変換できない場合は元の値をそのまま返す（画像が使えなくなるよりはマシなため）。
  *
  * @param {string|null|undefined} image
- * @param {'background'|'token'|'panel'} purpose
+ * @param {'background'|'token'|'panel'|'card'} purpose
  * @returns {Promise<string|null|undefined>}
  */
 export async function adoptImageIntoRoom(image, purpose) {
@@ -141,7 +141,7 @@ export async function adoptImageIntoRoom(image, purpose) {
 /**
  * 画像をアップロードして公開URLとキーを受け取る。
  * @param {File} file
- * @param {'background'|'token'|'panel'} purpose 用途。サーバーが要求する権限が変わる
+ * @param {'background'|'token'|'panel'|'card'} purpose 用途。サーバーが要求する権限が変わる
  *   （背景はGM限定、コマ・パネルは誰でも。server/index.jsのIMAGE_PURPOSES）
  * @returns {Promise<{ key: string, url: string }>}
  */
@@ -172,7 +172,7 @@ export async function uploadImageFile(file, purpose) {
  * データURLへ退避する。表示側はどちらも文字列をそのままsrc/url()に入れるだけなので
  * 区別せずに扱える（移行前に保存されたデータURLの画像がそのまま出せるのもこのため）。
  *
- * @param {{ purpose: 'background'|'token'|'panel' }} options
+ * @param {{ purpose: 'background'|'token'|'panel'|'card' }} options
  * @returns {Promise<{ url: string, key: string|null } | null>} キャンセルならnull
  */
 export async function pickAndUploadImage({ purpose }) {

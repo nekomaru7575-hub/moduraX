@@ -1,11 +1,11 @@
 ---
 source: js/state-import.js
-lines: 110
+lines: 128
 exports: 1
 imported_by: 2
 api_sha: 455e229c5397
 prose_sha: 455e229c5397
-generated: 2026-08-17
+generated: 2026-08-18
 tags: [codemap]
 ---
 
@@ -25,18 +25,19 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 96 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
+| 113 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（3）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 40 | adoptInfoEntry | `adoptInfoEntry(entry)` | 15 |  |
-| 63 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
-| 96 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 14 | ✓ |
+| 44 | adoptInfoEntry | `adoptInfoEntry(entry)` | 15 |  |
+| 67 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
+| 89 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
+| 113 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 15 | ✓ |
 
 ## 依存
 

@@ -1131,6 +1131,138 @@
       cursor: default;
     }
 
+    /* カード（表と裏を持つ盤面オブジェクト）とデッキ（その束）。
+       パネルと同じ#panel-layerに入り、同じstackOrderの物差しで前後が決まる
+       （js/board-data-driven.jsのSTATE_CHANGED）。層のz-indexにより、どちらも
+       コマ(.token)より手前には出ない。 */
+    .card-object,
+    .deck-object {
+      position: absolute;
+      box-sizing: border-box;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.55);
+      background-color: #f7f5ef; /* 画像が無いときの表面（紙の色） */
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      /* 親(#panel-layer)が素通しなので、自身で操作を拾い直す（.panel-objectと同じ） */
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .card-object:active,
+    .deck-object:active {
+      cursor: grabbing;
+    }
+
+    /* 裏向きのカードとデッキ：画像が無くても「裏」と分かる無地の柄にする。
+       表面の情報（スート・数字）はDOMにも出さない（js/board-data-driven.js）。 */
+    .card-object.face-down,
+    .deck-object {
+      background-color: #2a3f6b;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 12px);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    /* 表面・裏面の画像。無い／読み込めないときはJS側が隠し、下のテキストが見える。 */
+    .card-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 画像が無いときに出るスートと数字。画像があるときはその下に隠れる。 */
+    .card-text {
+      position: absolute;
+      font-size: 24px;
+      font-weight: bold;
+      line-height: 1.1;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    /* 固定中のカード・デッキ：パネルと同じく実線枠と通常カーソルで示す */
+    .card-object.locked,
+    .deck-object.locked {
+      cursor: default;
+      border-style: solid;
+      border-color: rgba(255, 255, 255, 0.75);
+    }
+
+    .card-object.locked:active,
+    .deck-object.locked:active {
+      cursor: default;
+    }
+
+    /* デッキ名（上）と残り枚数（下）。札の絵の上に重ねる。 */
+    .deck-name,
+    .deck-count {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      pointer-events: none;
+    }
+
+    .deck-name {
+      top: 4px;
+      font-size: 12px;
+      padding: 0 2px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .deck-count {
+      bottom: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    /* 空になったデッキ：引けないことがひと目で分かるよう薄くする（消しはしない。
+       シャッフルし直して使う・あとで札を戻す、という運用の余地を残すため）。 */
+    .deck-object.empty {
+      opacity: 0.4;
+    }
+
+    /* 「カードを見る」ダイアログの中身（js/deck-dialog.jsのshowCardPeekDialog）。
+       盤面のカードと同じ縦横比(4:6マス)を保ったまま大きく出す。 */
+    .card-peek {
+      position: relative;
+      width: 160px;
+      height: 240px;
+      margin: 8px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background-color: #f7f5ef;
+      overflow: hidden;
+    }
+
+    .card-peek-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-peek-text {
+      position: absolute;
+      font-size: 40px;
+      font-weight: bold;
+      color: #1b1b1b;
+    }
+
     /* ログ＋チャット欄の縦並び。高さの配分は固定で、ここ自体はスクロールしない。
        スクロールするのは中のログ（.log-container）だけ。
        以前は境目をドラッグして高さを変えられたが（3分割だった頃の名残）、各段に

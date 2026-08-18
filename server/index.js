@@ -1568,10 +1568,12 @@ function withImportNotice(state, text) {
 const IMAGE_PURPOSES = {
   background: { requireGm: true, forbiddenMessage: '背景画像の変更はGMだけが行えます' },
   token: { requireGm: false },
-  panel: { requireGm: false }
+  panel: { requireGm: false },
+  // カードの裏面（js/deck-dialog.js）。デッキの配置自体がGM限定でないのと揃える。
+  card: { requireGm: false }
 };
 
-// POST /api/image?room=room-N&purpose=background|token|panel
+// POST /api/image?room=room-N&purpose=background|token|panel|card
 // 画像をR2へ置き、表示用の公開URLを返す。状態にはこのURLだけを載せる
 // （データURLのまま持つと、コマ・パネル・シーンの数だけ画像が部屋データに積み上がり、
 // アクションのたびに状態ごとRedisへ書き直されるため）。

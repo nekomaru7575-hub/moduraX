@@ -179,10 +179,11 @@ function getContentBounds(board) {
     if (y + h > maxY) maxY = y + h;
   };
 
-  // パネル・カード・デッキはどれも cols/rows（マス数）で大きさを持つ
+  // パネル・カード・デッキはどれも cols/rows（マス数）で大きさを持つ。
+  // ストッカーへ収納されたカードは盤面に描かれないので数えない（バックヤードのコマと同じ）。
   [
     ...Object.values(store.state.panels || {}),
-    ...Object.values(store.state.cards || {}),
+    ...Object.values(store.state.cards || {}).filter(card => !card.stockerId),
     ...Object.values(store.state.decks || {})
   ].forEach(item => {
     extend(item.x, item.y, item.cols * GRID_SIZE, item.rows * GRID_SIZE);
@@ -577,6 +578,39 @@ function createTokenElement(tokenData, board) {
 
 // パネルの見た目（画像・大きさ）をStateに合わせて反映する。
 // 大きさは cols×rows マス × GRID_SIZE のピクセル値にする。
+// --- カードストッカー（カードを収納できるパネル） ---
+// 所有者を設定した箱は、入れる・見る・取り出すのすべてがその人だけ。所有者を設定しない
+// 箱は誰でも使える。判定の本体はjs/game-store.jsのstockerAllowsUserで、こちらは画面から
+// 操作できるかどうかを同じ規則で決める（片方だけ変えると「押せるのに何も起きない」になる）。
+function canUseStocker(panelData) {
+  if (!panelData?.isStocker) return false;
+  if (!panelData.stockerOwnerId && !panelData.stockerOwnerLocalId) return true;
+  if (panelData.stockerOwnerId) return panelData.stockerOwnerId === getCurrentParticipantId();
+  return panelData.stockerOwnerLocalId === getLocalUserId();
+}
+
+// 所有者の表示名。参加者一覧から引けなければownerNameOfと同じ言い方にそろえる。
+function stockerOwnerName(panelData) {
+  if (panelData.stockerOwnerId) {
+    return store.state.participants?.[panelData.stockerOwnerId]?.nickname || '不明な参加者';
+  }
+  return panelData.stockerOwnerLocalId ? '名前を設定していない人' : '';
+}
+
+// その箱に入っているカードを、入れた順に返す（js/game-store.jsのlistStockerCardsと同じ順）。
+function storedCardsOf(panelId) {
+  return Object.values(store.state.cards || {})
+    .filter(card => card.stockerId === panelId)
+    .sort((a, b) => a.stockerSeq - b.stockerSeq);
+}
+
+// 操作する人が誰かをpayloadへ載せるための組（ストッカーの所有者判定に使う）。
+// 表示名を設定していない人は参加者IDを持たないので、ブラウザ単位のIDで代用する
+// （コマのバックヤードと同じ持ち方）。
+function actingUserPayload() {
+  return { participantId: getCurrentParticipantId(), localUserId: getLocalUserId() };
+}
+
 function applyPanelAppearance(el, panelData) {
   el.style.width = `${panelData.cols * GRID_SIZE}px`;
   el.style.height = `${panelData.rows * GRID_SIZE}px`;
@@ -589,11 +623,36 @@ function applyPanelAppearance(el, panelData) {
     el.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
   }
 
+  // --- カードストッカー ---
+  // 枚数は全員に見せる（卓に置かれた箱の厚みは見える、という扱い）。中身が読めるかどうかは
+  // 所有者次第で、そちらは右クリックメニューが決める。
+  const stored = panelData.isStocker ? storedCardsOf(panelData.id) : [];
+  const countEl = el.querySelector('.panel-stocker-count');
+  countEl.textContent = panelData.isStocker ? `${stored.length}` : '';
+  el.classList.toggle('stocker', !!panelData.isStocker);
+
+  // 自分が使える箱にだけ落とし先の印を付ける。付いていない箱の上でカードを離しても
+  // 吸い込まれず、その場に置かれる（何も起きないのに理由が分からない状態を作らない）
+  if (panelData.isStocker && canUseStocker(panelData)) {
+    el.dataset.dropTarget = 'stocker';
+  } else {
+    delete el.dataset.dropTarget;
+  }
+
   // マウスオーバー時にブラウザ標準のツールチップとして表示する（画像とは独立）。
   // テキストに公開先の指定がある場合、宛先に入っていない人には出さない
   // （絵は見えるがメモはGMだけが読める、といった使い方のため）。
-  if (panelData.text && canView(panelData.textAudience, getCurrentParticipantId())) {
-    el.title = panelData.text;
+  const ownerName = panelData.isStocker ? stockerOwnerName(panelData) : '';
+  const stockerTitle = panelData.isStocker
+    ? `${ownerName ? `${ownerName}の` : ''}カードストッカー（${stored.length}枚）`
+    : '';
+  const bodyText = (panelData.text && canView(panelData.textAudience, getCurrentParticipantId()))
+    ? panelData.text
+    : '';
+  const title = [stockerTitle, bodyText].filter(Boolean).join('\n');
+
+  if (title) {
+    el.title = title;
   } else {
     el.removeAttribute('title');
   }
@@ -606,7 +665,9 @@ function applyPanelAppearance(el, panelData) {
 // 置ける場所は制限しない（盤面から離れた位置にも置ける）。
 // readState＝idから今の状態（x/y/lockedを持つもの）を引く関数、moveAction＝移動の
 // アクション名、openMenu＝右クリックと長押しの共通の入口。
-function bindBoardObjectDrag(element, { readState, moveAction, openMenu }) {
+// onDrag/onDropは落とし先を持つもの（カード）だけが渡す。onDropがtrueを返したら
+// 「落とし先が引き取った」としてグリッド吸着を行わない。
+function bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null }) {
   const gesture = bindDragGesture(element, {
     stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
@@ -632,13 +693,17 @@ function bindBoardObjectDrag(element, { readState, moveAction, openMenu }) {
       const deltaX = (event.clientX - startClientX) / scale;
       const deltaY = (event.clientY - startClientY) / scale;
       store.dispatch(moveAction, { id: element.id, x: startX + deltaX, y: startY + deltaY });
+      onDrag?.(event);
     },
 
-    onEnd: () => {
+    onEnd: (event, context) => {
       activeBoardDrag = null;
 
       const latest = readState(element.id);
       if (!latest) return;
+
+      // 落とし先（ストッカー・デッキ）が引き取ったなら、位置の確定はそちらに任せる
+      if (onDrop?.(event, context)) return;
 
       const snappedX = Math.round(latest.x / GRID_SIZE) * GRID_SIZE;
       const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
@@ -674,8 +739,57 @@ function bindPanelDrag(element) {
       onSelect: () => {}
     }] : [];
 
+    // --- カードストッカーの中身 ---
+    // 使える人には1枚ずつの取り出しを並べ、使えない人には理由だけを出す
+    // （項目ごと消すと「なぜ出ないのか」が分からないため。context-menu.jsのdisabled）。
+    const stockerItems = [];
+    if (panelState?.isStocker) {
+      if (canUseStocker(panelState)) {
+        const stored = storedCardsOf(panelId);
+        if (stored.length === 0) {
+          stockerItems.push({ label: 'ストッカーは空です', disabled: true, onSelect: () => {} });
+        } else {
+          // 多すぎるとメニューが画面に収まらないので頭から12枚まで
+          stored.slice(0, 12).forEach(card => {
+            stockerItems.push({
+              label: `取り出す: ${card.face.text || '(名前なし)'}`,
+              onSelect: () => {
+                store.dispatch('TAKE_CARD_FROM_STOCKER', {
+                  cardId: card.id, gridSize: GRID_SIZE, ...actingUserPayload()
+                });
+              }
+            });
+          });
+          if (stored.length > 12) {
+            stockerItems.push({
+              label: `ほか${stored.length - 12}枚（すべて取り出すで出せます）`,
+              disabled: true,
+              onSelect: () => {}
+            });
+          }
+          stockerItems.push({
+            label: `すべて取り出す（${stored.length}枚）`,
+            onSelect: () => {
+              store.dispatch('RELEASE_STOCKER_CARDS', {
+                panelId, gridSize: GRID_SIZE, ...actingUserPayload()
+              });
+            }
+          });
+        }
+      } else {
+        const ownerName = stockerOwnerName(panelState);
+        stockerItems.push({
+          label: `${ownerName}のストッカー（中身は見られません）`,
+          disabled: true,
+          title: '所有者を設定したストッカーは、その人だけが出し入れできます。',
+          onSelect: () => {}
+        });
+      }
+    }
+
     showContextMenu(event.clientX, event.clientY, [
       ...textPreviewItem,
+      ...stockerItems,
       {
         label: 'パネルを編集',
         onSelect: () => {
@@ -689,8 +803,12 @@ function bindPanelDrag(element) {
             initialRows: current.rows,
             initialStackOrder: normalizeStackOrder(current.stackOrder),
             initialKeepOnSceneChange: !!current.keepOnSceneChange,
+            initialIsStocker: !!current.isStocker,
+            initialStockerOwned: !!(current.stockerOwnerId || current.stockerOwnerLocalId),
+            // 他人のものになっている箱では、誰のものかを画面に出す（自分の箱なら出さない）
+            stockerOwnerLabel: canUseStocker(current) ? '' : stockerOwnerName(current),
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange }) => {
+            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
               if (image !== (latest.image || null)) {
@@ -707,6 +825,21 @@ function bindPanelDrag(element) {
               }
               if (keepOnSceneChange !== !!latest.keepOnSceneChange) {
                 store.dispatch('SET_PANEL_KEEP_ON_SCENE_CHANGE', { id: panelId, keepOnSceneChange });
+              }
+
+              // ストッカーの切り替えと所有者。オフにすると中のカードは盤面へ出る
+              // （js/game-store.jsのSET_PANEL_STOCKER）。所有者は「自分専用にする」を
+              // 入れた人自身になる（表示名が無ければブラウザ単位のIDで持つ）。
+              const wasOwned = !!(latest.stockerOwnerId || latest.stockerOwnerLocalId);
+              if (isStocker !== !!latest.isStocker || stockerOwned !== wasOwned) {
+                const { participantId, localUserId } = actingUserPayload();
+                store.dispatch('SET_PANEL_STOCKER', {
+                  id: panelId,
+                  isStocker,
+                  ownerId: stockerOwned ? participantId : null,
+                  localUserId: stockerOwned ? localUserId : null,
+                  gridSize: GRID_SIZE
+                });
               }
             }
           });
@@ -738,8 +871,9 @@ function bindPanelDrag(element) {
       {
         label: '削除',
         danger: true,
+        // ストッカーごと消す場合、中のカードは盤面へ出る（消えると取り返しがつかないため）
         onSelect: () => {
-          store.dispatch('REMOVE_PANEL', { id: panelId });
+          store.dispatch('REMOVE_PANEL', { id: panelId, gridSize: GRID_SIZE });
         }
       }
     ]);
@@ -758,6 +892,12 @@ function createPanelElement(panelData, panelLayer) {
   const el = document.createElement('div');
   el.className = 'panel-object';
   el.id = panelData.id;
+
+  // カードストッカーにしたときの枚数表示（普通のパネルでは中身が空のまま）
+  const count = document.createElement('span');
+  count.className = 'panel-stocker-count';
+  el.appendChild(count);
+
   applyPanelAppearance(el, panelData);
 
   bindPanelDrag(el);
@@ -839,6 +979,10 @@ function applyDeckAppearance(el, deckData) {
   el.querySelector('.deck-count').textContent = `${deckData.cards.length}`;
   el.title = `${deckData.name || 'デッキ'}（残り${deckData.cards.length}枚）`;
 
+  // カードをここへ落とすと「デッキに戻す」。受け付けるのはそのデッキから引いた札だけで、
+  // その判定はカード側（resolveCardDrop）が行う
+  el.dataset.dropTarget = 'deck';
+
   el.classList.toggle('empty', deckData.cards.length === 0);
   el.classList.toggle('locked', !!deckData.locked);
 }
@@ -859,6 +1003,46 @@ function nextTopStackOrder() {
 // IDのままでは意味が伝わらないのでownerNameOfと同じ言い方にそろえる。
 function seenByNames(cardData) {
   return cardData.seenBy.map(id => store.state.participants?.[id]?.nickname || '不明な参加者');
+}
+
+// --- カードの落とし先（ストッカー・デッキ） ---
+// 仕組みはダイスドラフト（js/dice-draft-panel.js）と同じで、受け取る側に data-drop-target を
+// 付け、掴んでいる指の位置から探す。違うのは、掴んでいるカード自身がその点の下に居ること。
+// elementsFromPointで重なりを全部取り、自分を飛ばして最初の落とし先を拾う。
+function dropTargetAt(clientX, clientY, draggedEl) {
+  const stack = document.elementsFromPoint(clientX, clientY);
+  for (const el of stack) {
+    if (draggedEl.contains(el)) continue; // 掴んでいるカード自身
+    const target = el.closest?.('[data-drop-target]');
+    if (target && !draggedEl.contains(target)) return target;
+  }
+  return null;
+}
+
+function clearDropHighlights() {
+  document.querySelectorAll('.is-drop-hover').forEach(el => el.classList.remove('is-drop-hover'));
+}
+
+// このカードをそこへ落としてよいか。落とせないものはnullを返す（＝ただの移動になる）。
+function resolveCardDrop(targetEl, cardData) {
+  if (!targetEl) return null;
+
+  if (targetEl.dataset.dropTarget === 'stocker') {
+    const panel = store.state.panels[targetEl.id];
+    // 使えないストッカーにはそもそもdata-drop-targetを付けていないが、状態が変わった
+    // 直後などのために念のため見る
+    return canUseStocker(panel) ? { kind: 'stocker', panelId: targetEl.id } : null;
+  }
+
+  if (targetEl.dataset.dropTarget === 'deck') {
+    // 戻せるのは出自のデッキだけ。別の山へ落とした場合は受け付けず、掴む前の位置へ戻す
+    // （山の上に置きっぱなしにすると、戻ったのか戻っていないのか見分けが付かない）。
+    return cardData.deckId === targetEl.id
+      ? { kind: 'deck', deckId: targetEl.id }
+      : { kind: 'deck-rejected' };
+  }
+
+  return null;
 }
 
 function bindCardDrag(element) {
@@ -949,7 +1133,51 @@ function bindCardDrag(element) {
   bindBoardObjectDrag(element, {
     readState: (id) => store.state.cards[id],
     moveAction: 'MOVE_CARD',
-    openMenu: openCardMenu
+    openMenu: openCardMenu,
+
+    // 落とせる場所の上に来たら光らせる
+    onDrag: (event) => {
+      clearDropHighlights();
+      const cardData = store.state.cards[element.id];
+      if (!cardData) return;
+      const targetEl = dropTargetAt(event.clientX, event.clientY, element);
+      const drop = resolveCardDrop(targetEl, cardData);
+      // 受け付けない山（出自が違うデッキ）は光らせない
+      if (drop && drop.kind !== 'deck-rejected') targetEl.classList.add('is-drop-hover');
+    },
+
+    // ストッカーへ収納する／デッキへ戻す。trueを返すと呼び出し側はグリッド吸着をしない。
+    onDrop: (event, { startX, startY }) => {
+      clearDropHighlights();
+
+      const cardData = store.state.cards[element.id];
+      if (!cardData) return false;
+
+      const drop = resolveCardDrop(dropTargetAt(event.clientX, event.clientY, element), cardData);
+      if (!drop) return false;
+
+      if (drop.kind === 'stocker') {
+        store.dispatch('STORE_CARD_IN_STOCKER', {
+          cardId: element.id, panelId: drop.panelId, ...actingUserPayload()
+        });
+        return true;
+      }
+
+      // 出自が違う山は受け付けない。掴む前の位置へ戻して、入らなかったことを見せる
+      if (drop.kind === 'deck-rejected') {
+        store.dispatch('MOVE_CARD', { id: element.id, x: startX, y: startY });
+        return true;
+      }
+
+      // デッキへ戻すのは戻せなくなる操作なので必ず確かめる。断られたら掴む前の位置へ戻す
+      // （ドラッグ中もMOVE_CARDを送っているので、山の上に置きっぱなしにしない）。
+      if (confirm('デッキに戻しますか？')) {
+        store.dispatch('RETURN_CARD_TO_DECK', { cardId: element.id, deckId: drop.deckId });
+      } else {
+        store.dispatch('MOVE_CARD', { id: element.id, x: startX, y: startY });
+      }
+      return true;
+    }
   });
 }
 
@@ -1116,10 +1344,19 @@ export function getBoardDropSpot({ cols = 0, rows = 0 } = {}) {
   const centerX = (viewportRect.left + viewportRect.width / 2 - boardRect.left) / scale;
   const centerY = (viewportRect.top + viewportRect.height / 2 - boardRect.top) / scale;
 
-  return {
-    x: Math.round((centerX - cols * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE,
-    y: Math.round((centerY - rows * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE
-  };
+  let x = Math.round((centerX - cols * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE;
+  const y = Math.round((centerY - rows * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE;
+
+  // 同じ場所に既にデッキがあるなら右へ避ける。2つ目のデッキを置いたときに1つ目へ
+  // ぴったり重なって、下の山が触れなくなるのを防ぐ。
+  const step = (Math.max(1, cols) + 1) * GRID_SIZE;
+  for (let i = 0; i < 8; i += 1) {
+    const taken = Object.values(store.state.decks || {}).some(deck => deck.x === x && deck.y === y);
+    if (!taken) break;
+    x += step;
+  }
+
+  return { x, y };
 }
 
 function clampPan(viewport, board) {
@@ -1348,9 +1585,10 @@ window.addEventListener('DOMContentLoaded', () => {
           showPanelDialog({
             title: 'パネルを追加',
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange }) => {
+            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
+              const panelId = generatePanelId();
               store.dispatch('ADD_PANEL', {
-                id: generatePanelId(),
+                id: panelId,
                 image,
                 text,
                 x: snapX,
@@ -1360,6 +1598,19 @@ window.addEventListener('DOMContentLoaded', () => {
                 stackOrder,
                 keepOnSceneChange
               });
+
+              // ストッカー化は所有者を決める必要があるので専用のアクションで続ける
+              // （ADD_PANELは「誰が作ったか」を持たない）
+              if (isStocker) {
+                const { participantId, localUserId } = actingUserPayload();
+                store.dispatch('SET_PANEL_STOCKER', {
+                  id: panelId,
+                  isStocker: true,
+                  ownerId: stockerOwned ? participantId : null,
+                  localUserId: stockerOwned ? localUserId : null,
+                  gridSize: GRID_SIZE
+                });
+              }
             }
           });
         }
@@ -1488,7 +1739,11 @@ window.addEventListener('DOMContentLoaded', () => {
     // 3種類とも同じ層(#panel-layer)に入れ、同じstackOrderの物差しで前後を決める
     // （カード・デッキの既定は10、パネルの既定は0）。
     const panels = state.panels || {};
-    const cards = state.cards || {};
+    // カードストッカーへ収納されたカードは盤面に描かない（状態としては残っている。
+    // コマのinBackyardと同じ扱いで、取り出せば同じカードが戻ってくる）。
+    const cards = Object.fromEntries(
+      Object.entries(state.cards || {}).filter(([, card]) => !card.stockerId)
+    );
     const decks = state.decks || {};
 
     const layerIds = new Set([...Object.keys(panels), ...Object.keys(cards), ...Object.keys(decks)]);

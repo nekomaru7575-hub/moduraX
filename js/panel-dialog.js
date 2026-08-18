@@ -36,7 +36,9 @@ function ensureDialog() {
  */
 export function showPanelDialog({
   title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
-  initialStackOrder = 0, initialKeepOnSceneChange = false, gridSize, onConfirm
+  initialStackOrder = 0, initialKeepOnSceneChange = false,
+  initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '',
+  gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -186,6 +188,59 @@ export function showPanelDialog({
   keepGroup.appendChild(keepLabel);
   form.appendChild(keepGroup);
 
+  // --- カードストッカー ---
+  // オンにすると、このパネルがカードを収納できる箱になる（js/game-store.jsのSET_PANEL_STOCKER）。
+  // オフに戻すと中のカードは箱の付近へ出てくる。
+  // 「自分専用にする」を付けると、入れる・見る・取り出すのすべてが自分だけになる。
+  // 付けなければ誰でも自由に使える箱で、中身のカード名も全員に見える。
+  const stockerGroup = document.createElement('div');
+  stockerGroup.className = 'dialog-form-group';
+
+  const stockerLabel = document.createElement('label');
+  stockerLabel.style.display = 'flex';
+  stockerLabel.style.alignItems = 'center';
+  stockerLabel.style.gap = '6px';
+  stockerLabel.style.cursor = 'pointer';
+  stockerLabel.title = 'カードをドラッグして収納できる箱になります。右クリックで中身を取り出せます。';
+  const stockerInput = document.createElement('input');
+  stockerInput.type = 'checkbox';
+  stockerInput.checked = !!initialIsStocker;
+  stockerLabel.appendChild(stockerInput);
+  stockerLabel.appendChild(document.createTextNode('カードストッカーにする'));
+  stockerGroup.appendChild(stockerLabel);
+
+  const ownedLabel = document.createElement('label');
+  ownedLabel.style.display = 'flex';
+  ownedLabel.style.alignItems = 'center';
+  ownedLabel.style.gap = '6px';
+  ownedLabel.style.cursor = 'pointer';
+  ownedLabel.style.marginTop = '4px';
+  ownedLabel.style.marginLeft = '18px';
+  ownedLabel.title = '所有者だけが、入れる・中身を見る・取り出すことができます。';
+  const ownedInput = document.createElement('input');
+  ownedInput.type = 'checkbox';
+  ownedInput.checked = !!initialStockerOwned;
+  ownedLabel.appendChild(ownedInput);
+  // 既に他の人のものになっている箱では、誰のものかを出す。「自分専用にする」とだけ書くと
+  // 他人の箱を開いた人が自分のものだと読み違える（外して入れ直せば所有者は移る）。
+  ownedLabel.appendChild(document.createTextNode(
+    stockerOwnerLabel
+      ? `所有者を決める（今は${stockerOwnerLabel}のもの。外して入れ直すと自分のものになります）`
+      : '自分専用にする（自分だけが出し入れできる）'
+  ));
+  stockerGroup.appendChild(ownedLabel);
+
+  // ストッカーでないパネルに所有者だけ付いていても意味がないので、連動させる
+  function syncStockerOwned() {
+    ownedInput.disabled = !stockerInput.checked;
+    ownedLabel.style.opacity = stockerInput.checked ? '' : '0.5';
+    if (!stockerInput.checked) ownedInput.checked = false;
+  }
+  stockerInput.addEventListener('change', syncStockerOwned);
+  syncStockerOwned();
+
+  form.appendChild(stockerGroup);
+
   // --- ボタン行 ---
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';
@@ -216,7 +271,9 @@ export function showPanelDialog({
     dialog.close();
     onConfirm({
       image: currentImage, text: textInput.value, cols, rows, stackOrder,
-      keepOnSceneChange: keepInput.checked
+      keepOnSceneChange: keepInput.checked,
+      isStocker: stockerInput.checked,
+      stockerOwned: stockerInput.checked && ownedInput.checked
     });
   });
 

@@ -937,6 +937,15 @@ const MY_SKILL_SPEC = createSkillSpec({
 | `ADD_CARD` / `REMOVE_CARD` / `MOVE_CARD` | `{ id, ... }` | デッキを介さず1枚だけ扱う |
 | `SAVE_DECK_TEMPLATE` | `{ id, name, back, cards: [{ id, name, count, text, image }] }` | 作り置きのデッキ（`room.deckTemplates`）。同じ id で上書き |
 | `REMOVE_DECK_TEMPLATE` | `{ id }` | 定義だけを消す（盤面に置いた山札は残る） |
+| `RETURN_CARD_TO_DECK` | `{ cardId, deckId }` | 山の**一番下**へ戻す。出自（`card.deckId`）と違う山は受け付けない |
+| `SET_PANEL_STOCKER` | `{ id, isStocker, ownerId, localUserId, gridSize }` | パネルをカードストッカーにする／やめる |
+| `STORE_CARD_IN_STOCKER` / `TAKE_CARD_FROM_STOCKER` / `RELEASE_STOCKER_CARDS` | `{ ..., participantId, localUserId }` | ストッカーへの出し入れ |
+
+**カードストッカー**は、カードを収納できるパネル（`panel.isStocker`）。入ったカードは
+`card.stockerId` を持ち、盤面には描かれないが状態としては残る（コマの `inBackyard` と同じ扱い）。
+所有者（`stockerOwnerId` / `stockerOwnerLocalId`）を設定した箱は、入れる・見る・取り出すが
+その人だけに限られる。**箱が消える・箱でなくなる経路では必ず中身を盤面へ出す**こと
+（`releaseStockerCards`）。出し忘れると、どこにも描かれず取り出す口も無いカードが残る。
 
 カード1枚の見た目は `face = { image, text, info, color }`。`image` があれば画像、無ければ `text`（カード名）を `color` で描く。`info` はカード情報で、**表向きのときだけ**ツールチップと右クリックメニューに出る。
 

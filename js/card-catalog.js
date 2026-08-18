@@ -59,7 +59,7 @@ function jokerFace() {
  * @param {{jokers?: number}} options jokers＝加えるジョーカーの枚数（既定0）
  * @returns {{face: {image: string, text: string, color: string}}[]}
  */
-export function buildSimpleTrumpDeck({ jokers = 0 } = {}) {
+export function buildSimpleTrumpDeck({ jokers = 1 } = {}) {
   const cards = [];
 
   SUITS.forEach(suit => {

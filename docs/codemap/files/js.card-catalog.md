@@ -3,8 +3,8 @@ source: js/card-catalog.js
 lines: 142
 exports: 7
 imported_by: 2
-api_sha: 61c85ed035b4
-prose_sha: 61c85ed035b4
+api_sha: 4aee9a6ab821
+prose_sha: 4aee9a6ab821
 generated: 2026-08-18
 tags: [codemap]
 ---
@@ -27,7 +27,7 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 21 | const | CARD_IMAGE_DIR | `CARD_IMAGE_DIR` | トランプ画像の置き場。 |
 | 42 | const | TRUMP_BACK | `TRUMP_BACK` | デッキの既定の裏面（差し替えはデッキ配置ダイアログから）。 |
-| 62 | fn | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 0 } = {})` | 簡易トランプ1組。 |
+| 62 | fn | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 簡易トランプ1組。 |
 | 83 | const | DECK_TEMPLATES | `DECK_TEMPLATES` | 組み込みのデッキ（この部屋で何も作らなくても置けるもの）。 |
 | 94 | fn | findDeckTemplate | `findDeckTemplate(id)` |  |
 | 110 | fn | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | ユーザーが作ったデッキの定義（room.deckTemplates の1件）を、実際の札の並びへ展開する。 |
@@ -43,7 +43,7 @@ tags: [codemap]
 | 37 | cardImageUrl | `cardImageUrl(fileName)` | 3 |  |
 | 44 | trumpFace | `trumpFace(suit, rank)` | 8 |  |
 | 53 | jokerFace | `jokerFace()` | 3 |  |
-| 62 | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 0 } = {})` | 15 | ✓ |
+| 62 | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 15 | ✓ |
 | 94 | findDeckTemplate | `findDeckTemplate(id)` | 3 | ✓ |
 | 110 | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | 21 | ✓ |
 | 136 | countDeckTemplateCards | `countDeckTemplateCards(template)` | 6 | ✓ |

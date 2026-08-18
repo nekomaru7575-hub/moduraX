@@ -1646,7 +1646,11 @@ function tryHandlePluginChatCommand(rawInput, character) {
       // 部屋が持つ値（Coreの「現在のラウンド」、プラグインのブーケ合計）。コマ1体では
       // 決まらない値をコマンドの中で読めるようにするために渡す（ステラナイツの
       // 個数を書かないcharge）。Coreは中身を解釈せず、そのまま渡すだけ。
-      roomParameters: store.state.room?.parameters ?? {}
+      roomParameters: store.state.room?.parameters ?? {},
+      // コマンドを打った人の参加者ID（表示名未設定ならnull）。公開先(audience)を持つ
+      // データをコマンドから扱うプラグイン（シノビガミの奥義）が、
+      // 「その人に見えているか」を判断するために使う。
+      myParticipantId: getCurrentParticipantId()
     });
     if (handled) return true;
   }

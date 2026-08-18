@@ -117,7 +117,7 @@ export function applyCharacterEditResult(store, tokenId, result) {
 function buildPluginPanel({
   activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents,
   dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-  allowParameterEdit = false
+  allowParameterEdit = false, participants = {}, myParticipantId = null
 }) {
   const column = document.createElement('div');
   column.className = 'dialog-plugin-column';
@@ -129,7 +129,11 @@ function buildPluginPanel({
     panel = renderCharacterPanel(activePluginId, {
       container: column, mode, canEdit, parameters, components, onComponentChange, getComponents,
       dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-      allowParameterEdit
+      allowParameterEdit,
+      // 公開先(audience)を持つデータを扱うプラグイン（シノビガミの奥義）のために渡す。
+      // プラグイン側からgame-store.jsは読めない（循環import）ので、参加者一覧と自分のIDは
+      // Coreから渡すしかない。
+      participants, myParticipantId
     });
   } else {
     const placeholder = document.createElement('p');
@@ -1002,7 +1006,8 @@ export function showCharacterEditDialog({
     onComponentChange,
     getComponents,
     dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-    allowParameterEdit
+    allowParameterEdit,
+    participants, myParticipantId
   });
   columns.appendChild(pluginPanel.element);
 

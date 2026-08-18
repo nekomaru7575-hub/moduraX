@@ -10,9 +10,17 @@ import {
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
-  usesInitiativeProcess, showsEntryMessages, generateDeckId, CARD_COLS, CARD_ROWS
+  usesInitiativeProcess, showsEntryMessages, generateDeckId, generateDeckTemplateId,
+  generateCardId, CARD_COLS, CARD_ROWS
 } from './game-store.js';
-import { showDeckDialog } from './deck-dialog.js';
+import { showDeckListDialog } from './deck-list-dialog.js';
+import { showDeckEditorDialog } from './deck-editor-dialog.js';
+import {
+  DECK_TEMPLATES, findDeckTemplate, expandDeckTemplate, countDeckTemplateCards, TRUMP_BACK
+} from './card-catalog.js';
+import { buildDeckFile, readDeckFile, deckFileName } from './deck-file.js';
+import { pickFileAsText } from './file-uploader.js';
+import { downloadJSON } from './character-snapshot.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
@@ -754,17 +762,123 @@ EventBus.subscribe('NET_INITIALIZED', () => {
   activateAndRegisterIdentity(storedName, getStoredDevPassphrase(currentRoomId()));
 });
 
-// デッキ（カードの束）を盤面に置く。盤面のどこかを指している操作ではないので、今見えて
-// いる範囲の真ん中へ置く（引いた札はデッキの右へ並ぶ。js/game-store.jsのDRAW_CARDS）。
-// パネルの追加と同じくGM限定にはしない。
-function placeDeck() {
-  showDeckDialog({
-    onConfirm: ({ name, back, cards }) => {
-      const spot = getBoardDropSpot({ cols: CARD_COLS, rows: CARD_ROWS });
-      store.dispatch('ADD_DECK', {
-        id: generateDeckId(), name, back, cards, x: spot.x, y: spot.y
+// --- デッキ（js/deck-list-dialog.js・js/deck-editor-dialog.js） ---
+// 作ったデッキの定義はroom.deckTemplatesに入り、部屋の全員で共有する（オリジナル表と同じ）。
+// 盤面に置くときに1枚ずつの札へ展開するので、置いたあとの山札は定義とは切り離される。
+
+// デッキを盤面に置く。盤面のどこかを指している操作ではないので、今見えている範囲の
+// 真ん中へ置く（引いた札はデッキの右へ並ぶ。js/game-store.jsのDRAW_CARDS）。
+function placeDeckOnBoard(name, back, cards) {
+  const spot = getBoardDropSpot({ cols: CARD_COLS, rows: CARD_ROWS });
+  store.dispatch('ADD_DECK', {
+    id: generateDeckId(), name, back, cards, x: spot.x, y: spot.y
+  });
+}
+
+// 組み込みのデッキ（簡易トランプ）を、部屋のデッキの形（1行＝1種類＋枚数）へ写す。
+// 「複製して編集」のためのもので、トランプは同じ札が2枚と無いので全行が枚数1になる。
+function builtInAsTemplate(builtIn) {
+  return {
+    id: null,
+    name: builtIn.defaultName,
+    back: builtIn.back,
+    cards: builtIn.build({ jokers: 0 }).map((card, index) => ({
+      id: `row-${index}`,
+      name: card.face.text,
+      count: 1,
+      text: '',
+      image: card.face.image
+    }))
+  };
+}
+
+function openDeckEditor(template = null) {
+  showDeckEditorDialog({
+    template,
+    onConfirm: ({ id, name, back, cards }) => {
+      store.dispatch('SAVE_DECK_TEMPLATE', {
+        id: id || generateDeckTemplateId(), name, back, cards
       });
-    }
+      openDeckListDialog();
+    },
+    // 一覧は自分を閉じてからこの画面を開くので、キャンセル時は一覧へ戻す
+    onCancel: () => openDeckListDialog()
+  });
+}
+
+// 書き出したデッキのJSONを読み込む。画像はこの部屋へ引き取り直される（js/deck-file.js）。
+async function importDeckFromFile() {
+  const picked = await pickFileAsText({ accept: 'application/json' });
+  if (!picked) {
+    openDeckListDialog();
+    return;
+  }
+
+  let deck = null;
+  try {
+    deck = await readDeckFile(picked.text, (index) => `row-${index}`);
+  } catch (error) {
+    alert(`JSONの解析に失敗しました: ${error.message}`);
+    openDeckListDialog();
+    return;
+  }
+
+  if (!deck) {
+    alert('このファイルはデッキのJSONではありません。');
+    openDeckListDialog();
+    return;
+  }
+
+  store.dispatch('SAVE_DECK_TEMPLATE', {
+    id: generateDeckTemplateId(), name: deck.name || '読み込んだデッキ', back: deck.back, cards: deck.cards
+  });
+  openDeckListDialog();
+}
+
+function openDeckListDialog() {
+  const templates = store.state.room.deckTemplates || {};
+
+  showDeckListDialog({
+    builtIns: DECK_TEMPLATES.map(builtIn => ({
+      id: builtIn.id,
+      label: builtIn.label,
+      count: builtIn.build({ jokers: 0 }).length
+    })),
+    templates: Object.values(templates).map(template => ({
+      id: template.id,
+      name: template.name,
+      count: countDeckTemplateCards(template)
+    })),
+
+    onPlaceBuiltIn: (id) => {
+      const builtIn = findDeckTemplate(id);
+      if (!builtIn) return;
+      const cards = builtIn.build({ jokers: 0 }).map(card => ({ id: generateCardId(), face: card.face }));
+      placeDeckOnBoard(builtIn.defaultName, builtIn.back || TRUMP_BACK, cards);
+    },
+    onCopyBuiltIn: (id) => {
+      const builtIn = findDeckTemplate(id);
+      if (!builtIn) return;
+      openDeckEditor(builtInAsTemplate(builtIn));
+    },
+
+    onPlace: (id) => {
+      const template = store.state.room.deckTemplates?.[id];
+      if (!template) return;
+      placeDeckOnBoard(template.name, template.back, expandDeckTemplate(template, generateCardId));
+    },
+    onEdit: (id) => openDeckEditor(store.state.room.deckTemplates?.[id] || null),
+    onExport: (id) => {
+      const template = store.state.room.deckTemplates?.[id];
+      if (!template) return;
+      downloadJSON(deckFileName(template.name), buildDeckFile(template));
+    },
+    onRemove: (id) => {
+      store.dispatch('REMOVE_DECK_TEMPLATE', { id });
+      openDeckListDialog();
+    },
+    onCreate: () => openDeckEditor(),
+    onImport: () => importDeckFromFile()
   });
 }
 
@@ -786,8 +900,8 @@ if (roomMenuBtn && roomSettingsDialog) {
         onSelect: openOriginalTableListDialog
       },
       {
-        label: 'デッキを配置',
-        onSelect: placeDeck
+        label: 'デッキ一覧',
+        onSelect: openDeckListDialog
       },
       {
         label: 'ログを保存',

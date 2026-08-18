@@ -76,7 +76,8 @@ export function buildSimpleTrumpDeck({ jokers = 0 } = {}) {
 }
 
 /**
- * 配置できるデッキの種類。デッキ配置ダイアログ（js/deck-dialog.js）が選択肢として並べる。
+ * 組み込みのデッキ（この部屋で何も作らなくても置けるもの）。デッキ一覧
+ * （js/deck-list-dialog.js）が「既定のデッキ」として並べる。
  * jokerOption＝「ジョーカーを入れる」チェックを出すか。
  */
 export const DECK_TEMPLATES = [
@@ -92,4 +93,49 @@ export const DECK_TEMPLATES = [
 
 export function findDeckTemplate(id) {
   return DECK_TEMPLATES.find(template => template.id === id) || null;
+}
+
+/**
+ * ユーザーが作ったデッキの定義（room.deckTemplates の1件）を、実際の札の並びへ展開する。
+ * 定義は「1行＝1種類のカード＋枚数」で持っているので、枚数ぶん複製して1枚ずつにする。
+ * 並びは定義の順のまま（混ぜるのは配置後の「シャッフル」の役目）。
+ *
+ * カード名は face.text（画像が無いときにカードの中央へ出る文字）、カード情報は face.info
+ * （表向きのときだけ読める。js/game-store.jsのnormalizeCardFace）。
+ *
+ * @param {{cards: {name?: string, count?: number, text?: string, image?: string|null}[]}} template
+ * @param {() => string} generateId 札1枚ずつのidを作る関数（採番はUI側の仕事）
+ * @param {number} max 展開する上限枚数（デッキが持てる枚数。超える分は切る）
+ */
+export function expandDeckTemplate(template, generateId, max = 200) {
+  const cards = [];
+
+  (template?.cards || []).forEach(row => {
+    const count = Math.max(1, Math.round(Number(row?.count) || 1));
+    for (let i = 0; i < count; i += 1) {
+      if (cards.length >= max) return;
+      cards.push({
+        id: generateId(),
+        face: {
+          image: row?.image || null,
+          text: row?.name || '',
+          info: row?.text || '',
+          color: null
+        }
+      });
+    }
+  });
+
+  return cards;
+}
+
+/**
+ * 定義から作られる札の合計枚数（展開せずに数えるだけ）。編集画面の「合計n枚」と、
+ * 一覧に出す枚数の表示に使う。
+ */
+export function countDeckTemplateCards(template) {
+  return (template?.cards || []).reduce(
+    (total, row) => total + Math.max(1, Math.round(Number(row?.count) || 1)),
+    0
+  );
 }

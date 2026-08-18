@@ -791,11 +791,19 @@ function applyObjectImage(img, url) {
   img.src = url;
 }
 
+// カード名の文字の大きさ。カードの幅は4マス（100px）しかないので、「♠A」と
+// 「ワンドのナイト」を同じ大きさで出すと後者がはみ出す。長さで段階を切り替える
+// （実際の大きさはCSSの .card-text.len-m / .len-l）。
+function cardTextSizeClass(text) {
+  if (text.length <= 3) return '';
+  return text.length <= 8 ? 'len-m' : 'len-l';
+}
+
 function applyCardAppearance(el, cardData) {
   el.style.width = `${cardData.cols * GRID_SIZE}px`;
   el.style.height = `${cardData.rows * GRID_SIZE}px`;
 
-  // 表向きなら表面、裏向きなら裏面。裏向きの間はface（スートと数字）に一切触れない
+  // 表向きなら表面、裏向きなら裏面。裏向きの間はface（カード名・情報・絵）に一切触れない
   const side = cardData.faceUp ? cardData.face : cardData.back;
 
   const img = el.querySelector('.card-image');
@@ -804,8 +812,18 @@ function applyCardAppearance(el, cardData) {
   applyObjectImage(img, side.image);
 
   // 文字は表向きのときだけ。裏面は無地（裏に文字を出すと表面が透ける意味になる）
-  text.textContent = cardData.faceUp ? (cardData.face.text || '') : '';
+  const name = cardData.faceUp ? (cardData.face.text || '') : '';
+  text.textContent = name;
   text.style.color = cardData.faceUp ? (cardData.face.color || '') : '';
+  text.className = `card-text ${cardTextSizeClass(name)}`.trim();
+
+  // カード情報はマウスオーバーのツールチップで読ませる（パネルのテキストと同じ扱い。
+  // applyPanelAppearance参照）。裏向きの間は表面の情報なので出さない。
+  if (cardData.faceUp && cardData.face.info) {
+    el.title = cardData.face.info;
+  } else {
+    el.removeAttribute('title');
+  }
 
   el.classList.toggle('face-down', !cardData.faceUp);
   el.classList.toggle('locked', !!cardData.locked);
@@ -864,6 +882,19 @@ function bindCardDrag(element) {
       onSelect: () => {}
     }] : [];
 
+    // カード情報は表向きならツールチップで読めるが、タッチにはホバーが無い。
+    // 読める状態のときだけ、メニューの先頭に冒頭を出して指だけでも辿れるようにする
+    // （パネルのtextPreviewItemと同じ扱い）。
+    const readableInfo = (cardData.faceUp && cardData.face.info)
+      ? cardData.face.info.replace(/\s+/g, ' ').trim()
+      : '';
+    const infoItem = readableInfo ? [{
+      label: readableInfo.length > 40 ? `${readableInfo.slice(0, 40)}…` : readableInfo,
+      disabled: true,
+      title: cardData.face.info,
+      onSelect: () => {}
+    }] : [];
+
     // 表示名を設定していない人は参加者IDを持たないので、記録として残せない
     // （記録できないだけで、表面を見ること自体は下の「表にする」で誰でもできる）。
     const canRecordSeen = !!myParticipantId;
@@ -883,6 +914,7 @@ function bindCardDrag(element) {
     }];
 
     showContextMenu(event.clientX, event.clientY, [
+      ...infoItem,
       ...seenItem,
       ...peekItem,
       {

@@ -20,7 +20,7 @@ generated: 2026-08-19
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 99 | 392 | 864 | 23 | 0 |
+| 100 | 400 | 875 | 22 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -98,10 +98,11 @@ generated: 2026-08-19
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 27 | 3 |
 | [[js.parameters.shinobigami-ougi-box\|js/parameters/shinobigami-ougi-box.js]] | シノビガミの「奥義」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 9 | 1 |
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 3 | 1 |
-| [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 5 | 1 |
+| [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 6 | 1 |
+| [[js.parameters.skill.item-use\|js/parameters/skill/item-use.js]] | アイテム（createItemSpecで宣言した、個数を持つ持ち物）の使用と増減。 | 5 | 3 |
 | [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 4 |
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 16 | 8 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 9 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 4 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
@@ -136,7 +137,7 @@ generated: 2026-08-19
 | [[js.game-store\|js/game-store.js]] | 13 |
 | [[js.local-identity\|js/local-identity.js]] | 13 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 10 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 8 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 9 |
 | [[js.read-only-form\|js/read-only-form.js]] | 8 |
 | [[js.visibility\|js/visibility.js]] | 8 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |

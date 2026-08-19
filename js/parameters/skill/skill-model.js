@@ -128,6 +128,19 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              旧データ（DX3のeffect.combo）のキー → paramIdの対応表。
  * }} definition
  */
+// 個数の宣言の既定。上限を置いているのは、青天井にすると保存データも見た目も破綻するため
+// （js/parameters/dice-draft/dice-draft-pool.js の MAX_FACE_VALUE と同じ考え方）。
+// 下限0は「持っていない」を表す：0のアイテムは使えない（item-use.jsのrunItemUse）。
+const QUANTITY_DEFAULTS = { label: '個数', min: 0, max: 999 };
+
+/** 個数を宣言の範囲へ丸める。非数値・空欄は下限へ落とす。 */
+export function clampQuantity(spec, value) {
+  if (!spec.quantity) return 0;
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return spec.quantity.min;
+  return Math.min(Math.max(number, spec.quantity.min), spec.quantity.max);
+}
+
 export function createSkillSpec(definition) {
   const {
     id,
@@ -142,7 +155,8 @@ export function createSkillSpec(definition) {
     allowExpirePhase = true,
     allowConditions = true,
     logNote = false,
-    defaultSkills = []
+    defaultSkills = [],
+    quantity = null
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -167,6 +181,9 @@ export function createSkillSpec(definition) {
     allowExpirePhase,
     allowConditions,
     logNote,
+    // アイテムかどうかの唯一の判定。宣言があればボックスは個数と使用ボタンを出し、
+    // item.use / item.gain の対象になる（createItemSpec）。
+    quantity: quantity ? Object.freeze({ ...QUANTITY_DEFAULTS, ...quantity }) : null,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
@@ -192,6 +209,7 @@ export function createSkillSpec(definition) {
  */
 export function createListSpec(definition) {
   return createSkillSpec({
+    // quantity は素通しする。アイテム（createItemSpec）がこの関数を通って宣言されるため。
     ...definition,
     periods: [],
     allowMods: false,
@@ -201,6 +219,25 @@ export function createListSpec(definition) {
     // 名前だけのログにならないようにしておく（ドラクルージュの逸話がその形）。
     logNote: true
   });
+}
+
+/**
+ * 「名前・（システム固有の欄）・効果・個数」を持つアイテムの宣言。
+ *
+ * 消費して減る持ち物（シノビガミの忍具）のためのもの。createListSpec と同じく使う・振る・
+ * 修正が乗るといった節を持たず、そこへ**個数**と**使用**だけを足す。ボックスには
+ * 「− 個数 ＋」と使用ボタンが出て、宣言したプラグインには item.use / item.gain が
+ * 自動で生える（js/parameters/registry.js の handlePluginChatCommand。ダイスドラフトの
+ * dice.change / dice.add と同じ配り方で、プラグイン側に書くことは何も無い）。
+ *
+ * defaultSkills を渡すと、まだ1件も登録が無いコマにその枠が並ぶ（シノビガミの忍具は
+ * 兵糧丸・神通丸・遁甲符の3つに決まっているので、最初から並べて個数だけ埋めてもらう）。
+ *
+ * @param {{id:string, noun:string, componentKey:string, fields?:Array<object>,
+ *          defaultSkills?:Array<object>, quantity?:{label?:string, min?:number, max?:number}}} definition
+ */
+export function createItemSpec(definition) {
+  return createListSpec({ quantity: {}, ...definition });
 }
 
 // 「その欄がこのスキルで意味を持つか」の判定は skill-formula.js にある（式の評価でも
@@ -369,7 +406,7 @@ export function normalizeSkill(spec, raw) {
     ? raw.expirePhase
     : '';
 
-  return {
+  const normalized = {
     name: typeof raw?.name === 'string' ? raw.name : '',
     note: typeof raw?.note === 'string' ? raw.note : '',
     fields,
@@ -377,6 +414,12 @@ export function normalizeSkill(spec, raw) {
     limits: { counts, conditions },
     mods
   };
+
+  // 個数はアイテム（spec.quantity を宣言したもの）だけが持つ。宣言していないシステムに
+  // キーを生やさないのは、保存済みデータの形を変えないため。
+  if (spec.quantity) normalized.quantity = clampQuantity(spec, raw?.quantity);
+
+  return normalized;
 }
 
 /**

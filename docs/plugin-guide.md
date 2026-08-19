@@ -855,14 +855,21 @@ dispatch('SET_COMPONENT', { id: tokenId, componentKey: 'myKey', value: nextValue
 
 ### 6.1 スキル枠組み（`js/parameters/skill/`）
 
-「キャラが取得して、条件と回数の制限のもとで使い、使うと判定へ修正が乗る能力」の汎用実装。
-DX3 のエフェクトも、シノビガミの忍法も、これで書かれている。
+「名前と内容を持つデータを、コマごとに何件でも並べる」ための汎用実装。**同じモデルと
+同じボックス**で3つの形を書ける。どれになるかは宣言に使う関数だけの違い。
+
+| 形 | 宣言 | 使う場面 |
+|---|---|---|
+| **スキル** | `createSkillSpec()` | 取得して、条件と回数の制限のもとで使い、判定へ修正が乗る能力（DX3のエフェクト、シノビガミの忍法） |
+| **一覧** | `createListSpec()` | 使う概念を持たない、書いておくだけのもの（ドラクルージュの逸話、シノビガミの背景） |
+| **アイテム** | `createItemSpec()` | 個数を持ち、消費して減る持ち物（シノビガミの忍具） |
 
 | ファイル | 役割 |
 |---|---|
-| `skill-model.js` | データモデル。`createSkillSpec()` で宣言する |
-| `skill-box.js` | 一覧・編集の UI（`showSkillBox()`） |
-| `skill-use.js` | 使用処理（`runSkillUse()`）。制限判定・バフ付与・回数記録・ログを全部やる |
+| `skill-model.js` | データモデル。`createSkillSpec()` / `createListSpec()` / `createItemSpec()` |
+| `skill-box.js` | 一覧・編集の UI（`showSkillBox()`）。3つの形すべてを描く |
+| `skill-use.js` | スキルの使用処理（`runSkillUse()`）。制限判定・バフ付与・回数記録・ログ |
+| `item-use.js` | アイテムの使用と増減（`item.use` / `item.gain`） |
 | `skill-formula.js` | 式（`{Lv}` `{AdB}` 等）の評価 |
 
 宣言だけでひととおり動く。
@@ -934,6 +941,40 @@ const BACKGROUND_SPEC = createListSpec({
 > **入れ子や1件ごとの公開先が要るならこの枠組みでは書けない**。`normalizeSkill` が返す形が
 > 決まっているため。シノビガミの奥義（奥義改造の入れ子＋公開先）が専用ボックスを持っているのは
 > この理由（`js/parameters/shinobigami-ougi-box.js`）。
+
+#### 個数を持つ持ち物（`createItemSpec`）
+
+消費して減るもの。上の一覧に**個数**と**使用**を足しただけで、書き方も保存先も同じ。
+
+```js
+import { createItemSpec } from './skill/skill-model.js';
+
+const TOOL_SPEC = createItemSpec({
+  id: 'shinobigami-tool',
+  noun: '忍具',
+  componentKey: 'tools',
+  // fields: [...] 拡張属性を持たせてもよい（無ければ名前・効果・個数だけ）
+  defaultSkills: [{ name: '兵糧丸' }, { name: '神通丸' }, { name: '遁甲符' }]
+});
+```
+
+プラグイン記述子へ `item: TOOL_SPEC` と書くと、**チャットコマンドが自動で生える**。
+`diceDraft` の `dice.change` / `dice.add` と同じ配り方で、プラグイン側に書く処理は無い。
+
+| コマンド | 動き |
+|---|---|
+| `item.use(名前)` | 個数を1減らし、Mainタブへ「（名前）を使用しました。（効果）」 |
+| `item.gain(名前, n)` | 個数を `n` だけ増減（負数可）。変更後の個数をMainタブへ |
+
+ボックス側には `[−] 個数 [＋]` と `[使用]` が出る。**この2つだけは押した時点で保存される**
+（名前や効果の編集は今までどおり保存ボタンまで溜まる）。個数0のアイテムは使用できない。
+
+「使用」ボタンは `item.use` と同じ `runItemUse()` を通る。一方 `＋` `−` はチャットへ流さない
+（数え直しのたびに卓のログが埋まるため）。`item.gain` がログを残すのは、誰かが宣言して
+打ったものだから。
+
+> 使用ボタンを出すには `showSkillBox()` へ `getToken` と `dispatch` も渡すこと。
+> 渡さなければ個数の増減だけができる。
 
 ### 6.2 特技表（`js/parameters/saikoro-fiction/`）
 

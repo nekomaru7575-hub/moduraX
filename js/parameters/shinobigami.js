@@ -12,7 +12,7 @@ import {
   makeCellId, getCell
 } from './saikoro-fiction/skill-table.js';
 import {
-  createSkillSpec, createListSpec, normalizeSkillList, findSkillByName,
+  createSkillSpec, createListSpec, createItemSpec, normalizeSkillList, findSkillByName,
   resetSkillUsageOnPhaseEnd, buildSkillUseCommandPattern, isFieldAvailable
 } from './skill/skill-model.js';
 import { runSkillUse } from './skill/skill-use.js';
@@ -358,6 +358,29 @@ function readBackgroundList(components) {
   );
 }
 
+// 忍具。名前・効果と個数だけを持つアイテム（拡張属性は無し）。
+//
+// 兵糧丸・神通丸・遁甲符の3種はシノビガミ側で決まっているので、まだ1件も登録が無いコマには
+// この枠を最初から並べる（defaultSkills）。効果の文章は入れない：版やハウスルールで変わるし、
+// 卓が自分の言葉で書いたほうが使用ログとして役に立つため。
+//
+// createItemSpecを宣言すると item.use / item.gain がこのプラグインに自動で生える
+// （js/parameters/registry.jsのhandlePluginChatCommand）。下のSHINOBIGAMI_PLUGINの
+// item: がその宣言で、コマンドの処理はこのファイルには一切書かない。
+const SHINOBIGAMI_TOOL_SPEC = createItemSpec({
+  id: 'shinobigami-tool',
+  noun: '忍具',
+  componentKey: 'tools',
+  defaultSkills: [{ name: '兵糧丸' }, { name: '神通丸' }, { name: '遁甲符' }]
+});
+
+// components から正規形の忍具一覧を取り出す。
+function readToolList(components) {
+  return normalizeSkillList(
+    SHINOBIGAMI_TOOL_SPEC, components?.[SHINOBIGAMI_TOOL_SPEC.componentKey] ?? []
+  );
+}
+
 // components から正規形の忍法一覧を取り出す。
 function readNinpouList(components) {
   return normalizeSkillList(SHINOBIGAMI_NINPOU_SPEC, components?.[SHINOBIGAMI_NINPOU_SPEC.componentKey] ?? []);
@@ -578,8 +601,37 @@ function renderShinobigamiCharacterPanel({
   });
   container.appendChild(backgroundBtn);
 
+  // --- 忍具 ---
+  const toolBtn = document.createElement('button');
+  toolBtn.type = 'button';
+  toolBtn.className = 'dialog-add-row-btn';
+  toolBtn.style.marginTop = '8px';
+
+  const updateToolLabel = () => {
+    const total = readToolList(readComponents()).reduce((sum, tool) => sum + tool.quantity, 0);
+    toolBtn.textContent = `忍具を開く（計${total}個）`;
+  };
+  updateToolLabel();
+
+  toolBtn.addEventListener('click', () => {
+    showSkillBox({
+      spec: SHINOBIGAMI_TOOL_SPEC,
+      skills: readComponents()?.[SHINOBIGAMI_TOOL_SPEC.componentKey] ?? [],
+      readOnly: !canEdit,
+      onSave: (nextList) => {
+        onComponentChange(SHINOBIGAMI_TOOL_SPEC.componentKey, nextList);
+        updateToolLabel();
+      },
+      // 使用ボタンはチャットへログを流し、コマの個数も減らす。他人のコマを見ているだけの
+      // 時はreadOnlyがボタンごと封じるので、ここは渡したままでよい。
+      getToken,
+      dispatch
+    });
+  });
+  container.appendChild(toolBtn);
+
   // Core側の汎用パラメータ一覧に流し込む値は無い
-  // （特技表・忍法・奥義・背景はcomponents側で即時保存される）。
+  // （特技表・忍法・奥義・背景・忍具はcomponents側で即時保存される）。
   return { getValues: () => ({}) };
 }
 
@@ -833,6 +885,10 @@ export const SHINOBIGAMI_PLUGIN = {
   renderCharacterPanel: renderShinobigamiCharacterPanel,
   handleChatCommand: handleShinobigamiChatCommand,
   looksLikeOwnChatCommand: looksLikeShinobigamiChatCommand,
+  // これだけで item.use / item.gain が生える（js/parameters/registry.js）。
+  // looksLikeOwnChatCommandには足さない：item.* はシノビガミのものではなく、
+  // アイテムを持つシステム共通の操作のため（dice.* と同じ扱い。js/main.js）。
+  item: SHINOBIGAMI_TOOL_SPEC,
   // シーン終了・ラウンド終了で忍法の使用回数を戻す
   resetComponentsOnPhaseEnd: resetShinobigamiComponentsOnPhaseEnd
 };
@@ -840,5 +896,5 @@ export const SHINOBIGAMI_PLUGIN = {
 // 他プラグイン（インセイン等）や動作確認から参照できるように公開しておく。
 export {
   SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY,
-  SHINOBIGAMI_NINPOU_SPEC, SHINOBIGAMI_BACKGROUND_SPEC
+  SHINOBIGAMI_NINPOU_SPEC, SHINOBIGAMI_BACKGROUND_SPEC, SHINOBIGAMI_TOOL_SPEC
 };

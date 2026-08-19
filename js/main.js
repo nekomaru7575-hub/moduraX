@@ -45,6 +45,7 @@ import {
   parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem
 } from './parameters/registry.js';
 import { looksLikeDiceDraftPoolCommand } from './parameters/dice-draft/dice-draft-pool.js';
+import { looksLikeItemCommand } from './parameters/skill/item-use.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
@@ -1698,6 +1699,12 @@ function tryHandlePluginChatCommand(rawInput, character) {
   // ドラフトを使っていない＝実行のしようが無い。素通りしてただの発言になる前に理由を伝える。
   if (looksLikeDiceDraftPoolCommand(rawInput)) {
     alert('dice.change / dice.add は、ダイスドラフトを使うシステムの部屋でだけ使えます。');
+    return true;
+  }
+
+  // item.* も同じ（アイテムを持つシステム共通の操作）。
+  if (looksLikeItemCommand(rawInput)) {
+    alert('item.use / item.gain は、アイテムを使うシステムの部屋でだけ使えます。');
     return true;
   }
 

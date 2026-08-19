@@ -1,10 +1,10 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 845
-exports: 5
+lines: 901
+exports: 6
 imported_by: 1
-api_sha: db344c628c60
-prose_sha: db344c628c60
+api_sha: c9877291a84b
+prose_sha: c9877291a84b
 generated: 2026-08-19
 tags: [codemap]
 ---
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-シノビガミのプラグイン記述子。特技表データ（[[js.parameters.shinobigami-skills]]）を共通の表モデルへ流し込み、生命力（特技表の枠から自動算出）・忍法（汎用のスキル枠組みへ SHINOBIGAMI_NINPOU_SPEC として宣言）・背景（同じ枠組みの一覧版。createListSpec に長所／短所のトグルを1つ足しただけ）・プロットで手番順が決まるラウンド進行テンプレートを束ねる。判定に効く修正値（AdB/AnB/SB/FB）と基準値（{F}/{S}）もここで定義する。表の描画も判定の実行も忍法の使用処理も共通側にあり、システム固有なのは特技データと BCDice コマンドの組み立て（resolveShinobigamiCheck）、そして「1ラウンドに使える忍法コストの合計はプロットまで」の判定（handleNinpouUseCommand）だけ。奥義だけは入れ子（奥義改造）と1件ごとの公開先を持つため、共通の枠組みに乗らず専用ボックス（[[js.parameters.shinobigami-ougi-box]]）にしてある。
+シノビガミのプラグイン記述子。特技表データ（[[js.parameters.shinobigami-skills]]）を共通の表モデルへ流し込み、生命力（特技表の枠から自動算出）・忍法（汎用のスキル枠組みへ SHINOBIGAMI_NINPOU_SPEC として宣言）・背景（同じ枠組みの一覧版。長所／短所のトグルを1つ足しただけ）・忍具（同じ枠組みのアイテム版。兵糧丸・神通丸・遁甲符を既定の枠として配る）・プロットで手番順が決まるラウンド進行テンプレートを束ねる。判定に効く修正値（AdB/AnB/SB/FB）と基準値（{F}/{S}）もここで定義する。表の描画も判定の実行も忍法の使用処理も共通側にあり、システム固有なのは特技データと BCDice コマンドの組み立て（resolveShinobigamiCheck）、そして「1ラウンドに使える忍法コストの合計はプロットまで」の判定（handleNinpouUseCommand）だけ。`item.use` / `item.gain` は `item:` の宣言1行で生えるので、このファイルには忍具のコマンド処理を書いていない。奥義だけは入れ子（奥義改造）と1件ごとの公開先を持つため、共通の枠組みに乗らず専用ボックス（[[js.parameters.shinobigami-ougi-box]]）にしてある。
 <!-- /prose:role -->
 
-## export（5）
+## export（6）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -29,9 +29,10 @@ tags: [codemap]
 | 128 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` |  |
 | 290 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
 | 342 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
-| 827 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 370 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
+| 879 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（22）
+## トップレベル関数（LOCAL TASKS 候補）（23）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -48,18 +49,19 @@ tags: [codemap]
 | 256 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
 | 274 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
 | 355 | readBackgroundList | `readBackgroundList(components)` | 5 |  |
-| 362 | readNinpouList | `readNinpouList(components)` | 3 |  |
-| 381 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
-| 392 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
-| 399 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
-| 410 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
-| 427 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, participants = {}, myParticipantId = null })` | 158 |  |
-| 595 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
-| 606 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 30 |  |
-| 642 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
-| 739 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
-| 786 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
-| 808 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 378 | readToolList | `readToolList(components)` | 5 |  |
+| 385 | readNinpouList | `readNinpouList(components)` | 3 |  |
+| 404 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
+| 415 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
+| 422 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
+| 433 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
+| 450 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, participants = {}, myParticipantId = null })` | 187 |  |
+| 647 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
+| 658 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 30 |  |
+| 694 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
+| 791 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
+| 838 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
+| 860 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 

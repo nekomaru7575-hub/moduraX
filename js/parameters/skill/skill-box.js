@@ -11,7 +11,10 @@
 
 import { lockFormControls } from '../../read-only-form.js';
 import { analyzeFormula, listFormulaNames, COMPARATORS } from './skill-formula.js';
-import { normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable, isChoiceField } from './skill-model.js';
+import {
+  normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable, isChoiceField, clampQuantity
+} from './skill-model.js';
+import { runItemUse, readItems } from './item-use.js';
 
 // 選択肢欄（type:'select'）を組む。optionにgroupがあれば、その名前でoptgroupにまとめる
 // （シノビガミの指定特技は66件あるので、分野ごとに畳まないと選べない）。
@@ -106,9 +109,15 @@ function createElement(tag, className, text) {
  *     修正の対象に選べるパラメータと、式に書ける{名前}の検証・提示に使う。
  *   readOnly?: boolean           他人のコマを表示だけしている時（js/character-dialog.jsのcanEdit）
  *   onSave: (skills: Array<object>) => void
+ *   getToken?: () => object|null,  アイテム（spec.quantityを宣言したspec）の使用に使う。
+ *   dispatch?: Function            同上。使用はチャットへログを流すため、この2つが要る。
+ *                                  渡さなければ使用ボタンは出ない（個数の増減だけできる）。
  * }} options
  */
-export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave }) {
+export function showSkillBox({
+  spec, skills = [], parameters = {}, readOnly = false, onSave,
+  getToken = null, dispatch = null
+}) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -219,6 +228,79 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
       fieldInputs[field.key].addEventListener('input', syncFieldAvailability);
     });
     syncFieldAvailability();
+
+    // --- 個数と使用（アイテム＝spec.quantityを宣言したspecだけ） ---
+    // 個数はここだけが持つ状態にせず、増減も使用もその場でcomponentsへ書き戻す
+    // （commitNow）。使用はチャットへログを流す＝取り消せない操作なので、画面と
+    // 保存済みの個数がずれたまま次の操作を受けないようにするため。
+    let quantityState = null;
+    if (spec.quantity) {
+      quantityState = { value: clampQuantity(spec, skill?.quantity) };
+
+      const wrap = createElement('div', 'effect-box-qty');
+      const valueEl = createElement('span', 'effect-box-qty-value');
+      const useBtn = createElement('button', 'effect-box-use-btn', '使用');
+      useBtn.type = 'button';
+
+      const syncQuantity = () => {
+        valueEl.textContent = String(quantityState.value);
+        wrap.title = `${spec.quantity.label}（${spec.quantity.min}〜${spec.quantity.max}）`;
+        // 在庫が無いものは使えない。押せてしまうと「押したのに何も起きない」になる。
+        useBtn.disabled = readOnly || quantityState.value <= 0;
+        useBtn.title = quantityState.value > 0
+          ? `${spec.noun}を1つ使い、効果をチャットへ流します`
+          : `${spec.noun}が残っていません`;
+      };
+
+      const step = (delta) => {
+        const next = clampQuantity(spec, quantityState.value + delta);
+        if (next === quantityState.value) return;
+        quantityState.value = next;
+        syncQuantity();
+        commitNow();
+      };
+
+      [['−', -1], ['＋', 1]].forEach(([label, delta]) => {
+        const btn = createElement('button', 'effect-box-qty-btn', label);
+        btn.type = 'button';
+        btn.title = `${spec.quantity.label}を${delta > 0 ? '1増やす' : '1減らす'}`;
+        btn.addEventListener('click', () => step(delta));
+        // −・数字・＋の順に並べる（数字は先に足しておき、＋は後ろへ）
+        wrap.appendChild(btn);
+        if (delta < 0) wrap.appendChild(valueEl);
+      });
+
+      // 使用はコマンド（item.use）と同じ道を通す。二重に処理を持つと、同じ操作が
+      // 経路によって違う結果になる。
+      useBtn.addEventListener('click', () => {
+        if (!getToken || !dispatch) {
+          alert('この画面では使用できません。部屋の中で実行してください。');
+          return;
+        }
+        // 先に画面の編集を確定させる（名前を直した直後に使っても、保存済みの一覧と
+        // チャットのログが食い違わないように）。**そのあとでコマを読み直すこと**：
+        // 確定前のコマを持ち回すと、runItemUseがそれを元に書き戻して編集を巻き戻す。
+        commitNow();
+        const token = getToken();
+        if (!token) {
+          alert('この画面では使用できません。部屋の中で実行してください。');
+          return;
+        }
+        const items = readItems(spec, token.components);
+        const target = items.find(entry => entry.name === nameInput.value.trim());
+        if (!target) {
+          alert(`${spec.noun}名を入れてから使用してください。`);
+          return;
+        }
+        if (!runItemUse({ spec, items, item: target, token, dispatch })) return;
+        quantityState.value = clampQuantity(spec, quantityState.value - 1);
+        syncQuantity();
+      });
+
+      wrap.appendChild(useBtn);
+      syncQuantity();
+      headerRow.appendChild(wrap);
+    }
 
     const removeBtn = createElement('button', 'dialog-remove-row', '×');
     removeBtn.type = 'button';
@@ -551,7 +633,10 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     validate();
 
     listEl.appendChild(item);
-    rows.push({ item, nameInput, fieldInputs, noteInput, expireSelect, limitControls, conditionRows, modRows });
+    rows.push({
+      item, nameInput, fieldInputs, noteInput, expireSelect,
+      limitControls, conditionRows, modRows, quantityState
+    });
   }
 
   normalizeSkillList(spec, skills).forEach(addRow);
@@ -580,10 +665,10 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     lockFormControls(form, { keep: [cancelBtn] });
   }
 
-  if (!readOnly) form.addEventListener('submit', (event) => {
-    event.preventDefault();
-
-    const nextSkills = rows
+  // 画面の行を、componentsへ保存する配列にする。保存ボタン（submit）と、
+  // 個数の増減・使用（アイテムのときだけ出るボタン）の即時保存の両方から呼ぶ。
+  function collectSkills() {
+    return rows
       .map(row => {
         const fields = {};
         spec.fields.forEach(field => {
@@ -632,13 +717,24 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
           // 効果時間を扱わないシステムでは選択欄そのものが無い
           expirePhase: row.expireSelect ? row.expireSelect.value : '',
           limits: { counts, conditions },
-          mods
+          mods,
+          // 個数を持たないシステムではキーごと出さない（保存形を変えないため）
+          ...(row.quantityState ? { quantity: row.quantityState.value } : {})
         };
       })
       .filter(skill => skill.name !== '');
+  }
 
+  // ダイアログを閉じずにその場で保存する。個数の増減と使用だけが通る道で、
+  // 名前や効果の編集は今までどおり保存ボタンまで溜める（打ちかけの値を撒かないため）。
+  function commitNow() {
+    onSave(collectSkills());
+  }
+
+  if (!readOnly) form.addEventListener('submit', (event) => {
+    event.preventDefault();
     dialog.close();
-    onSave(nextSkills);
+    onSave(collectSkills());
   });
 
   dialog.appendChild(form);

@@ -122,6 +122,53 @@
   font-size: 0.85rem;
 }
 
+/* アイテムの「− 個数 ＋」と「使用」（spec.quantity を宣言した spec のときだけ出る）。
+   header-row の中に並ぶので、入りきらなければ既存の flex-wrap で折り返る。 */
+.effect-box-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.effect-box-qty-btn {
+  width: 26px;
+  background-color: #3a3a3a;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 0;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.effect-box-qty-value {
+  min-width: 30px;
+  text-align: center;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.effect-box-use-btn {
+  background-color: #4a6ea8;
+  color: #fff;
+  border: 1px solid #6f95cf;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-left: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+/* 在庫が無いアイテム。押せないことを色でも示す（title で理由も出る） */
+.effect-box-use-btn:disabled,
+.effect-box-qty-btn:disabled {
+  background-color: #3a3a3a;
+  border-color: #555;
+  color: #888;
+  cursor: default;
+}
+
 .effect-box-toggle.is-alt {
   background-color: #5a3a3a;
   border-color: #8a5555;

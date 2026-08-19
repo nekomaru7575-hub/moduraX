@@ -1,11 +1,11 @@
 ---
 source: js/parameters/registry.js
-lines: 453
-exports: 22
+lines: 482
+exports: 23
 imported_by: 10
-api_sha: 1669863fb4a8
-prose_sha: 1669863fb4a8
-generated: 2026-08-18
+api_sha: 76d7c77397c7
+prose_sha: 76d7c77397c7
+generated: 2026-08-19
 tags: [codemap]
 ---
 
@@ -21,7 +21,7 @@ tags: [codemap]
 DX3・シノビガミ・ステラナイツ・ドラクルージュの記述子を登録し、キャラクターパラメータの構築・専用パネルの描画・JSON 取り込み・チャットコマンド処理・バフ欄の拡張・フェーズ終了時のリセット・ラウンド進行テンプレート・スタンプの宣言（listPluginStamps。束ねるのは[[js.stamp-registry]]）・ルーム変数の自動計算（applyPluginDerivedRoomParameters。ステラナイツのブーケ合計のような「部屋全体から決まる値」）を、プラグインの有無で分岐しながら中継する。宣言をそのまま素通しするだけの窓口も2つある：getPluginBcdiceSystem（そのシステムを選んだときの BCDice のシステムID。切り替えるかは[[js.main]]が決める）と getPluginDiceDraftSpec（振った目をスキルへ割り当てて使う仕組みの宣言。読むのは[[js.dice-draft-panel]]で、規則の実体は js/parameters/dice-draft/ 側にある）。コマ側・ルーム側とも、後から足したパラメータを既存の部屋へ補うのはここの役目（withMissingPluginParameters / withMissingPluginRoomParameters。locked:true のものだけ）。URLからのシート取り込みも、宣言を渡すところ（getPluginSheetSource）と入口を出すかの判定（pluginHasSheetImport）だけを持ち、実際の取得は[[js.character-sheet-import]]とサーバー側の中継が行う。呼び出し側がシステム名を知らずに済むように、判定はすべてここに集める。プラグインへ渡すのは値と事実だけで、Core は中身を解釈しない（applyPluginDerivedParameters の components と context がその例）。新しいシステムを足す作業はこのファイルへの登録から始まる。
 <!-- /prose:role -->
 
-## export（22）
+## export（23）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -46,9 +46,10 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュの記述子�
 | 348 | fn | listPluginStamps | `listPluginStamps(pluginId)` | プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。 |
 | 362 | fn | getPluginBcdiceSystem | `getPluginBcdiceSystem(pluginId)` | そのシステムで使うBCDiceのシステムID（記述子のbcdiceSystem）をそのまま返す。 |
 | 375 | fn | getPluginDiceDraftSpec | `getPluginDiceDraftSpec(pluginId)` | ダイスドラフト（振った目をスキルへ割り当てて使う仕組み）の宣言をそのまま返す。 |
-| 424 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 427 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
+| 453 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（24）
+## トップレベル関数（LOCAL TASKS 候補）（25）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -77,8 +78,9 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュの記述子�
 | 348 | listPluginStamps | `listPluginStamps(pluginId)` | 4 | ✓ |
 | 362 | getPluginBcdiceSystem | `getPluginBcdiceSystem(pluginId)` | 4 | ✓ |
 | 375 | getPluginDiceDraftSpec | `getPluginDiceDraftSpec(pluginId)` | 3 | ✓ |
-| 388 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 15 |  |
-| 424 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 397 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
+| 427 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
+| 453 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 
@@ -88,5 +90,7 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュの記述子�
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+コマ側・ルーム側の「後から足したパラメータを既存の部屋へ補う」（withMissingPluginParameters / withMissingPluginRoomParameters）は、`locked:true` のものだけを対象にする。こうしておけば、利用者が消したパラメータが勝手に復活しない。
+
+コマ側はそれに加えて `editable`（手入力できるか）も毎回プラグインの宣言へ揃え直す。これはプラグインの宣言でしかなく、利用者が変える口がどこにも無いため。揃え直さないと、後から手入力できるようにしたパラメータが**既存のコマでだけ**弾かれ続ける（シノビガミの AdB/AnB/SB/FB で実際に起きた）。`visible` は利用者が切り替えられるので触らない。この補正だけを取り出した口が withPluginParameterDeclarations で、[[js.game-store]] の SET_PARAMETER が自動計算より先に呼ぶ（弾かれると自動計算まで到達せず、古い宣言が直る機会が無いため）。
 <!-- /prose:notes -->

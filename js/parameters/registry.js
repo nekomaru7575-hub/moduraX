@@ -377,28 +377,57 @@ export function getPluginDiceDraftSpec(pluginId) {
 }
 
 /**
- * プラグインの既定パラメータのうち、まだそのコマが持っていないものを補う。
+ * プラグインの既定パラメータのうち、まだそのコマが持っていないものを補い、
+ * 「手入力できるか」（editable）を今の宣言へ揃える。
+ *
  * パラメータはコマ作成時にしか組み立てられないため、プラグインへ後からパラメータを
  * 足すと、それ以前に作られたコマには存在しないまま＝自動計算の結果を入れる先が無い、
  * という状態になる（applyPluginDerivedParametersは既存のparamIdしか更新しないため）。
  *
  * 補完対象をlocked:true（＝ユーザーが削除できないパラメータ）に限るのが肝で、
  * こうしておけば「ユーザーが消したはずのパラメータが勝手に復活する」ことは起きない。
+ *
+ * editableを毎回揃え直すのは、それがプラグインの宣言でしかなく、利用者が変える口が
+ * どこにも無いため（値はSET_PARAMETER、表示はSET_PARAMETER_VISIBILITYで動くが、
+ * editableを動かすアクションは無い）。コマへ焼き付いた古い宣言をそのままにすると、
+ * 「後から手入力できるようにしたパラメータが、既存のコマでだけ編集を弾かれる」という
+ * 直しようのない状態になる（シノビガミのAdB/AnB/SB/FBで実際にそうなった）。
+ * visibleは利用者が切り替えられるので、こちらは触らない。
  */
 function withMissingPluginParameters(plugin, parameters) {
   if (!plugin?.buildCharacterParameters) return parameters;
 
   const defaults = plugin.buildCharacterParameters();
-  const missing = Object.entries(defaults).filter(
-    ([paramId, def]) => def.locked && !parameters[paramId]
-  );
-  if (missing.length === 0) return parameters;
+  let nextParameters = null;
+  const patch = (paramId, param) => {
+    nextParameters = nextParameters ?? { ...parameters };
+    nextParameters[paramId] = param;
+  };
 
-  const nextParameters = { ...parameters };
-  missing.forEach(([paramId, def]) => {
-    nextParameters[paramId] = def; // buildParameters側で既にfreeze済み
+  Object.entries(defaults).forEach(([paramId, def]) => {
+    if (!def.locked) return;
+
+    const current = parameters[paramId];
+    if (!current) {
+      patch(paramId, def); // buildParameters側で既にfreeze済み
+    } else if (current.editable !== def.editable) {
+      patch(paramId, Object.freeze({ ...current, editable: def.editable }));
+    }
   });
-  return nextParameters;
+
+  return nextParameters ?? parameters;
+}
+
+/**
+ * コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。
+ * 自動計算は通さない：SET_PARAMETERの「手入力できるか」の判定が、自動計算より先に
+ * 走る必要があるため（弾かれると自動計算まで到達せず、古い宣言が直る機会が無い）。
+ * @returns {object} 変化が無ければ受け取ったものと同一参照
+ */
+export function withPluginParameterDeclarations(pluginId, parameters) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin) return parameters;
+  return withMissingPluginParameters(plugin, parameters);
 }
 
 /**

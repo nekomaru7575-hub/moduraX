@@ -5,7 +5,7 @@
 
 import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
-  createCheckOptions, normalizeCheckOptions,
+  checkModifiers,
   hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
   countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic
 } from './skill-table.js';
@@ -30,14 +30,21 @@ function ensureDialog() {
  *   title?: string,
  *   editable?: boolean,          特技の取得・ギャップの塗りつぶしを編集できるか
  *   onSave?: (state) => void,    トグルするたびに即座に呼ばれる（保存ボタンは無い）
- *   onCheck?: (cellId, checkOptions) => void
+ *   onCheck?: (cellId) => void
  *     判定モードでセルがクリックされた時。未指定なら判定モードを出さない。
- *     checkOptionsは「判定オプション」欄で指定された値（ダイアログ内だけの状態で保存はしない）。
+ *   getToken?: () => object|null
+ *     修正値（spec.check.modifiers）の現在値と、プレビューの目標値を引くために使う。
+ *     スナップショットではなく関数で受け取るのは、この中で修正値を書き換えるため：
+ *     渡された時点のコマを持ち回すと、直した値が同じダイアログの中で反映されない。
+ *   getEffectiveParameterValue?: Function  バフ込みの実効値を引く口。
+ *   onParameterChange?: (paramId, value) => void
+ *     修正値の入力欄が変わった時。**渡さなければ入力欄は読み取り専用になる**
+ *     （他人のコマを見ているだけの時）。値はコマのパラメータに残る。
  * }} options
  */
 export function showSkillTableBox({
   spec, state, title = '特技表', editable = true, onSave, onCheck,
-  token = null, getEffectiveParameterValue = null
+  getToken = null, getEffectiveParameterValue = null, onParameterChange = null
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -63,10 +70,23 @@ export function showSkillTableBox({
     render();
   };
 
-  // 判定オプション（ダイス数・スペシャル値等）はこのダイアログの中だけの状態で、
-  // componentsには保存しない。開き直すたびに既定値へ戻る。
-  let checkOptions = createCheckOptions(spec);
   let hoveredCellId = null;
+
+  // 修正値（シノビガミのAdB等）はコマのパラメータそのもの。ダイアログの中だけの状態は
+  // 持たず、読むのも書くのも常にコマ側で、閉じても残る。
+  const readToken = () => (getToken ? getToken() : null);
+  const canChangeModifiers = typeof onParameterChange === 'function';
+
+  // パラメータの基礎値（手で入れた分）と、バフを含めた実効値。バフの分は入力欄では
+  // 直せないので、差分を欄の下に出して「なぜ入力値と違う目で振られるのか」を見せる。
+  const readModifier = (paramId) => {
+    const token = readToken();
+    const base = Number(token?.parameters?.[paramId]?.value) || 0;
+    const effective = getEffectiveParameterValue
+      ? (Number(getEffectiveParameterValue(token, paramId)) || 0)
+      : base;
+    return { base, buff: effective - base };
+  };
 
   const form = document.createElement('form');
   form.method = 'dialog';
@@ -91,54 +111,83 @@ export function showSkillTableBox({
     form.appendChild(modeRow);
   }
 
-  // 判定オプション。spec.check.options をそのまま数値入力欄にするだけで、
-  // 項目の意味（ダイス数なのかスペシャル値なのか）はここでは解釈しない。
+  // 判定の修正値。spec.check.modifiers の1件ごとに数値入力欄を並べ、値はコマの
+  // パラメータへ直接書き戻す（このダイアログの中だけの一時的な指定ではない）。
+  // 項目の意味（ダイス数なのか目標値なのか）はここでは解釈せず、判定への効かせ方は
+  // spec.check.resolve が決める。
   const optionRow = document.createElement('div');
   optionRow.className = 'sf-skill-table-check-options';
-  if (canCheck && spec.check.options.length > 0) {
+  const modifierFields = [];
+  if (canCheck && checkModifiers(spec).length > 0) {
     const optionLabel = document.createElement('span');
     optionLabel.className = 'sf-skill-table-check-options-title';
-    optionLabel.textContent = '判定オプション';
+    optionLabel.textContent = '判定の修正値';
     optionRow.appendChild(optionLabel);
 
-    const inputs = [];
-    spec.check.options.forEach(option => {
+    checkModifiers(spec).forEach(modifier => {
       const field = document.createElement('label');
       field.className = 'sf-skill-table-check-option';
-      field.title = `${option.label}（${option.min}〜${option.max}、既定${option.default}）`;
 
       const caption = document.createElement('span');
-      caption.textContent = option.label;
+      caption.textContent = modifier.label;
 
       const input = document.createElement('input');
       input.type = 'number';
-      input.min = String(option.min);
-      input.max = String(option.max);
-      input.value = String(option.default);
-      input.addEventListener('input', () => {
-        // 入力途中の空欄・範囲外はnormalizeが既定値/上下限へ丸めるので、ここでは弾かない
-        checkOptions = normalizeCheckOptions(spec, { ...checkOptions, [option.key]: input.value });
+      input.min = String(modifier.min);
+      input.max = String(modifier.max);
+      input.disabled = !canChangeModifiers;
+      // 書き込みは change（欄を離れた／Enterを押した時）にする。1文字打つたびに
+      // 送ると、"-2" の途中の "-"（空欄扱い）で0が一度コマへ流れてしまう。
+      input.addEventListener('change', () => {
+        const raw = Math.round(Number(input.value));
+        const value = Number.isFinite(raw)
+          ? Math.min(Math.max(raw, modifier.min), modifier.max)
+          : 0;
+        onParameterChange(modifier.paramId, value);
+        syncModifiers();
         refreshStatus();
       });
 
+      // バフの分。0なら行ごと隠す（毎回「バフ 0」が並ぶと読みにくいだけのため）。
+      const buffText = document.createElement('span');
+      buffText.className = 'sf-skill-table-check-buff';
+
       field.appendChild(caption);
       field.appendChild(input);
+      field.appendChild(buffText);
       optionRow.appendChild(field);
-      inputs.push({ option, input });
+      modifierFields.push({ modifier, field, input, buffText });
     });
 
-    const resetBtn = document.createElement('button');
-    resetBtn.type = 'button';
-    resetBtn.className = 'sf-skill-table-check-reset';
-    resetBtn.textContent = '既定に戻す';
-    resetBtn.addEventListener('click', () => {
-      checkOptions = createCheckOptions(spec);
-      inputs.forEach(({ option, input }) => { input.value = String(option.default); });
-      refreshStatus();
-    });
-    optionRow.appendChild(resetBtn);
+    if (canChangeModifiers) {
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'sf-skill-table-check-reset';
+      resetBtn.textContent = '修正を0に戻す';
+      resetBtn.title = '入力した修正値をすべて0にします（バフの分は消えません）。';
+      resetBtn.addEventListener('click', () => {
+        modifierFields.forEach(({ modifier }) => onParameterChange(modifier.paramId, 0));
+        syncModifiers();
+        refreshStatus();
+      });
+      optionRow.appendChild(resetBtn);
+    }
 
     form.appendChild(optionRow);
+  }
+
+  // 入力欄とバフ表示を今のコマの値へ揃える。書き換えた直後と、開いた時に呼ぶ。
+  function syncModifiers() {
+    modifierFields.forEach(({ modifier, field, input, buffText }) => {
+      const { base, buff } = readModifier(modifier.paramId);
+      input.value = String(base);
+      buffText.textContent = buff === 0 ? '' : `バフ ${buff > 0 ? '+' : ''}${buff}`;
+      buffText.style.display = buff === 0 ? 'none' : '';
+      field.title = `${modifier.label}：入力${base}`
+        + (buff === 0 ? '' : ` ＋ バフ${buff > 0 ? '+' : ''}${buff}`)
+        + ` ＝ ${base + buff}`
+        + (canChangeModifiers ? `（入力できる範囲は${modifier.min}〜${modifier.max}）` : '（表示のみ）');
+    });
   }
 
   // 追加枠（シノビガミの追加生命力）の行。個数はキャラクターごとなので、ここで増減させる。
@@ -265,9 +314,8 @@ export function showSkillTableBox({
         // 実際に振るとき（runSkillCheck）と同じ手順で修正を反映してから見せる。
         // ここだけ素の値を出すと、プレビューとログの目標値が食い違う。
         const adjusted = resolveCheckAdjustments(spec, {
-          options: checkOptions,
           targetNumber: resolution.targetNumber,
-          token,
+          token: readToken(),
           getEffectiveParameterValue
         });
         const heading = describeSkillCheck({ ...resolution, targetNumber: adjusted.targetNumber });
@@ -430,7 +478,7 @@ export function showSkillTableBox({
           cell.addEventListener('mouseleave', () => { hoveredCellId = null; refreshStatus(); });
           cell.addEventListener('click', () => {
             dialog.close();
-            onCheck(cellId, checkOptions);
+            onCheck(cellId);
           });
         }
 
@@ -438,8 +486,9 @@ export function showSkillTableBox({
       });
     });
 
-    // 判定オプションは判定モードのときだけ意味を持つ
+    // 修正値は判定モードのときだけ意味を持つ
     optionRow.style.display = (mode === 'check' && optionRow.childElementCount > 0) ? '' : 'none';
+    syncModifiers();
 
     refreshStatus();
   }

@@ -1,9 +1,15 @@
 // js/parameters/skill/skill-model.js
 // 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。
 // DX3のエフェクト、シノビガミの忍法のように、システムごとに名前も付随する値も違うものを
-// 同じ形で扱えるようにする。システム固有の知識（名称・フィールド・回数制限の期間・
-// 修正値の対象パラメータ）は一切持たず、すべてプラグインからcreateSkillSpec()で渡してもらう
+// 同じ形で扱えるようにする。
+//
+// システム固有の知識（名称・フィールド・回数制限の期間・修正値の対象パラメータ）は
+// 一切持たず、すべてプラグインからcreateSkillSpec()で渡してもらう
 // （js/parameters/saikoro-fiction/skill-table.jsのcreateSkillTableSpecと同じ構え）。
+//
+// 【一覧としても使える】使用・回数制限・修正値を1つも持たない「名前・（システム固有の欄）・
+// 内容」だけの一覧（ドラクルージュの逸話、シノビガミの背景）も、同じモデルとボックスで書く。
+// 入口は createListSpec（createSkillSpecのすぐ下）。
 //
 // 【注意】このファイルの「スキル」は、サイコロ・フィクションの「特技表」
 // （js/parameters/saikoro-fiction/skill-table.js）とは別物。あちらは判定の目標値を決める
@@ -65,10 +71,14 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   componentKey: string,      token.componentsのどのキーに保存するか。
  *   fields?: Array<{
  *     key: string, label: string,
- *     type?: 'text'|'number'|'select',
+ *     type?: 'text'|'number'|'select'|'toggle',
+ *                             'toggle'は押すたびに選択肢を順に回すボタン（シノビガミの
+ *                             背景の「長所／短所」）。2択に限らず、選択肢の数だけ回る。
+ *                             選ぶだけの欄で、<select>を開かせるほどでもないものに使う。
  *     options?: Array<{value:string, label:string, group?:string}>,
- *                             type:'select'のときの選択肢。先頭が既定値になる。
- *                             groupを付けると、その名前でまとめて（optgroupで）並ぶ。
+ *                             type:'select'/'toggle'のときの選択肢。先頭が既定値になる。
+ *                             groupを付けると、その名前でまとめて（optgroupで）並ぶ
+ *                             （'toggle'では使わない）。
  *     placeholder?: string,
  *     className?: string,      入力欄に付けるCSSクラス（既存のレイアウトを流用するため）
  *     formulaName?: string,    式から{名前}で参照できるようにする（DX3のlevel → 'Lv'）
@@ -164,10 +174,47 @@ export function createSkillSpec(definition) {
   });
 }
 
+/**
+ * 「名前・（システム固有の欄）・内容」だけを並べる一覧の宣言。
+ *
+ * 使う・振る・修正が乗るといった概念を持たない一覧（ドラクルージュの逸話、シノビガミの
+ * 背景）のためのもの。createSkillSpec と同じデータモデル・同じボックス（showSkillBox）を
+ * そのまま使い、使わない節（回数制限・使用条件・使用時の修正・効果時間）を落とすだけ。
+ * 保存される形も createSkillSpec と同一なので、既にある一覧を後からこちらへ移しても
+ * データは変わらない。
+ *
+ * 【逆に、こちらでは書けないもの】入れ子（シノビガミの奥義改造）や、1件ごとの公開先。
+ * normalizeSkill が返す形が決まっているため、そういう一覧は専用のボックスを書くこと
+ * （js/parameters/shinobigami-ougi-box.js）。
+ *
+ * @param {{id:string, noun:string, componentKey:string, fields?:Array<object>,
+ *          defaultSkills?:Array<object>}} definition
+ */
+export function createListSpec(definition) {
+  return createSkillSpec({
+    ...definition,
+    periods: [],
+    allowMods: false,
+    allowExpirePhase: false,
+    allowConditions: false,
+    // 一覧そのものに使用の概念は無いが、プラグインが「◯◯使用(名前)」を生やした場合に
+    // 名前だけのログにならないようにしておく（ドラクルージュの逸話がその形）。
+    logNote: true
+  });
+}
+
 // 「その欄がこのスキルで意味を持つか」の判定は skill-formula.js にある（式の評価でも
 // 同じ規則が要るのに、skill-formula.js はこのファイルをimportできない＝循環するため、
 // 最下層のあちらに定義してある）。使う側がここだけ見れば済むよう、そのまま再公開する。
 export { isFieldAvailable } from './skill-formula.js';
+
+/**
+ * 選択肢から選ぶ欄か（'select' と 'toggle'）。見た目は違うが、保存できる値が選択肢に
+ * 限られる点は同じなので、正規化も保存も同じ規則で扱う。
+ */
+export function isChoiceField(field) {
+  return field.type === 'select' || field.type === 'toggle';
+}
 
 /** その欄で選べる値の既定（選択肢の先頭）。選択肢が無ければ空文字。 */
 function defaultSelectValue(field) {
@@ -276,7 +323,7 @@ export function normalizeSkill(spec, raw) {
     const value = raw?.fields?.[field.key] ?? raw?.[field.key];
     if (field.type === 'number') {
       fields[field.key] = toNumber(value);
-    } else if (field.type === 'select') {
+    } else if (isChoiceField(field)) {
       // 選択肢から消えた値（表の特技名を整理した後など）は既定へ落とす。
       // 存在しない値のまま持っていると、UIでは先頭が選ばれて見えるのに保存値は別物、
       // というずれ方をするため。
@@ -304,7 +351,9 @@ export function normalizeSkill(spec, raw) {
     };
   });
 
-  const conditions = Array.isArray(raw?.limits?.conditions)
+  // 使用条件を扱わないシステムでは、保存済みの条件が残っていても捨てる（modsと同じ理由）。
+  // 残したままだとcheckSkillUsableが画面に出ていない条件で使用を止めてしまう。
+  const conditions = spec.allowConditions && Array.isArray(raw?.limits?.conditions)
     ? raw.limits.conditions.map(normalizeCondition).filter(c => c.left !== '' || c.right !== '')
     : [];
 

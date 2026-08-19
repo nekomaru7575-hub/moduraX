@@ -25,6 +25,7 @@
 // checkを持たないspec向けのフォールバック。オプションは無く、素の2D6で目標値を判定する。
 const DEFAULT_CHECK = {
   options: [],
+  modifiers: [],
   buildCommand: ({ targetNumber }) => `2D6>=${targetNumber}`
 };
 
@@ -40,10 +41,17 @@ const DEFAULT_CHECK = {
  *   baseTarget?: number,       目標値の基準（既定: 5）
  *   check?: {
  *     options: {key:string, label:string, default:number, min:number, max:number}[],
- *       判定のたびに指定できる項目（シノビガミならダイス数・スペシャル値・ファンブル値）。
- *       UIはこの配列から数値入力欄を並べるだけなので、項目の意味は解釈しない。
+ *       判定コマンドに渡す値の宣言（シノビガミならダイス数・スペシャル値・ファンブル値）。
+ *       **入力欄ではない**：既定値と、修正を足した後に丸める上下限を決めるためのもの。
+ *       修正でどれだけ振り切れても、BCDiceが受け付けない値（0個のダイス等）にならない。
+ *     modifiers?: {key:string, label:string, paramId:string, min:number, max:number}[],
+ *       判定ボックスに並べる修正値の入力欄。値はコマのパラメータ（paramId）そのもので、
+ *       書き換えるとコマに残る。**この配列が空なら入力欄は出ない。**
+ *       どの修正がどこへ効くかは check.resolve が決めるので、ここでは解釈しない。
  *     buildCommand: ({options, targetNumber}) => string
  *       BCDiceへ投げるコマンド文字列。システム固有（シノビガミならSG）なのでプラグインが持つ。
+ *     resolve?: ({options, targetNumber, getParam}) => {options, targetNumber, notes}
+ *       修正（modifiersのパラメータ）を判定へ反映する。getParamはバフ込みの実効値を返す。
  *   },
  *   slots?: {
  *     「失われうる枠」。シノビガミの生命力、インセインの恐怖心のように、
@@ -188,25 +196,31 @@ export function setExtraSlotCount(spec, state, rawCount) {
 }
 
 // ---------------------------------------------------------------------------
-// 判定オプション（ダイス数・スペシャル値など。判定のたびに指定するもので、保存はしない）
+// 判定コマンドに渡す値（ダイス数・スペシャル値など）と、その修正値の入力欄
+//
+// options は入力欄ではない。既定値（＝修正が何も無いときの値）と、修正を足した後に
+// 丸める上下限を決める。実際に卓がいじるのは modifiers 側で、そちらの値はコマの
+// パラメータに入っている（判定ボックスの入力欄はそのパラメータを直接書き換える）。
 // ---------------------------------------------------------------------------
 
-/** 各オプションの既定値を集めたオブジェクト */
-export function createCheckOptions(spec) {
-  const options = {};
-  spec.check.options.forEach(option => { options[option.key] = option.default; });
-  return options;
+/**
+ * 判定ボックスに並べる修正値の入力欄の宣言。宣言が無ければ空配列（入力欄を出さない）。
+ * 実際の値はコマのパラメータ側にあるので、ここが返すのは「どのパラメータをどの名前で
+ * 並べるか」だけ。
+ */
+export function checkModifiers(spec) {
+  return spec.check.modifiers ?? [];
 }
 
 /**
- * 入力欄が空・非数値・範囲外でもコマンドが壊れないように、整数化してmin/maxへ丸める。
- * 未指定の項目は既定値で埋める。
+ * 修正を足した後の値を、整数化してmin/maxへ丸める。未指定の項目は既定値で埋める。
+ * 修正がどれだけ振り切れても、BCDiceが受け付けない値（0個のダイス等）を投げないための関門。
  */
 export function normalizeCheckOptions(spec, raw) {
   const options = {};
   spec.check.options.forEach(option => {
-    // 入力欄を消した瞬間は空文字が来る。Number('')は0になってしまい、そのままだと
-    // 下限へ張り付いてしまうので、空欄は「未指定」として既定値に戻す。
+    // 空文字・null は「未指定」として既定値へ。Number('') は0になるので、そのままだと
+    // 下限へ張り付いてしまう。
     const source = raw?.[option.key];
     const blank = source === undefined || source === null || String(source).trim() === '';
     const value = blank ? NaN : Math.round(Number(source));

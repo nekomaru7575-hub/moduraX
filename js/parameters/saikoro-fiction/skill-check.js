@@ -43,13 +43,14 @@ export function buildCheckCommand(spec, targetNumber, checkOptions) {
 }
 
 /**
- * 判定オプションと目標値に、そのキャラクター固有の修正を反映する。
+ * 判定コマンドに渡す値と目標値に、そのキャラクター固有の修正を反映する。
  * 何をどう足すかはシステム固有なので spec.check.resolve に委ね、宣言が無ければ素通し。
  * （シノビガミはダイス数修正・判定値修正・スペシャル値修正・ファンブル値修正を持つ）
  *
  * @param {object} spec
  * @param {{
- *   options?: object, targetNumber: number,
+ *   options?: object,  判定コマンドに渡す値。省略時はspecの既定値
+ *   targetNumber: number,
  *   token?: object|null, getEffectiveParameterValue?: Function
  * }} context
  * @returns {{options: object, targetNumber: number, notes: string[]}}
@@ -70,8 +71,6 @@ export function resolveCheckAdjustments(spec, { options, targetNumber, token, ge
 
   const result = spec.check.resolve({
     options: normalized,
-    // 「入力欄が既定のままか」を判断できるよう、丸める前の指定も渡す
-    rawOptions: options ?? {},
     targetNumber,
     getParam
   }) || {};
@@ -111,7 +110,6 @@ function logToMain(dispatch, resultText, token, system, chatCommand) {
  *   dispatch: (action:string, payload:object) => void,
  *   rollBCDice: (system:string, command:string) => Promise<{success:boolean, resultText:string}>,
  *   bcdiceSystem: string,
- *   checkOptions?: object,      判定オプション（省略時はspecの既定値）
  *   getEffectiveParameterValue?: Function
  *     キャラクター固有の修正（シノビガミのAdB等）を実効値で引くために使う。
  *     渡されない場合は基礎値、tokenが無ければ0として扱う（resolveCheckAdjustments）。
@@ -121,7 +119,7 @@ function logToMain(dispatch, resultText, token, system, chatCommand) {
  */
 export async function runSkillCheck({
   spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem,
-  checkOptions, getEffectiveParameterValue, systemLabel = '特技判定', chatCommand
+  getEffectiveParameterValue, systemLabel = '特技判定', chatCommand
 }) {
   const resolution = resolveSkillCheck(spec, state, targetCellId);
   if (!resolution) {
@@ -141,7 +139,6 @@ export async function runSkillCheck({
   // 見出しもコマンドも「実際に振る値」で組む。反映前の目標値で見出しを作ると、
   // ログの目標値とコマンドの>=の値が食い違って読めなくなる。
   const adjusted = resolveCheckAdjustments(spec, {
-    options: checkOptions,
     targetNumber: resolution.targetNumber,
     token,
     getEffectiveParameterValue

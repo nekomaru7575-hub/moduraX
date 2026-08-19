@@ -1,6 +1,6 @@
 ---
 source: js/parameters/shinobigami-skills.js
-lines: 50
+lines: 52
 exports: 4
 imported_by: 1
 api_sha: a4f3d36b020e
@@ -28,7 +28,7 @@ tags: [codemap]
 | 12 | const | SHINOBIGAMI_COLUMNS | `SHINOBIGAMI_COLUMNS` | js/parameters/shinobigami-skills.js シノビガミの表データ（特技表と感情表）。 |
 | 22 | const | SHINOBIGAMI_ROWS | `SHINOBIGAMI_ROWS` | 2D6の出目。 |
 | 25 | const | SHINOBIGAMI_SKILL_CELLS | `SHINOBIGAMI_SKILL_CELLS` | SHINOBIGAMI_SKILL_CELLS[分野index][行index]。 |
-| 46 | const | SHINOBIGAMI_EMOTIONS | `SHINOBIGAMI_EMOTIONS` | 感情表。 |
+| 48 | const | SHINOBIGAMI_EMOTIONS | `SHINOBIGAMI_EMOTIONS` | 感情表。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 

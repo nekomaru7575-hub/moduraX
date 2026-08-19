@@ -981,6 +981,188 @@ function handleShinobigamiChatCommand(rawInput, context) {
     || handleOugiUseCommand(rawInput, context);
 }
 
+// ---------------------------------------------------------------------------
+// Webキャラクターシートの取り込み
+//
+// character-sheets.appspot.com のシノビガミ用シート。edit.html / display.html は人が見る
+// ページなので、キーだけを取り出してJSONを返す口（display?ajax=1）へ付け替える
+// （ドラクルージュのDRACUROUGE_SHEET_SOURCEと同じ形。URLを組み立てるのはサーバー側）。
+// ---------------------------------------------------------------------------
+
+const SHINOBIGAMI_SHEET_SOURCE = {
+  label: 'Webキャラクターシート（シノビガミ）',
+  origin: 'https://character-sheets.appspot.com',
+  pathPrefix: '/shinobigami/',
+  keyParam: 'key',
+  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
+  fetchPath: (key) => `/shinobigami/display?ajax=1&key=${encodeURIComponent(key)}`,
+  hint: 'character-sheets.appspot.com/shinobigami/edit.html?key=... の形のURL'
+};
+
+function sheetText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+// シートのチェック欄は付いていれば '1'、外れていれば null。
+function sheetChecked(value) {
+  return value !== null && value !== undefined && value !== '' && value !== '0';
+}
+
+// 「なし」等の非数値は0として扱う（忍法のコスト・間合はどちらの書き方も来る）。
+function sheetNumber(value) {
+  const number = Number(sheetText(value));
+  return Number.isFinite(number) ? number : 0;
+}
+
+// 特技表のギャップ。シートは a〜f の6つで、**fが器術の左**（＝妖術との境目）から始まり、
+// a=体術の左、b=忍術の左…と続く。こちらのgap[i]は「列iの左」なので、この並びで対応する。
+// 表の見出し行が `[f] 器術 [a] 体術 [b] 忍術 [c] 謀術 [d] 戦術 [e] 妖術` の順であることを
+// 実際のシートで確認済み。
+const SHEET_GAP_KEYS = ['f', 'a', 'b', 'c', 'd', 'e'];
+
+// 「skills.row5.name2」「skills.row5.check2」→ セルID。行が出目、nameとcheckの番号が分野。
+const SHEET_CELL_ID_PATTERN = /^skills\.row(\d+)\.(?:name|check)(\d+)$/;
+
+function cellIdFromSheetId(rawId) {
+  const match = SHEET_CELL_ID_PATTERN.exec(sheetText(rawId));
+  if (!match) return null;
+  const rowIndex = Number(match[1]);
+  const columnIndex = Number(match[2]);
+  if (rowIndex >= SHINOBIGAMI_ROWS.length || columnIndex >= SHINOBIGAMI_COLUMNS.length) return null;
+  return makeCellId(SHINOBIGAMI_SKILL_TABLE, columnIndex, rowIndex);
+}
+
+/**
+ * 特技表の状態。取得済みの特技は2か所に書かれうるので両方を見る：
+ * 習得特技の一覧（learned[].id）と、表のマス自体のチェック（skills.rowN.checkM）。
+ * シートによってどちらを使うかが違うため、片方だけを見ると取り込みが空になる。
+ *
+ * 左右を繋ぐか（cyclic）は既定のままオフで取り込む。シートの表自体は左右が繋がった形
+ * （器術の左のギャップが妖術との境目＝skills.f として存在する）だが、繋ぐかどうかは
+ * 卓の運用で決まるので、取り込みで勝手に変えない。**繋ぎたい場合は特技表ボックスの
+ * チェックで切り替える**（距離＝目標値が変わる）。
+ * なお skills.f が塗られていればギャップとしては取り込まれるので、後からチェックを
+ * 入れるだけでシートどおりの状態になる。
+ */
+function importShinobigamiSkillTableFromSheet(json) {
+  const acquired = new Set();
+
+  (Array.isArray(json?.learned) ? json.learned : []).forEach(entry => {
+    const cellId = cellIdFromSheetId(entry?.id);
+    if (cellId) acquired.add(cellId);
+  });
+
+  const skills = json?.skills;
+  SHINOBIGAMI_ROWS.forEach((_roll, rowIndex) => {
+    const row = skills?.[`row${rowIndex}`];
+    SHINOBIGAMI_COLUMNS.forEach((_column, columnIndex) => {
+      if (!sheetChecked(row?.[`check${columnIndex}`])) return;
+      acquired.add(makeCellId(SHINOBIGAMI_SKILL_TABLE, columnIndex, rowIndex));
+    });
+  });
+
+  const filledGaps = SHEET_GAP_KEYS
+    .map((key, gapIndex) => (sheetChecked(skills?.[key]) ? gapIndex : null))
+    .filter(gapIndex => gapIndex !== null);
+
+  // 分野ごとの生命力。シートの skills.damage.checkN が「失った」印。
+  const lostColumns = SHINOBIGAMI_COLUMNS
+    .filter((_column, index) => sheetChecked(skills?.damage?.[`check${index}`]))
+    .map(column => column.key);
+
+  return normalizeSkillTableState(SHINOBIGAMI_SKILL_TABLE, {
+    acquired: [...acquired],
+    filledGaps,
+    lostColumns,
+    cyclic: false
+  });
+}
+
+// シートの忍法の種別 → こちらのタイプ。読めない種別はサポート扱いにする
+// （間合を持たず、コストだけを見る＝一番害の少ない側）。
+const SHEET_NINPOU_TYPES = { '攻撃': 'attack', 'サポート': 'support', '装備': 'equip' };
+
+function importShinobigamiNinpouFromSheet(json) {
+  const rawList = Array.isArray(json?.ninpou) ? json.ninpou : [];
+
+  return normalizeSkillList(SHINOBIGAMI_NINPOU_SPEC, rawList.map(raw => ({
+    name: sheetText(raw?.name),
+    note: sheetText(raw?.effect),
+    fields: {
+      type: SHEET_NINPOU_TYPES[sheetText(raw?.type)] ?? 'support',
+      range: sheetNumber(raw?.range),
+      cost: sheetNumber(raw?.cost),
+      // 指定特技は名前で書かれている。表から消えた名前は「自由」へ落ちる。
+      skill: findCellIdByName(SHINOBIGAMI_SKILL_TABLE, sheetText(raw?.targetSkill)) ?? ''
+    }
+  })));
+}
+
+// 背景。シートの種別は「長所」と「弱点」で、こちらの短所が弱点にあたる。
+function importShinobigamiBackgroundFromSheet(json) {
+  const rawList = Array.isArray(json?.background) ? json.background : [];
+
+  return normalizeSkillList(SHINOBIGAMI_BACKGROUND_SPEC, rawList.map(raw => ({
+    name: sheetText(raw?.name),
+    note: sheetText(raw?.effect),
+    fields: { side: sheetText(raw?.type) === '長所' ? 'merit' : 'demerit' }
+  })));
+}
+
+// 人物。感情は番号（1〜6）で、どちらの側の6つかは direction（1:＋ / 2:−）で決まる。
+// 番号0は「感情なし」なので、属性もなしにする（属性だけ付いていると感情修正が押せてしまう）。
+function importShinobigamiPersonsFromSheet(json) {
+  const rawList = Array.isArray(json?.personalities) ? json.personalities : [];
+
+  return normalizeSkillList(SHINOBIGAMI_PERSON_SPEC, rawList.map(raw => {
+    const side = sheetText(raw?.direction) === '2' ? 'minus' : 'plus';
+    const index = sheetNumber(raw?.emotion);
+    const emotion = SHINOBIGAMI_EMOTIONS[side][index - 1] ?? '';
+
+    return {
+      name: sheetText(raw?.name),
+      fields: {
+        place: sheetChecked(raw?.place),
+        secret: sheetChecked(raw?.secret),
+        // シートの「奥義」欄はspecialEffect
+        ougi: sheetChecked(raw?.specialEffect),
+        attitude: emotion === '' ? 'none' : side,
+        emotion
+      }
+    };
+  }));
+}
+
+/**
+ * シートのJSONを、コマの更新内容へ変換する（js/parameters/registry.jsのimportCharacterJson）。
+ * 取り込めないもの：追加生命力（シートに欄が無い）、背景の点数、表の顔・信念といった
+ * 設定欄（対応するパラメータをこのプラグインが持たない）。
+ */
+function importShinobigamiCharacterJson(json) {
+  if (!json || typeof json !== 'object') return null;
+
+  // シノビガミのシートらしさの確認。他システムのシートを黙って空のコマとして
+  // 取り込んでしまわないよう、このシステム特有のキーが1つも無ければ断る。
+  const looksLikeSheet = ['ninpou', 'background', 'personalities', 'learned', 'skills']
+    .some(key => json[key] !== undefined);
+  if (!looksLikeSheet) return null;
+
+  const name = sheetText(json?.base?.name);
+
+  return {
+    name: name === '' ? undefined : name,
+    valueOverrides: {},
+    labelOverrides: {},
+    newParameters: {},
+    components: {
+      [SKILL_TABLE_COMPONENT_KEY]: importShinobigamiSkillTableFromSheet(json),
+      [SHINOBIGAMI_NINPOU_SPEC.componentKey]: importShinobigamiNinpouFromSheet(json),
+      [SHINOBIGAMI_BACKGROUND_SPEC.componentKey]: importShinobigamiBackgroundFromSheet(json),
+      [SHINOBIGAMI_PERSON_SPEC.componentKey]: importShinobigamiPersonsFromSheet(json)
+    }
+  };
+}
+
 /**
  * ラウンド進行のフェーズ構成。
  *   1. プロット … 登場しているコマが1〜6を伏せて出し、GMの合図で一斉公開する
@@ -1023,6 +1205,8 @@ export const SHINOBIGAMI_PLUGIN = {
   computeDerivedParameters: computeShinobigamiDerivedParameters,
   buildRoundPhaseTemplate: buildShinobigamiRoundPhaseTemplate,
   renderCharacterPanel: renderShinobigamiCharacterPanel,
+  importCharacterJson: importShinobigamiCharacterJson,
+  characterSheetSource: SHINOBIGAMI_SHEET_SOURCE,
   handleChatCommand: handleShinobigamiChatCommand,
   looksLikeOwnChatCommand: looksLikeShinobigamiChatCommand,
   // これだけで item.use / item.gain が生える（js/parameters/registry.js）。

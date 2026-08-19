@@ -43,7 +43,9 @@ export const SHINOBIGAMI_SKILL_CELLS = [
 // （選択肢に無い値の扱い。js/parameters/skill/skill-model.js の normalizeSkill）。
 // 特技表のセルと違って安定IDを持たせていないのは、感情名がシステムの用語そのもので、
 // 卓が読む文字列と保存値を分ける利点が無いため。
+// **並び順もWebキャラクターシート（character-sheets.appspot.com/shinobigami）に合わせてある。**
+// シートの取り込みは感情を番号（1〜6）で持っているので、並びがずれると別の感情になる。
 export const SHINOBIGAMI_EMOTIONS = {
   plus: ['共感', '友情', '愛情', '忠誠', '憧憬', '狂信'],
-  minus: ['不信', '怒り', '侮蔑', '嫉妬', '劣等感', '殺意']
+  minus: ['不信', '怒り', '妬み', '侮蔑', '劣等感', '殺意']
 };

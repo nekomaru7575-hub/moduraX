@@ -1,6 +1,6 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 1041
+lines: 1225
 exports: 7
 imported_by: 1
 api_sha: 2d7fd8041b6e
@@ -31,9 +31,9 @@ tags: [codemap]
 | 344 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
 | 438 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
 | 482 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
-| 1019 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 1201 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（27）
+## トップレベル関数（LOCAL TASKS 候補）（36）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -66,7 +66,16 @@ tags: [codemap]
 | 834 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
 | 931 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
 | 978 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
-| 1000 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 1002 | sheetText | `sheetText(value)` | 3 |  |
+| 1007 | sheetChecked | `sheetChecked(value)` | 3 |  |
+| 1012 | sheetNumber | `sheetNumber(value)` | 4 |  |
+| 1026 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
+| 1047 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
+| 1085 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
+| 1102 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
+| 1114 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
+| 1141 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 24 |  |
+| 1182 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 
@@ -85,4 +94,10 @@ tags: [codemap]
 感情修正は**他人のコマ**へバフを付ける。名前の完全一致で引くので、人物欄の名前が盤面のコマとずれていると何も起きない（理由は出す）。他人のコマへバフを付けること自体はチャットの `バフ>対象コマ名(...)` で既にできるので、新しい権限は増えていない。
 
 人物の感情は12件すべてを選択肢として宣言し、画面に出す分だけを属性で絞る（filterOptions）。絞り込みを宣言そのものに効かせると、属性を切り替えた瞬間に保存済みの感情が既定へ落ちる。
+
+Webキャラクターシートの取り込みで**推測に頼っている箇所は無い**が、シート側の並びに依存している点が2つある。ギャップは `skills.a`〜`f` の6つで、**`f` が器術の左（＝妖術との境目）**から始まり `a`=体術の左…と続く（実際のシートの見出し行で確認済み）。感情は番号（1〜6）で保存されるので、[[js.parameters.shinobigami-skills]] の `SHINOBIGAMI_EMOTIONS` の**並び順を変えると別の感情として取り込まれる**。
+
+取得特技は2か所（`learned[].id` と `skills.rowN.checkM`）のどちらにも書かれうるので両方を見る。片方だけだとシートによって取り込みが空になる。
+
+左右を繋ぐか（cyclic）は取り込みで変えない（既定のままオフ）。シートの表自体は繋がった形だが、繋ぐかどうかは卓の運用で決まり、距離＝目標値が変わるため。`skills.f` が塗られていればギャップとしては入るので、特技表ボックスのチェックを入れるだけでシートどおりになる。
 <!-- /prose:notes -->

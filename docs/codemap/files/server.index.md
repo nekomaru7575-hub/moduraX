@@ -1,6 +1,6 @@
 ---
 source: server/index.js
-lines: 3034
+lines: 3044
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -111,16 +111,16 @@ _(未記入)_
 | 2079 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 54 |  |
 | 2135 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
 | 2151 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
-| 2185 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2208 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 45 |  |
-| 2279 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 2289 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 2307 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 2324 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 2352 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 2367 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 2376 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 2996 | shutdown | `shutdown(signal)` | 23 |  |
+| 2191 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
+| 2214 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
+| 2289 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 2299 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 2317 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 2334 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 2362 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 2377 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 2386 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 3006 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

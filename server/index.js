@@ -2046,6 +2046,18 @@ async function handleSetEntryPassword(req, res, roomId) {
   sendJson(res, 200, { locked: !!record });
 }
 
+// --- 外のサービスを叩くときに名乗る名前 ---
+// 既定のままだと "node" として届き、相手のログでは名無しのボットと区別が付かない。
+// このサーバーが外へ出ていくのはBCDiceの中継とキャラクターシートの取り込みの2か所で、
+// どちらも他所のサービスに負荷をかける側なので、同じ名前で名乗る。
+// （シート倉庫のrobots.txtは /*/display を除外している。「特定のアプリが利用者の操作で
+// 1件ずつ取りに来ている」と読める状態にしておく意味は大きい。）
+//
+// 添えるURLは**辿れるものだけにすること**。連絡先のつもりが404になるのは、何も名乗らない
+// より悪い（リポジトリは非公開なので載せていない）。公開しているアプリのURLができたら、
+// 差し替えるか併記する。
+const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://x.com/nekomaru7575)';
+
 // --- BCDiceのシステム一覧・システム情報の中継（キャッシュ付き） ---
 // 一覧（約29KB）とシステム情報（command_pattern / help_message）はBCDice側が更新される
 // ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
@@ -2100,7 +2112,9 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
   }
 
   try {
-    const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`);
+    const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`, {
+      headers: { 'User-Agent': OUTBOUND_USER_AGENT }
+    });
     if (!response.ok) {
       // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
       // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
@@ -2226,7 +2240,11 @@ async function handleCharacterSheet(req, res, url) {
 
   try {
     // リダイレクトは追わない。追うと、宣言した相手の一存で別のホストへ行かされる
-    const response = await fetch(target, { signal: abort.signal, redirect: 'manual' });
+    const response = await fetch(target, {
+      signal: abort.signal,
+      redirect: 'manual',
+      headers: { 'User-Agent': OUTBOUND_USER_AGENT }
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const text = await readCappedText(response, MAX_SHEET_BYTES);

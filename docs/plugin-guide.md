@@ -895,14 +895,21 @@ const MY_SKILL_SPEC = createSkillSpec({
 });
 ```
 
-**フィールドの型**: `'text'`（既定） / `'number'` / `'select'` / `'toggle'`。
+**フィールドの型**: `'text'`（既定） / `'number'` / `'select'` / `'toggle'` / `'checkbox'`。
 `select` の `options` に `group` を付けると `<optgroup>` で畳まれる。
 `toggle` は `select` と同じ `options` を取り、**押すたびに次の選択肢へ回るボタン**になる
 （シノビガミの背景の「長所／短所」）。2択に限らず選択肢の数だけ回り、先頭以外を選んでいる
 間は色が変わる。開かせるほどでもない少数の選択肢向け。
 
+`checkbox` は真偽値（シノビガミの人物の「居所」「秘密」「奥義」）。
+
 **`availableWhen(fields)`**: その欄がそのスキルで意味を持つ条件。偽なら入力させず、式にも
 コストにも数えない。ただし **保存値は消さない**（条件が戻ったときに入れ直させないため）。
+
+**`filterOptions(option, fields)`**: `select` の選択肢を、同じ行の他の欄の値で絞る
+（シノビガミの人物：属性が `＋` なら感情もプラス側の6つだけ）。今の値が絞り込みから外れたら
+残った先頭へ寄る。**保存値の検証には効かない** — `normalizeSkill` は宣言された全選択肢を見る。
+絞り込みを検証にも効かせると、属性を切り替えた瞬間に保存済みの感情が既定へ落ちてしまう。
 
 **使わない仕組みは畳める**。既定は全部 `true` 相当なので、宣言しなければ今までどおり。
 
@@ -912,6 +919,7 @@ const MY_SKILL_SPEC = createSkillSpec({
 | `allowMods: false` | 「使用時の修正」を扱わない。**`modTargets` を空にするだけでは足りない**：ボックスの「その他のパラメータ」から全パラメータが選べてしまう。保存済みの修正も読み出しで捨てるので、画面に出ていない修正でバフが飛ぶこともない |
 | `allowExpirePhase: false` | 「効果時間」を扱わない。修正を持たないスキルには意味が無い欄なので隠せる |
 | `allowConditions: false` | 「使用条件」を扱わない。使用という概念を持たない一覧向け。保存済みの条件も読み出しで捨てるので、画面に出ていない条件で使用が止まることもない |
+| `allowNote: false` | メモ欄（`note`）を出さない。行数が多くて1行を低く保ちたい一覧（シノビガミの人物）向け。保存する形は変えない（`note` は空文字で残る） |
 | `logNote: true` | 使用ログに**効果（`note`）**を載せ、「修正値バフはありません」の断り書きを出さない。修正値をほとんど使わないシステム（ステラナイツのスキル、ドラクルージュの行い・逸話）向けで、卓が読みたいのは付かなかった修正よりその能力が何をするか。式が読めない等の `⚠` は消さない（あちらは入力の誤りの知らせなので） |
 | `defaultSkills: [{ name, fields }]` | まだ1件も登録が無いコマへ配る初期の一覧（ステラナイツの出目1〜6）。「枠が最初から決まっていて、利用者は中身を埋めるだけ」というシステム向け。**`name` は必ず入れること**：空名は一覧から落とされるうえ、ダイスドラフトはスキル名をキーに置き場を持つので名無しが複数あると区別できない |
 
@@ -975,6 +983,31 @@ const TOOL_SPEC = createItemSpec({
 
 > 使用ボタンを出すには `showSkillBox()` へ `getToken` と `dispatch` も渡すこと。
 > 渡さなければ個数の増減だけができる。
+
+#### 行ごとのボタン（`rowActions`）
+
+「その行に対して何かする」ボタンを行の末尾へ置ける。**ボックスは何をするかを知らない**：
+宣言したプラグインが `run` を書く。
+
+```js
+rowActions: [{
+  key: 'emotionModifier',
+  label: '感情修正',
+  availableWhen: fields => fields.attitude !== 'none',   // 欄と同じ規則
+  run: ({ skill, spec, context }) => {
+    // skill … その行の今の入力値（保存待ちの編集も反映済み）
+    // context … { getToken, dispatch, generateBuffId, findTokenByName }
+  }
+}]
+```
+
+`context` は `showSkillBox()` へ渡したものがそのまま届く。**部屋の外（コマ作成ツール）では
+`findTokenByName` も `dispatch` も渡ってこない**ので、`run` の側で「部屋の中で実行してください」と
+断ること。
+
+> 他のコマを名前で引く `findTokenByName` は Core から渡ってくる（`js/board-data-driven.js` →
+> `js/character-dialog.js` → `renderCharacterPanel`）。探し方はチャットの
+> `バフ>対象コマ名(...)` と同じ完全一致。
 
 ### 6.2 特技表（`js/parameters/saikoro-fiction/`）
 

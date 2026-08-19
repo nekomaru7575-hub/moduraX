@@ -71,14 +71,21 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   componentKey: string,      token.componentsのどのキーに保存するか。
  *   fields?: Array<{
  *     key: string, label: string,
- *     type?: 'text'|'number'|'select'|'toggle',
+ *     type?: 'text'|'number'|'select'|'toggle'|'checkbox',
  *                             'toggle'は押すたびに選択肢を順に回すボタン（シノビガミの
  *                             背景の「長所／短所」）。2択に限らず、選択肢の数だけ回る。
  *                             選ぶだけの欄で、<select>を開かせるほどでもないものに使う。
+ *                             'checkbox'は真偽値（シノビガミの人物の「居所」「秘密」「奥義」）。
  *     options?: Array<{value:string, label:string, group?:string}>,
  *                             type:'select'/'toggle'のときの選択肢。先頭が既定値になる。
  *                             groupを付けると、その名前でまとめて（optgroupで）並ぶ
  *                             （'toggle'では使わない）。
+ *     filterOptions?: (option, fields) => boolean
+ *                             選択肢のうち画面に出すものを、同じ行の他の欄の値で絞る
+ *                             （シノビガミの人物：属性が＋なら感情もプラス側の6つだけ）。
+ *                             **保存値の検証には効かない**（normalizeSkillは宣言された
+ *                             全選択肢を見る）：絞り込みを検証にも効かせると、属性を
+ *                             切り替えた瞬間に保存済みの感情が既定へ落ちてしまう。
  *     placeholder?: string,
  *     className?: string,      入力欄に付けるCSSクラス（既存のレイアウトを流用するため）
  *     formulaName?: string,    式から{名前}で参照できるようにする（DX3のlevel → 'Lv'）
@@ -102,6 +109,16 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              から全パラメータが選べてしまうため、そういうシステムはこちらで切る。
  *   allowExpirePhase?: boolean, 既定true。falseにすると「効果時間」を扱わない。
  *                              修正を持たないスキルには意味が無い欄なので隠せるようにしてある。
+ *   allowNote?: boolean,       既定true。falseにするとメモ欄（note）を出さない。
+ *                              行数が多くて1行を低く保ちたい一覧（シノビガミの人物）向け。
+ *                              保存する形は変えない（noteは空文字で残る）。
+ *   rowActions?: Array<{
+ *     key: string, label: string,
+ *     availableWhen?: (fields) => boolean,   欄と同じ規則で有効/無効が決まる
+ *     run: ({skill, spec, context}) => void
+ *   }>,                        行ごとに置く任意のボタン（シノビガミの人物の「感情修正」）。
+ *                              **ボックスは中身を知らない**：宣言したプラグインがrunを書く。
+ *                              contextはshowSkillBoxが受け取ったstore操作一式。
  *   allowConditions?: boolean, 既定true。falseにすると「使用条件」を扱わない。
  *                              使用という概念を持たない一覧（ドラクルージュの逸話）のためのもの。
  *                              falseのときは保存時にも条件を書かない（空配列になる）。
@@ -156,7 +173,9 @@ export function createSkillSpec(definition) {
     allowConditions = true,
     logNote = false,
     defaultSkills = [],
-    quantity = null
+    quantity = null,
+    allowNote = true,
+    rowActions = []
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -181,9 +200,11 @@ export function createSkillSpec(definition) {
     allowExpirePhase,
     allowConditions,
     logNote,
+    allowNote,
     // アイテムかどうかの唯一の判定。宣言があればボックスは個数と使用ボタンを出し、
     // item.use / item.gain の対象になる（createItemSpec）。
     quantity: quantity ? Object.freeze({ ...QUANTITY_DEFAULTS, ...quantity }) : null,
+    rowActions: Object.freeze(rowActions.map(action => Object.freeze({ ...action }))),
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
@@ -360,6 +381,10 @@ export function normalizeSkill(spec, raw) {
     const value = raw?.fields?.[field.key] ?? raw?.[field.key];
     if (field.type === 'number') {
       fields[field.key] = toNumber(value);
+    } else if (field.type === 'checkbox') {
+      // 旧データや手書きJSONの 'on' / 'true' / 1 も真として拾う（チェック欄の値は
+      // ブラウザやツールによって書き方が揺れるため）。
+      fields[field.key] = value === true || value === 1 || value === 'on' || value === 'true';
     } else if (isChoiceField(field)) {
       // 選択肢から消えた値（表の特技名を整理した後など）は既定へ落とす。
       // 存在しない値のまま持っていると、UIでは先頭が選ばれて見えるのに保存値は別物、
@@ -408,7 +433,9 @@ export function normalizeSkill(spec, raw) {
 
   const normalized = {
     name: typeof raw?.name === 'string' ? raw.name : '',
-    note: typeof raw?.note === 'string' ? raw.note : '',
+    // メモ欄を扱わないシステムでは、保存済みの文章が残っていても捨てる（modsと同じ理由）。
+    // 画面に出ていない文章を持ち回らないため。キー自体は残す（保存する形を変えない）。
+    note: spec.allowNote && typeof raw?.note === 'string' ? raw.note : '',
     fields,
     expirePhase: spec.allowExpirePhase ? storedExpirePhase : '',
     limits: { counts, conditions },

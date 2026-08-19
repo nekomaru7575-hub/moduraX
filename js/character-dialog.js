@@ -116,8 +116,8 @@ export function applyCharacterEditResult(store, tokenId, result) {
 // getValues()は、プラグインが専用UIを描画した場合のみ値を返す関数を持つ。
 function buildPluginPanel({
   activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-  allowParameterEdit = false, participants = {}, myParticipantId = null
+  dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice,
+  tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null
 }) {
   const column = document.createElement('div');
   column.className = 'dialog-plugin-column';
@@ -130,6 +130,9 @@ function buildPluginPanel({
       container: column, mode, canEdit, parameters, components, onComponentChange, getComponents,
       dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
       allowParameterEdit,
+      // 他のコマを名前で引く口（シノビガミの感情修正）。部屋の外（コマ作成ツール）からは
+      // 渡ってこないので、使う側で「部屋の中で実行してください」と断ること。
+      findTokenByName,
       // 公開先(audience)を持つデータを扱うプラグイン（シノビガミの奥義）のために渡す。
       // プラグイン側からgame-store.jsは読めない（循環import）ので、参加者一覧と自分のIDは
       // Coreから渡すしかない。
@@ -719,8 +722,8 @@ function ensureEditDialog() {
  */
 export function showCharacterEditDialog({
   character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
-  dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
-  canEdit = true, readOnlyReason = null, allowParameterEdit = false
+  dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice,
+  tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false
 }) {
   const myParticipantId = getCurrentParticipantId();
   const dialog = ensureEditDialog();
@@ -1005,7 +1008,8 @@ export function showCharacterEditDialog({
     components: character.components,
     onComponentChange,
     getComponents,
-    dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId,
+    dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice,
+    tokenId,
     allowParameterEdit,
     participants, myParticipantId
   });

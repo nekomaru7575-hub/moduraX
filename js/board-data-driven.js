@@ -403,6 +403,12 @@ function bindTokenDrag(element) {
             tokenId,
             dispatch: store.dispatch.bind(store),
             getToken: () => store.state.tokens[tokenId],
+            // 他のコマを名前で引く口。プラグインからstoreは読めない（循環import）ので、
+            // 参加者一覧と同じくCoreから渡す。探し方はチャットの
+            // 「バフ>対象コマ名(...)」（js/main.js）と同じ完全一致に揃えてある。
+            findTokenByName: (name) => (
+              Object.values(store.state.tokens).find(token => token.name === name) ?? null
+            ),
             getEffectiveParameterValue,
             generateBuffId,
             rollBCDice,

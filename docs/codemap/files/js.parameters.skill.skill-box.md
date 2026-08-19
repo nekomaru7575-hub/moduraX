@@ -1,10 +1,10 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 743
+lines: 877
 exports: 1
 imported_by: 4
-api_sha: 74551cc975ea
-prose_sha: 74551cc975ea
+api_sha: 160c4976d6de
+prose_sha: 160c4976d6de
 generated: 2026-08-19
 tags: [codemap]
 ---
@@ -25,9 +25,9 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 117 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
+| 193 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
 
-## トップレベル関数（LOCAL TASKS 候補）（5）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -35,10 +35,14 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 21 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
-| 56 | buildToggleField | `buildToggleField(field, value)` | 30 |  |
-| 89 | ensureDialog | `ensureDialog()` | 7 |  |
-| 97 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 117 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null })` | **626** | ✓ |
+| 56 | buildToggleField | `buildToggleField(field, value)` | 33 |  |
+| 95 | readFieldValue | `readFieldValue(field, input)` | 5 |  |
+| 102 | readRowFieldValues | `readRowFieldValues(spec, fieldInputs)` | 5 |  |
+| 109 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
+| 129 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
+| 160 | ensureDialog | `ensureDialog()` | 7 |  |
+| 168 | createElement | `createElement(tag, className, text)` | 6 |  |
+| 193 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **684** | ✓ |
 
 ## 依存
 
@@ -53,4 +57,8 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 使用ボタンの中では **`commitNow()` のあとでコマを読み直すこと**。確定前のコマを持ち回して `runItemUse` に渡すと、それを元に書き戻して直前の編集を巻き戻す。
 
 `collectSkills()` は名前が空の行を落とす。即時保存を通ると、打ちかけの行が保存されないまま画面には残る（保存ボタンの挙動と同じなので、そのままにしてある）。
+
+**欄の値を読む場所は `readFieldValue` の1か所だけ**。有効/無効の引き直し・式の検証・保存の3つが同じ値を見る必要がある（チェック欄は `checked`、他は `value` と置き場が違うため、素で読むと食い違う）。
+
+`rowActions` の `run` には store 操作一式を素通しするだけで、ボックスは何をするか知らない。
 <!-- /prose:notes -->

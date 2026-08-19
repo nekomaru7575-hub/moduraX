@@ -122,6 +122,74 @@
   font-size: 0.85rem;
 }
 
+/* チェック欄（type:'checkbox'。シノビガミの人物の居所・秘密・奥義）。
+   ラベルと並べて見出し行に置くので、幅は中身なりにする。 */
+.effect-box-check {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: #ccc;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.effect-box-check input[type="checkbox"] {
+  /* 入力欄の共通指定（.effect-box-header-row input）で伸びないよう明示しておく */
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  width: auto;
+}
+
+.effect-box-check.is-unavailable {
+  opacity: 0.45;
+}
+
+/* 行ごとの任意ボタン（spec.rowActions。シノビガミの人物の「感情修正」） */
+.effect-box-row-action {
+  background-color: #4a6ea8;
+  color: #fff;
+  border: 1px solid #6f95cf;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+}
+
+.effect-box-row-action:disabled {
+  background-color: #3a3a3a;
+  border-color: #555;
+  color: #888;
+  cursor: default;
+}
+
+/* 人物の属性（なし／＋／−）。3択なので is-alt の一律赤ではなく番号で塗り分ける
+   （＋は青、−は赤。is-opt-N は skill-box.js のトグルが選択中の番号として付ける）。
+   セレクタに .effect-box-toggle を足してあるのは、下の .effect-box-toggle.is-alt と
+   同じ詳細度だと後勝ちで赤に戻ってしまうため。 */
+.person-box-attitude {
+  flex: 0 0 52px;
+}
+
+.effect-box-toggle.person-box-attitude.is-opt-1 {
+  background-color: #3a4a6a;
+  border-color: #6f95cf;
+  color: #fff;
+}
+
+.effect-box-toggle.person-box-attitude.is-opt-2 {
+  background-color: #5a3a3a;
+  border-color: #8a5555;
+  color: #fff;
+}
+
+.person-box-emotion {
+  flex: 0 0 96px;
+}
+
 /* アイテムの「− 個数 ＋」と「使用」（spec.quantity を宣言した spec のときだけ出る）。
    header-row の中に並ぶので、入りきらなければ既存の flex-wrap で折り返る。 */
 .effect-box-qty {

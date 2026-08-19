@@ -23,7 +23,9 @@ import {
 import { buildParameters } from './paramFactory.js';
 import { showSkillTableBox } from './saikoro-fiction/skill-table-box.js';
 import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/skill-check.js';
-import { SHINOBIGAMI_COLUMNS, SHINOBIGAMI_ROWS, SHINOBIGAMI_SKILL_CELLS } from './shinobigami-skills.js';
+import {
+  SHINOBIGAMI_COLUMNS, SHINOBIGAMI_ROWS, SHINOBIGAMI_SKILL_CELLS, SHINOBIGAMI_EMOTIONS
+} from './shinobigami-skills.js';
 
 // キャラクターの components に特技表を保存するときのキー。
 const SKILL_TABLE_COMPONENT_KEY = 'skillTable';
@@ -358,6 +360,116 @@ function readBackgroundList(components) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// 人物欄
+//
+// 卓の他のキャラクターについて、居所・秘密・奥義を掴んだかと、その相手への感情を記録する。
+// 感情は記録するだけでなく判定にも効くので、行ごとに「感情修正」ボタンを置く（下記）。
+// ---------------------------------------------------------------------------
+
+const PERSON_ATTITUDES = [
+  { value: 'none', label: 'なし' },
+  { value: 'plus', label: '＋' },
+  { value: 'minus', label: '−' }
+];
+
+const EMOTION_GROUPS = { plus: 'プラス', minus: 'マイナス' };
+
+// 感情の選択肢は12件すべてを宣言し、画面に出す分だけを属性で絞る（filterOptions）。
+// 絞り込みを宣言そのものに効かせないのは、属性を切り替えた瞬間に保存済みの感情が
+// 既定へ落ちてしまうため（選択肢に無い値はnormalizeSkillが既定へ倒す）。
+function buildEmotionChoices() {
+  return Object.entries(SHINOBIGAMI_EMOTIONS).flatMap(([side, names]) =>
+    names.map(name => ({ value: name, label: name, group: EMOTION_GROUPS[side] }))
+  );
+}
+
+// 属性（plus/minus）→ 感情のグループ名。どちらでもなければnull。
+function emotionGroupOf(attitude) {
+  return EMOTION_GROUPS[attitude] ?? null;
+}
+
+/**
+ * 感情修正。人物欄の「名前」と同じ名前のコマへ、判定値修正(AnB)のバフを1点与える。
+ * 符号は属性のとおり（＋なら+1、−なら-1）で、判定が終われば消える。
+ *
+ * 対象は自分ではなく他人のコマ。他人のコマへバフを付けること自体はチャットの
+ * 「バフ>対象コマ名(...)」で既にできるので、新しい権限は増えない。
+ */
+function runEmotionModifier({ skill, context }) {
+  const { findTokenByName, dispatch, generateBuffId } = context;
+  const emotion = skill.fields.emotion;
+  const sign = skill.fields.attitude === 'plus' ? 1 : -1;
+
+  // 部屋の外（コマ作成ツール）には盤面が無いので探しようがない
+  if (!findTokenByName || !dispatch || !generateBuffId) {
+    alert('感情修正は部屋の中で実行してください。');
+    return;
+  }
+
+  const name = skill.name.trim();
+  const target = name === '' ? null : findTokenByName(name);
+  if (!target) {
+    alert(`コマ「${name || '（名前が空です）'}」が見つかりません。
+
+`
+      + '人物欄の名前を、盤面のコマの名前と同じにしてください。');
+    return;
+  }
+
+  dispatch('ADD_BUFF', {
+    tokenId: target.id,
+    id: generateBuffId(),
+    name: emotion,
+    paramId: 'SHINOBIGAMI:AnB',
+    delta: sign,
+    expirePhase: 'check'   // 判定終了で消える
+  });
+
+  dispatch('ADD_CHAT_MESSAGE', {
+    tabId: 'main',
+    entry: {
+      system: '感情',
+      resultText: `${target.name}への感情（${emotion}）：判定値${sign > 0 ? '+' : ''}${sign}（判定終了まで）`
+    }
+  });
+}
+
+const SHINOBIGAMI_PERSON_SPEC = createListSpec({
+  id: 'shinobigami-person',
+  noun: '人物',
+  componentKey: 'persons',
+  // 行数が多いので1行を低く保つ。メモは奥義や背景の側に書ける。
+  allowNote: false,
+  fields: [
+    { key: 'place', label: '居所', type: 'checkbox' },
+    { key: 'secret', label: '秘密', type: 'checkbox' },
+    { key: 'ougi', label: '奥義', type: 'checkbox' },
+    {
+      key: 'attitude', label: '属性', type: 'toggle',
+      className: 'person-box-attitude', options: PERSON_ATTITUDES
+    },
+    {
+      key: 'emotion', label: '感情', type: 'select',
+      className: 'person-box-emotion', options: buildEmotionChoices(),
+      availableWhen: fields => emotionGroupOf(fields.attitude) !== null,
+      filterOptions: (option, fields) => option.group === emotionGroupOf(fields.attitude)
+    }
+  ],
+  rowActions: [{
+    key: 'emotionModifier', label: '感情修正',
+    availableWhen: fields => emotionGroupOf(fields.attitude) !== null,
+    run: runEmotionModifier
+  }]
+});
+
+// components から正規形の人物一覧を取り出す。
+function readPersonList(components) {
+  return normalizeSkillList(
+    SHINOBIGAMI_PERSON_SPEC, components?.[SHINOBIGAMI_PERSON_SPEC.componentKey] ?? []
+  );
+}
+
 // 忍具。名前・効果と個数だけを持つアイテム（拡張属性は無し）。
 //
 // 兵糧丸・神通丸・遁甲符の3種はシノビガミ側で決まっているので、まだ1件も登録が無いコマには
@@ -449,7 +561,7 @@ function resetShinobigamiComponentsOnPhaseEnd(components, phase) {
  */
 function renderShinobigamiCharacterPanel({
   container, mode, canEdit = true, components, onComponentChange, getComponents, getToken,
-  getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice,
+  getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, findTokenByName = null,
   participants = {}, myParticipantId = null
 }) {
   container.innerHTML = '';
@@ -630,8 +742,36 @@ function renderShinobigamiCharacterPanel({
   });
   container.appendChild(toolBtn);
 
+  // --- 人物 ---
+  const personBtn = document.createElement('button');
+  personBtn.type = 'button';
+  personBtn.className = 'dialog-add-row-btn';
+  personBtn.style.marginTop = '8px';
+
+  const updatePersonLabel = () => {
+    personBtn.textContent = `人物を開く（${readPersonList(readComponents()).length}件）`;
+  };
+  updatePersonLabel();
+
+  personBtn.addEventListener('click', () => {
+    showSkillBox({
+      spec: SHINOBIGAMI_PERSON_SPEC,
+      skills: readComponents()?.[SHINOBIGAMI_PERSON_SPEC.componentKey] ?? [],
+      readOnly: !canEdit,
+      onSave: (nextList) => {
+        onComponentChange(SHINOBIGAMI_PERSON_SPEC.componentKey, nextList);
+        updatePersonLabel();
+      },
+      // 感情修正が使う一式。findTokenByNameは部屋の中でだけ渡ってくる。
+      dispatch,
+      generateBuffId,
+      findTokenByName
+    });
+  });
+  container.appendChild(personBtn);
+
   // Core側の汎用パラメータ一覧に流し込む値は無い
-  // （特技表・忍法・奥義・背景・忍具はcomponents側で即時保存される）。
+  // （特技表・忍法・奥義・背景・忍具・人物はcomponents側で即時保存される）。
   return { getValues: () => ({}) };
 }
 
@@ -895,6 +1035,6 @@ export const SHINOBIGAMI_PLUGIN = {
 
 // 他プラグイン（インセイン等）や動作確認から参照できるように公開しておく。
 export {
-  SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY,
-  SHINOBIGAMI_NINPOU_SPEC, SHINOBIGAMI_BACKGROUND_SPEC, SHINOBIGAMI_TOOL_SPEC
+  SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY, SHINOBIGAMI_NINPOU_SPEC,
+  SHINOBIGAMI_BACKGROUND_SPEC, SHINOBIGAMI_TOOL_SPEC, SHINOBIGAMI_PERSON_SPEC
 };

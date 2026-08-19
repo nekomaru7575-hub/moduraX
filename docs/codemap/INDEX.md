@@ -20,7 +20,7 @@ generated: 2026-08-19
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 100 | 400 | 875 | 22 | 0 |
+| 100 | 402 | 883 | 22 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -97,8 +97,8 @@ generated: 2026-08-19
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 1 | 1 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 27 | 3 |
 | [[js.parameters.shinobigami-ougi-box\|js/parameters/shinobigami-ougi-box.js]] | シノビガミの「奥義」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 9 | 1 |
-| [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 3 | 1 |
-| [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 6 | 1 |
+| [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 4 | 1 |
+| [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 7 | 1 |
 | [[js.parameters.skill.item-use\|js/parameters/skill/item-use.js]] | アイテム（createItemSpecで宣言した、個数を持つ持ち物）の使用と増減。 | 5 | 3 |
 | [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 4 |
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |

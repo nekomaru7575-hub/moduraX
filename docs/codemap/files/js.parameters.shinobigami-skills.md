@@ -1,11 +1,11 @@
 ---
 source: js/parameters/shinobigami-skills.js
-lines: 37
-exports: 3
+lines: 50
+exports: 4
 imported_by: 1
-api_sha: efe4c0edb4e0
-prose_sha: efe4c0edb4e0
-generated: 2026-08-18
+api_sha: a4f3d36b020e
+prose_sha: a4f3d36b020e
+generated: 2026-08-19
 tags: [codemap]
 ---
 
@@ -18,16 +18,17 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-シノビガミの特技表データ（6分野 × 11行）そのもの。ロジックは持たない定数だけのファイル。
+シノビガミの表データ（特技表6分野 × 11行と、感情表のプラス6・マイナス6）そのもの。ロジックは持たない定数だけのファイル。共通モジュールはこれらの名前を一切知らず、[[js.parameters.shinobigami]] がここから読んで spec へ渡す。
 <!-- /prose:role -->
 
-## export（3）
+## export（4）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 10 | const | SHINOBIGAMI_COLUMNS | `SHINOBIGAMI_COLUMNS` | js/parameters/shinobigami-skills.js シノビガミの特技表データ（6分野 × 11行）。 |
-| 20 | const | SHINOBIGAMI_ROWS | `SHINOBIGAMI_ROWS` | 2D6の出目。 |
-| 23 | const | SHINOBIGAMI_SKILL_CELLS | `SHINOBIGAMI_SKILL_CELLS` | SHINOBIGAMI_SKILL_CELLS[分野index][行index]。 |
+| 12 | const | SHINOBIGAMI_COLUMNS | `SHINOBIGAMI_COLUMNS` | js/parameters/shinobigami-skills.js シノビガミの表データ（特技表と感情表）。 |
+| 22 | const | SHINOBIGAMI_ROWS | `SHINOBIGAMI_ROWS` | 2D6の出目。 |
+| 25 | const | SHINOBIGAMI_SKILL_CELLS | `SHINOBIGAMI_SKILL_CELLS` | SHINOBIGAMI_SKILL_CELLS[分野index][行index]。 |
+| 46 | const | SHINOBIGAMI_EMOTIONS | `SHINOBIGAMI_EMOTIONS` | 感情表。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 
@@ -41,5 +42,7 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+特技はセルID（`列キー:出目`）で保存されるので、**特技名を直しても保存済みの取得データは壊れない**。一方 **感情は名前そのものが保存値**なので、感情名を変えると保存済みの人物欄の感情は先頭へ落ちる。安定IDを持たせていないのは、感情名がシステムの用語そのもので、卓が読む文字列と保存値を分ける利点が無いため。
+
+特技名は要検証（ファイル冒頭の⚠️参照）。
 <!-- /prose:notes -->

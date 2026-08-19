@@ -1,11 +1,11 @@
 ---
 source: js/character-dialog.js
-lines: 1101
+lines: 1105
 exports: 5
 imported_by: 2
-api_sha: ba369104a126
-prose_sha: ba369104a126
-generated: 2026-08-18
+api_sha: 14bcbd0e5a8f
+prose_sha: 14bcbd0e5a8f
+generated: 2026-08-19
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-コマの新規登録・編集モーダル。名前・画像・トリミング・デフォルトパラメータ・カスタムパラメータ・公開範囲をまとめて扱う。システム固有のパラメータ欄は [[js.parameters.registry]] が返すプラグイン記述子から組み立てるため、DX3 やシノビガミ固有の知識はここには無い。
+コマの新規登録・編集モーダル。名前・画像・トリミング・デフォルトパラメータ・カスタムパラメータ・公開範囲をまとめて扱う。システム固有のパラメータ欄は [[js.parameters.registry]] が返すプラグイン記述子から組み立てるため、DX3 やシノビガミ固有の知識はここには無い。プラグイン専用スペース（buildPluginPanel）へは、store を直接読めないプラグインの代わりに Core が集めた値一式（`getToken` / `dispatch` / `participants` / 他のコマを名前で引く `findTokenByName`）を素通しする。
 <!-- /prose:role -->
 
 ## export（5）
@@ -28,8 +28,8 @@ tags: [codemap]
 | 16 | fn | defaultImageCrop | `defaultImageCrop()` | コマ画像トリミングの既定値：ズームなし・中央。 |
 | 23 | fn | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | トリミング設定(crop)を<img>のCSSへ反映する。 |
 | 46 | fn | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | showCharacterEditDialogのonConfirmが返す結果を、Store（部屋のstore、または js/character-builder.jsが使う部屋に紐づかない使い捨てのImmutableS… |
-| 441 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
-| 720 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
+| 444 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
+| 723 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（16）
 
@@ -41,19 +41,19 @@ tags: [codemap]
 | 16 | defaultImageCrop | `defaultImageCrop()` | 3 | ✓ |
 | 23 | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | 9 | ✓ |
 | 46 | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | 67 | ✓ |
-| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null })` | 35 |  |
-| 158 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 140 |  |
-| 300 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
-| 319 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
-| 337 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
-| 361 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
-| 378 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 29 |  |
-| 411 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
-| 418 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
-| 427 | ensureDialog | `ensureDialog()` | 7 |  |
-| 441 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **233** | ✓ |
-| 677 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
-| 720 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **382** | ✓ |
+| 117 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null })` | 38 |  |
+| 161 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false } = {})` | 140 |  |
+| 303 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
+| 322 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
+| 340 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
+| 364 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
+| 381 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 29 |  |
+| 414 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
+| 421 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
+| 430 | ensureDialog | `ensureDialog()` | 7 |  |
+| 444 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **233** | ✓ |
+| 680 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
+| 723 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **383** | ✓ |
 
 ## 依存
 
@@ -63,5 +63,5 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+プラグインへ渡す値は**このファイルが増やす場所**ではなく、素通しするだけ。実体は呼び出し元（[[js.board-data-driven]] は部屋の store、[[js.character-builder]] は下書き用の store）が用意する。部屋の外＝コマ作成ツールからは `rollBCDice` や `findTokenByName` が渡ってこないので、使う側のプラグインが「部屋の中で実行してください」と断ること。
 <!-- /prose:notes -->

@@ -69,8 +69,11 @@ function buildToggleField(field, value) {
     const option = field.options[index];
     button.value = option?.value ?? '';
     button.textContent = option?.label ?? '';
-    // 先頭以外を選んでいることを色でも示す（どちらなのかを読みに行かなくて済むように）
+    // 先頭以外を選んでいることを色でも示す（どちらなのかを読みに行かなくて済むように）。
+    // 3択以上で選択肢ごとに色を変えたいsystem（シノビガミの人物の属性：＋は青、−は赤）の
+    // ために、選んでいる番号もクラスへ載せる。specのclassNameと組み合わせて塗り分ける。
     button.classList.toggle('is-alt', index > 0);
+    field.options.forEach((_option, i) => button.classList.toggle(`is-opt-${i}`, i === index));
   };
 
   button.addEventListener('click', () => {
@@ -82,6 +85,74 @@ function buildToggleField(field, value) {
 
   show(value);
   return button;
+}
+
+/**
+ * 欄1つの「今の値」。型ごとに置き場が違う（チェックはchecked、他はvalue）ので、
+ * 読む場所を1か所にまとめてある。**3か所（有効/無効の引き直し・式の検証・保存）が
+ * 同じ値を見る必要がある**：ずれると、画面では有効なのに保存では空、のような食い違いになる。
+ */
+function readFieldValue(field, input) {
+  if (field.type === 'checkbox') return input.checked;
+  if (field.type === 'number') return Number(input.value) || 0;
+  return input.value;
+}
+
+/** 行1つ分の欄の値をまとめて読む（availableWhen / filterOptions / 式へ渡す形）。 */
+function readRowFieldValues(spec, fieldInputs) {
+  const values = {};
+  spec.fields.forEach(field => { values[field.key] = readFieldValue(field, fieldInputs[field.key]); });
+  return values;
+}
+
+/** チェック欄（type:'checkbox'）。ラベルと並べて見出し行へ置く。 */
+function buildCheckboxField(field, value) {
+  const wrap = document.createElement('label');
+  wrap.className = 'effect-box-check';
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = !!value;
+
+  wrap.appendChild(input);
+  wrap.appendChild(document.createTextNode(field.label));
+  // 値を持つのはinput、行に並べるのはwrap。呼び出し側が両方を扱えるように返す。
+  return { input, element: wrap };
+}
+
+/**
+ * filterOptionsを宣言した<select>の選択肢を、同じ行の今の値で組み直す。
+ * 今選ばれている値が絞り込みから外れたら、残った先頭へ寄せる（画面と保存値がずれないように）。
+ * 絞り込みは**表示だけ**の話で、保存値の検証は宣言された全選択肢に対して行われる
+ * （js/parameters/skill/skill-model.js の normalizeSkill）。
+ */
+function refreshSelectOptions(field, select, fieldValues) {
+  const allowed = field.options.filter(option => field.filterOptions(option, fieldValues));
+  const current = select.value;
+
+  select.innerHTML = '';
+  const groups = new Map();
+  allowed.forEach(option => {
+    const el = document.createElement('option');
+    el.value = option.value;
+    el.textContent = option.label;
+    if (!option.group) {
+      select.appendChild(el);
+      return;
+    }
+    let group = groups.get(option.group);
+    if (!group) {
+      group = document.createElement('optgroup');
+      group.label = option.group;
+      groups.set(option.group, group);
+      select.appendChild(group);
+    }
+    group.appendChild(el);
+  });
+
+  select.value = allowed.some(option => option.value === current)
+    ? current
+    : (allowed[0]?.value ?? '');
 }
 
 let dialogEl = null;
@@ -112,11 +183,16 @@ function createElement(tag, className, text) {
  *   getToken?: () => object|null,  アイテム（spec.quantityを宣言したspec）の使用に使う。
  *   dispatch?: Function            同上。使用はチャットへログを流すため、この2つが要る。
  *                                  渡さなければ使用ボタンは出ない（個数の増減だけできる）。
+ *   generateBuffId?: Function,     行ごとの任意ボタン（spec.rowActions）へそのまま渡す。
+ *   findTokenByName?: (name) => object|null
+ *                                  同上。他のコマを名前で引く口（シノビガミの感情修正）。
+ *                                  部屋の外（コマ作成ツール）では渡ってこないので、
+ *                                  runの側で「部屋の中で実行してください」と断ること。
  * }} options
  */
 export function showSkillBox({
   spec, skills = [], parameters = {}, readOnly = false, onSave,
-  getToken = null, dispatch = null
+  getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -173,52 +249,75 @@ export function showSkillBox({
     headerRow.appendChild(nameInput);
 
     const fieldInputs = {};
+    // 無効化・タイトルの付け替えは「行に並べた要素」に対して行う（チェック欄は<label>）。
+    const fieldElements = {};
     spec.fields.forEach(field => {
       const stored = skill?.fields?.[field.key];
       let input;
-      if (field.type === 'toggle') {
+      // 行に並べる要素。チェック欄だけは<label>で包むので、値を持つinputとは別物になる。
+      let element;
+      if (field.type === 'checkbox') {
+        const built = buildCheckboxField(field, stored);
+        input = built.input;
+        element = built.element;
+      } else if (field.type === 'toggle') {
         input = buildToggleField(field, stored ?? field.options[0]?.value ?? '');
+        element = input;
       } else if (field.type === 'select') {
         input = buildSelectField(field, stored ?? field.options[0]?.value ?? '');
+        element = input;
       } else {
         input = document.createElement('input');
         input.type = field.type === 'number' ? 'number' : 'text';
         input.placeholder = field.placeholder || field.label;
         input.value = stored ?? (field.type === 'number' ? 0 : '');
+        element = input;
       }
-      // トグルは「押せるボタン」の見た目と、今どちらを選んでいるか（is-alt）を自分で
-      // クラスに持つので、classNameごと置き換えず、specの指定を足すだけにする。
-      if (field.type === 'toggle') {
-        if (field.className) input.classList.add(field.className);
+      // トグルとチェックは見た目と状態を自分でクラスに持つ（is-alt / is-opt-N）ので、
+      // classNameごと置き換えず、specの指定を足すだけにする。
+      if (field.type === 'toggle' || field.type === 'checkbox') {
+        if (field.className) element.classList.add(field.className);
       } else {
         input.className = field.className || 'effect-box-timing';
       }
-      input.title = field.type === 'toggle' ? `${field.label}（クリックで切り替え）` : field.label;
-      headerRow.appendChild(input);
+      element.title = field.type === 'toggle' ? `${field.label}（クリックで切り替え）` : field.label;
+      headerRow.appendChild(element);
       fieldInputs[field.key] = input;
+      fieldElements[field.key] = element;
     });
 
     // 条件付きの欄（シノビガミの「間合は攻撃忍法だけ」）の有効/無効を今の入力値で決め直す。
     // 無効でも値は消さない。条件が戻ったときに入れ直させないため（skill-model.jsのisFieldAvailable）。
     function syncFieldAvailability() {
-      const values = {};
-      spec.fields.forEach(field => { values[field.key] = fieldInputs[field.key].value; });
+      const values = readRowFieldValues(spec, fieldInputs);
 
       spec.fields.forEach(field => {
         const input = fieldInputs[field.key];
+        const element = fieldElements[field.key];
         const available = isFieldAvailable(field, values);
         input.disabled = !available;
-        input.classList.toggle('is-unavailable', !available);
+        element.classList.toggle('is-unavailable', !available);
+
+        // 選択肢を他の欄の値で絞る欄（シノビガミの人物の感情）は、ここで組み直す。
+        // 今の値が絞り込みから外れたら、残った先頭へ寄せる（画面と保存値がずれないように）。
+        if (typeof field.filterOptions === 'function' && field.type === 'select') {
+          refreshSelectOptions(field, input, values);
+        }
+
         if (available) {
-          input.title = field.type === 'toggle'
+          element.title = field.type === 'toggle'
             ? `${field.label}（クリックで切り替え）`
             : field.label;
-          if (!isChoiceField(field)) input.placeholder = field.placeholder || field.label;
+          if (!isChoiceField(field) && field.type !== 'checkbox') {
+            input.placeholder = field.placeholder || field.label;
+          }
         } else {
-          input.title = `${field.label}：この種類では使いません`;
-          if (!isChoiceField(field)) input.placeholder = '-';
+          element.title = `${field.label}：この種類では使いません`;
+          if (!isChoiceField(field) && field.type !== 'checkbox') input.placeholder = '-';
         }
       });
+
+      syncRowActions(values);
     }
 
     // 条件の元になる欄（タイプ等）が変わったら組み直す。どの欄が条件を左右するかは
@@ -227,6 +326,39 @@ export function showSkillBox({
       fieldInputs[field.key].addEventListener('change', syncFieldAvailability);
       fieldInputs[field.key].addEventListener('input', syncFieldAvailability);
     });
+
+    // --- 行ごとの任意ボタン（シノビガミの人物の「感情修正」） ---
+    // ボックスは何をするかを知らない。specが宣言したrunへ、その行の今の値と
+    // store操作一式を渡すだけ。
+    const actionButtons = [];
+    if (spec.rowActions.length > 0) {
+      spec.rowActions.forEach(action => {
+        const btn = createElement('button', 'effect-box-row-action', action.label);
+        btn.type = 'button';
+        btn.addEventListener('click', () => {
+          // 保存待ちの編集も反映した「今の行」を渡す（名前を直した直後に押しても、
+          // 画面に見えているとおりの相手が対象になる）。
+          const row = rows.find(entry => entry.item === item);
+          if (!row) return;
+          action.run({
+            skill: collectRow(row),
+            spec,
+            context: { getToken, dispatch, generateBuffId, findTokenByName }
+          });
+        });
+        headerRow.appendChild(btn);
+        actionButtons.push({ action, btn });
+      });
+    }
+
+    function syncRowActions(values) {
+      actionButtons.forEach(({ action, btn }) => {
+        const available = isFieldAvailable(action, values);
+        btn.disabled = readOnly || !available;
+        btn.title = available ? action.label : `${action.label}：今は使えません`;
+      });
+    }
+
     syncFieldAvailability();
 
     // --- 個数と使用（アイテム＝spec.quantityを宣言したspecだけ） ---
@@ -314,21 +446,17 @@ export function showSkillBox({
 
     // 式の検証に渡す「今この行に入力されているフィールド値」。{Lv}のように
     // スキル自身のフィールドを参照する式があるため、入力のたびに読み直す。
-    const readFieldValues = () => {
-      const values = {};
-      spec.fields.forEach(field => {
-        values[field.key] = field.type === 'number'
-          ? (Number(fieldInputs[field.key].value) || 0)
-          : fieldInputs[field.key].value;
-      });
-      return values;
-    };
+    const readFieldValues = () => readRowFieldValues(spec, fieldInputs);
 
-    const noteInput = createElement('textarea', 'effect-box-note');
-    noteInput.placeholder = '効果';
-    noteInput.rows = 2;
-    noteInput.value = skill?.note ?? '';
-    item.appendChild(noteInput);
+    // メモ欄。行数が多くて1行を低く保ちたい一覧（シノビガミの人物）では出さない。
+    let noteInput = null;
+    if (spec.allowNote) {
+      noteInput = createElement('textarea', 'effect-box-note');
+      noteInput.placeholder = '効果';
+      noteInput.rows = 2;
+      noteInput.value = skill?.note ?? '';
+      item.appendChild(noteInput);
+    }
 
     // --- ここから下（効果時間・回数制限・使用条件・修正値）は畳んでおく ---
     // 1件あたりの背が高く、名前と効果を見比べたいだけの時に一覧が読めなくなるため。
@@ -667,62 +795,68 @@ export function showSkillBox({
 
   // 画面の行を、componentsへ保存する配列にする。保存ボタン（submit）と、
   // 個数の増減・使用（アイテムのときだけ出るボタン）の即時保存の両方から呼ぶ。
+  // 行1つを、componentsへ保存する形にする。保存ボタンと、行ごとの任意ボタン
+  // （rowActionsのrunへ渡す「今の行」）の両方から使う。
+  function collectRow(row) {
+    const fields = {};
+    spec.fields.forEach(field => {
+      const value = readFieldValue(field, row.fieldInputs[field.key]);
+      fields[field.key] = typeof value === 'string' ? value.trim() : value;
+    });
+
+    const counts = {};
+    spec.periods.forEach(period => {
+      const { currentInput, maxInput } = row.limitControls[period.key];
+      // 上限が固定の期間は入力欄が無いので宣言値をそのまま書く
+      // （読み出し側のnormalizeSkillも同じ値へ揃えるので、どちらから来ても一致する）
+      const rawMax = maxInput ? maxInput.value.trim() : String(period.fixedMax);
+      counts[period.key] = {
+        current: Number(currentInput.value) || 0,
+        // 式のまま保存し、使用時に解決する（数値へ丸めると{EB}等が失われるため）
+        max: rawMax === '' ? null : rawMax
+      };
+    });
+
+    const conditions = row.conditionRows
+      .map(({ leftInput, comparatorSelect, rightInput }) => ({
+        left: leftInput.value.trim(),
+        comparator: comparatorSelect.value,
+        right: rightInput.value.trim()
+      }))
+      .filter(condition => condition.left !== '' || condition.right !== '');
+
+    const mods = row.modRows
+      .filter(({ targetSelect }) => targetSelect.value !== '')
+      .map(({ targetSelect, formulaInput, extraInput }) => {
+        const paramId = targetSelect.value;
+        const mod = { paramId, formula: formulaInput.value.trim(), target: 'self', extra: {} };
+        const modTarget = spec.findModTarget(paramId);
+        if (modTarget?.extra) {
+          const rawExtra = extraInput.value.trim();
+          if (rawExtra !== '') mod.extra[modTarget.extra.key] = Number(rawExtra) || 0;
+        }
+        return mod;
+      });
+
+    return {
+      name: row.nameInput.value.trim(),
+      // メモ欄を出さないシステムでは入力欄そのものが無い（allowNote:false）
+      note: row.noteInput ? row.noteInput.value : '',
+      fields,
+      // 効果時間を扱わないシステムでは選択欄そのものが無い
+      expirePhase: row.expireSelect ? row.expireSelect.value : '',
+      limits: { counts, conditions },
+      mods,
+      // 個数を持たないシステムではキーごと出さない（保存形を変えないため）
+      ...(row.quantityState ? { quantity: row.quantityState.value } : {})
+    };
+  }
+
+  // 画面の行を、componentsへ保存する配列にする。保存ボタン（submit）と、
+  // 個数の増減・使用（アイテムのときだけ出るボタン）の即時保存の両方から呼ぶ。
+  // 名前が空の行は落とす（旧UIも保存時に同じ条件で捨てていた）。
   function collectSkills() {
-    return rows
-      .map(row => {
-        const fields = {};
-        spec.fields.forEach(field => {
-          const raw = row.fieldInputs[field.key].value;
-          fields[field.key] = field.type === 'number' ? (Number(raw) || 0) : raw.trim();
-        });
-
-        const counts = {};
-        spec.periods.forEach(period => {
-          const { currentInput, maxInput } = row.limitControls[period.key];
-          // 上限が固定の期間は入力欄が無いので宣言値をそのまま書く
-          // （読み出し側のnormalizeSkillも同じ値へ揃えるので、どちらから来ても一致する）
-          const rawMax = maxInput ? maxInput.value.trim() : String(period.fixedMax);
-          counts[period.key] = {
-            current: Number(currentInput.value) || 0,
-            // 式のまま保存し、使用時に解決する（数値へ丸めると{EB}等が失われるため）
-            max: rawMax === '' ? null : rawMax
-          };
-        });
-
-        const conditions = row.conditionRows
-          .map(({ leftInput, comparatorSelect, rightInput }) => ({
-            left: leftInput.value.trim(),
-            comparator: comparatorSelect.value,
-            right: rightInput.value.trim()
-          }))
-          .filter(condition => condition.left !== '' || condition.right !== '');
-
-        const mods = row.modRows
-          .filter(({ targetSelect }) => targetSelect.value !== '')
-          .map(({ targetSelect, formulaInput, extraInput }) => {
-            const paramId = targetSelect.value;
-            const mod = { paramId, formula: formulaInput.value.trim(), target: 'self', extra: {} };
-            const modTarget = spec.findModTarget(paramId);
-            if (modTarget?.extra) {
-              const rawExtra = extraInput.value.trim();
-              if (rawExtra !== '') mod.extra[modTarget.extra.key] = Number(rawExtra) || 0;
-            }
-            return mod;
-          });
-
-        return {
-          name: row.nameInput.value.trim(),
-          note: row.noteInput.value,
-          fields,
-          // 効果時間を扱わないシステムでは選択欄そのものが無い
-          expirePhase: row.expireSelect ? row.expireSelect.value : '',
-          limits: { counts, conditions },
-          mods,
-          // 個数を持たないシステムではキーごと出さない（保存形を変えないため）
-          ...(row.quantityState ? { quantity: row.quantityState.value } : {})
-        };
-      })
-      .filter(skill => skill.name !== '');
+    return rows.map(collectRow).filter(skill => skill.name !== '');
   }
 
   // ダイアログを閉じずにその場で保存する。個数の増減と使用だけが通る道で、

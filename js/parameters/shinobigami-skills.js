@@ -1,6 +1,8 @@
 // js/parameters/shinobigami-skills.js
-// シノビガミの特技表データ（6分野 × 11行）。共通モジュール（js/parameters/saikoro-fiction/）は
-// 特技名を一切知らないので、このデータをプラグインが createSkillTableSpec() へ渡す。
+// シノビガミの表データ（特技表と感情表）。共通モジュール（js/parameters/saikoro-fiction/、
+// js/parameters/skill/）はこれらの名前を一切知らないので、プラグインがここから渡す。
+//
+// 特技表は6分野 × 11行。プラグインが createSkillTableSpec() へ渡す。
 //
 // ⚠️ 特技名は要検証。添付のキャラクターシートPDFからテキストを抽出できなかったため
 // （Identity-Hエンコーディング＋Adobe-Japan1サブセット埋め込みでToUnicodeマップ無し）、
@@ -34,3 +36,14 @@ export const SHINOBIGAMI_SKILL_CELLS = [
   // 妖術
   ['異形化', '召喚術', '死霊術', '結界術', '封術', '言霊術', '幻術', '瞳術', '千里眼の術', '憑依術', '呪術']
 ];
+
+// 感情表。人物欄の「感情」ドロップダウンの選択肢になる（プラス6・マイナス6）。
+// **感情を増減・改名するときはここだけを直す。** 保存されるのは感情名そのものなので、
+// 名前を変えると保存済みの人物欄の感情は先頭（共感／不信）へ落ちる
+// （選択肢に無い値の扱い。js/parameters/skill/skill-model.js の normalizeSkill）。
+// 特技表のセルと違って安定IDを持たせていないのは、感情名がシステムの用語そのもので、
+// 卓が読む文字列と保存値を分ける利点が無いため。
+export const SHINOBIGAMI_EMOTIONS = {
+  plus: ['共感', '友情', '愛情', '忠誠', '憧憬', '狂信'],
+  minus: ['不信', '怒り', '侮蔑', '嫉妬', '劣等感', '殺意']
+};

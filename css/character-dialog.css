@@ -107,6 +107,34 @@
   flex: 0 0 84px;
 }
 
+/* 選択肢を押すたびに回す欄（type:'toggle'。シノビガミの背景の長所／短所）。
+   先頭以外を選んでいる間は色を変えて、今どちらなのかを読みに行かずに済むようにする
+   （DX3のロイス⇔タイタスの .lois-box-state-toggle と同じ方針）。 */
+.effect-box-toggle {
+  flex: 0 0 84px;
+  min-width: 0;
+  background-color: #3a3a3a;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.effect-box-toggle.is-alt {
+  background-color: #5a3a3a;
+  border-color: #8a5555;
+  color: #fff;
+}
+
+/* その種類では使わない欄と同じ薄さにする（.is-unavailable は input/select にしか
+   効いていないため、ボタンにも同じ見た目を与える） */
+.effect-box-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .effect-box-level {
   flex: 0 0 56px;
 }
@@ -1264,8 +1292,8 @@
   font-weight: bold;
 }
 
-/* 判定オプション（ダイス数・スペシャル値など）。判定モードのときだけ表示する。
-   保存はされず、ダイアログを開き直すと既定値に戻る。 */
+/* 判定の修正値（シノビガミのAdB/AnB/SB/FB）。判定モードのときだけ表示する。
+   値はコマのパラメータそのもので、入力するとその場で書き戻る（開き直しても残る）。 */
 .sf-skill-table-check-options {
   display: flex;
   align-items: flex-end;
@@ -1298,6 +1326,17 @@
   border-radius: 4px;
   padding: 4px 2px;
   width: 52px;
+  text-align: center;
+}
+
+/* 入力欄の下に出すバフの分。バフが乗っていない時はJS側でdisplay:noneにする。
+   セレクタでspanを挟んでいるのは、上の .sf-skill-table-check-option span（見出し用）に
+   負けないようにするため。 */
+.sf-skill-table-check-option span.sf-skill-table-check-buff {
+  font-size: 0.7rem;
+  color: #7fb2ff;
+  margin-top: 2px;
+  margin-bottom: 0;
   text-align: center;
 }
 

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/saikoro-fiction/skill-check.js
-lines: 167
+lines: 164
 exports: 6
 imported_by: 2
-api_sha: e722813c768c
-prose_sha: e722813c768c
-generated: 2026-08-18
+api_sha: 126b2e5e36b0
+prose_sha: 126b2e5e36b0
+generated: 2026-08-19
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-サイコロ・フィクション系（シノビガミ／インセイン等）共通の特技判定の実行とチャット出力の組み立て。目標特技からの距離計算は [[js.parameters.saikoro-fiction.skill-table]] に委ね、BCDice へ投げるコマンドの書式はシステム固有なので spec.check に委ねる。resolveCheckAdjustments はキャラクター側の修正（シノビガミのダイス数修正など）を判定オプションと目標値へ反映する口で、表からの判定もチャットコマンドからの判定も必ずここを通る。
+サイコロ・フィクション系（シノビガミ／インセイン等）共通の特技判定の実行とチャット出力の組み立て。目標特技からの距離計算は [[js.parameters.saikoro-fiction.skill-table]] に委ね、BCDice へ投げるコマンドの書式はシステム固有なので spec.check に委ねる。resolveCheckAdjustments はコマ側の修正（シノビガミの AdB/AnB/SB/FB。いずれもバフ込みの実効値）を判定コマンドの値と目標値へ反映する口で、表からの判定もチャットコマンドからの判定も必ずここを通る。
 <!-- /prose:role -->
 
 ## export（6）
@@ -29,8 +29,8 @@ tags: [codemap]
 | 17 | fn | buildSkillCheckCommand | `buildSkillCheckCommand(skillName)` | チャット欄に貼れる特技判定コマンドの文字列 |
 | 25 | fn | describeSkillCheck | `describeSkillCheck(resolution)` | 判定内容の1行説明。 |
 | 38 | fn | buildCheckCommand | `buildCheckCommand(spec, targetNumber, checkOptions)` | 実際にBCDiceへ投げるコマンド文字列。 |
-| 58 | fn | resolveCheckAdjustments | `resolveCheckAdjustments(spec, { options, targetNumber, token, getEffectiveParameterValue })` | 判定オプションと目標値に、そのキャラクター固有の修正を反映する。 |
-| 122 | fn | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, checkOptions, getEffectiveParameterValue, systemLabel = '特技判定', chatCommand })` | 特技判定を実行してメインチャットに結果を流す。 |
+| 59 | fn | resolveCheckAdjustments | `resolveCheckAdjustments(spec, { options, targetNumber, token, getEffectiveParameterValue })` | 判定コマンドに渡す値と目標値に、そのキャラクター固有の修正を反映する。 |
+| 120 | fn | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, getEffectiveParameterValue, systemLabel = '特技判定', chatCommand })` | 特技判定を実行してメインチャットに結果を流す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（6）
 
@@ -42,9 +42,9 @@ tags: [codemap]
 | 17 | buildSkillCheckCommand | `buildSkillCheckCommand(skillName)` | 3 | ✓ |
 | 25 | describeSkillCheck | `describeSkillCheck(resolution)` | 6 | ✓ |
 | 38 | buildCheckCommand | `buildCheckCommand(spec, targetNumber, checkOptions)` | 6 | ✓ |
-| 58 | resolveCheckAdjustments | `resolveCheckAdjustments(spec, { options, targetNumber, token, getEffectiveParameterValue })` | 27 | ✓ |
-| 90 | logToMain | `logToMain(dispatch, resultText, token, system, chatCommand)` | 13 |  |
-| 122 | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, checkOptions, getEffectiveParameterValue, systemLabel = '特技判定', chatCommand })` | 45 | ✓ |
+| 59 | resolveCheckAdjustments | `resolveCheckAdjustments(spec, { options, targetNumber, token, getEffectiveParameterValue })` | 25 | ✓ |
+| 89 | logToMain | `logToMain(dispatch, resultText, token, system, chatCommand)` | 13 |  |
+| 120 | runSkillCheck | `async runSkillCheck({ spec, state, targetCellId, token, dispatch, rollBCDice, bcdiceSystem, getEffectiveParameterValue, systemLabel = '特技判定', chatCommand })` | 44 | ✓ |
 
 ## 依存
 
@@ -54,5 +54,5 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+判定のたびに指定する一時的なオプションはもう無い。修正はすべてコマのパラメータ側にあるので、表から振ってもチャットコマンドから振っても同じ値が乗る。
 <!-- /prose:notes -->

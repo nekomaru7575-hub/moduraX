@@ -1,11 +1,11 @@
 ---
 source: server/index.js
-lines: 3032
+lines: 3034
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-18
+generated: 2026-08-19
 tags: [codemap]
 ---
 
@@ -98,29 +98,29 @@ _(未記入)_
 | 1394 | adoptMediaUrl | `async adoptMediaUrl(roomId, url, { extensions, maxBytes, label })` | 42 |  |
 | 1446 | adoptStateMedia | `async adoptStateMedia(roomId, state)` | 96 |  |
 | 1544 | droppedMediaMessage | `droppedMediaMessage(dropped)` | 8 |  |
-| 1555 | withImportNotice | `withImportNotice(state, text)` | 9 |  |
-| 1580 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
-| 1609 | handleImageCopy | `async handleImageCopy(req, res)` | 70 |  |
-| 1681 | handleListRooms | `async handleListRooms(req, res)` | 7 |  |
-| 1694 | summarizeRoomSlot | `async summarizeRoomSlot(id)` | 18 |  |
-| 1715 | handleCreateRoom | `async handleCreateRoom(req, res)` | 121 |  |
-| 1868 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
-| 1914 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
-| 1988 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
-| 2067 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
-| 2077 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 54 |  |
-| 2133 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
-| 2149 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
-| 2183 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2206 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 45 |  |
-| 2277 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 2287 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 2305 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 2322 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 2350 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 2365 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 2374 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 2994 | shutdown | `shutdown(signal)` | 23 |  |
+| 1557 | withImportNotice | `withImportNotice(state, text)` | 9 |  |
+| 1582 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
+| 1611 | handleImageCopy | `async handleImageCopy(req, res)` | 70 |  |
+| 1683 | handleListRooms | `async handleListRooms(req, res)` | 7 |  |
+| 1696 | summarizeRoomSlot | `async summarizeRoomSlot(id)` | 18 |  |
+| 1717 | handleCreateRoom | `async handleCreateRoom(req, res)` | 121 |  |
+| 1870 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
+| 1916 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
+| 1990 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
+| 2069 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
+| 2079 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 54 |  |
+| 2135 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
+| 2151 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
+| 2185 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
+| 2208 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 45 |  |
+| 2279 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 2289 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 2307 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 2324 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 2352 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 2367 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 2376 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 2996 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

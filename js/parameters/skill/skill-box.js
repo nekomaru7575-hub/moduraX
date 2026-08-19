@@ -1,7 +1,9 @@
 // js/parameters/skill/skill-box.js
 // スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。
-// 見出しも入力欄の構成もspec（js/parameters/skill/skill-model.jsのcreateSkillSpec）から
-// 組み立てるので、このファイルはどのシステムの何を編集しているかを知らない。
+// 見出しも入力欄の構成もspec（js/parameters/skill/skill-model.jsのcreateSkillSpec /
+// createListSpec）から組み立てるので、このファイルはどのシステムの何を編集しているかを
+// 知らない。使わない節（効果時間・回数制限・使用条件・修正値）はspecの宣言に従って
+// 丸ごと出さないので、名前と内容だけの一覧もこのボックスがそのまま描く。
 // 保存すると即座にonSaveへ新しい配列を渡す。Core側はこの配列の中身を解釈しない。
 //
 // CSSクラスはエフェクトボックス時代の .effect-box-* をそのまま使っている
@@ -9,7 +11,7 @@
 
 import { lockFormControls } from '../../read-only-form.js';
 import { analyzeFormula, listFormulaNames, COMPARATORS } from './skill-formula.js';
-import { normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable } from './skill-model.js';
+import { normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable, isChoiceField } from './skill-model.js';
 
 // 選択肢欄（type:'select'）を組む。optionにgroupがあれば、その名前でoptgroupにまとめる
 // （シノビガミの指定特技は66件あるので、分野ごとに畳まないと選べない）。
@@ -38,6 +40,45 @@ function buildSelectField(field, value) {
 
   select.value = value;
   return select;
+}
+
+/**
+ * 押すたびに選択肢を順に回すボタン（type:'toggle'）。2択に限らず選択肢の数だけ回る。
+ * 見た目と操作感はDX3のロイス⇔タイタスのトグル（js/parameters/dx3-lois-box.js）に揃えてある。
+ *
+ * 値を <select> と同じく要素の value に持たせているのが肝で、こうしておけば保存も
+ * availableWhen の引き直しも式の検証も、他の欄と同じ経路のまま動く
+ * （ボックス側に「トグルだけの特別扱い」が要らない）。
+ */
+function buildToggleField(field, value) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'effect-box-toggle';
+  button.title = `${field.label}（クリックで切り替え）`;
+
+  const indexOf = (target) => {
+    const index = field.options.findIndex(option => option.value === target);
+    return index === -1 ? 0 : index;
+  };
+
+  const show = (target) => {
+    const index = indexOf(target);
+    const option = field.options[index];
+    button.value = option?.value ?? '';
+    button.textContent = option?.label ?? '';
+    // 先頭以外を選んでいることを色でも示す（どちらなのかを読みに行かなくて済むように）
+    button.classList.toggle('is-alt', index > 0);
+  };
+
+  button.addEventListener('click', () => {
+    if (field.options.length === 0) return;
+    show(field.options[(indexOf(button.value) + 1) % field.options.length].value);
+    // 他の欄と同じ経路（availableWhenの引き直し・式の検証）を通すために自分で起こす
+    button.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  show(value);
+  return button;
 }
 
 let dialogEl = null;
@@ -126,7 +167,9 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
     spec.fields.forEach(field => {
       const stored = skill?.fields?.[field.key];
       let input;
-      if (field.type === 'select') {
+      if (field.type === 'toggle') {
+        input = buildToggleField(field, stored ?? field.options[0]?.value ?? '');
+      } else if (field.type === 'select') {
         input = buildSelectField(field, stored ?? field.options[0]?.value ?? '');
       } else {
         input = document.createElement('input');
@@ -134,8 +177,14 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
         input.placeholder = field.placeholder || field.label;
         input.value = stored ?? (field.type === 'number' ? 0 : '');
       }
-      input.className = field.className || 'effect-box-timing';
-      input.title = field.label;
+      // トグルは「押せるボタン」の見た目と、今どちらを選んでいるか（is-alt）を自分で
+      // クラスに持つので、classNameごと置き換えず、specの指定を足すだけにする。
+      if (field.type === 'toggle') {
+        if (field.className) input.classList.add(field.className);
+      } else {
+        input.className = field.className || 'effect-box-timing';
+      }
+      input.title = field.type === 'toggle' ? `${field.label}（クリックで切り替え）` : field.label;
       headerRow.appendChild(input);
       fieldInputs[field.key] = input;
     });
@@ -152,11 +201,13 @@ export function showSkillBox({ spec, skills = [], parameters = {}, readOnly = fa
         input.disabled = !available;
         input.classList.toggle('is-unavailable', !available);
         if (available) {
-          input.title = field.label;
-          if (field.type !== 'select') input.placeholder = field.placeholder || field.label;
+          input.title = field.type === 'toggle'
+            ? `${field.label}（クリックで切り替え）`
+            : field.label;
+          if (!isChoiceField(field)) input.placeholder = field.placeholder || field.label;
         } else {
           input.title = `${field.label}：この種類では使いません`;
-          if (field.type !== 'select') input.placeholder = '-';
+          if (!isChoiceField(field)) input.placeholder = '-';
         }
       });
     }

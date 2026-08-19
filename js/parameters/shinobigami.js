@@ -12,8 +12,8 @@ import {
   makeCellId, getCell
 } from './saikoro-fiction/skill-table.js';
 import {
-  createSkillSpec, normalizeSkillList, findSkillByName, resetSkillUsageOnPhaseEnd,
-  buildSkillUseCommandPattern, isFieldAvailable
+  createSkillSpec, createListSpec, normalizeSkillList, findSkillByName,
+  resetSkillUsageOnPhaseEnd, buildSkillUseCommandPattern, isFieldAvailable
 } from './skill/skill-model.js';
 import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
@@ -36,10 +36,26 @@ const SHINOBIGAMI_BCDICE_SYSTEM = 'ShinobiGami';
 //   n: ダイス数（省略時2。1以下はBCDiceがunsupportedを返すので下限2）
 //   s: スペシャル値（省略時12。13にすればスペシャルは出ない）
 //   f: ファンブル値（省略時2。0にすればファンブルは出ない）
+//
+// これは入力欄ではない。既定値（修正が何も無いときの値）と、修正を足した後に丸める
+// 上下限で、修正がどれだけ振り切れてもBCDiceが受け付けない値にならないようにする。
 const SHINOBIGAMI_CHECK_OPTIONS = [
   { key: 'diceCount', label: 'ダイス数', default: 2, min: 2, max: 10 },
   { key: 'specialValue', label: 'スペシャル値', default: 12, min: 2, max: 13 },
   { key: 'fumbleValue', label: 'ファンブル値', default: 2, min: 0, max: 12 }
+];
+
+// 特技表のボックスに並べる修正値の入力欄。値はコマのパラメータそのもので、入力すると
+// そこへ書き戻る（＝閉じても残り、他の参加者にも同期される）。忍法が修正を自動で
+// 乗せなくなった（SHINOBIGAMI_NINPOU_SPECのallowMods:false）ぶん、卓が手で入れる場所が要る。
+//
+// 上下限を±12にしてあるのは、ここで細かく縛っても意味が無いため：足した後の値は
+// SHINOBIGAMI_CHECK_OPTIONSの範囲へ丸められるので、判定コマンドが壊れることはない。
+const SHINOBIGAMI_CHECK_MODIFIERS = [
+  { key: 'AdB', label: 'ダイス数', paramId: 'SHINOBIGAMI:AdB', min: -12, max: 12 },
+  { key: 'AnB', label: '判定値', paramId: 'SHINOBIGAMI:AnB', min: -12, max: 12 },
+  { key: 'SB', label: 'スペシャル値', paramId: 'SHINOBIGAMI:SB', min: -12, max: 12 },
+  { key: 'FB', label: 'ファンブル値', paramId: 'SHINOBIGAMI:FB', min: -12, max: 12 }
 ];
 
 // 既定値と同じ項目は書かず最短形にする（`SG>=7` / `3SG@11#3>=7` など、いずれもBCDiceの
@@ -52,41 +68,30 @@ function buildShinobigamiCheckCommand({ options, targetNumber }) {
   return `${dice}SG${special}${fumble}>=${targetNumber}`;
 }
 
-const OPTION_DEFAULTS = Object.fromEntries(SHINOBIGAMI_CHECK_OPTIONS.map(o => [o.key, o.default]));
-
 // スペシャル値・ファンブル値の基準と丸め幅。パラメータの初期値と判定時の丸めの両方で使う。
 const SPECIAL_DEFAULT = 12;
 const SPECIAL_MAX = 13;   // 13にするとスペシャルは出ない
 const FUMBLE_FLOOR = 2;   // 平常時のファンブル値。戦闘中はプロットがこれを上回れば置き換わる
 
 /**
- * 判定オプション欄の指定を読む。空欄・既定値のままなら「指定なし」とみなして自動値を使う。
- * 欄はダイアログを開くたび既定値に戻るので、既定のまま＝手を触れていない、と扱ってよい。
- * 逆に手で入れた値は、キャラクターの自動値より優先する（GMが上書きしたい場面を潰さない）。
- */
-function pickCheckOption(rawOptions, key, autoValue) {
-  const raw = rawOptions?.[key];
-  if (raw === undefined || raw === null || String(raw).trim() === '') return autoValue;
-  const value = Math.trunc(Number(raw));
-  if (!Number.isFinite(value)) return autoValue;
-  return value === OPTION_DEFAULTS[key] ? autoValue : value;
-}
-
-/**
  * キャラクターの修正値を判定へ反映する（js/parameters/saikoro-fiction/skill-check.js の
  * resolveCheckAdjustments から呼ばれる）。
  *
- *   ダイス数     = 指定 or 2        + ダイス数修正(AdB)
- *   ファンブル値 = 指定 or {F}      + ファンブル値修正(FB)
- *   スペシャル値 = 指定 or {S}      + スペシャル値修正(SB)   → ファンブル値+1〜13へ丸める
+ *   ダイス数     = 2               + ダイス数修正(AdB)
+ *   ファンブル値 = {F}             + ファンブル値修正(FB)
+ *   スペシャル値 = {S}             + スペシャル値修正(SB)   → ファンブル値+1〜13へ丸める
  *   目標値       = 特技表が出した値 − 判定値修正(AnB)
+ *
+ * 修正値（AdB/AnB/SB/FB）はどれもコマのパラメータで、特技表ボックスの入力欄から直接
+ * 書き換えられる。getParamが返すのはバフ込みの実効値なので、卓が手で入れた分と
+ * バフ（GMの「バフ」コマンド等）が両方ここへ乗る。
  *
  * 【AnBを目標値から引く理由】BCDiceのシノビガミ行為判定（nSG@s#f>=x）には固定値修正の
  * 書式が無い。仮に出目へ足せたとしても、スペシャル/ファンブルは出目の合計で決まるため、
  * 合計を動かすとそちらの判定までずれる。目標値を下げれば成否は同じで、
  * スペシャル/ファンブルは素の出目のまま保たれる。
  */
-function resolveShinobigamiCheck({ rawOptions, targetNumber, getParam }) {
+function resolveShinobigamiCheck({ options, targetNumber, getParam }) {
   const adb = getParam('SHINOBIGAMI:AdB');
   const anb = getParam('SHINOBIGAMI:AnB');
   const sb = getParam('SHINOBIGAMI:SB');
@@ -94,11 +99,13 @@ function resolveShinobigamiCheck({ rawOptions, targetNumber, getParam }) {
   const fumbleBase = getParam('SHINOBIGAMI:F') || FUMBLE_FLOOR;
   const specialBase = getParam('SHINOBIGAMI:S') || SPECIAL_DEFAULT;
 
-  const diceCount = pickCheckOption(rawOptions, 'diceCount', 2) + adb;
-  const fumbleValue = pickCheckOption(rawOptions, 'fumbleValue', fumbleBase) + fb;
+  // ダイス数の素の値だけはSHINOBIGAMI_CHECK_OPTIONSの既定（2）を使う。
+  // スペシャル値・ファンブル値の素の値はコマの側（{S}/{F}）が持つ。
+  const diceCount = options.diceCount + adb;
+  const fumbleValue = fumbleBase + fb;
   const specialValue = Math.min(
     SPECIAL_MAX,
-    Math.max(fumbleValue + 1, pickCheckOption(rawOptions, 'specialValue', specialBase) + sb)
+    Math.max(fumbleValue + 1, specialBase + sb)
   );
 
   // 何が効いたかをログへ添える。0の修正は書かない（毎回並ぶと読みにくいだけのため）。
@@ -130,6 +137,7 @@ const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
   baseTarget: 5,      // 2D6 >= 5 + 距離
   check: {
     options: SHINOBIGAMI_CHECK_OPTIONS,
+    modifiers: SHINOBIGAMI_CHECK_MODIFIERS,
     buildCommand: buildShinobigamiCheckCommand,
     resolve: resolveShinobigamiCheck
   },
@@ -157,13 +165,17 @@ const SHINOBIGAMI_CHARACTER_PARAMETERS = [
     locked: true, editable: false, visible: true
   },
 
-  // 判定へ効く修正を受け取る4つのレジスタ。忍法からは自動で乗らない（忍法は修正を持たない。
-  // 下のSHINOBIGAMI_NINPOU_SPECのallowMods:false）ので、動かすのは卓が打つバフコマンド。
-  // 手入力・一覧表示は想定しないが、バフ（ADD_BUFF）はeditableを見ずに加算できる。
-  { key: 'AdB', label: 'ダイス数修正(AdB)', value: 0, locked: true, editable: false, visible: false },
-  { key: 'AnB', label: '判定値修正(AnB)', value: 0, locked: true, editable: false, visible: false },
-  { key: 'SB', label: 'スペシャル値修正(SB)', value: 0, locked: true, editable: false, visible: false },
-  { key: 'FB', label: 'ファンブル値修正(FB)', value: 0, locked: true, editable: false, visible: false },
+  // 判定へ効く修正を受け取る4つのレジスタ。忍法からは自動で乗らない
+  // （下のSHINOBIGAMI_NINPOU_SPECのallowMods:false）ので、値を入れるのは特技表ボックスの
+  // 修正値欄（SHINOBIGAMI_CHECK_MODIFIERS）と、GMが打つバフコマンド。
+  //
+  // editable:trueなのは、その入力欄がSET_PARAMETERで書き戻すため
+  // （js/game-store.jsのwithEditableParamFieldsがeditable:falseを弾く）。
+  // visible:falseなのは変えない：一覧に並べる値ではなく、判定するときに見れば足りる。
+  { key: 'AdB', label: 'ダイス数修正(AdB)', value: 0, locked: true, editable: true, visible: false },
+  { key: 'AnB', label: '判定値修正(AnB)', value: 0, locked: true, editable: true, visible: false },
+  { key: 'SB', label: 'スペシャル値修正(SB)', value: 0, locked: true, editable: true, visible: false },
+  { key: 'FB', label: 'ファンブル値修正(FB)', value: 0, locked: true, editable: true, visible: false },
 
   // 自動計算される判定の基準値。修正（SB/FB）を足して丸めるのは判定を組み立てるとき
   // （buildShinobigamiCheckCommand）で、ここは素の基準値だけを持つ。
@@ -320,6 +332,32 @@ const SHINOBIGAMI_NINPOU_SPEC = createSkillSpec({
   logNote: true
 });
 
+// 背景。「長所」か「短所」かと、その内容だけを持つ一覧（名前・内容は枠組みの組み込み欄）。
+// 使用も判定も伴わないのでcreateListSpec側で、忍法のような回数制限・修正・使用条件は無い。
+//
+// 長所／短所をselectではなくtoggleにしてあるのは、2択しか無く、一覧を眺めながら
+// 切り替えたい欄のため。値（merit/demerit）は表示ラベルと分けてある：後から
+// 「利点／欠点」のような言い換えをしても保存済みのデータが落ちないようにするため
+// （選択肢に無い値はnormalizeSkillが既定へ落とす）。
+const SHINOBIGAMI_BACKGROUND_SPEC = createListSpec({
+  id: 'shinobigami-background',
+  noun: '背景',
+  componentKey: 'background',
+  fields: [
+    {
+      key: 'side', label: '長所／短所', type: 'toggle',
+      options: [{ value: 'merit', label: '長所' }, { value: 'demerit', label: '短所' }]
+    }
+  ]
+});
+
+// components から正規形の背景一覧を取り出す。
+function readBackgroundList(components) {
+  return normalizeSkillList(
+    SHINOBIGAMI_BACKGROUND_SPEC, components?.[SHINOBIGAMI_BACKGROUND_SPEC.componentKey] ?? []
+  );
+}
+
 // components から正規形の忍法一覧を取り出す。
 function readNinpouList(components) {
   return normalizeSkillList(SHINOBIGAMI_NINPOU_SPEC, components?.[SHINOBIGAMI_NINPOU_SPEC.componentKey] ?? []);
@@ -430,16 +468,14 @@ function renderShinobigamiCharacterPanel({
       state: readSkillTableState(readComponents()),
       title: '特技表',
       // 他人のコマを表示だけしている時は取得の編集も判定も外す。判定はチャットへログを流し
-      // バフも付けるので「変更」側として扱う。onCheckを渡さなければモード切替も判定オプション
-      // 欄も出ず、表を眺めてコマンドをコピーするだけのボックスになる。
+      // バフも付けるので「変更」側として扱う。onCheckを渡さなければモード切替も修正値の欄も
+      // 出ず、表を眺めてコマンドをコピーするだけのボックスになる。
       editable: canEdit,
       onSave: (nextState) => {
         onComponentChange(SKILL_TABLE_COMPONENT_KEY, nextState);
         updateLabel();
       },
-      // checkOptionsは表ボックスの「判定オプション」欄で指定された値。保存はされないので、
-      // 次にボックスを開くと既定値に戻る。
-      onCheck: canEdit ? (cellId, checkOptions) => {
+      onCheck: canEdit ? (cellId) => {
         runSkillCheck({
           spec: SHINOBIGAMI_SKILL_TABLE,
           state: readSkillTableState(readComponents()),
@@ -448,13 +484,18 @@ function renderShinobigamiCharacterPanel({
           getEffectiveParameterValue,
           dispatch,
           rollBCDice,
-          bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM,
-          checkOptions
+          bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM
         });
       } : undefined,
-      // 表の上でカーソルを乗せた時のプレビューも、実際に振る値（修正込み）で出すために渡す
-      token: getToken ? getToken() : null,
-      getEffectiveParameterValue
+      // 修正値の欄もプレビューの目標値も、開いた時点のコマではなく今のコマを見る
+      // （欄から書き換えた値が同じダイアログの中で反映される必要があるため）。
+      getToken,
+      getEffectiveParameterValue,
+      // 修正値の入力欄はコマのパラメータを直接書き換える。他人のコマを見ているだけの時は
+      // 渡さない＝欄は出るが触れない（バフが乗っているかは読めるようにしておく）。
+      onParameterChange: canEdit ? (paramId, value) => {
+        dispatch('SET_PARAMETER', { characterId: getToken?.()?.id, paramId, value });
+      } : null
     });
   });
   container.appendChild(skillTableBtn);
@@ -513,7 +554,32 @@ function renderShinobigamiCharacterPanel({
   });
   container.appendChild(ougiBtn);
 
-  // Core側の汎用パラメータ一覧に流し込む値は無い（特技表・忍法・奥義はcomponents側で即時保存される）。
+  // --- 背景 ---
+  const backgroundBtn = document.createElement('button');
+  backgroundBtn.type = 'button';
+  backgroundBtn.className = 'dialog-add-row-btn';
+  backgroundBtn.style.marginTop = '8px';
+
+  const updateBackgroundLabel = () => {
+    backgroundBtn.textContent = `背景を開く（${readBackgroundList(readComponents()).length}件）`;
+  };
+  updateBackgroundLabel();
+
+  backgroundBtn.addEventListener('click', () => {
+    showSkillBox({
+      spec: SHINOBIGAMI_BACKGROUND_SPEC,
+      skills: readComponents()?.[SHINOBIGAMI_BACKGROUND_SPEC.componentKey] ?? [],
+      readOnly: !canEdit,
+      onSave: (nextList) => {
+        onComponentChange(SHINOBIGAMI_BACKGROUND_SPEC.componentKey, nextList);
+        updateBackgroundLabel();
+      }
+    });
+  });
+  container.appendChild(backgroundBtn);
+
+  // Core側の汎用パラメータ一覧に流し込む値は無い
+  // （特技表・忍法・奥義・背景はcomponents側で即時保存される）。
   return { getValues: () => ({}) };
 }
 
@@ -534,9 +600,8 @@ function looksLikeShinobigamiChatCommand(rawInput) {
 
 /**
  * 特技判定(隠形術) / 特技判定(忍術:7) を実行する。
- * 表UIの判定モードと同じ runSkillCheck に集約している。
- * 判定オプションは表ボックスの中だけの指定なので、コマンド経由の判定は常に既定値
- * （＝キャラクターの修正値だけを見た値）で振られる。
+ * 表UIの判定モードと同じ runSkillCheck に集約している。修正値（AdB/AnB/SB/FB）は
+ * コマのパラメータなので、コマンドから振っても表から振っても同じ値が乗る。
  */
 function handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue }) {
   const match = rawInput.match(SKILL_CHECK_COMMAND_PATTERN);
@@ -773,4 +838,7 @@ export const SHINOBIGAMI_PLUGIN = {
 };
 
 // 他プラグイン（インセイン等）や動作確認から参照できるように公開しておく。
-export { SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY, SHINOBIGAMI_NINPOU_SPEC };
+export {
+  SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY,
+  SHINOBIGAMI_NINPOU_SPEC, SHINOBIGAMI_BACKGROUND_SPEC
+};

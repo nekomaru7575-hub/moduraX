@@ -7,6 +7,7 @@ import { EventBus } from './EventBus.js';
 import { buildDefaultParameters, buildDefaultRoomParameters } from './parameters/core.js';
 import {
   buildCharacterParametersForPlugin, buildRoomParameters, listPlugins, applyPluginDerivedParameters,
+  withPluginParameterDeclarations,
   applyPluginDerivedRoomParameters, getRoundPhaseTemplate, resetPluginComponentsOnPhaseEnd,
   applyPluginRoundPhaseStart
 } from './parameters/registry.js';
@@ -1486,7 +1487,12 @@ export class ImmutableStore {
         const character = nextTokensState[characterId];
         if (!character) return;
 
-        const nextParams = withEditableParamFields(character.parameters, paramId, { value }, 'このパラメータ');
+        // 手入力できるか（editable）はプラグインの宣言が正なので、コマへ焼き付いた古い宣言を
+        // 先に揃えてから弾く。ここで弾かれると自動計算まで到達しないため、
+        // applyPluginDerivedParameters側の補正だけでは「後から手入力できるようにした
+        // パラメータが、既存のコマでだけ永久に弾かれる」という状態になる。
+        const declaredParams = withPluginParameterDeclarations(activePlugin, character.parameters);
+        const nextParams = withEditableParamFields(declaredParams, paramId, { value }, 'このパラメータ');
         if (!nextParams) return;
 
         // プラグインの自動計算を通して新パラメータを取得

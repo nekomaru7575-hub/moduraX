@@ -31,7 +31,8 @@ import { createDie, createDiceDraftSpec, readTargetModifier } from './dice-draft
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
 import {
-  buildSkillUseCommandPattern, createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd
+  buildSkillUseCommandPattern, createSkillSpec, createListSpec, normalizeSkillList,
+  resetSkillUsageOnPhaseEnd
 } from './skill/skill-model.js';
 import { showSkillBox } from './skill/skill-box.js';
 
@@ -172,21 +173,15 @@ const DEED_SPEC = createSkillSpec({
   logNote: true
 });
 
-// 逸話。名称と効果だけを持つ一覧で、使用回数も修正も使用条件も持たない。
+// 逸話。名称と効果だけを持つ一覧で、使用回数も修正も使用条件も持たない（createListSpec）。
 // 固有の欄を1つも宣言していないのは、skill-modelの組み込み欄（name / note）が
 // そのまま逸話の「名称」「効果」になるため。
 const EPISODE_COMPONENT_KEY = 'episodes';
 
-const EPISODE_SPEC = createSkillSpec({
+const EPISODE_SPEC = createListSpec({
   id: 'dracurouge-episode',
   noun: '逸話',
-  componentKey: EPISODE_COMPONENT_KEY,
-  periods: [],
-  allowMods: false,
-  allowExpirePhase: false,
-  allowConditions: false,
-  // 名称と効果しか持たない一覧なので、効果を出さないと使用ログが名前だけになる
-  logNote: true
+  componentKey: EPISODE_COMPONENT_KEY
 });
 
 const DEED_USE_COMMAND_PATTERN = buildSkillUseCommandPattern(DEED_SPEC);

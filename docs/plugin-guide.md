@@ -803,7 +803,7 @@ if (!result.ok) return true;   // 目が足りない。理由はrunDiceChangeが
 
 ```js
 { key: 'AdB', label: 'ダイス数修正(AdB)', value: 0, locked: true, editable: false, visible: false }
-// → 忍法の修正式に {AdB} と書ける
+// → 忍法の使用条件・回数上限の式に {AdB} と書ける
 ```
 
 ### バフは `editable` を見ない

@@ -157,7 +157,8 @@ const SHINOBIGAMI_CHARACTER_PARAMETERS = [
     locked: true, editable: false, visible: true
   },
 
-  // 忍法の「使用時の修正」を受け取る4つのレジスタ（下のSHINOBIGAMI_NINPOU_SPECのmodTargets）。
+  // 判定へ効く修正を受け取る4つのレジスタ。忍法からは自動で乗らない（忍法は修正を持たない。
+  // 下のSHINOBIGAMI_NINPOU_SPECのallowMods:false）ので、動かすのは卓が打つバフコマンド。
   // 手入力・一覧表示は想定しないが、バフ（ADD_BUFF）はeditableを見ずに加算できる。
   { key: 'AdB', label: 'ダイス数修正(AdB)', value: 0, locked: true, editable: false, visible: false },
   { key: 'AnB', label: '判定値修正(AnB)', value: 0, locked: true, editable: false, visible: false },
@@ -306,14 +307,17 @@ const SHINOBIGAMI_NINPOU_SPEC = createSkillSpec({
     { key: 'scene', label: 'シーン' },
     { key: 'round', label: 'ラウンド' }
   ],
-  // 「使用時の修正」の受け皿。ここに挙げたものが対象プルダウンの先頭に並ぶ
-  // （コマが持つ他のパラメータも選べる）。
-  modTargets: [
-    { paramId: 'SHINOBIGAMI:AdB', label: 'ダイス数' },
-    { paramId: 'SHINOBIGAMI:AnB', label: '判定値' },
-    { paramId: 'SHINOBIGAMI:SB', label: 'スペシャル値' },
-    { paramId: 'SHINOBIGAMI:FB', label: 'ファンブル値' }
-  ]
+  // 忍法は「使用時の修正」も「効果時間」も持たない。忍法の効果は文章で書かれていて、
+  // 判定への影響を式へ写せるものはごく一部なうえ、写せた分だけ自動で乗るとかえって
+  // 何が効いているのか読めなくなる。判定値をいじるときは、卓がその場でバフコマンドを
+  // 打つ（AdB/AnB/SB/FB のレジスタは残してある）。
+  // allowMods:false は modTargets を空にするのとは別物で、ボックスの「その他のパラメータ」
+  // から全パラメータを選ぶ道ごと塞ぐ（js/parameters/skill/skill-model.js）。
+  allowMods: false,
+  allowExpirePhase: false,
+  // 代わりに、使用時のログへ効果（note）を載せる。修正が付かないシステムでは
+  // 「その忍法が何をするか」こそ卓が読みたいもので、断り書きは要らない。
+  logNote: true
 });
 
 // components から正規形の忍法一覧を取り出す。

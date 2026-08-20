@@ -1,11 +1,11 @@
 ---
 source: server/index.js
-lines: 3044
+lines: 3052
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-19
+generated: 2026-08-20
 tags: [codemap]
 ---
 
@@ -107,20 +107,20 @@ _(未記入)_
 | 1870 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
 | 1916 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
 | 1990 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
-| 2069 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
-| 2079 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 54 |  |
-| 2135 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
-| 2151 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
-| 2191 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2214 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
-| 2289 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 2299 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 2317 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 2334 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 2362 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 2377 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 2386 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 3006 | shutdown | `shutdown(signal)` | 23 |  |
+| 2081 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
+| 2091 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 56 |  |
+| 2149 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
+| 2165 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
+| 2199 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
+| 2222 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
+| 2297 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 2307 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 2325 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 2342 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 2370 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 2385 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 2394 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 3014 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

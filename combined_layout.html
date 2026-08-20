@@ -871,6 +871,56 @@
       cursor: default;
     }
 
+    /* 増やしたプロット選択の名前（「コマA（影法師）」の括弧の中身）。行に収めたいので狭くする */
+    .round-panel-plot-label-input {
+      background-color: #3a3a3a;
+      color: #e0e0e0;
+      border: 1px solid #666;
+      border-radius: 4px;
+      width: 7em;
+      padding: 1px 4px;
+      font-size: 0.85rem;
+    }
+
+    /* 「選択を増やす」「削除」。数字ボタンより控えめにして、押し間違いを減らす */
+    .round-panel-plot-add-btn,
+    .round-panel-plot-remove-btn {
+      background-color: #3a3a3a;
+      color: #bbb;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-left: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
+    .round-panel-plot-add-btn:hover,
+    .round-panel-plot-remove-btn:hover {
+      background-color: #4a4a4a;
+      color: #e0e0e0;
+    }
+
+    /* 複数のプロットに出ているコマの「どれで動くか」を選ぶ行（公開後だけ出る） */
+    .round-panel-plot-choice-btn {
+      background-color: #444;
+      color: #ddd;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    /* 選んだプロット。数字ボタンのselectedと同じ色で「これが効いている」と示す */
+    .round-panel-plot-choice-btn.selected {
+      background-color: #007acc;
+      color: #fff;
+      border-color: #007acc;
+      font-weight: bold;
+    }
+
     /* 他の人が出した分の「提出済み」表示（値は見せない） */
     .round-panel-plot-note {
       color: #8fbf8f;
@@ -952,6 +1002,14 @@
        （js/game-store.jsのsortForTurnOrder）。それが一目で分かるように点線で囲う。 */
     .round-panel-turn-row.plot-tied {
       border: 1px dashed #7aa7c7;
+    }
+
+    /* 複数のプロットに出ていて、まだどれで動くか選ばれていない行。手番順もコストの上限も
+       これ待ちなので、確定した行と同じ濃さで出さない。同値の点線と重なっても読めるように、
+       枠線ではなく不透明度と文字色で区別する（js/round-panel.jsのbuildTurnRow）。 */
+    .round-panel-turn-row.plot-unchosen {
+      opacity: 0.65;
+      color: #c7a77a;
     }
 
     .round-panel-turn-row.clickable {

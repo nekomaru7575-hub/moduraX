@@ -1,11 +1,11 @@
 ---
 source: js/main.js
-lines: 2387
+lines: 2389
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-19
+generated: 2026-08-20
 tags: [codemap]
 ---
 
@@ -94,9 +94,9 @@ _(未記入)_
 | 2172 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
 | 2176 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
 | 2193 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2288 | splitForSpace | `splitForSpace(string)` | 3 |  |
-| 2304 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
-| 2339 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 2290 | splitForSpace | `splitForSpace(string)` | 3 |  |
+| 2306 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
+| 2341 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

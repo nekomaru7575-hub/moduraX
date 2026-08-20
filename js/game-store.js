@@ -108,6 +108,17 @@ export function generateBuffId() {
   return `buff-user-${Date.now()}-${buffIdCounter}`;
 }
 
+let plotSlotIdCounter = 0;
+
+// 1つのコマに増やしたプロット選択（round.plotExtras）のid。
+// 【リデューサーの中で採番してはいけない】リデューサーはクライアント（楽観適用）と
+// サーバーの両方で走るので、中で作るとidが食い違って以後の操作が相手に効かなくなる。
+// generateBuffIdと同じく、呼び出し側で作ってpayloadに載せること。
+export function generatePlotSlotId() {
+  plotSlotIdCounter += 1;
+  return `plotslot-${Date.now()}-${plotSlotIdCounter}`;
+}
+
 let infoEntryIdCounter = 0;
 
 export function generateInfoEntryId() {
@@ -179,6 +190,16 @@ function createInitialRoundState() {
     // 相手を決めるためだけに持つ（js/round-panel.jsのbuildPlotInputRow）。GMは他人のコマも
     // 操作できてしまうので、これが無いとGMの画面に全員の値が映る。
     plotSubmitters: {},
+    // 1つのコマが2つ以上のプロットに出るとき（シノビガミの分身の術など）の、2つ目以降の枠。
+    // { [tokenId]: [{ id, label, value, submitter }] }。value/submitterはplots/plotSubmittersと
+    // 同じ意味で、値は同じように公開まで伏せる。
+    // 【labelと「増えていること自体」は伏せない】プロットが増える原因（忍法など）は卓に公開
+    // される情報なので、増えた枠が在ることは公開前でも全員に見せる。伏せるのは値だけ。
+    plotExtras: {},
+    // 公開後に持ち主が「このコマはどのプロットで動くか」を決めた結果 { [tokenId]: 'main' | slotId }。
+    // キーが無い＝未選択。選ぶまでは行動順もコスト上限も未確定として扱う（resolvedPlotSlot）。
+    // 追加の枠を持たないコマはここに載らない（mainしか無いので選ぶ余地がない）。
+    plotChoice: {},
     plotsRevealed: false
   };
 }
@@ -212,7 +233,10 @@ function normalizeRoundState(round) {
     // プロット機能より前の状態にはキーが無い。round-panel.jsが直接Object.entriesするので
     // confirmationと同じく埋め直す。
     plots: round.plots || base.plots,
-    plotSubmitters: round.plotSubmitters || base.plotSubmitters
+    plotSubmitters: round.plotSubmitters || base.plotSubmitters,
+    // 増やしたプロット枠（plotExtras/plotChoice）より前の状態にはキーが無い。上と同じ理由で埋め直す。
+    plotExtras: round.plotExtras || base.plotExtras,
+    plotChoice: round.plotChoice || base.plotChoice
   };
   delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
   return next;
@@ -229,7 +253,11 @@ function normalizeRoundState(round) {
  */
 function buildDerivedContext(round, tokenId) {
   const plotsRevealed = !!round?.plotsRevealed;
-  const plot = plotsRevealed ? round?.plots?.[tokenId] : undefined;
+  // 【プロットを増やしていて、まだどれで動くか選ばれていないコマはnullを渡す】
+  // resolvedPlotSlotがnullを返すので、プラグイン側は「平常時・未提出・公開前」と同じ扱いになる
+  // （シノビガミなら忍法コストの上限が掛からず、ファンブル値も2に戻る）。上限を決める材料が
+  // まだ無いのだから、どちらか一方を勝手に当てはめるより制限しないほうが卓の実態に合う。
+  const plot = plotsRevealed && round ? resolvedPlotSlot(round, tokenId)?.value : undefined;
   const active = !!round?.active;
   return {
     tokenId: tokenId ?? null,
@@ -982,10 +1010,62 @@ function turnOrderSourceOf(round) {
   return template.find(phase => phase.kind === 'perCharacter')?.turnOrder || 'initiative';
 }
 
-// プロットの値。未提出は最下位に落とす（提出した人が先に動く）。
+/**
+ * このコマのプロット枠の一覧。先頭が元からある枠（slotId:'main'）で、以降が
+ * 「選択を増やす」で足した枠（round.plotExtras）。
+ *
+ * 【プロットを読む口はここ一本にする】plotsとplotExtrasを呼び出し側で足し合わせると、
+ * 画面・ログ・並べ替えのどれかが片方を見落として食い違う。増やした枠が無いコマでも
+ * 必ず長さ1の配列が返るので、呼び出し側は枠の数を気にしなくてよい。
+ *
+ * @returns {Array<{slotId:string, label:string|null, value:number|undefined, submitter:string|null}>}
+ *   labelはmainならnull、追加の枠なら持ち主が付けた名前（未入力ならnull）。
+ */
+export function listPlotSlots(round, tokenId) {
+  const main = {
+    slotId: 'main',
+    label: null,
+    value: round?.plots?.[tokenId],
+    submitter: round?.plotSubmitters?.[tokenId] ?? null
+  };
+  const extras = (round?.plotExtras?.[tokenId] || []).map(extra => ({
+    slotId: extra.id,
+    label: extra.label || null,
+    value: extra.value,
+    submitter: extra.submitter ?? null
+  }));
+  return [main, ...extras];
+}
+
+/**
+ * このコマが「結局どのプロットで動くか」。
+ *   増やした枠が無い     → main（従来どおり）
+ *   選択済み             → 選ばれた枠
+ *   増やしたのに未選択   → null（未確定）
+ * 選択が消えた枠を指していた場合（枠を消した後など）も未選択として扱う。
+ */
+export function resolvedPlotSlot(round, tokenId) {
+  const slots = listPlotSlots(round, tokenId);
+  if (slots.length === 1) return slots[0];
+  const chosen = round?.plotChoice?.[tokenId];
+  return slots.find(slot => slot.slotId === chosen) || null;
+}
+
+// プロットを増やしていて、まだどれで動くか選ばれていないか。画面の印と提出状況の行で使う。
+export function hasUnchosenPlot(round, tokenId) {
+  return listPlotSlots(round, tokenId).length > 1 && !resolvedPlotSlot(round, tokenId);
+}
+
+// 手番順の根拠にするプロットの値。未提出は最下位に落とす（提出した人が先に動く）。
+// 【未選択のコマは枠の最大値で仮置きする】どれで動くか決まっていない間も手番順のリストには
+// 出さないといけない。一番早い位置に置いておけば、選び終える前に手番が来てしまっても
+// 「まだ選んでいない」と気付ける（遅い位置に置くと、気付く前に飛ばされる）。
 function plotValueOf(round, tokenId) {
-  const value = round.plots?.[tokenId];
-  return Number.isFinite(value) ? value : -Infinity;
+  const resolved = resolvedPlotSlot(round, tokenId);
+  const values = (resolved ? [resolved] : listPlotSlots(round, tokenId))
+    .map(slot => slot.value)
+    .filter(Number.isFinite);
+  return values.length > 0 ? Math.max(...values) : -Infinity;
 }
 
 /**
@@ -1035,15 +1115,103 @@ function sortForTurnOrder(tokensState, round, participantIds) {
   });
 }
 
-// プロットが同値（同じ値を出した相手がいる）のコマのid。ルール上は同時処理なので、
-// 画面とログで印を付けて卓に知らせるために使う（手番自体は上の便宜上の順番で回す）。
-export function listTiedPlotTokenIds(round) {
-  const counts = new Map();
-  Object.entries(round.plots || {}).forEach(([tokenId, value]) => {
-    if (!round.participants.includes(tokenId)) return;
-    counts.set(value, [...(counts.get(value) || []), tokenId]);
+// 増やした枠に付ける名前。空欄は「未入力」としてnullに寄せ（describePlotSlotNameが
+// 「2つ目」で埋める）、長すぎる入力は詰める（提出欄も手番順の行も1行に収めたいため）。
+const PLOT_SLOT_LABEL_MAX = 20;
+
+function normalizePlotSlotLabel(label) {
+  const text = String(label ?? '').trim();
+  return text ? text.slice(0, PLOT_SLOT_LABEL_MAX) : null;
+}
+
+/**
+ * 枠の表示名。元からある枠はコマ名そのまま、増やした枠は「コマA（影法師）」。
+ * 名前が未入力なら出た順で「（2つ目）」と埋める（名前を書かなくても行を見分けられるように）。
+ * 画面とログで同じ文言にしたいので、ここ一本に寄せる。
+ */
+export function describePlotSlotName(tokenName, slot, slotIndex) {
+  if (!slot || slot.slotId === 'main') return tokenName;
+  return `${tokenName}（${slot.label || `${slotIndex + 1}つ目`}）`;
+}
+
+/**
+ * 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。
+ * どれで動くか選び終えたコマ（と枠を増やしていないコマ）は今までどおり1行で、
+ * 未選択のコマだけ枠の数だけ行に増える。
+ *
+ * 並びは枠の値の降順。同値のときは渡されたコマ順（sortForTurnOrderが決めた便宜上の順番）を
+ * そのまま保つので、画面の並びとログの並びが食い違わない。
+ *
+ * 【公開後に呼ぶこと】公開前は値が伏せられているので、これで並べると順序から大小が読める。
+ * @returns {Array<{tokenId, slotId, key, name, value, unchosen}>}
+ */
+export function listPlotSlotRows(tokensState, round, tokenIds) {
+  const rank = new Map(tokenIds.map((id, index) => [id, index]));
+  const rows = [];
+
+  tokenIds.forEach(tokenId => {
+    const tokenName = tokensState?.[tokenId]?.name || '？';
+    const resolved = resolvedPlotSlot(round, tokenId);
+    listPlotSlots(round, tokenId).forEach((slot, index) => {
+      if (resolved && slot.slotId !== resolved.slotId) return;
+      rows.push({
+        tokenId,
+        slotId: slot.slotId,
+        key: plotSlotKey(tokenId, slot.slotId),
+        name: describePlotSlotName(tokenName, slot, index),
+        value: slot.value,
+        unchosen: !resolved
+      });
+    });
   });
-  return [...counts.values()].filter(ids => ids.length > 1).flat();
+
+  return rows.sort((a, b) => {
+    const av = Number.isFinite(a.value) ? a.value : -Infinity;
+    const bv = Number.isFinite(b.value) ? b.value : -Infinity;
+    if (av !== bv) return bv - av;
+    return rank.get(a.tokenId) - rank.get(b.tokenId);
+  });
+}
+
+// 同値の判定で使う枠のキー。画面の行1つに対応する（js/round-panel.jsの詳細リスト）。
+export function plotSlotKey(tokenId, slotId) {
+  return slotId && slotId !== 'main' ? `${tokenId}:${slotId}` : tokenId;
+}
+
+/**
+ * プロットが同値（同じ値を出した相手がいる）の枠のキー。ルール上は同時処理なので、
+ * 画面とログで印を付けて卓に知らせるために使う（手番自体は便宜上の順番で回す）。
+ *
+ * 【同じコマの枠どうしは同値と数えない】1体が2つの枠に同じ数字を出しても、動くのは
+ * どちらか一方だけなので「同時処理」は起きない。数えてしまうと自分自身と同時扱いになる。
+ * 未選択のコマは全部の枠を、選択済みのコマは選ばれた枠だけを数に入れる。
+ */
+export function listTiedPlotSlotKeys(round) {
+  const byValue = new Map();
+  (round.participants || []).forEach(tokenId => {
+    const resolved = resolvedPlotSlot(round, tokenId);
+    (resolved ? [resolved] : listPlotSlots(round, tokenId)).forEach(slot => {
+      if (!Number.isFinite(slot.value)) return;
+      byValue.set(slot.value, [...(byValue.get(slot.value) || []), { tokenId, slotId: slot.slotId }]);
+    });
+  });
+
+  const tied = [];
+  byValue.forEach(entries => {
+    const owners = new Set(entries.map(entry => entry.tokenId));
+    if (owners.size < 2) return; // 同じコマの枠が並んでいるだけ
+    entries.forEach(entry => tied.push(plotSlotKey(entry.tokenId, entry.slotId)));
+  });
+  return tied;
+}
+
+// 同値の枠を持つコマのid（重複なし）。ログの「同値: …」と、枠を増やしていない
+// コマの行の印に使う。
+export function listTiedPlotTokenIds(round) {
+  const keys = new Set(listTiedPlotSlotKeys(round));
+  return (round.participants || []).filter(tokenId =>
+    listPlotSlots(round, tokenId).some(slot => keys.has(plotSlotKey(tokenId, slot.slotId)))
+  );
 }
 
 // まだこのラウンドで行動していない参加者を、手番順で返す。
@@ -1756,11 +1924,16 @@ export class ImmutableStore {
         const plotSubmitters = Object.fromEntries(
           Object.entries(round.plotSubmitters || {}).filter(keepParticipant)
         );
+        const plotExtras = Object.fromEntries(Object.entries(round.plotExtras || {}).filter(keepParticipant));
+        const plotChoice = Object.fromEntries(Object.entries(round.plotChoice || {}).filter(keepParticipant));
 
         const participantNames = joinTokenNames(nextTokensState, participants) || '（なし）';
 
         this.#commit(prevState, {
-          round: { ...round, participants, acted, currentActorId, interruptId, plots, plotSubmitters },
+          round: {
+            ...round, participants, acted, currentActorId, interruptId,
+            plots, plotSubmitters, plotExtras, plotChoice
+          },
           chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`, payload?.time)
         });
         return;
@@ -1781,6 +1954,8 @@ export class ImmutableStore {
         let interruptId = round.interruptId;
         let plots = round.plots || {};
         let plotSubmitters = round.plotSubmitters || {};
+        let plotExtras = round.plotExtras || {};
+        let plotChoice = round.plotChoice || {};
         let plotsRevealed = round.plotsRevealed || false;
         const logParts = [];
 
@@ -1799,10 +1974,22 @@ export class ImmutableStore {
           // 公開されて初めて値をログに残す（提出のたびに出すと伏せている意味が無くなる）。
           // 並べ替えにはplotsRevealed:trueを渡す。sortForTurnOrderは公開前だと従来の並びへ
           // 落とすので、ここでroundをそのまま渡すと手番順にならない。
-          const revealedRound = { ...round, plots, plotsRevealed: true };
-          const revealed = sortForTurnOrder(tokensForRound, revealedRound, round.participants)
-            .map(id => `${nameOf(id)}: ${Number.isFinite(plots[id]) ? plots[id] : '未提出'}`);
+          const revealedRound = { ...round, plots, plotExtras, plotChoice, plotsRevealed: true };
+          const tokenOrder = sortForTurnOrder(tokensForRound, revealedRound, round.participants);
+          // 増やした枠は別の行として、それぞれの値の位置に並べる（画面の詳細リストと同じ展開）。
+          const revealed = listPlotSlotRows(tokensForRound, revealedRound, tokenOrder)
+            .map(row => `${row.name}: ${Number.isFinite(row.value) ? row.value : '未提出'}`);
           logParts.push(`${currentPhase.label}公開。${revealed.join('、')}`);
+
+          // 複数のプロットに出ているコマは、どれで動くかがまだ決まっていない。手番順もコストの
+          // 上限もそれ待ちなので、卓に知らせておく（選んだこと自体は通知しない）。
+          const unchosen = tokenOrder.filter(id => hasUnchosenPlot(revealedRound, id));
+          if (unchosen.length > 0) {
+            logParts.push(
+              `複数のプロットに出ているコマ: ${joinTokenNames(tokensForRound, unchosen)}`
+              + `（どれで動くかは所有者が選びます）`
+            );
+          }
 
           // 同値も手番順（＝便宜上の順番）で並べる。提出順のままだと画面の並びと食い違う。
           const tied = sortForTurnOrder(tokensForRound, revealedRound, listTiedPlotTokenIds(revealedRound));
@@ -1886,7 +2073,10 @@ export class ImmutableStore {
 
           step = initialStepForPhase(newPhase, useInitiativeProcess);
           if (newPhase.kind === 'perCharacter' && step === 'act') {
-            currentActorId = pickNextActor(tokensForRound, { ...round, plots, acted: [], interruptId: null });
+            currentActorId = pickNextActor(
+              tokensForRound,
+              { ...round, plots, plotExtras, plotChoice, acted: [], interruptId: null }
+            );
           }
 
           // プロットはラウンドごとに引き直すので、その段に入るところで捨てる。
@@ -1895,6 +2085,10 @@ export class ImmutableStore {
           if (newPhase.kind === 'plot') {
             plots = {};
             plotSubmitters = {};
+            // 増やした枠も一緒に捨てる。プロットが増えるのはその効果を使ったラウンドだけなので、
+            // 残しておくと次のラウンドで使っていない分身が並ぶ。
+            plotExtras = {};
+            plotChoice = {};
             plotsRevealed = false;
           }
 
@@ -1915,6 +2109,8 @@ export class ImmutableStore {
           interruptId,
           plots,
           plotSubmitters,
+          plotExtras,
+          plotChoice,
           plotsRevealed
         };
 
@@ -1991,8 +2187,9 @@ export class ImmutableStore {
       // サーバーは強制しない（コマの所有者チェックと同じ姿勢。js/room-authority.jsのcanOperateToken）。
       // 【ログに残さない】提出のたびに出すと、伏せている値がログから読めてしまう。
       // 値はROUND_ADVANCE_PHASEでの一斉公開のときにまとめて出す。
+      // slotIdを省略（または'main'）すると元からある枠、それ以外なら「選択を増やす」で足した枠。
       case 'ROUND_SET_PLOT': {
-        const { tokenId, value = null, userId = null } = payload;
+        const { tokenId, slotId = 'main', value = null, userId = null } = payload;
         const round = prevState.round;
         if (!round.active || !round.participants.includes(tokenId)) return;
         if (round.template?.[round.phaseIndex]?.kind !== 'plot') return;
@@ -2000,16 +2197,37 @@ export class ImmutableStore {
 
         const phase = round.template[round.phaseIndex];
         const { min = 1, max = 6 } = phase.plot || {};
+
+        // 出す値の検算は枠によらず同じ。取り消し（null）は「もともと出ていなければ変化なし」。
+        const numeric = value === null ? null : Math.trunc(Number(value));
+        if (numeric !== null && (!Number.isFinite(numeric) || numeric < min || numeric > max)) return;
+
+        if (slotId !== 'main') {
+          const extras = round.plotExtras?.[tokenId] || [];
+          const index = extras.findIndex(extra => extra.id === slotId);
+          if (index < 0) return; // 消された枠への提出（他の人の操作と行き違った）
+          const current = extras[index];
+          if (numeric === null && current.value === undefined) return; // 変化なし
+          if (current.value === numeric && current.submitter === userId) return; // 変化なし
+
+          const nextExtras = [...extras];
+          nextExtras[index] = numeric === null
+            ? { ...current, value: undefined, submitter: null }
+            : { ...current, value: numeric, submitter: userId };
+          this.#commit(prevState, {
+            round: { ...round, plotExtras: { ...(round.plotExtras || {}), [tokenId]: nextExtras } }
+          });
+          return;
+        }
+
         const plots = { ...(round.plots || {}) };
         const plotSubmitters = { ...(round.plotSubmitters || {}) };
 
-        if (value === null) {
+        if (numeric === null) {
           if (!(tokenId in plots)) return; // 変化なし
           delete plots[tokenId];
           delete plotSubmitters[tokenId];
         } else {
-          const numeric = Math.trunc(Number(value));
-          if (!Number.isFinite(numeric) || numeric < min || numeric > max) return;
           if (plots[tokenId] === numeric && plotSubmitters[tokenId] === userId) return; // 変化なし
           plots[tokenId] = numeric;
           // 出し直されたら見てよい人も入れ替わる（GMが代理で出し直した場合など）
@@ -2017,6 +2235,107 @@ export class ImmutableStore {
         }
 
         this.#commit(prevState, { round: { ...round, plots, plotSubmitters } });
+        return;
+      }
+
+      // 1つのコマにプロットの枠を足す（分身の術のように、同じコマが2つ以上のプロットに出るとき）。
+      // 【idはpayloadで受け取る】ここで採番するとクライアントとサーバーで食い違う。
+      // 呼び出し側がgeneratePlotSlotId()で作って渡すこと。
+      // 【ログに残さない】プロットが増える原因は卓に公開される情報なので伏せる必要はないが、
+      // 増やすたびに発言が流れるのは邪魔なので通知はしない（ROUND_SET_PLOTと同じ扱い）。
+      // 増えたことは提出欄と提出状況の行から全員に見える。
+      case 'ROUND_ADD_PLOT_SLOT': {
+        const { tokenId, slotId, label = '' } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+        if (round.template?.[round.phaseIndex]?.kind !== 'plot') return;
+        if (round.plotsRevealed) return; // 公開後に枠を増やすのは後出しになる
+        if (!slotId || typeof slotId !== 'string') return;
+
+        const extras = round.plotExtras?.[tokenId] || [];
+        if (extras.some(extra => extra.id === slotId)) return; // 同じ操作が二重に届いた
+
+        const nextExtras = [...extras, { id: slotId, label: normalizePlotSlotLabel(label), value: undefined, submitter: null }];
+        this.#commit(prevState, {
+          round: { ...round, plotExtras: { ...(round.plotExtras || {}), [tokenId]: nextExtras } }
+        });
+        return;
+      }
+
+      // 増やした枠を取り消す。公開前だけ（公開後はどれで動くかをROUND_SET_PLOT_CHOICEで選ぶ）。
+      case 'ROUND_REMOVE_PLOT_SLOT': {
+        const { tokenId, slotId } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+        if (round.template?.[round.phaseIndex]?.kind !== 'plot') return;
+        if (round.plotsRevealed) return;
+
+        const extras = round.plotExtras?.[tokenId] || [];
+        const nextExtras = extras.filter(extra => extra.id !== slotId);
+        if (nextExtras.length === extras.length) return; // 変化なし
+
+        const plotExtras = { ...(round.plotExtras || {}) };
+        if (nextExtras.length > 0) plotExtras[tokenId] = nextExtras;
+        else delete plotExtras[tokenId]; // 枠が元の1つだけに戻ったら痕跡を残さない
+
+        // 消した枠が選ばれていた場合に備えて選択も落とす（公開前なので普通は空）
+        const plotChoice = { ...(round.plotChoice || {}) };
+        if (plotChoice[tokenId] === slotId) delete plotChoice[tokenId];
+
+        this.#commit(prevState, { round: { ...round, plotExtras, plotChoice } });
+        return;
+      }
+
+      // 増やした枠の名前（「コマA（影法師）」の括弧の中身）。名前は公開情報なので、
+      // 値と違って伏せず、公開後でも直せる。ログには残さない。
+      case 'ROUND_SET_PLOT_SLOT_LABEL': {
+        const { tokenId, slotId, label = '' } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+
+        const extras = round.plotExtras?.[tokenId] || [];
+        const index = extras.findIndex(extra => extra.id === slotId);
+        if (index < 0) return;
+
+        const nextLabel = normalizePlotSlotLabel(label);
+        if (extras[index].label === nextLabel) return; // 変化なし
+
+        const nextExtras = [...extras];
+        nextExtras[index] = { ...extras[index], label: nextLabel };
+        this.#commit(prevState, {
+          round: { ...round, plotExtras: { ...(round.plotExtras || {}), [tokenId]: nextExtras } }
+        });
+        return;
+      }
+
+      // 公開後、複数のプロットに出ているコマが「結局どれで動くか」を持ち主が決める。
+      // slotIdにnullを渡すと未選択へ戻す。
+      // 【自動計算を引き直す】選んだ値がシノビガミの忍法コストの上限とファンブル値になる。
+      // コマ自体は触っていないので、ROUND_ADVANCE_PHASEの公開と同じくここから明示的に走らせる。
+      // 【ログに残さない】選んだ結果は手番順の詳細リストに即時反映されて全員に見えるので、
+      // 発言を足す必要がない（増やしたときと同じ扱い）。
+      case 'ROUND_SET_PLOT_CHOICE': {
+        const { tokenId, slotId = null } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+        if (!round.plotsRevealed) return; // 公開前に選ばせると、選んだ相手に値が読まれる
+        if ((round.plotExtras?.[tokenId] || []).length === 0) return; // 選ぶ枠がない
+
+        const valid = slotId === null
+          || slotId === 'main'
+          || (round.plotExtras?.[tokenId] || []).some(extra => extra.id === slotId);
+        if (!valid) return;
+
+        const plotChoice = { ...(round.plotChoice || {}) };
+        if ((plotChoice[tokenId] ?? null) === slotId) return; // 変化なし
+        if (slotId === null) delete plotChoice[tokenId];
+        else plotChoice[tokenId] = slotId;
+
+        const nextRound = { ...round, plotChoice };
+        const tokensAfterChoice = { ...nextTokensState };
+        recomputeDerivedForRound(tokensAfterChoice, activePlugin, nextRound);
+
+        this.#commit(prevState, { tokens: tokensAfterChoice, round: nextRound });
         return;
       }
 

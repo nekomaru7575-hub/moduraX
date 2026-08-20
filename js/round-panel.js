@@ -19,7 +19,11 @@ import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
 import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
-import { listUnactedParticipants, listTiedPlotTokenIds, getEffectiveParameterValue } from './game-store.js';
+import {
+  listUnactedParticipants, listTiedPlotSlotKeys, getEffectiveParameterValue,
+  listPlotSlots, resolvedPlotSlot, listPlotSlotRows,
+  plotSlotKey, describePlotSlotName, generatePlotSlotId
+} from './game-store.js';
 
 let lastRenderedRoundRef = null;
 let lastRenderedTokensRef = null;
@@ -52,21 +56,47 @@ function usesPlotTurnOrder(round) {
 
 // 詳細リストの並び：手番中 → 未行動（イニシアチブ降順） → 行動済み。
 // 「次に誰が動くか」が上から読めるようにするため、参加者の登録順ではなくこの順で出す。
+//
+// プロットを増やしているコマ（分身の術など）は、まだどれで動くか選ばれていない間だけ
+// 枠の数だけ行に増える。増えた行はそれぞれの値の位置に並ぶので、盤面上で複数のプロットに
+// 出ている様子がそのまま読める。
+// 【まとまりは崩さない】展開して値の降順に並べ直すのは「手番中／未行動／行動済み」の
+// まとまりの中だけ。全体を値順にすると行動済みのコマが上に戻ってきてしまう。
+// 【公開前は展開しない】値を伏せている間に位置へ並べると、順序から大小が読めてしまう。
+// 増えていること自体は提出欄と提出状況の行で全員に見えている。
+//
+// @returns {Array<{tokenId, slotId, key, name, value, unchosen}>}
 function listTurnOrderRows(state, round) {
   const unacted = listUnactedParticipants(state.tokens, round);
   const current = round.currentActorId;
-  const rows = [];
+  const tokenIds = [];
 
-  if (current && round.participants.includes(current)) rows.push(current);
-  unacted.forEach(id => { if (id !== current) rows.push(id); });
-  round.participants.forEach(id => { if (!rows.includes(id)) rows.push(id); });
+  if (current && round.participants.includes(current)) tokenIds.push(current);
+  unacted.forEach(id => { if (id !== current) tokenIds.push(id); });
+  round.participants.forEach(id => { if (!tokenIds.includes(id)) tokenIds.push(id); });
 
-  return rows;
+  if (!usesPlotTurnOrder(round) || !round.plotsRevealed) {
+    return tokenIds.map(tokenId => ({
+      tokenId, slotId: 'main', key: plotSlotKey(tokenId, 'main'),
+      name: getTokenName(state, tokenId), value: undefined, unchosen: false
+    }));
+  }
+
+  const groups = [[], [], []]; // 手番中 / 未行動 / 行動済み
+  tokenIds.forEach(id => {
+    groups[id === current ? 0 : unacted.includes(id) ? 1 : 2].push(id);
+  });
+  return groups.flatMap(ids => listPlotSlotRows(state.tokens, round, ids));
 }
 
 // 詳細リストの1行。状態（手番中／行動済み／割り込み予約）の見せ方と、GM向けの
 // 操作メニュー（行動済みの回復・次の手番への割り込み）を持つ。
-function buildTurnRow(state, round, tokenId, canOperate, tiedIds = []) {
+//
+// 1体のコマが複数のプロットに出ている場合はこれが複数回呼ばれるが、状態のクラスも操作
+// メニューも同じコマのものを全部の行に付ける。同一のコマなのだから、どの行を押しても
+// 同じ操作になるほうが迷わない（手番自体は1回しか回ってこない）。
+function buildTurnRow(state, round, turnRow, canOperate, tiedKeys = []) {
+  const { tokenId, key, name, unchosen } = turnRow;
   const row = document.createElement('div');
   row.className = 'round-panel-turn-row';
 
@@ -78,14 +108,16 @@ function buildTurnRow(state, round, tokenId, canOperate, tiedIds = []) {
   if (isInterrupt) row.classList.add('interrupt-reserved');
 
   const token = state.tokens[tokenId];
-  const name = getTokenName(state, tokenId);
 
   // 手番順がプロットで決まるラウンドでは、括弧の中もその根拠＝プロット値にする。
   // 公開前は伏せる（提出済みかどうかだけを●/○で示すのは下の提出状況の行の仕事）。
   let score;
   if (usesPlotTurnOrder(round)) {
-    score = round.plotsRevealed ? round.plots?.[tokenId] : undefined;
-    if (round.plotsRevealed && tiedIds.includes(tokenId)) row.classList.add('plot-tied');
+    score = round.plotsRevealed ? turnRow.value : undefined;
+    if (round.plotsRevealed && tiedKeys.includes(key)) row.classList.add('plot-tied');
+    // まだどのプロットで動くか選ばれていない行。手番順もコストの上限もこれ待ちなので、
+    // 確定した行と同じ濃さで出さない。
+    if (unchosen) row.classList.add('plot-unchosen');
   } else {
     score = token ? getEffectiveParameterValue(token, 'core:initiative') : undefined;
   }
@@ -95,15 +127,20 @@ function buildTurnRow(state, round, tokenId, canOperate, tiedIds = []) {
   const tieNote = row.classList.contains('plot-tied')
     ? '同値です（ルール上は同時処理。並び順は便宜上のもの）。'
     : '';
+  const unchosenNote = unchosen
+    ? '複数のプロットに出ています。どれで動くかを所有者が選ぶまで、手番順は仮のもので、'
+      + '忍法コストの上限も掛かりません。'
+    : '';
 
   // 手番中のコマの「行動済みにする」は「手番を終了」と意味が重なるので操作を出さない
   if (isCurrent) {
-    row.title = `${tieNote}手番中です`;
+    row.title = `${tieNote}${unchosenNote}手番中です`;
     return row;
   }
 
   row.classList.add('clickable');
-  row.title = tieNote + (canOperate ? 'クリックで行動済み・割り込みを操作' : GM_ONLY_REASON);
+  row.title = tieNote + unchosenNote
+    + (canOperate ? 'クリックで行動済み・割り込みを操作' : GM_ONLY_REASON);
   row.addEventListener('click', (event) => {
     showContextMenu(event.clientX, event.clientY, [
       {
@@ -137,28 +174,53 @@ function listMyPlotTokenIds(state, round) {
   return round.participants.filter(id => canOperateToken(state.tokens[id]));
 }
 
-// 自分のコマ1つ分の提出欄（コマ名 + min〜maxのボタン）。もう一度同じ数字を押すと取り消す。
+// プロットの枠1つ分の提出欄（名前 + min〜maxのボタン）。もう一度同じ数字を押すと取り消す。
 //
 // 光らせる（selectedを付ける）のは自分が出した分だけ。GMは他人のコマも操作できるので、
 // 出ている値をそのまま映すとGMの画面に全員のプロットが見えてしまう。他人が出した分は
 // 「提出済み」とだけ伝え、GMが代理で出したくなったら数字を押して上書きする
 // （押した時点で出したのは自分になり、値が見えるようになる）。
-function buildPlotInputRow(state, round, tokenId) {
+//
+// 増やした枠（slotIndex >= 1）には名前の入力欄と「削除」が付く。
+// 【名前は伏せない】プロットが増える原因は卓に公開される情報なので、名前も「増えている
+// こと」も全員に見せてよい。伏せるのは出した数字だけ。
+function buildPlotSlotRow(state, round, tokenId, slot, slotIndex) {
   const { min = 1, max = 6 } = currentPhase(round).plot || {};
   const row = document.createElement('div');
   row.className = 'round-panel-plot-row';
 
+  const isExtra = slotIndex > 0;
+  const myId = getLocalUserId();
+  const submittedByMe = slot.submitter === myId;
+  const hasOthersPlot = Number.isFinite(slot.value) && !submittedByMe;
+  // 公開後は全員に見えてよい。それまでは自分が出した分だけ
+  const visibleValue = (round.plotsRevealed || submittedByMe) ? slot.value : undefined;
+
   const nameEl = document.createElement('span');
   nameEl.className = 'round-panel-plot-name';
-  nameEl.textContent = `${getTokenName(state, tokenId)}:`;
+  nameEl.textContent = isExtra ? `${getTokenName(state, tokenId)}（` : `${getTokenName(state, tokenId)}:`;
   row.appendChild(nameEl);
 
-  const myId = getLocalUserId();
-  const submitted = round.plots?.[tokenId];
-  const submittedByMe = round.plotSubmitters?.[tokenId] === myId;
-  const hasOthersPlot = Number.isFinite(submitted) && !submittedByMe;
-  // 公開後は全員に見えてよい。それまでは自分が出した分だけ
-  const visibleValue = (round.plotsRevealed || submittedByMe) ? submitted : undefined;
+  if (isExtra) {
+    // 名前は打ち終わり（change）でだけ送る。1文字ごとに送ると、同期のたびに再描画されて
+    // 入力欄からフォーカスが外れる。
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.className = 'round-panel-plot-label-input';
+    labelInput.value = slot.label || '';
+    labelInput.placeholder = `${slotIndex + 1}つ目`;
+    labelInput.maxLength = 20;
+    labelInput.title = 'この選択の名前（例: 影法師）。全員に見えます。';
+    labelInput.addEventListener('change', () => {
+      store.dispatch('ROUND_SET_PLOT_SLOT_LABEL', { tokenId, slotId: slot.slotId, label: labelInput.value });
+    });
+    row.appendChild(labelInput);
+
+    const closeEl = document.createElement('span');
+    closeEl.className = 'round-panel-plot-name';
+    closeEl.textContent = '）:';
+    row.appendChild(closeEl);
+  }
 
   for (let value = min; value <= max; value += 1) {
     const btn = document.createElement('button');
@@ -175,6 +237,7 @@ function buildPlotInputRow(state, round, tokenId) {
     btn.addEventListener('click', () => {
       store.dispatch('ROUND_SET_PLOT', {
         tokenId,
+        slotId: slot.slotId,
         value: visibleValue === value ? null : value,
         userId: myId
       });
@@ -191,16 +254,105 @@ function buildPlotInputRow(state, round, tokenId) {
     row.appendChild(note);
   }
 
+  // 増やした枠を取り消す。公開後は出せない（後出しになるのでリデューサー側でも弾いている）
+  if (isExtra && !round.plotsRevealed) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'round-panel-plot-remove-btn';
+    removeBtn.textContent = '削除';
+    removeBtn.title = 'この選択を取り消す';
+    removeBtn.addEventListener('click', () => {
+      store.dispatch('ROUND_REMOVE_PLOT_SLOT', { tokenId, slotId: slot.slotId });
+    });
+    row.appendChild(removeBtn);
+  }
+
+  return row;
+}
+
+// 自分のコマ1つ分の提出欄。枠が増えていれば枠の数だけ行になり、最後の行に「選択を増やす」が付く。
+function buildPlotInputRows(state, round, tokenId) {
+  const slots = listPlotSlots(round, tokenId);
+  const rows = slots.map((slot, index) => buildPlotSlotRow(state, round, tokenId, slot, index));
+
+  // 公開後に増やすのは後出しなので出さない
+  if (!round.plotsRevealed) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'round-panel-plot-add-btn';
+    addBtn.textContent = '選択を増やす';
+    addBtn.title = '同じコマのプロット選択を1つ増やす（分身の術など）。増えたことは全員に見えます。';
+    addBtn.addEventListener('click', () => {
+      // 【idはここで作る】リデューサーの中で採番するとサーバーと食い違う
+      // （js/game-store.jsのgeneratePlotSlotId）。
+      store.dispatch('ROUND_ADD_PLOT_SLOT', { tokenId, slotId: generatePlotSlotId(), label: '' });
+    });
+    rows[rows.length - 1].appendChild(addBtn);
+  }
+
+  return rows;
+}
+
+// 複数のプロットに出ているコマの「結局どれで動くか」を持ち主が決める行。公開後にだけ出す。
+// 選ぶまでは手番順が仮のままで、忍法コストの上限も掛からない（js/game-store.jsの
+// buildDerivedContext）ので、その理由も添える。
+function buildPlotChoiceRow(state, round, tokenId) {
+  const row = document.createElement('div');
+  row.className = 'round-panel-plot-row round-panel-plot-choice';
+
+  const slots = listPlotSlots(round, tokenId);
+  const chosen = resolvedPlotSlot(round, tokenId);
+  const tokenName = getTokenName(state, tokenId);
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'round-panel-plot-name';
+  nameEl.textContent = `${tokenName}はどれで動く？:`;
+  row.appendChild(nameEl);
+
+  slots.forEach((slot, index) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'round-panel-plot-choice-btn';
+    const value = Number.isFinite(slot.value) ? slot.value : '未提出';
+    btn.textContent = `${describePlotSlotName(tokenName, slot, index)} (${value})`;
+    const isChosen = chosen?.slotId === slot.slotId;
+    if (isChosen) btn.classList.add('selected');
+    btn.title = isChosen ? 'もう一度押すと選択を取り消します' : 'このプロットで動く';
+    btn.addEventListener('click', () => {
+      store.dispatch('ROUND_SET_PLOT_CHOICE', { tokenId, slotId: isChosen ? null : slot.slotId });
+    });
+    row.appendChild(btn);
+  });
+
+  if (!chosen) {
+    const note = document.createElement('span');
+    note.className = 'round-panel-plot-note';
+    note.textContent = '未選択';
+    note.title = '選ぶまで手番順は仮のもので、忍法コストの上限も掛かりません。';
+    row.appendChild(note);
+  }
+
   return row;
 }
 
 // 提出状況の1行。公開前は誰が出し終えたかだけ（●/○）、公開後は値を出す。
+// プロットを増やしているコマは枠の数だけ●/○が並ぶので、増えていることが全員に伝わる。
 function describePlotStatus(state, round) {
   const entries = round.participants.map(id => {
     const name = getTokenName(state, id);
-    const value = round.plots?.[id];
-    if (round.plotsRevealed) return `${name}: ${Number.isFinite(value) ? value : '未提出'}`;
-    return `${Number.isFinite(value) ? '●' : '○'}${name}`;
+    const slots = listPlotSlots(round, id);
+
+    if (!round.plotsRevealed) {
+      return `${slots.map(slot => (Number.isFinite(slot.value) ? '●' : '○')).join('')}${name}`;
+    }
+
+    const chosen = resolvedPlotSlot(round, id);
+    if (chosen) {
+      return `${name}: ${Number.isFinite(chosen.value) ? chosen.value : '未提出'}`;
+    }
+    // まだどれで動くか選ばれていないコマは、出ている全部の値を並べる
+    const values = slots.map(slot => (Number.isFinite(slot.value) ? slot.value : '未提出')).join('/');
+    return `${name}: ${values}（未選択）`;
   });
 
   if (entries.length === 0) return '参加者がいません。';
@@ -209,11 +361,23 @@ function describePlotStatus(state, round) {
     : `提出状況: ${entries.join('、')}`;
 }
 
-// プロットの段の欄をまるごと組み直す。plotフェーズ以外では隠す。
+// プロットの段の欄をまるごと組み直す。
+//
+// 提出欄はplotフェーズの間だけだが、「どれで動くか」の選択欄はフェーズを抜けても残す。
+// GMは選択を待たずに手番のフェーズへ進められる決まりなので、plotフェーズでしか出さないと
+// 選ぶ前に進まれた人が選べなくなる。
 function renderPlotSection(plotEl, state, round) {
   if (!plotEl) return;
 
-  if (!isPlotPhase(round)) {
+  const inPlotPhase = isPlotPhase(round);
+  const myTokenIds = listMyPlotTokenIds(state, round);
+  // 選択欄を出すコマ（公開後・複数のプロットに出ている・自分が操作できる）。
+  // 選び終えた後も出しておく（選び直せる。手番順の根拠がどれかもここで読める）。
+  const choiceTokenIds = round.plotsRevealed
+    ? myTokenIds.filter(id => listPlotSlots(round, id).length > 1)
+    : [];
+
+  if (!inPlotPhase && choiceTokenIds.length === 0) {
     plotEl.style.display = 'none';
     plotEl.innerHTML = '';
     return;
@@ -222,14 +386,22 @@ function renderPlotSection(plotEl, state, round) {
   plotEl.style.display = '';
   plotEl.innerHTML = '';
 
-  listMyPlotTokenIds(state, round).forEach(tokenId => {
-    plotEl.appendChild(buildPlotInputRow(state, round, tokenId));
+  if (inPlotPhase) {
+    myTokenIds.forEach(tokenId => {
+      buildPlotInputRows(state, round, tokenId).forEach(row => plotEl.appendChild(row));
+    });
+  }
+
+  choiceTokenIds.forEach(tokenId => {
+    plotEl.appendChild(buildPlotChoiceRow(state, round, tokenId));
   });
 
-  const statusEl = document.createElement('div');
-  statusEl.className = 'round-panel-plot-status';
-  statusEl.textContent = describePlotStatus(state, round);
-  plotEl.appendChild(statusEl);
+  if (inPlotPhase) {
+    const statusEl = document.createElement('div');
+    statusEl.className = 'round-panel-plot-status';
+    statusEl.textContent = describePlotStatus(state, round);
+    plotEl.appendChild(statusEl);
+  }
 }
 
 // ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。参加者を選ぶステップは省き、
@@ -350,9 +522,9 @@ export function initRoundPanel() {
           empty.textContent = '参加者がいません。';
           detailEl.appendChild(empty);
         } else {
-          const tiedIds = listTiedPlotTokenIds(round);
-          listTurnOrderRows(state, round).forEach(tokenId => {
-            detailEl.appendChild(buildTurnRow(state, round, tokenId, canOperate, tiedIds));
+          const tiedKeys = listTiedPlotSlotKeys(round);
+          listTurnOrderRows(state, round).forEach(turnRow => {
+            detailEl.appendChild(buildTurnRow(state, round, turnRow, canOperate, tiedKeys));
           });
         }
       }

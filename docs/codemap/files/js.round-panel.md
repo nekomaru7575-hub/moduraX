@@ -1,11 +1,11 @@
 ---
 source: js/round-panel.js
-lines: 433
+lines: 605
 exports: 2
 imported_by: 1
 api_sha: 607d81b1a1a8
 prose_sha: 607d81b1a1a8
-generated: 2026-08-18
+generated: 2026-08-20
 tags: [codemap]
 ---
 
@@ -25,30 +25,32 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 238 | fn | startRoundProgression | `startRoundProgression()` | ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。 |
-| 248 | fn | initRoundPanel | `initRoundPanel()` |  |
+| 410 | fn | startRoundProgression | `startRoundProgression()` | ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。 |
+| 420 | fn | initRoundPanel | `initRoundPanel()` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（14）
+## トップレベル関数（LOCAL TASKS 候補）（16）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 30 | getTokenName | `getTokenName(state, tokenId)` | 3 |  |
-| 34 | currentPhase | `currentPhase(round)` | 3 |  |
-| 39 | isPreTurnStep | `isPreTurnStep(round)` | 3 |  |
-| 44 | isPlotPhase | `isPlotPhase(round)` | 3 |  |
-| 49 | usesPlotTurnOrder | `usesPlotTurnOrder(round)` | 3 |  |
-| 55 | listTurnOrderRows | `listTurnOrderRows(state, round)` | 11 |  |
-| 69 | buildTurnRow | `buildTurnRow(state, round, tokenId, canOperate, tiedIds = [])` | 58 |  |
-| 128 | listBoardTokens | `listBoardTokens(state)` | 5 |  |
-| 136 | listMyPlotTokenIds | `listMyPlotTokenIds(state, round)` | 3 |  |
-| 146 | buildPlotInputRow | `buildPlotInputRow(state, round, tokenId)` | 50 |  |
-| 198 | describePlotStatus | `describePlotStatus(state, round)` | 13 |  |
-| 213 | renderPlotSection | `renderPlotSection(plotEl, state, round)` | 21 |  |
-| 238 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
-| 248 | initRoundPanel | `initRoundPanel()` | 185 | ✓ |
+| 34 | getTokenName | `getTokenName(state, tokenId)` | 3 |  |
+| 38 | currentPhase | `currentPhase(round)` | 3 |  |
+| 43 | isPreTurnStep | `isPreTurnStep(round)` | 3 |  |
+| 48 | isPlotPhase | `isPlotPhase(round)` | 3 |  |
+| 53 | usesPlotTurnOrder | `usesPlotTurnOrder(round)` | 3 |  |
+| 69 | listTurnOrderRows | `listTurnOrderRows(state, round)` | 22 |  |
+| 98 | buildTurnRow | `buildTurnRow(state, round, turnRow, canOperate, tiedKeys = [])` | 66 |  |
+| 165 | listBoardTokens | `listBoardTokens(state)` | 5 |  |
+| 173 | listMyPlotTokenIds | `listMyPlotTokenIds(state, round)` | 3 |  |
+| 187 | buildPlotSlotRow | `buildPlotSlotRow(state, round, tokenId, slot, slotIndex)` | 85 |  |
+| 274 | buildPlotInputRows | `buildPlotInputRows(state, round, tokenId)` | 21 |  |
+| 299 | buildPlotChoiceRow | `buildPlotChoiceRow(state, round, tokenId)` | 38 |  |
+| 340 | describePlotStatus | `describePlotStatus(state, round)` | 23 |  |
+| 369 | renderPlotSection | `renderPlotSection(plotEl, state, round)` | 37 |  |
+| 410 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
+| 420 | initRoundPanel | `initRoundPanel()` | 185 | ✓ |
 
 ## 依存
 

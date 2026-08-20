@@ -7,37 +7,30 @@
 //   getCurrentParticipantId()   … 今この画面で名乗っている自分（js/local-identity.js）
 // js/visibility.jsは状態を直接見ない純粋関数の置き場なので、storeを見るこちらは別モジュールにする。
 //
-// ここで行うのは画面側の見せ方（押せる／押せない）だけで、実際の可否はサーバーも同じ規則で
-// 判定して弾く（server/index.jsのcanOperateAsGm・GM_ONLY_ACTIONS）。両者の規則がずれると
-// 「画面では押せるのにサーバーに断られる」ことになるため、変えるときは必ず両方を揃えること。
+// ここで行うのは画面側の見せ方（押せる／押せない）だけで、実際の可否は権威側
+// （サーバー／ホスト権威P2Pのホスト役）も判定して弾く。規則そのものは
+// js/room-authority-rules.jsに1つだけ置き、両方がそれを読む形にしてある——
+// 以前は写しが2か所にあり、片方だけ変えると「画面では押せるのに断られる」ことが起きた。
 
 import { store } from './game-store.js';
 import { getCurrentParticipantId } from './local-identity.js';
 import { isDeveloperIdentity } from './net-sync.js';
 import { isGm } from './visibility.js';
+import { canParticipantOperateAsGm } from './room-authority-rules.js';
 
 // 無効化した項目のtitleに入れる共通の理由。文言を1か所に置いて表記を揃える。
 export const GM_ONLY_REASON = 'GMだけが操作できます';
 
-// GMが1人でもいるか。全員がゲスト（表示名なし）の部屋ではGMが存在しないため、
-// この判定が無いと「誰も部屋を消せない・ラウンドを始められない」状態になる。
-function hasAnyGm(participants) {
-  return Object.values(participants || {}).some(p => p.isGm);
-}
-
 /**
- * 部屋レベルの操作をしてよいか。
- * GMがまだ1人も決まっていない部屋では、従来どおり全員が操作できる
- * （所有者のいないコマは誰でも触れる、というjs/board-data-driven.jsの規則と揃えている）。
+ * 部屋レベルの操作をしてよいか。判定そのものはjs/room-authority-rules.jsが持ち、
+ * ここは「今の状態」と「今の自分」を当てはめるだけ。
  */
 export function canOperateAsGm() {
-  // 開発用の合言葉で名乗れている場合はGMと同じ扱い（サーバー側だけが判定できるので、
+  // 開発用の合言葉で名乗れている場合はGMと同じ扱い（権威側だけが判定できるので、
   // 名乗りの返事で受け取った結果を見る。server/index.jsのisDeveloperToken参照）
   if (isDeveloperIdentity()) return true;
 
-  const participants = store.state.participants || {};
-  if (!hasAnyGm(participants)) return true;
-  return isGm(participants, getCurrentParticipantId());
+  return canParticipantOperateAsGm(store.state.participants, getCurrentParticipantId());
 }
 
 /**

@@ -35,6 +35,10 @@ import {
 import { getPluginSheetSource } from '../js/parameters/registry.js';
 import { adoptImportedState } from '../js/state-import.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
+// GM限定の判定は画面側・ホスト役と規則を1つにしてある（js/room-authority-rules.js）。
+// 画面側のjs/room-authority.jsではなくこちらを読むのは、あちらがstoreとnet-sync.jsを
+// 経由してlocationに触れるためNodeから読めないから。
+import { canParticipantOperateAsGm, GM_ONLY_ACTIONS } from '../js/room-authority-rules.js';
 import {
   isR2Configured, putObject, getObject, deleteObject, deleteObjectsByPrefix,
   publicUrlFor, publicBaseUrl, keyFromPublicUrl, totalBytesByPrefix
@@ -407,75 +411,12 @@ function clearLegacyGmFlags(roomId, store) {
   return true;
 }
 
-// 部屋そのものを左右する操作をしてよいか。判定の規則はブラウザ側のjs/room-authority.jsと
-// 同じにしてある（GMが1人も決まっていない部屋では全員可）。片方だけ変えると、画面では
-// 押せるのにサーバーに弾かれる（またはその逆）状態になるので、必ず両方を揃えること。
+// 部屋そのものを左右する操作をしてよいか。規則の本体はjs/room-authority-rules.jsにあり、
+// 画面側（js/room-authority.js）もホスト役も同じものを読む。ここは状態から
+// participantsを取り出すだけの薄い包み。
 function canOperateAsGm(state, participantId) {
-  const participants = state.participants || {};
-  const hasGm = Object.values(participants).some(p => p.isGm);
-  if (!hasGm) return true;
-  return !!(participantId && participants[participantId]?.isGm);
+  return canParticipantOperateAsGm(state.participants, participantId);
 }
-
-// GMだけが行えるアクション。js/main.js・js/round-panel.js・js/audio-dialog.jsで
-// 画面上も止めているが、こちらは直接WebSocketを叩かれた場合の歯止め。
-// ROUND_SET_READY（割り込みなしの宣言）はPL各自の意思表示なので含めない。
-// ROUND_SET_PLOT（プロットの提出）も同じ理由で含めない。出すのはコマの持ち主なので、
-// GM限定にすると本人が出せなくなる。プロットの一斉公開はROUND_ADVANCE_PHASE（下にある）
-// が兼ねているので、進行操作の側はこの表で守られている。
-const GM_ONLY_ACTIONS = new Set([
-  'SET_BCDICE_SYSTEM',
-  'SET_ACTIVE_PLUGIN',
-  'ADD_AUDIO_TRACK',
-  // 音楽の停止（再生は全員が行える。game-store.jsのSET_AUDIO_PLAYBACK／STOP_AUDIO_PLAYBACK）。
-  // 聴きたくない人は自分の環境だけミュートする（js/audio-player.js）。
-  'STOP_AUDIO_PLAYBACK',
-  // 音源の削除。再生中のものを消すとそのチャンネルも止まるので、開けておくと
-  // 上のSTOP_AUDIO_PLAYBACKを止めた意味が無くなる。
-  'REMOVE_AUDIO_TRACK',
-  'ROUND_PROGRESSION_START',
-  'ROUND_ADVANCE_PHASE',
-  'ROUND_SET_PARTICIPANTS',
-  'ROUND_PROGRESSION_END',
-  // 行動済みの付け外し・次の手番への割り込み指定・ラウンド進行の設定も進行操作の一部
-  'ROUND_SET_ACTED',
-  'ROUND_SET_INTERRUPT',
-  'SET_ROUND_SETTINGS',
-  // 入室メッセージ表示の切り替え。イニシアチブ設定と同じ権限判定に揃える。
-  'SET_SHOW_ENTRY_MESSAGES',
-  // 入室メッセージ本体の追加はIDENTIFY処理からサーバーだけが直接dispatchする
-  // （下のGM_ONLY_ACTIONSチェックを経由しない）。ここに入れているのは、直接WebSocketで
-  // このACTIONを騙って偽の入室メッセージを流し込まれないようにする歯止め。
-  'ADD_ENTRY_MESSAGE',
-  // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
-  // 画像のアップロード側（下のIMAGE_PURPOSES.background）も同じくGM限定。
-  'SET_BOARD_BACKGROUND',
-  // シーン（js/scene-list-dialog.js）。作成・遷移・編集・削除はすべてGM限定。
-  'SAVE_SCENE',
-  'UPDATE_SCENE_META',
-  'APPLY_SCENE',
-  'REMOVE_SCENE',
-  // 全タブのログの消去（js/log-clear-dialog.js）。一度消すと戻せないのでGM限定。
-  'CLEAR_ALL_CHAT_LOGS',
-  // スタンプの集計の全消し（js/stamp-panel.js）。同じく一度消すと戻せないのでGM限定。
-  // 加算（COUNT_STAMP）の方は誰でもできる（自分が押した枚数が増えるだけ）。
-  'RESET_STAMP_COUNTS',
-  // GMの付け外しと参加者の削除もGM限定。ここが空いていると、誰でも自分をGMにしてから
-  // 上の操作を通せてしまい、他の制限がすべて無意味になる。
-  'SET_PARTICIPANT_GM',
-  'REMOVE_PARTICIPANT',
-  // 読み込んだ部屋データの情報をGMが引き取る操作（js/state-import.js）。情報系で唯一の
-  // GM限定アクション：ここが空いていると、誰でも「読み込んだ限定公開の情報」を丸ごと
-  // 自分宛てにして読めてしまう。
-  'CLAIM_RESTORED_INFO'
-  // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCEは、
-  // GM以外も作成・開示できる機能なので入れない。「編集・削除できるのは作成者とGM」は
-  // 画面側（js/info-panel.jsのcanEditEntry）だけの制限で、サーバーは強制しない。
-  // これはコマの所有者チェック（board-data-driven.jsのcanOperateToken）と同じ姿勢。
-  // 発言の編集（EDIT_CHAT_MESSAGE）も同じ扱い：「直せるのは発言者本人とGMだけ」は画面側
-  // （js/room-authority.jsのcanEditChatEntry）だけの制限。全消しのCLEAR_ALL_CHAT_LOGSと違い、
-  // 1件の本文が書き換わるだけで元の発言者・時刻は残るため、GM限定の表には入れない。
-]);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -2531,6 +2472,18 @@ const WS_MAX_MESSAGES_PER_WINDOW = 300;
 // 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
 const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
 
+// --- P2Pのシグナリング中継を開けるか（既定は閉じる） ---
+// 下のSIGNAL_HELLO / SIGNALは、部屋にいる誰でも「同じ部屋の他の人へ任意のJSONを
+// 転送させられる」口になる。P2P（docs/p2p-migration-notes.md）を使うときには要るが、
+// 使っていない間は開けておく理由が無いので、明示的に有効化したときだけ通す。
+//
+// 実害が小さいから開けっ放しでよい、とはしない。この中継は「誰でもhost:trueを名乗れる」
+// 問題（同上ドキュメントの6節）を抱えたままで、しかも凍結中は誰も使わない。
+// 使われない機能のために本番へ口を開けない、という判断。
+//
+// 再開するときはRenderの環境変数に ENABLE_P2P_SIGNALING=1 を足すだけでよい。
+const ENABLE_P2P_SIGNALING = process.env.ENABLE_P2P_SIGNALING === '1';
+
 const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
 // EventEmitterの'error'は聞き手がいないと同期的に例外を投げ、そのままプロセスが終了する。
@@ -2733,6 +2686,49 @@ wss.on('connection', async (ws, req) => {
 
     // 認証前は他のメッセージを受け付けない（名乗りも操作も削除も）
     if (!entryAuthorized) return;
+
+    // --- WebRTCのシグナリング中継（P2P化の実験。docs/p2p-migration-notes.md） ---
+    // ホスト権威P2Pでも「相手を見つける仲介」だけは誰かがやらないといけない。第三者の
+    // 公開シグナリング（Trystero・PeerJS）に部屋の生死を預けるより、どのみち残るこの
+    // サーバーに郵便受けを1つ置く方が短い。運ぶのはSDPとICE候補だけで、**中身は一切
+    // 解釈しない**（解釈すると、ここがまた「知っていなければならないサーバー」に戻る）。
+    //
+    // 部屋の中でしか届かない：宛先は同じentry.clientsの中からしか探さない。入室パスワードの
+    // 照合より後に置いてあるのも同じ理由で、通っていない接続はここへ来られない。
+    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL_HELLO') {
+      // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
+      if (ws.signalPeerId) return;
+      ws.signalPeerId = randomUUID();
+      ws.isSignalHost = !!message.host;
+
+      const host = Array.from(entry.clients).find((client) => client.isSignalHost);
+      ws.send(JSON.stringify({
+        type: 'SIGNAL_WELCOME',
+        peerId: ws.signalPeerId,
+        // ホスト自身にはhostPeerIdを返さない（自分に繋ぎに行かせないため）
+        hostPeerId: ws.isSignalHost ? null : (host?.signalPeerId ?? null)
+      }));
+
+      // ホストより先に来て待っているゲストへ「ホストが来た」と伝える。これが無いと、
+      // 部屋を開くより先に参加者が入っていた場合、誰も繋ぎに行かないまま止まる。
+      if (ws.isSignalHost) {
+        entry.clients.forEach((client) => {
+          if (client === ws || !client.signalPeerId || client.isSignalHost) return;
+          if (client.readyState !== WebSocket.OPEN) return;
+          client.send(JSON.stringify({ type: 'SIGNAL_HOST_READY', hostPeerId: ws.signalPeerId }));
+        });
+      }
+      return;
+    }
+
+    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL') {
+      if (!ws.signalPeerId) return;
+      const target = Array.from(entry.clients)
+        .find((client) => client.signalPeerId === String(message.to || ''));
+      if (!target || target.readyState !== WebSocket.OPEN) return;
+      target.send(JSON.stringify({ type: 'SIGNAL', from: ws.signalPeerId, payload: message.payload }));
+      return;
+    }
 
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
@@ -3040,6 +3036,10 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);
+  // 既定で閉じている口なので、開いているときだけ出す（開けたことを本番のログで確かめられるように）
+  if (ENABLE_P2P_SIGNALING) {
+    console.log('[server] P2Pのシグナリング中継を有効にしました（?net=rtc が使えます）');
+  }
   // 置き場の上限は環境変数で変えられるので、実際に効いている値を起動時に出しておく
   // （課金に直結する設定なので、本番のログで確かめられるようにする）。
   if (isR2Configured()) {

@@ -27,7 +27,8 @@ export const STAMPS = [
   { id: '?', label: '?', file: 'q.png' },
   { id: 'heart', label: '♥', file: 'heart.png' },
   { id: 'warikomi', label: '割込', file: 'warikomi.png' },
-  { id: 'think', label: '考え中', file: 'think.png' }
+  { id: 'think', label: '考え中', file: 'think.png' },
+  { id: `yoro`, label: `よろしく`, file:`yoro.png`}
 ];
 
 // スタンプの連打よけ。1接続あたり windowMs の間に max 枚まで。

@@ -1,6 +1,6 @@
 ---
 source: js/board-data-driven.js
-lines: 1842
+lines: 1851
 exports: 6
 imported_by: 7
 api_sha: 25166c376dd2
@@ -30,7 +30,7 @@ tags: [codemap]
 | 57 | fn | setCharacterPanelController | `setCharacterPanelController(controller)` |  |
 | 64 | fn | setStampPanelController | `setStampPanelController(controller)` |  |
 | 71 | fn | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` |  |
-| 1357 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。 |
+| 1359 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（43）
 
@@ -63,25 +63,25 @@ tags: [codemap]
 | 607 | storedCardsOf | `storedCardsOf(panelId)` | 5 |  |
 | 616 | actingUserPayload | `actingUserPayload()` | 3 |  |
 | 620 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 49 |  |
-| 676 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null })` | 49 |  |
-| 726 | bindPanelDrag | `bindPanelDrag(element)` | 168 |  |
-| 897 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 16 |  |
-| 928 | applyObjectImage | `applyObjectImage(img, url)` | 18 |  |
-| 950 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
-| 955 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 31 |  |
-| 987 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 17 |  |
-| 1006 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
-| 1019 | seenByNames | `seenByNames(cardData)` | 3 |  |
-| 1027 | dropTargetAt | `dropTargetAt(clientX, clientY, draggedEl)` | 9 |  |
-| 1037 | clearDropHighlights | `clearDropHighlights()` | 3 |  |
-| 1042 | resolveCardDrop | `resolveCardDrop(targetEl, cardData)` | 20 |  |
-| 1063 | bindCardDrag | `bindCardDrag(element)` | 135 |  |
-| 1199 | createCardElement | `createCardElement(cardData, panelLayer)` | 27 |  |
-| 1227 | bindDeckDrag | `bindDeckDrag(element)` | 97 |  |
-| 1325 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
-| 1357 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 25 | ✓ |
-| 1383 | clampPan | `clampPan(viewport, board)` | 20 |  |
-| 1406 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
+| 676 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null })` | 51 |  |
+| 728 | bindPanelDrag | `bindPanelDrag(element)` | 168 |  |
+| 899 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 16 |  |
+| 930 | applyObjectImage | `applyObjectImage(img, url)` | 18 |  |
+| 952 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
+| 957 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 31 |  |
+| 989 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 17 |  |
+| 1008 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
+| 1021 | seenByNames | `seenByNames(cardData)` | 3 |  |
+| 1029 | dropTargetAt | `dropTargetAt(clientX, clientY, draggedEl)` | 9 |  |
+| 1039 | clearDropHighlights | `clearDropHighlights()` | 3 |  |
+| 1044 | resolveCardDrop | `resolveCardDrop(targetEl, cardData)` | 20 |  |
+| 1065 | bindCardDrag | `bindCardDrag(element)` | 135 |  |
+| 1201 | createCardElement | `createCardElement(cardData, panelLayer)` | 27 |  |
+| 1229 | bindDeckDrag | `bindDeckDrag(element)` | 97 |  |
+| 1327 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
+| 1359 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 25 | ✓ |
+| 1385 | clampPan | `clampPan(viewport, board)` | 20 |  |
+| 1408 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
 
 ## 依存
 

@@ -16,11 +16,25 @@ const LONG_PRESS_MS = 500;
 const LONG_PRESS_TOLERANCE_PX = 10;
 
 /**
+ * onStartがこれを返すと、ドラッグは始めずに長押しだけを見る。
+ *
+ * 固定した（locked）パネル・カード・デッキのように「動かせないが、メニューは出したい」
+ * ものに使う。falseを返すと長押しまで一緒に切れてしまい、タッチからはメニューへ到達する
+ * 手段が無くなる（右クリックが無いため）。
+ *
+ * このモードではpreventDefault・stopPropagation・setPointerCaptureのいずれも行わない。
+ * pointerdownはそのまま親へ流れるので、固定パネルの上のドラッグが盤面パンになる従来の
+ * 挙動はそのまま保たれる。
+ */
+export const LONG_PRESS_ONLY = Symbol('longPressOnly');
+
+/**
  * @param {HTMLElement} element
  * @param {{
  *   onStart?: (event: PointerEvent) => any,
  *     ドラッグを始めてよければ任意の値（＝以降のコールバックへ渡す文脈）を返す。
  *     falseまたはnull/undefinedを返すとドラッグを始めない（長押しも見ない）。
+ *     LONG_PRESS_ONLYを返すと、ドラッグは始めずに長押しだけを見る（上の定義を参照）。
  *   onMove?: (event: PointerEvent, context: any) => void,
  *   onEnd?: (event: PointerEvent, context: any) => void,
  *   onLongPress?: (event: PointerEvent, context: any) => void,
@@ -46,6 +60,7 @@ export function bindDragGesture(element, {
   let activePointerId = null;
   let context = null;
   let longPressTimer = null;
+  let longPressOnlyStop = null; // LONG_PRESS_ONLYで見張っている最中の取り消し口
   let downEvent = null;
   let startClientX = 0;
   let startClientY = 0;
@@ -108,6 +123,59 @@ export function bindDragGesture(element, {
     setTimeout(remove, 800);
   }
 
+  // ドラッグを始めずに長押しだけを見る（LONG_PRESS_ONLY）。
+  //
+  // 【listenerはdocumentに貼る】ここではsetPointerCaptureをしないので、pointermove/
+  // pointerupがこの要素に来るとは限らない。pointerdownを流した先の親（盤面のパン）が
+  // ポインタを捕捉すると、以降のイベントはそちらへ付け替えられてしまう。
+  // 捕捉されたイベントもdocumentまでは上がってくるので、こちらで拾えば取りこぼさない。
+  function watchLongPressOnly(pressEvent) {
+    const pointerId = pressEvent.pointerId;
+    const fromX = pressEvent.clientX;
+    const fromY = pressEvent.clientY;
+    let timer = null;
+
+    const stop = () => {
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+      longPressOnlyStop = null;
+      document.removeEventListener('pointermove', onDocMove, true);
+      document.removeEventListener('pointerup', onDocEnd, true);
+      document.removeEventListener('pointercancel', onDocEnd, true);
+      document.removeEventListener('pointerdown', onOtherPointerDown, true);
+    };
+
+    const onDocMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      const movedX = Math.abs(moveEvent.clientX - fromX);
+      const movedY = Math.abs(moveEvent.clientY - fromY);
+      if (movedX > LONG_PRESS_TOLERANCE_PX || movedY > LONG_PRESS_TOLERANCE_PX) stop();
+    };
+
+    const onDocEnd = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) return;
+      stop();
+    };
+
+    // 2本目の指が触れたらピンチへ操作を明け渡す。触れたまま止まっているとメニューが
+    // 開いてしまうので、こちらから降りる（1本指の側はactiveBoardDrag.cancel()で畳まれる）。
+    const onOtherPointerDown = (downEvent) => {
+      if (downEvent.pointerId !== pointerId) stop();
+    };
+
+    longPressOnlyStop = stop;
+    document.addEventListener('pointermove', onDocMove, true);
+    document.addEventListener('pointerup', onDocEnd, true);
+    document.addEventListener('pointercancel', onDocEnd, true);
+    document.addEventListener('pointerdown', onOtherPointerDown, true);
+
+    timer = setTimeout(() => {
+      timer = null;
+      stop();
+      suppressNextContextMenu();
+      onLongPress(pressEvent, null);
+    }, LONG_PRESS_MS);
+  }
+
   element.addEventListener('pointerdown', (event) => {
     // 押した指が既に1本ある間は2本目を無視する。2本指のピンチは呼び出し元が
     // 別途見ており、そちらがcancel()でこのドラッグを打ち切る。
@@ -118,6 +186,12 @@ export function bindDragGesture(element, {
 
     const started = onStart ? onStart(event) : true;
     if (started === false || started === null || started === undefined) return;
+
+    // 動かせないが長押しには応じるもの。イベントは握らずに親へ流したままにする。
+    if (started === LONG_PRESS_ONLY) {
+      if (onLongPress && event.pointerType !== 'mouse') watchLongPressOnly(event);
+      return;
+    }
 
     event.preventDefault();
     if (stopPropagation) event.stopPropagation();
@@ -148,6 +222,9 @@ export function bindDragGesture(element, {
   }, capture);
 
   return {
-    cancel: () => finish(null, true)
+    cancel: () => {
+      longPressOnlyStop?.();
+      finish(null, true);
+    }
   };
 }

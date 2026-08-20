@@ -2,7 +2,7 @@
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
-import { bindDragGesture } from './drag-gesture.js';
+import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundDialog } from './background-dialog.js';
@@ -683,7 +683,9 @@ function bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag 
 
       // 固定中は移動しない。stopPropagationもされないので、その上のドラッグは
       // 盤面(viewport)へ伝播して盤面パンとして扱われる。
-      if (current.locked) return false;
+      // ただし長押しだけは見る（LONG_PRESS_ONLY）。falseを返すと長押しまで切れてしまい、
+      // 右クリックの無いタッチからはこのパネルのメニューへ到達できなくなる。
+      if (current.locked) return LONG_PRESS_ONLY;
 
       activeBoardDrag = gesture;
 
@@ -1542,7 +1544,14 @@ window.addEventListener('DOMContentLoaded', () => {
       activeBoardDrag = null;
     },
 
-    onLongPress: (event) => openBoardMenu(event)
+    // 固定したパネル・カード・デッキの上から始まった長押しは、そのオブジェクト自身の
+    // メニューが受け持つ（LONG_PRESS_ONLY）。固定中はpointerdownをここへ流しているので、
+    // 黙っていると盤面のメニューが後から重なって、パネルのメニューを上書きしてしまう。
+    // 未固定のものはonStartで弾いているのでここへは来ない。
+    onLongPress: (event) => {
+      if (event.target.closest('.panel-object, .card-object, .deck-object')) return;
+      openBoardMenu(event);
+    }
   });
 
   // 盤面の何もない場所を右クリック／長押し → キャラクター追加メニュー

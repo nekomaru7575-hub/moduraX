@@ -45,7 +45,7 @@ import {
 } from './r2.js';
 // 重い操作（取り込み・書き出し・アップロード）を、メモリの残りを見てから通す。
 import {
-  acquireHeavySlot, hasRoomFor, maxBodyBytesFor, describeBudget
+  acquireHeavySlot, hasRoomFor, maxBodyBytesFor, describeBudget, loadSnapshot
 } from './memory-budget.js';
 
 const PORT = Number(process.env.PORT) || 8081;
@@ -1621,12 +1621,51 @@ async function handleImageCopy(req, res) {
 }
 
 // GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
+// 併せて、そのときのサーバーの混み具合（serverLoad）も載せる。入る前に「今このサーバーは
+// 重い操作を受け付けられる状態か」が分かると、大きな取り込みで503を食う前に判断できる。
 async function handleListRooms(req, res) {
   const list = [];
   for (let n = 1; n <= MAX_ROOMS; n++) {
     list.push(await summarizeRoomSlot(`room-${n}`));
   }
-  sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list });
+  sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list, serverLoad: serverLoadSnapshot() },
+    // 混雑状況は数秒で変わる。中継やブラウザに寝かされると、古い数字を見て判断することになる。
+    { 'Cache-Control': 'no-store' });
+}
+
+// --- 混雑状況 ---
+// サーバーが実際に断る根拠にしている3つの上限を、そのまま「どれだけ埋まっているか」として
+// 出す。ここに出すのは総量だけで、誰が・どの部屋が使っているかという内訳は出さない。
+//   接続    … WS_MAX_CONNECTIONS。超えると新しい入室が4008で閉じられる
+//   重い操作 … MAX_HEAVY_OPERATIONS + HEAVY_QUEUE_MAX。溢れると取り込み・書き出しが503
+//   メモリ   … 重い操作に回せる予算。足りないと大きな取り込みが503（memory-budget.js）
+function serverLoadSnapshot() {
+  const budget = loadSnapshot();
+  const connections = wss.clients.size;
+  const heavy = budget.running + budget.waiting;
+  const heavyMax = budget.maxConcurrent + budget.queueMax;
+  const memoryUsedBytes = Math.max(0, budget.budgetBytes - budget.availableBytes);
+
+  // 一番詰まっているものが全体の混み具合を決める。どれか1つが埋まれば断られるため。
+  const ratio = Math.max(
+    connections / WS_MAX_CONNECTIONS,
+    heavy / heavyMax,
+    budget.budgetBytes > 0 ? memoryUsedBytes / budget.budgetBytes : 0
+  );
+
+  return {
+    level: ratio >= 0.85 ? 'crowded' : ratio >= 0.5 ? 'busy' : 'quiet',
+    connections,
+    maxConnections: WS_MAX_CONNECTIONS,
+    heavyRunning: budget.running,
+    heavyWaiting: budget.waiting,
+    maxHeavy: heavyMax,
+    memoryUsedMb: Math.round(memoryUsedBytes / 1024 / 1024),
+    memoryBudgetMb: Math.round(budget.budgetBytes / 1024 / 1024),
+    // 取り込みに回せる残り。「今このサイズのファイルを読ませられるか」の目安になる
+    importHeadroomMb: Math.floor(maxBodyBytesFor('import') / 1024 / 1024),
+    uptimeSec: Math.floor(process.uptime())
+  };
 }
 
 // 一覧1スロット分。安い順に3段構え：
@@ -1634,15 +1673,21 @@ async function handleListRooms(req, res) {
 //   2. 要約のキーがあればそれだけを読む（数十バイト）
 //   3. どちらも無ければ従来どおり状態を丸ごと読み、ついでに要約を作っておく
 // 3に落ちるのは、この機能より前に作られた部屋の初回だけ。以後は2で済む。
+//
+// clients（今その部屋にいる人数）は要約には保存せず、メモリに載っている部屋からその場で
+// 数える。人が1人でもいる部屋は必ずメモリに載っている（接続がある間はrooms.getに残る）ので、
+// 保存先しか見なかった部屋は0で正しい。
 async function summarizeRoomSlot(id) {
   const cached = rooms.get(id);
-  if (cached && !cached.pendingDelete) return { id, occupied: true, ...roomSummaryOf(cached) };
+  if (cached && !cached.pendingDelete) {
+    return { id, occupied: true, clients: cached.clients.size, ...roomSummaryOf(cached) };
+  }
   // 削除中の部屋は「もう無い部屋」として扱う（getOrLoadRoomと同じ約束）
   if (cached) return { id, occupied: false };
 
   try {
     const summary = await readRoomSummary(id);
-    if (summary) return { id, occupied: true, ...summary };
+    if (summary) return { id, occupied: true, clients: 0, ...summary };
   } catch (error) {
     console.warn(`[server] ${id} の一覧用の要約の読み込みに失敗しました:`, error.message);
   }
@@ -1650,7 +1695,7 @@ async function summarizeRoomSlot(id) {
   const entry = await getOrLoadRoom(id);
   if (!entry) return { id, occupied: false };
   await syncRoomSummary(id, entry);
-  return { id, occupied: true, ...roomSummaryOf(entry) };
+  return { id, occupied: true, clients: entry.clients.size, ...roomSummaryOf(entry) };
 }
 
 // POST /api/rooms：空きスロットに新しい部屋を作成する。

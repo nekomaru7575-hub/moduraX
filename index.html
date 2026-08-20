@@ -79,6 +79,73 @@
     text-decoration: underline;
   }
 
+  /* --- 混雑状況（js/room-index.jsが中身を作る） --- */
+  .server-status {
+    background-color: #242424;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
+
+  .server-status-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* 混み具合の信号。色だけに頼らないよう、隣の見出し（空いています等）が同じことを言う */
+  .server-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: none;
+    background-color: #5fbf5f;
+  }
+
+  .server-status.busy .server-status-dot { background-color: #e0b13a; }
+  .server-status.crowded .server-status-dot { background-color: #f28b82; }
+  .server-status.unknown .server-status-dot { background-color: #777; }
+
+  .server-status-level {
+    font-weight: bold;
+    font-size: 0.95rem;
+  }
+
+  .server-status-refresh {
+    margin-left: auto;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+  }
+
+  /* 指で操作する環境では.btnが大きくなるが、ここは補助的な操作なので小さいまま残す */
+  @media (pointer: coarse) {
+    .server-status-refresh {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+    }
+  }
+
+  .server-status-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    margin-top: 6px;
+    color: #999;
+    font-size: 0.8rem;
+  }
+
+  .server-status-metrics b {
+    color: #ccc;
+    font-weight: bold;
+  }
+
+  .server-status-note {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: #e0b13a;
+  }
+
   .room-list {
     display: flex;
     flex-direction: column;
@@ -248,6 +315,8 @@
     <div class="header-links">
       <a href="/character-builder.html">🛠️ コマ作成ツール（外部シート/スナップショットJSONから）</a>
     </div>
+
+    <div id="serverStatus"></div>
 
     <div id="roomList" class="room-list">
       <p style="color:#888;">読み込み中...</p>

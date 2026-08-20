@@ -176,3 +176,21 @@ export function describeBudget() {
     + ` / 同時実行 ${MAX_CONCURRENT}本`
     + ` / いま受け付けられる取り込みの最大 ${mb(maxBodyBytesFor('import'))}MB`;
 }
+
+/**
+ * いまの混み具合の生の数値。部屋一覧（GET /api/rooms）が「混雑状況」を出すために使う。
+ * describeBudgetが人間向けの1行なのに対し、こちらは判断に使える数のまま返す。
+ * 予約の内訳（誰が何を送っているか）は返さない。外に出すのは「どれだけ埋まっているか」だけ。
+ */
+export function loadSnapshot() {
+  return {
+    limitBytes: MEMORY_LIMIT_BYTES,
+    // 重い操作に回してよい上限。availableBytesはこの値から現在の使用量を引いたもの
+    budgetBytes: Math.floor(MEMORY_LIMIT_BYTES * SAFE_FRACTION),
+    availableBytes: availableBytes(),
+    running,
+    waiting: waiting.length,
+    maxConcurrent: MAX_CONCURRENT,
+    queueMax: QUEUE_MAX
+  };
+}

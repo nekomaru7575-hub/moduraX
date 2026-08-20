@@ -4,6 +4,7 @@
 // （任意で）全データ読み込みの簡易フォームを表示する。部屋の作成自体は
 // このページ上で完結させ（POST /api/rooms）、成功したらそのまま盤面へ遷移する。
 // 部屋作成前はWebSocket接続を一切受け付けないサーバー側仕様と対になっている。
+// 一覧の上には、同じ応答に載ってくるサーバーの混雑状況を出す（renderServerStatus）。
 
 import { listPlugins } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
@@ -12,6 +13,7 @@ import { parseUntrustedJson } from './untrusted-json.js';
 import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
 
 const roomListEl = document.getElementById('roomList');
+const serverStatusEl = document.getElementById('serverStatus');
 
 // BCDiceのシステム一覧。手書きの定数を持たず、ページを開いたときにAPI（サーバー側で
 // キャッシュ済み）から取得したものを、全カードのselectと使用中カードの表示名で共有する。
@@ -32,6 +34,98 @@ function buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'labe
     el.textContent = opt[labelKey];
     select.appendChild(el);
   });
+}
+
+// --- 混雑状況 ---
+// GET /api/roomsが一緒に返すserverLoad（server/index.jsのserverLoadSnapshot）を、
+// 部屋一覧の上に1行で出す。サーバーが実際に断る根拠にしている上限をそのまま見せるので、
+// 「今は大きな読み込みをやめておく」「今なら入れる」を入室前に判断できる。
+//
+// 自動では更新しない（更新ボタンだけ）。無料枠のPaaSは無操作でスピンダウンするので、
+// 一覧を開きっぱなしのタブが定期的に叩くと、それだけで起こし続けることになる。
+const LOAD_LEVELS = {
+  quiet:   { className: 'quiet',   label: '空いています' },
+  busy:    { className: 'busy',    label: 'やや混み合っています' },
+  crowded: { className: 'crowded', label: '混み合っています' }
+};
+
+const CROWDED_NOTE = '大きなデータの読み込み・書き出しや、新しい入室は断られることがあります。'
+  + '少し待つと空きます。';
+
+function formatUptime(sec) {
+  if (!Number.isFinite(sec)) return '不明';
+  if (sec < 60) return `${Math.floor(sec)}秒`;
+  if (sec < 60 * 60) return `${Math.floor(sec / 60)}分`;
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  return minutes > 0 ? `${hours}時間${minutes}分` : `${hours}時間`;
+}
+
+function appendMetric(parent, label, value, suffix = '') {
+  const el = document.createElement('span');
+  el.append(`${label} `);
+  const strong = document.createElement('b');
+  strong.textContent = String(value);
+  el.appendChild(strong);
+  if (suffix) el.append(suffix);
+  parent.appendChild(el);
+}
+
+// load が null のときは「取得できなかった」として、灰色の枠と更新ボタンだけを出す。
+// 一覧そのものが出ていれば入室はできるので、ここで止めない。
+function renderServerStatus(load) {
+  const level = LOAD_LEVELS[load?.level] || { className: 'unknown', label: '混雑状況を取得できませんでした' };
+
+  const box = document.createElement('div');
+  box.className = `server-status ${level.className}`;
+
+  const head = document.createElement('div');
+  head.className = 'server-status-head';
+
+  const dot = document.createElement('span');
+  dot.className = 'server-status-dot';
+  head.appendChild(dot);
+
+  const levelText = document.createElement('span');
+  levelText.className = 'server-status-level';
+  levelText.textContent = level.label;
+  head.appendChild(levelText);
+
+  const refreshBtn = document.createElement('button');
+  refreshBtn.type = 'button';
+  refreshBtn.className = 'btn btn-secondary server-status-refresh';
+  refreshBtn.textContent = '更新';
+  refreshBtn.addEventListener('click', () => {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = '更新中...';
+    loadRooms();
+  });
+  head.appendChild(refreshBtn);
+
+  box.appendChild(head);
+
+  if (load) {
+    const metrics = document.createElement('div');
+    metrics.className = 'server-status-metrics';
+    // 「接続」で「人」ではない。入室パスワードの入力待ちや、まだどの部屋にも入っていない
+    // 接続もここに数えられる（上限WS_MAX_CONNECTIONSがそれを数えて断るため）。
+    // 部屋ごとの人数は各カードのほうに出している。
+    appendMetric(metrics, '接続', load.connections, ` / ${load.maxConnections}`);
+    appendMetric(metrics, '読み込み・書き出し', load.heavyRunning + load.heavyWaiting, ` / ${load.maxHeavy}件`);
+    appendMetric(metrics, 'メモリ', load.memoryUsedMb, ` / ${load.memoryBudgetMb}MB`);
+    appendMetric(metrics, '読み込める最大', load.importHeadroomMb, 'MB');
+    appendMetric(metrics, '連続稼働', formatUptime(load.uptimeSec));
+    box.appendChild(metrics);
+
+    if (load.level === 'crowded') {
+      const note = document.createElement('p');
+      note.className = 'server-status-note';
+      note.textContent = CROWDED_NOTE;
+      box.appendChild(note);
+    }
+  }
+
+  serverStatusEl.replaceChildren(box);
 }
 
 function buildOccupiedCard(room) {
@@ -55,7 +149,10 @@ function buildOccupiedCard(room) {
   meta.className = 'room-card-meta';
   const pluginLabel = room.activePlugin ? room.activePlugin : 'プラグインなし';
   const bcdiceLabel = bcdiceSystems.find((s) => s.id === room.bcdiceSystem)?.name || room.bcdiceSystem;
-  meta.textContent = `${pluginLabel} / ${bcdiceLabel}`;
+  // 人数は「今つないでいる接続の数」（server/index.jsのsummarizeRoomSlot）。同じ人が
+  // 2つのタブを開けば2と数える。部屋の参加者名簿ではなく、混み具合の目安として出している。
+  const peopleLabel = room.clients > 0 ? `${room.clients}人が入室中` : '誰もいません';
+  meta.textContent = `${pluginLabel} / ${bcdiceLabel} ・ ${peopleLabel}`;
   titleBlock.appendChild(meta);
 
   header.appendChild(titleBlock);
@@ -253,9 +350,11 @@ async function loadRooms() {
   });
 
   try {
-    const response = await fetch('/api/rooms');
+    const response = await fetch('/api/rooms', { cache: 'no-store' });
     const data = await response.json();
     bcdiceSystems = await systemsPromise;
+
+    renderServerStatus(data.serverLoad || null);
 
     roomListEl.innerHTML = '';
     data.rooms.forEach((room) => {
@@ -263,6 +362,8 @@ async function loadRooms() {
       roomListEl.appendChild(card);
     });
   } catch (error) {
+    // 一覧が出せなかったときも、押し直せる更新ボタンだけは残す
+    renderServerStatus(null);
     roomListEl.innerHTML = '';
     const errorEl = document.createElement('p');
     errorEl.style.color = '#f28b82';

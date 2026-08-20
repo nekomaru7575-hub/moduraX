@@ -2472,6 +2472,18 @@ const WS_MAX_MESSAGES_PER_WINDOW = 300;
 // 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
 const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
 
+// --- P2Pのシグナリング中継を開けるか（既定は閉じる） ---
+// 下のSIGNAL_HELLO / SIGNALは、部屋にいる誰でも「同じ部屋の他の人へ任意のJSONを
+// 転送させられる」口になる。P2P（docs/p2p-migration-notes.md）を使うときには要るが、
+// 使っていない間は開けておく理由が無いので、明示的に有効化したときだけ通す。
+//
+// 実害が小さいから開けっ放しでよい、とはしない。この中継は「誰でもhost:trueを名乗れる」
+// 問題（同上ドキュメントの6節）を抱えたままで、しかも凍結中は誰も使わない。
+// 使われない機能のために本番へ口を開けない、という判断。
+//
+// 再開するときはRenderの環境変数に ENABLE_P2P_SIGNALING=1 を足すだけでよい。
+const ENABLE_P2P_SIGNALING = process.env.ENABLE_P2P_SIGNALING === '1';
+
 const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
 // EventEmitterの'error'は聞き手がいないと同期的に例外を投げ、そのままプロセスが終了する。
@@ -2683,7 +2695,7 @@ wss.on('connection', async (ws, req) => {
     //
     // 部屋の中でしか届かない：宛先は同じentry.clientsの中からしか探さない。入室パスワードの
     // 照合より後に置いてあるのも同じ理由で、通っていない接続はここへ来られない。
-    if (message.type === 'SIGNAL_HELLO') {
+    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL_HELLO') {
       // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
       if (ws.signalPeerId) return;
       ws.signalPeerId = randomUUID();
@@ -2709,7 +2721,7 @@ wss.on('connection', async (ws, req) => {
       return;
     }
 
-    if (message.type === 'SIGNAL') {
+    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL') {
       if (!ws.signalPeerId) return;
       const target = Array.from(entry.clients)
         .find((client) => client.signalPeerId === String(message.to || ''));
@@ -3024,6 +3036,10 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);
+  // 既定で閉じている口なので、開いているときだけ出す（開けたことを本番のログで確かめられるように）
+  if (ENABLE_P2P_SIGNALING) {
+    console.log('[server] P2Pのシグナリング中継を有効にしました（?net=rtc が使えます）');
+  }
   // 置き場の上限は環境変数で変えられるので、実際に効いている値を起動時に出しておく
   // （課金に直結する設定なので、本番のログで確かめられるようにする）。
   if (isR2Configured()) {

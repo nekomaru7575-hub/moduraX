@@ -24,9 +24,23 @@ import { WS_URL } from './net-transport-ws.js';
  * @param {(state: object) => void} [options.onServerInit] サーバーが送ってきた部屋の中身
  * @param {() => void} [options.onClose] シグナリングが切れた
  */
+// SIGNAL_HELLOへの返事をどれだけ待つか。中継はサーバー側で既定オフなので
+// （server/index.jsのENABLE_P2P_SIGNALING）、無効な相手に黙って繋ぎ続けないための見切り。
+// これが無いと、WebRTCの時間切れ（8秒）まで理由の分からない待ちになる。
+const WELCOME_TIMEOUT_MS = 3000;
+
 export function createSignaling({ host, onWelcome, onSignal, onServerInit, onClose }) {
   const ws = new WebSocket(WS_URL);
   let myPeerId = null;
+  let welcomed = false;
+
+  const welcomeTimer = setTimeout(() => {
+    if (welcomed) return;
+    console.warn('[net-signaling] シグナリング中継から返事がありません。'
+      + 'サーバー側で無効になっている可能性があります（環境変数 ENABLE_P2P_SIGNALING=1 で有効化）');
+    ws.close();
+    onClose?.();
+  }, WELCOME_TIMEOUT_MS);
 
   ws.addEventListener('open', () => {
     ws.send(JSON.stringify({ type: 'SIGNAL_HELLO', host: !!host }));
@@ -41,6 +55,8 @@ export function createSignaling({ host, onWelcome, onSignal, onServerInit, onClo
     }
 
     if (message.type === 'SIGNAL_WELCOME') {
+      welcomed = true;
+      clearTimeout(welcomeTimer);
       myPeerId = message.peerId;
       onWelcome?.({ peerId: myPeerId, hostPeerId: message.hostPeerId ?? null });
       return;
@@ -67,7 +83,10 @@ export function createSignaling({ host, onWelcome, onSignal, onServerInit, onClo
     // （パスワードなしの部屋で試すこと）。それ以外の型は同期データなので読み捨てる。
   });
 
-  ws.addEventListener('close', () => onClose?.());
+  ws.addEventListener('close', () => {
+    clearTimeout(welcomeTimer);
+    onClose?.();
+  });
   ws.addEventListener('error', () => ws.close());
 
   return {

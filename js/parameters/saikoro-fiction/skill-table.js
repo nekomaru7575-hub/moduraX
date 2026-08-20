@@ -307,8 +307,13 @@ export function normalizeSkillTableState(spec, raw) {
     ? [...new Set(raw.filledGaps.filter(i => Number.isInteger(i) && i >= 0 && i < spec.gapCount))]
     : [];
 
+  // 【列の枠を持たないspecでも捨てない】同じキャラクターを別のspecで読むことがある
+  // （シノビガミのPC↔エネミー。エネミーは列の枠を持たない）。ここで落とすと、
+  // エネミーとして一度保存しただけで、PCに戻したときに分野ごとの生命力ダメージが消える。
+  // 使うかどうかはcountRemainingSlots・isColumnDisabledがspecを見て決めるので、
+  // 残しておいても列の枠が無い表には出てこない。
   const validColumnKeys = new Set(spec.columns.map(column => column.key));
-  const lostColumns = (hasColumnSlots(spec) && Array.isArray(raw?.lostColumns))
+  const lostColumns = Array.isArray(raw?.lostColumns)
     ? [...new Set(raw.lostColumns.filter(key => validColumnKeys.has(key)))]
     : [];
 

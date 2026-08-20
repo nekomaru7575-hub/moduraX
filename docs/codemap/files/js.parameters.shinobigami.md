@@ -1,10 +1,10 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 1243
-exports: 7
+lines: 1338
+exports: 9
 imported_by: 1
-api_sha: 2d7fd8041b6e
-prose_sha: 2d7fd8041b6e
+api_sha: 9f11e7eabafd
+prose_sha: 9f11e7eabafd
 generated: 2026-08-20
 tags: [codemap]
 ---
@@ -18,22 +18,24 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-シノビガミのプラグイン記述子。特技表データ（[[js.parameters.shinobigami-skills]]）を共通の表モデルへ流し込み、生命力（特技表の枠から自動算出）・忍法（汎用のスキル枠組みへ SHINOBIGAMI_NINPOU_SPEC として宣言）・背景（一覧版。長所／短所のトグル）・忍具（アイテム版。兵糧丸・神通丸・遁甲符を既定の枠として配る。ボックスを開くボタンはそのコマの持ち主にしか出さない（canViewTools。GMも例外にせず、持ち主のいないコマは全員に見せる））・人物（一覧版。居所/秘密/奥義のチェックと、属性に連動する感情、行ごとの「感情修正」ボタン）・プロットで手番順が決まるラウンド進行テンプレートを束ねる。判定に効く修正値（AdB/AnB/SB/FB）と基準値（{F}/{S}）もここで定義する。表の描画も判定の実行も忍法の使用処理も共通側にあり、システム固有なのは特技データと BCDice コマンドの組み立て（resolveShinobigamiCheck）、「1ラウンドに使える忍法コストの合計はプロットまで」の判定（handleNinpouUseCommand）、そして感情修正が何をするか（runEmotionModifier）だけ。奥義だけは入れ子（奥義改造）と1件ごとの公開先を持つため、共通の枠組みに乗らず専用ボックス（[[js.parameters.shinobigami-ougi-box]]）にしてある。
+シノビガミのプラグイン記述子。拡張ステータスは PC とエネミーの2種類あり（components の `sheetType`。既定は PC）、エネミーは生命力を分野と連動させず追加枠だけで持ち、背景と人物も持たない。特技表データ（[[js.parameters.shinobigami-skills]]）を共通の表モデルへ流し込み、生命力（特技表の枠から自動算出）・忍法（汎用のスキル枠組みへ SHINOBIGAMI_NINPOU_SPEC として宣言）・背景（一覧版。長所／短所のトグル）・忍具（アイテム版。兵糧丸・神通丸・遁甲符を既定の枠として配る。ボックスを開くボタンはそのコマの持ち主にしか出さない（canViewTools。GMも例外にせず、持ち主のいないコマは全員に見せる））・人物（一覧版。居所/秘密/奥義のチェックと、属性に連動する感情、行ごとの「感情修正」ボタン）・プロットで手番順が決まるラウンド進行テンプレートを束ねる。判定に効く修正値（AdB/AnB/SB/FB）と基準値（{F}/{S}）もここで定義する。表の描画も判定の実行も忍法の使用処理も共通側にあり、システム固有なのは特技データと BCDice コマンドの組み立て（resolveShinobigamiCheck）、「1ラウンドに使える忍法コストの合計はプロットまで」の判定（handleNinpouUseCommand）、そして感情修正が何をするか（runEmotionModifier）だけ。奥義だけは入れ子（奥義改造）と1件ごとの公開先を持つため、共通の枠組みに乗らず専用ボックス（[[js.parameters.shinobigami-ougi-box]]）にしてある。
 <!-- /prose:role -->
 
-## export（7）
+## export（9）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 31 | const | SKILL_TABLE_COMPONENT_KEY | `SKILL_TABLE_COMPONENT_KEY` | キャラクターの components に特技表を保存するときのキー。 |
-| 130 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` |  |
-| 292 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
-| 344 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
-| 438 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
-| 482 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
-| 1219 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 157 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` | PC。 |
+| 170 | const | SHINOBIGAMI_ENEMY_SKILL_TABLE | `SHINOBIGAMI_ENEMY_SKILL_TABLE` | エネミー。 |
+| 179 | const | SHEET_TYPE_COMPONENT_KEY | `SHEET_TYPE_COMPONENT_KEY` | 拡張ステータスの型。 |
+| 340 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
+| 392 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
+| 486 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
+| 530 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
+| 1313 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（37）
+## トップレベル関数（LOCAL TASKS 候補）（40）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -42,41 +44,44 @@ tags: [codemap]
 |---:|---|---|---:|:-:|
 | 66 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 6 |  |
 | 96 | resolveShinobigamiCheck | `resolveShinobigamiCheck({ options, targetNumber, getParam })` | 33 |  |
-| 207 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
-| 219 | computePlotValue | `computePlotValue(context)` | 4 |  |
-| 225 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
-| 230 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
-| 245 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 11 |  |
-| 258 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
-| 276 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
-| 357 | readBackgroundList | `readBackgroundList(components)` | 5 |  |
-| 381 | buildEmotionChoices | `buildEmotionChoices()` | 5 |  |
-| 388 | emotionGroupOf | `emotionGroupOf(attitude)` | 3 |  |
-| 399 | runEmotionModifier | `runEmotionModifier({ skill, context })` | 38 |  |
-| 467 | readPersonList | `readPersonList(components)` | 5 |  |
-| 490 | readToolList | `readToolList(components)` | 5 |  |
-| 504 | canViewTools | `canViewTools(token, myParticipantId)` | 5 |  |
-| 511 | readNinpouList | `readNinpouList(components)` | 3 |  |
-| 530 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
-| 541 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
-| 548 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
-| 559 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
-| 576 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel({ container, mode, canEdit = true, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, findTokenByName = null, participants = {}, myParticipantId = null })` | **219** |  |
-| 805 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
-| 816 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 30 |  |
-| 852 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
-| 949 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
-| 996 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
-| 1020 | sheetText | `sheetText(value)` | 3 |  |
-| 1025 | sheetChecked | `sheetChecked(value)` | 3 |  |
-| 1030 | sheetNumber | `sheetNumber(value)` | 4 |  |
-| 1044 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
-| 1065 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
-| 1103 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
-| 1120 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
-| 1132 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
-| 1159 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 24 |  |
-| 1200 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 183 | readSheetType | `readSheetType(components)` | 3 |  |
+| 187 | isEnemySheet | `isEnemySheet(components)` | 3 |  |
+| 197 | skillTableSpecFor | `skillTableSpecFor(components)` | 3 |  |
+| 252 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
+| 264 | computePlotValue | `computePlotValue(context)` | 4 |  |
+| 270 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
+| 275 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
+| 290 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 12 |  |
+| 306 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
+| 324 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
+| 405 | readBackgroundList | `readBackgroundList(components)` | 5 |  |
+| 429 | buildEmotionChoices | `buildEmotionChoices()` | 5 |  |
+| 436 | emotionGroupOf | `emotionGroupOf(attitude)` | 3 |  |
+| 447 | runEmotionModifier | `runEmotionModifier({ skill, context })` | 38 |  |
+| 515 | readPersonList | `readPersonList(components)` | 5 |  |
+| 538 | readToolList | `readToolList(components)` | 5 |  |
+| 552 | canViewTools | `canViewTools(token, myParticipantId)` | 5 |  |
+| 559 | readNinpouList | `readNinpouList(components)` | 3 |  |
+| 578 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
+| 589 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
+| 596 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
+| 607 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
+| 624 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel(options)` | **261** |  |
+| 895 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
+| 906 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 32 |  |
+| 944 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
+| 1041 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
+| 1088 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
+| 1112 | sheetText | `sheetText(value)` | 3 |  |
+| 1117 | sheetChecked | `sheetChecked(value)` | 3 |  |
+| 1122 | sheetNumber | `sheetNumber(value)` | 4 |  |
+| 1136 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
+| 1157 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
+| 1195 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
+| 1212 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
+| 1224 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
+| 1251 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 26 |  |
+| 1294 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 
@@ -101,4 +106,8 @@ Webキャラクターシートの取り込みで**推測に頼っている箇所
 取得特技は2か所（`learned[].id` と `skills.rowN.checkM`）のどちらにも書かれうるので両方を見る。片方だけだとシートによって取り込みが空になる。
 
 左右を繋ぐか（cyclic）は取り込みで変えない（既定のままオフ）。シートの表自体は繋がった形だが、繋ぐかどうかは卓の運用で決まり、距離＝目標値が変わるため。`skills.f` が塗られていればギャップとしては入るので、特技表ボックスのチェックを入れるだけでシートどおりになる。
+
+PC とエネミーは**特技表の spec が別物**（`SHINOBIGAMI_SKILL_TABLE` / `SHINOBIGAMI_ENEMY_SKILL_TABLE`）。違うのは `slots` だけで、エネミーは `column` を宣言しない。それだけで列のチェック欄が消え（hasColumnSlots）、生命力を失っても分野が死ななくなる（isColumnDisabled）ので、共通側（[[js.parameters.saikoro-fiction.skill-table]]）に分岐は要らない。**spec を選ぶ必要があるのは枠（slots）に触る処理だけ**で、表のデータ（セル・特技名・距離）しか見ない処理は `SHINOBIGAMI_SKILL_TABLE` を直接使ってよい。状態を読む入口は `readSkillTableState` 一本にしてあり、そこが `skillTableSpecFor(components)` を通す。
+
+エネミーへ切り替えても背景・人物の中身は消さない（ボタンを出さないだけ）。PC へ戻せばそのまま出てくる。分野ごとの生命力ダメージ（`lostColumns`）も同様に残るが、これは共通側の `normalizeSkillTableState` が列の枠を持たない spec でも `lostColumns` を捨てないようにしてあるから。捨てると、エネミーとして一度保存しただけでダメージが消える。
 <!-- /prose:notes -->

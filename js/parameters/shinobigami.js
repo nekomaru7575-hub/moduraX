@@ -127,8 +127,13 @@ function resolveShinobigamiCheck({ options, targetNumber, getParam }) {
   };
 }
 
-const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
-  id: 'shinobigami',
+// 追加の枠（PCの追加生命力、エネミーの生命力そのもの）の上限。
+// エネミーは生命力を全部この枠で持つので、PCの想定より多く要る。
+const EXTRA_SLOT_MAX = 20;
+
+// 表そのもの（列・行・セル・判定）はPCとエネミーで完全に同じ。違うのは生命力の持ち方だけ
+// なので、共通部分をここで組んで、slotsだけを差し替えた2つのspecを作る。
+const SHINOBIGAMI_TABLE_BASE = {
   columns: SHINOBIGAMI_COLUMNS,
   rows: SHINOBIGAMI_ROWS,
   cells: SHINOBIGAMI_SKILL_CELLS,
@@ -142,16 +147,56 @@ const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
     modifiers: SHINOBIGAMI_CHECK_MODIFIERS,
     buildCommand: buildShinobigamiCheckCommand,
     resolve: resolveShinobigamiCheck
-  },
-  // 生命力。分野ごとに1つずつ枠があり、失うとその分野の特技が使えなくなる。
-  // 追加生命力は忍法や背景で増える分で、個数はキャラクターごとに決まる。
-  // 枠の仕組み自体は汎用側（saikoro-fiction/skill-table.js）が持っていて、
-  // ここでは呼び名と「失うと分野が死ぬ」ことだけを宣言する。
+  }
+};
+
+// PC。生命力は分野ごとに1つずつ枠があり、失うとその分野の特技が使えなくなる。
+// 追加生命力は忍法や背景で増える分で、個数はキャラクターごとに決まる。
+// 枠の仕組み自体は汎用側（saikoro-fiction/skill-table.js）が持っていて、
+// ここでは呼び名と「失うと分野が死ぬ」ことだけを宣言する。
+const SHINOBIGAMI_SKILL_TABLE = createSkillTableSpec({
+  ...SHINOBIGAMI_TABLE_BASE,
+  id: 'shinobigami',
   slots: {
     column: { label: '生命力', disablesColumn: true },
-    extra: { label: '追加生命力', max: 12 }
+    extra: { label: '追加生命力', max: EXTRA_SLOT_MAX }
   }
 });
+
+// エネミー。生命力は分野と連動せず、まとめて追加枠だけで持つ。
+// 【column を宣言しない】これだけで、列のチェック欄が消え（hasColumnSlots）、
+// 生命力を失っても分野が死ななくなる（isColumnDisabledが常にfalse）。
+// 呼び名を「生命力」にしているのは、エネミーにとってはこの枠が生命力そのものだから。
+const SHINOBIGAMI_ENEMY_SKILL_TABLE = createSkillTableSpec({
+  ...SHINOBIGAMI_TABLE_BASE,
+  id: 'shinobigami-enemy',
+  slots: {
+    extra: { label: '生命力', max: EXTRA_SLOT_MAX }
+  }
+});
+
+// 拡張ステータスの型。componentsに持たないコマ（プラグイン導入前・既存の全コマ）はPC。
+const SHEET_TYPE_COMPONENT_KEY = 'sheetType';
+const SHEET_TYPE_ENEMY = 'enemy';
+const SHEET_TYPE_PC = 'pc';
+
+function readSheetType(components) {
+  return components?.[SHEET_TYPE_COMPONENT_KEY] === SHEET_TYPE_ENEMY ? SHEET_TYPE_ENEMY : SHEET_TYPE_PC;
+}
+
+function isEnemySheet(components) {
+  return readSheetType(components) === SHEET_TYPE_ENEMY;
+}
+
+/**
+ * このコマの特技表のspec。生命力の持ち方だけがPCとエネミーで違う。
+ * 表のデータ（セル・特技名・判定）しか見ない処理は、どちらでも同じ結果になるので
+ * SHINOBIGAMI_SKILL_TABLE を直接使ってよい。specを選ぶ必要があるのは、
+ * 枠（slots）に触る処理だけ。
+ */
+function skillTableSpecFor(components) {
+  return isEnemySheet(components) ? SHINOBIGAMI_ENEMY_SKILL_TABLE : SHINOBIGAMI_SKILL_TABLE;
+}
 
 // キャラクターのパラメータ。自動算出される値は手入力させない（editable:false）。
 // locked:trueにしているのは削除させないためと、プラグイン導入前に作られたコマにも
@@ -245,7 +290,8 @@ function computeRoundNumber(context) {
 function computeShinobigamiDerivedParameters(_parameters, components = {}, context = {}) {
   const state = readSkillTableState(components);
   return {
-    'SHINOBIGAMI:life': countRemainingSlots(SHINOBIGAMI_SKILL_TABLE, state).total,
+    // エネミーは列の枠を持たないので、ここは追加枠の残りだけが数えられる（skillTableSpecFor）
+    'SHINOBIGAMI:life': countRemainingSlots(skillTableSpecFor(components), state).total,
     'SHINOBIGAMI:F': computeFumbleBase(context),
     'SHINOBIGAMI:S': SPECIAL_DEFAULT,
     'SHINOBIGAMI:plot': computePlotValue(context),
@@ -255,8 +301,10 @@ function computeShinobigamiDerivedParameters(_parameters, components = {}, conte
 }
 
 // components から特技表の状態を取り出す。古いコマは components 自体を持たないので必ずこれを通す。
+// 【状態を読む唯一の入口】PC/エネミーでspecが変わるので、ここを通しておけば呼び出し側は
+// 型を意識しなくてよい（生命力の自動計算も判定も表のボックスも、これで正しいspecになる）。
 function readSkillTableState(components) {
-  return normalizeSkillTableState(SHINOBIGAMI_SKILL_TABLE, components?.[SKILL_TABLE_COMPONENT_KEY]);
+  return normalizeSkillTableState(skillTableSpecFor(components), components?.[SKILL_TABLE_COMPONENT_KEY]);
 }
 
 // ---------------------------------------------------------------------------
@@ -573,11 +621,13 @@ function resetShinobigamiComponentsOnPhaseEnd(components, phase) {
  * キャラ作成/更新ダイアログのプラグイン専用スペース。
  * 特技表の編集も判定も1つのボックスの中で完結させるため、ここはボタン1つだけ置く。
  */
-function renderShinobigamiCharacterPanel({
-  container, mode, canEdit = true, components, onComponentChange, getComponents, getToken,
-  getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, findTokenByName = null,
-  participants = {}, myParticipantId = null
-}) {
+function renderShinobigamiCharacterPanel(options) {
+  const {
+    container, mode, canEdit = true, components, onComponentChange, getComponents, getToken,
+    getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, findTokenByName = null,
+    participants = {}, myParticipantId = null
+  } = options;
+
   container.innerHTML = '';
 
   const title = document.createElement('h4');
@@ -599,6 +649,39 @@ function renderShinobigamiCharacterPanel({
   // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む。
   const readComponents = () => (getComponents ? getComponents() : components);
 
+  // --- PC / エネミー ---
+  // エネミーは生命力を分野と連動させず（skillTableSpecFor）、背景と人物も持たない。
+  // 出し分けが多岐にわたるので、切り替えたらこのスペースごと組み直す。
+  const isEnemy = isEnemySheet(readComponents());
+
+  const typeRow = document.createElement('label');
+  typeRow.className = 'sf-sheet-type-row';
+
+  const typeCaption = document.createElement('span');
+  typeCaption.textContent = '種別';
+  typeRow.appendChild(typeCaption);
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'sf-sheet-type-select';
+  [[SHEET_TYPE_PC, 'PC'], [SHEET_TYPE_ENEMY, 'エネミー']].forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    typeSelect.appendChild(option);
+  });
+  typeSelect.value = isEnemy ? SHEET_TYPE_ENEMY : SHEET_TYPE_PC;
+  typeSelect.disabled = !canEdit;
+  typeSelect.title = canEdit
+    ? 'エネミーは生命力を分野と連動させず、まとめて数えます。背景と人物も持ちません。'
+    : '表示のみです';
+  typeSelect.addEventListener('change', () => {
+    onComponentChange(SHEET_TYPE_COMPONENT_KEY, typeSelect.value);
+    // 背景・人物のデータは消さずに残す（PCへ戻せばまた開ける）
+    renderShinobigamiCharacterPanel(options);
+  });
+  typeRow.appendChild(typeSelect);
+  container.appendChild(typeRow);
+
   const skillTableBtn = document.createElement('button');
   skillTableBtn.type = 'button';
   skillTableBtn.className = 'dialog-add-row-btn';
@@ -606,14 +689,14 @@ function renderShinobigamiCharacterPanel({
 
   const updateLabel = () => {
     const state = readSkillTableState(readComponents());
-    const life = countRemainingSlots(SHINOBIGAMI_SKILL_TABLE, state).total;
+    const life = countRemainingSlots(skillTableSpecFor(readComponents()), state).total;
     skillTableBtn.textContent = `特技表を開く（取得${state.acquired.length}件・生命力${life}）`;
   };
   updateLabel();
 
   skillTableBtn.addEventListener('click', () => {
     showSkillTableBox({
-      spec: SHINOBIGAMI_SKILL_TABLE,
+      spec: skillTableSpecFor(readComponents()),
       state: readSkillTableState(readComponents()),
       title: '特技表',
       // 他人のコマを表示だけしている時は取得の編集も判定も外す。判定はチャットへログを流し
@@ -626,7 +709,8 @@ function renderShinobigamiCharacterPanel({
       },
       onCheck: canEdit ? (cellId) => {
         runSkillCheck({
-          spec: SHINOBIGAMI_SKILL_TABLE,
+          // 枠を失った分野を代用元から外すかがspecで変わる（エネミーは外さない）
+          spec: skillTableSpecFor(readComponents()),
           state: readSkillTableState(readComponents()),
           targetCellId: cellId,
           token: getToken ? getToken() : null,
@@ -704,28 +788,31 @@ function renderShinobigamiCharacterPanel({
   container.appendChild(ougiBtn);
 
   // --- 背景 ---
-  const backgroundBtn = document.createElement('button');
-  backgroundBtn.type = 'button';
-  backgroundBtn.className = 'dialog-add-row-btn';
-  backgroundBtn.style.marginTop = '8px';
+  // エネミーは背景を持たない。入っているデータは消さずに残す（PCへ戻せばまた開ける）。
+  if (!isEnemy) {
+    const backgroundBtn = document.createElement('button');
+    backgroundBtn.type = 'button';
+    backgroundBtn.className = 'dialog-add-row-btn';
+    backgroundBtn.style.marginTop = '8px';
 
-  const updateBackgroundLabel = () => {
-    backgroundBtn.textContent = `背景を開く（${readBackgroundList(readComponents()).length}件）`;
-  };
-  updateBackgroundLabel();
+    const updateBackgroundLabel = () => {
+      backgroundBtn.textContent = `背景を開く（${readBackgroundList(readComponents()).length}件）`;
+    };
+    updateBackgroundLabel();
 
-  backgroundBtn.addEventListener('click', () => {
-    showSkillBox({
-      spec: SHINOBIGAMI_BACKGROUND_SPEC,
-      skills: readComponents()?.[SHINOBIGAMI_BACKGROUND_SPEC.componentKey] ?? [],
-      readOnly: !canEdit,
-      onSave: (nextList) => {
-        onComponentChange(SHINOBIGAMI_BACKGROUND_SPEC.componentKey, nextList);
-        updateBackgroundLabel();
-      }
+    backgroundBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: SHINOBIGAMI_BACKGROUND_SPEC,
+        skills: readComponents()?.[SHINOBIGAMI_BACKGROUND_SPEC.componentKey] ?? [],
+        readOnly: !canEdit,
+        onSave: (nextList) => {
+          onComponentChange(SHINOBIGAMI_BACKGROUND_SPEC.componentKey, nextList);
+          updateBackgroundLabel();
+        }
+      });
     });
-  });
-  container.appendChild(backgroundBtn);
+    container.appendChild(backgroundBtn);
+  }
 
   // --- 忍具 ---
   // 持ち主以外にはボタンごと出さない。件数だけを見せるという選択肢もあるが、
@@ -761,32 +848,35 @@ function renderShinobigamiCharacterPanel({
   }
 
   // --- 人物 ---
-  const personBtn = document.createElement('button');
-  personBtn.type = 'button';
-  personBtn.className = 'dialog-add-row-btn';
-  personBtn.style.marginTop = '8px';
+  // エネミーは人物を持たない。ボックスごと出ないので、行ごとの「感情修正」もここからは辿れない。
+  if (!isEnemy) {
+    const personBtn = document.createElement('button');
+    personBtn.type = 'button';
+    personBtn.className = 'dialog-add-row-btn';
+    personBtn.style.marginTop = '8px';
 
-  const updatePersonLabel = () => {
-    personBtn.textContent = `人物を開く（${readPersonList(readComponents()).length}件）`;
-  };
-  updatePersonLabel();
+    const updatePersonLabel = () => {
+      personBtn.textContent = `人物を開く（${readPersonList(readComponents()).length}件）`;
+    };
+    updatePersonLabel();
 
-  personBtn.addEventListener('click', () => {
-    showSkillBox({
-      spec: SHINOBIGAMI_PERSON_SPEC,
-      skills: readComponents()?.[SHINOBIGAMI_PERSON_SPEC.componentKey] ?? [],
-      readOnly: !canEdit,
-      onSave: (nextList) => {
-        onComponentChange(SHINOBIGAMI_PERSON_SPEC.componentKey, nextList);
-        updatePersonLabel();
-      },
-      // 感情修正が使う一式。findTokenByNameは部屋の中でだけ渡ってくる。
-      dispatch,
-      generateBuffId,
-      findTokenByName
+    personBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: SHINOBIGAMI_PERSON_SPEC,
+        skills: readComponents()?.[SHINOBIGAMI_PERSON_SPEC.componentKey] ?? [],
+        readOnly: !canEdit,
+        onSave: (nextList) => {
+          onComponentChange(SHINOBIGAMI_PERSON_SPEC.componentKey, nextList);
+          updatePersonLabel();
+        },
+        // 感情修正が使う一式。findTokenByNameは部屋の中でだけ渡ってくる。
+        dispatch,
+        generateBuffId,
+        findTokenByName
+      });
     });
-  });
-  container.appendChild(personBtn);
+    container.appendChild(personBtn);
+  }
 
   // Core側の汎用パラメータ一覧に流し込む値は無い
   // （特技表・忍法・奥義・背景・忍具・人物はcomponents側で即時保存される）。
@@ -831,7 +921,9 @@ function handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEff
   }
 
   runSkillCheck({
-    spec: SHINOBIGAMI_SKILL_TABLE,
+    // 上のfindCellIdByNameは表のデータしか見ないのでどちらのspecでもよいが、判定は
+    // 「枠を失った分野を代用元にできるか」がPC/エネミーで変わるのでこのコマのspecで振る。
+    spec: skillTableSpecFor(token.components),
     state: readSkillTableState(token.components),
     targetCellId: cellId,
     token,
@@ -1173,6 +1265,8 @@ function importShinobigamiCharacterJson(json) {
     labelOverrides: {},
     newParameters: {},
     components: {
+      // キャラクターシートはPCのものなので、種別はPCで作る（後から更新ダイアログで変えられる）
+      [SHEET_TYPE_COMPONENT_KEY]: SHEET_TYPE_PC,
       [SKILL_TABLE_COMPONENT_KEY]: importShinobigamiSkillTableFromSheet(json),
       [SHINOBIGAMI_NINPOU_SPEC.componentKey]: importShinobigamiNinpouFromSheet(json),
       [SHINOBIGAMI_BACKGROUND_SPEC.componentKey]: importShinobigamiBackgroundFromSheet(json),
@@ -1237,6 +1331,7 @@ export const SHINOBIGAMI_PLUGIN = {
 
 // 他プラグイン（インセイン等）や動作確認から参照できるように公開しておく。
 export {
-  SHINOBIGAMI_SKILL_TABLE, SKILL_TABLE_COMPONENT_KEY, SHINOBIGAMI_NINPOU_SPEC,
+  SHINOBIGAMI_SKILL_TABLE, SHINOBIGAMI_ENEMY_SKILL_TABLE,
+  SKILL_TABLE_COMPONENT_KEY, SHEET_TYPE_COMPONENT_KEY, SHINOBIGAMI_NINPOU_SPEC,
   SHINOBIGAMI_BACKGROUND_SPEC, SHINOBIGAMI_TOOL_SPEC, SHINOBIGAMI_PERSON_SPEC
 };

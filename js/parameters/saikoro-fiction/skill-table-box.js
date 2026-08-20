@@ -343,10 +343,14 @@ export function showSkillTableBox({
   }
 
   function render() {
-    // 枠を持つ表では残数も見出しに出す（生命力 5/6 のように、減ったことがすぐ分かるように）
+    // 枠を持つ表では残数も見出しに出す（生命力 5/6 のように、減ったことがすぐ分かるように）。
+    // 列の枠を持たず追加枠だけの表（シノビガミのエネミー）でも出す：そちらは追加枠が
+    // 生命力そのものなので、ここに出ないと残りが読めない。呼び名は持っているほうの枠から取る。
     const slots = countRemainingSlots(spec, current);
-    const slotText = hasColumnSlots(spec)
-      ? `・${spec.slots.column.label} ${slots.total}/${spec.columns.length + current.extraSlotCount}`
+    const slotLabel = spec.slots?.column?.label ?? spec.slots?.extra?.label ?? '';
+    const slotCapacity = (hasColumnSlots(spec) ? spec.columns.length : 0) + current.extraSlotCount;
+    const slotText = slotLabel
+      ? `・${slotLabel} ${slots.total}/${slotCapacity}`
       : '';
     titleEl.textContent = `${title}（取得 ${current.acquired.length}件${slotText}）`;
 

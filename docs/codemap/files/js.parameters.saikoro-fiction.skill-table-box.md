@@ -1,6 +1,6 @@
 ---
 source: js/parameters/saikoro-fiction/skill-table-box.js
-lines: 499
+lines: 503
 exports: 1
 imported_by: 1
 api_sha: b9f5e5502a0a
@@ -35,7 +35,7 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 18 | ensureDialog | `ensureDialog()` | 7 |  |
-| 45 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **454** | ✓ |
+| 45 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **458** | ✓ |
 
 ## 依存
 

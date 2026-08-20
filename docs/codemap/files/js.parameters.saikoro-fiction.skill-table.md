@@ -1,6 +1,6 @@
 ---
 source: js/parameters/saikoro-fiction/skill-table.js
-lines: 479
+lines: 484
 exports: 27
 imported_by: 3
 api_sha: a13909348f35
@@ -43,15 +43,15 @@ tags: [codemap]
 | 264 | fn | findCellIdByName | `findCellIdByName(spec, rawText)` | 特技名（"隠形術"）または「分野:出目」（"忍術:7" / "ninjutsu:7"）からセルIDを引く。 |
 | 287 | fn | createEmptySkillTableState | `createEmptySkillTableState(spec)` | --------------------------------------------------------------------------- 状態（キャラクターの components.skillTable… |
 | 301 | fn | normalizeSkillTableState | `normalizeSkillTableState(spec, raw)` | 保存済みデータを安全な形に正規化する。 |
-| 330 | fn | isAcquired | `isAcquired(state, cellId)` |  |
-| 334 | fn | isGapFilled | `isGapFilled(state, gapIndex)` |  |
-| 339 | fn | toggleAcquired | `toggleAcquired(state, cellId)` | 取得状態をトグルした新しいstateを返す（元のstateは変更しない） |
-| 351 | fn | toggleCyclic | `toggleCyclic(state)` | 左右を繋ぐかをトグルした新しいstateを返す。 |
-| 356 | fn | toggleGap | `toggleGap(state, gapIndex)` | ギャップの塗りつぶしをトグルした新しいstateを返す |
-| 373 | fn | columnDistance | `columnDistance(spec, state, colA, colB)` | 列Aから列Bまでの横方向の距離。 |
-| 410 | fn | cellDistance | `cellDistance(spec, state, cellIdA, cellIdB)` | セル間の距離。 |
-| 428 | fn | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 目標のセルに一番近い「取得済み」のセルを探す。 |
-| 461 | fn | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 目標の特技に対する判定内容を解決する。 |
+| 335 | fn | isAcquired | `isAcquired(state, cellId)` |  |
+| 339 | fn | isGapFilled | `isGapFilled(state, gapIndex)` |  |
+| 344 | fn | toggleAcquired | `toggleAcquired(state, cellId)` | 取得状態をトグルした新しいstateを返す（元のstateは変更しない） |
+| 356 | fn | toggleCyclic | `toggleCyclic(state)` | 左右を繋ぐかをトグルした新しいstateを返す。 |
+| 361 | fn | toggleGap | `toggleGap(state, gapIndex)` | ギャップの塗りつぶしをトグルした新しいstateを返す |
+| 378 | fn | columnDistance | `columnDistance(spec, state, colA, colB)` | 列Aから列Bまでの横方向の距離。 |
+| 415 | fn | cellDistance | `cellDistance(spec, state, cellIdA, cellIdB)` | セル間の距離。 |
+| 433 | fn | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 目標のセルに一番近い「取得済み」のセルを探す。 |
+| 466 | fn | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 目標の特技に対する判定内容を解決する。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（27）
 
@@ -77,16 +77,16 @@ tags: [codemap]
 | 244 | getCell | `getCell(spec, cellId)` | 15 | ✓ |
 | 264 | findCellIdByName | `findCellIdByName(spec, rawText)` | 18 | ✓ |
 | 287 | createEmptySkillTableState | `createEmptySkillTableState(spec)` | 6 | ✓ |
-| 301 | normalizeSkillTableState | `normalizeSkillTableState(spec, raw)` | 28 | ✓ |
-| 330 | isAcquired | `isAcquired(state, cellId)` | 3 | ✓ |
-| 334 | isGapFilled | `isGapFilled(state, gapIndex)` | 3 | ✓ |
-| 339 | toggleAcquired | `toggleAcquired(state, cellId)` | 6 | ✓ |
-| 351 | toggleCyclic | `toggleCyclic(state)` | 3 | ✓ |
-| 356 | toggleGap | `toggleGap(state, gapIndex)` | 6 | ✓ |
-| 373 | columnDistance | `columnDistance(spec, state, colA, colB)` | 32 | ✓ |
-| 410 | cellDistance | `cellDistance(spec, state, cellIdA, cellIdB)` | 7 | ✓ |
-| 428 | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 20 | ✓ |
-| 461 | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 18 | ✓ |
+| 301 | normalizeSkillTableState | `normalizeSkillTableState(spec, raw)` | 33 | ✓ |
+| 335 | isAcquired | `isAcquired(state, cellId)` | 3 | ✓ |
+| 339 | isGapFilled | `isGapFilled(state, gapIndex)` | 3 | ✓ |
+| 344 | toggleAcquired | `toggleAcquired(state, cellId)` | 6 | ✓ |
+| 356 | toggleCyclic | `toggleCyclic(state)` | 3 | ✓ |
+| 361 | toggleGap | `toggleGap(state, gapIndex)` | 6 | ✓ |
+| 378 | columnDistance | `columnDistance(spec, state, colA, colB)` | 32 | ✓ |
+| 415 | cellDistance | `cellDistance(spec, state, cellIdA, cellIdB)` | 7 | ✓ |
+| 433 | findNearestAcquired | `findNearestAcquired(spec, state, targetCellId)` | 20 | ✓ |
+| 466 | resolveSkillCheck | `resolveSkillCheck(spec, state, targetCellId)` | 18 | ✓ |
 
 ## 依存
 

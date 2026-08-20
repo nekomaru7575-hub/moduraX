@@ -3,12 +3,20 @@
 // 取得するクライアント共通モジュール。一覧はシステム選択欄の中身に、システム情報は
 // チャット入力がダイスコマンドかどうかの判定とルーム設定のヘルプ表示に使う。
 //
-// 取得先は自サーバーの /api/bcdice/*（Redisで既定30日キャッシュしている中継）。
-// サーバー側が落ちている・古い版が動いている場合だけBCDice本体へ直接取りに行く
-// （BCDice APIはCORSを許可しているのでブラウザから直接叩ける）。
+// 取得先はBCDice本体（bcdice.onlinesession.app）へ直接。BCDice APIはCORSを許可している
+// ので、ブラウザから直接叩ける（js/BCdice.jsのrollBCDiceが以前からそうしている）。
+// 直接叩けない場合だけ、自サーバーの中継 /api/bcdice/*（Redisで既定30日キャッシュ）へ回る。
+//
+// 【この順序にした理由】以前は逆で、自サーバーを一次・BCDice本体を控えにしていた。
+// /api/bcdice/* はCORS回避のための中継ではなく、キャッシュと堅牢化のための中継なので、
+// 「自サーバーが無いと一覧が出ない」必然性は無い。P2P化の検討（docs/p2p-migration-notes.md）
+// でサーバー依存を1本ずつ剥がしていくにあたり、剥がせるものとして先に入れ替えた。
+// 中継側は消していない：Upstashの帯域を食わずに済む利点は今も効くので、直接叩きが
+// 通らなかったとき（BCDice本体の障害・回線の都合）の控えとして残す。
+//
 // 同じデータを何度も取りに行かないよう、Promiseの単位でメモ化する。
 
-const BCDICE_FALLBACK_BASE_URL = 'https://bcdice.onlinesession.app';
+const BCDICE_BASE_URL = 'https://bcdice.onlinesession.app';
 
 let systemsPromise = null;
 const infoPromises = new Map();
@@ -29,12 +37,14 @@ export function fetchGameSystems() {
   if (!systemsPromise) {
     systemsPromise = (async () => {
       try {
+        const data = await fetchJson(`${BCDICE_BASE_URL}/v2/game_system`);
+        // BCDice本体は1件あたりsort_key等も返すが、こちらで使うのはidとnameだけ。
+        // 中継（下）が返す形もこの2つに揃えてあるので、呼び出し側は違いを見なくてよい。
+        return (data.game_system || []).map(({ id, name }) => ({ id, name }));
+      } catch (error) {
+        console.warn('[bcdice] BCDice本体からのシステム一覧取得に失敗しました:', error.message);
         const data = await fetchJson('/api/bcdice/game_system');
         return data.systems || [];
-      } catch (error) {
-        console.warn('[bcdice] サーバー経由のシステム一覧取得に失敗しました:', error.message);
-        const data = await fetchJson(`${BCDICE_FALLBACK_BASE_URL}/v2/game_system`);
-        return (data.game_system || []).map(({ id, name }) => ({ id, name }));
       }
     })().catch((error) => {
       // 失敗したPromiseを握り続けると再試行できなくなるので、次回は取り直せるようにする
@@ -54,16 +64,18 @@ export function fetchGameSystemInfo(systemId) {
   if (!infoPromises.has(systemId)) {
     const promise = (async () => {
       try {
-        return await fetchJson(`/api/bcdice/game_system/${encodeURIComponent(systemId)}`);
-      } catch (error) {
-        console.warn(`[bcdice] サーバー経由のシステム情報取得に失敗しました (${systemId}):`, error.message);
-        const data = await fetchJson(`${BCDICE_FALLBACK_BASE_URL}/v2/game_system/${encodeURIComponent(systemId)}`);
+        const data = await fetchJson(`${BCDICE_BASE_URL}/v2/game_system/${encodeURIComponent(systemId)}`);
+        // BCDice本体のスネークケースを、このアプリで使う名前へ寄せる。
+        // 中継（下）は同じ変換を済ませた形で返してくるので、ここだけの仕事になる。
         return {
           id: data.id,
           name: data.name,
           commandPattern: data.command_pattern,
           helpMessage: data.help_message
         };
+      } catch (error) {
+        console.warn(`[bcdice] BCDice本体からのシステム情報取得に失敗しました (${systemId}):`, error.message);
+        return await fetchJson(`/api/bcdice/game_system/${encodeURIComponent(systemId)}`);
       }
     })().catch((error) => {
       infoPromises.delete(systemId);

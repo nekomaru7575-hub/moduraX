@@ -493,6 +493,20 @@ function readToolList(components) {
   );
 }
 
+// 忍具を見てよいか。持ち物はそのコマの持ち主だけのものなので、GMも例外にしない
+// （奥義の公開先がGMを自動で含めないのと同じ考え方。js/visibility.js）。
+// 持ち主のいないコマ（NPCや卓で共有しているコマ）は誰でも触れる規則
+// （js/room-authority.jsのcanOperateToken）に合わせ、全員に見せる。
+// 部屋の外のコマ作成ツールもここを通るが、下書きのコマに持ち主は無いので見える。
+//
+// この絞り込みは表示だけで行う（状態自体は今も全員に配られている）。
+// うっかり見えないための仕組みであって、見ようとする相手から守るものでは無い。
+function canViewTools(token, myParticipantId) {
+  const ownerId = token?.ownerId;
+  if (!ownerId) return true;
+  return !!myParticipantId && ownerId === myParticipantId;
+}
+
 // components から正規形の忍法一覧を取り出す。
 function readNinpouList(components) {
   return normalizeSkillList(SHINOBIGAMI_NINPOU_SPEC, components?.[SHINOBIGAMI_NINPOU_SPEC.componentKey] ?? []);
@@ -714,33 +728,37 @@ function renderShinobigamiCharacterPanel({
   container.appendChild(backgroundBtn);
 
   // --- 忍具 ---
-  const toolBtn = document.createElement('button');
-  toolBtn.type = 'button';
-  toolBtn.className = 'dialog-add-row-btn';
-  toolBtn.style.marginTop = '8px';
+  // 持ち主以外にはボタンごと出さない。件数だけを見せるという選択肢もあるが、
+  // 「計N個」だけでも使ったかどうかが追えてしまうので、存在ごと伏せる。
+  if (canViewTools(getToken ? getToken() : null, myParticipantId)) {
+    const toolBtn = document.createElement('button');
+    toolBtn.type = 'button';
+    toolBtn.className = 'dialog-add-row-btn';
+    toolBtn.style.marginTop = '8px';
 
-  const updateToolLabel = () => {
-    const total = readToolList(readComponents()).reduce((sum, tool) => sum + tool.quantity, 0);
-    toolBtn.textContent = `忍具を開く（計${total}個）`;
-  };
-  updateToolLabel();
+    const updateToolLabel = () => {
+      const total = readToolList(readComponents()).reduce((sum, tool) => sum + tool.quantity, 0);
+      toolBtn.textContent = `忍具を開く（計${total}個）`;
+    };
+    updateToolLabel();
 
-  toolBtn.addEventListener('click', () => {
-    showSkillBox({
-      spec: SHINOBIGAMI_TOOL_SPEC,
-      skills: readComponents()?.[SHINOBIGAMI_TOOL_SPEC.componentKey] ?? [],
-      readOnly: !canEdit,
-      onSave: (nextList) => {
-        onComponentChange(SHINOBIGAMI_TOOL_SPEC.componentKey, nextList);
-        updateToolLabel();
-      },
-      // 使用ボタンはチャットへログを流し、コマの個数も減らす。他人のコマを見ているだけの
-      // 時はreadOnlyがボタンごと封じるので、ここは渡したままでよい。
-      getToken,
-      dispatch
+    toolBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: SHINOBIGAMI_TOOL_SPEC,
+        skills: readComponents()?.[SHINOBIGAMI_TOOL_SPEC.componentKey] ?? [],
+        readOnly: !canEdit,
+        onSave: (nextList) => {
+          onComponentChange(SHINOBIGAMI_TOOL_SPEC.componentKey, nextList);
+          updateToolLabel();
+        },
+        // 使用ボタンはチャットへログを流し、コマの個数も減らす。使ったこと自体は
+        // 卓への宣言なのでこれまでどおりMainタブへ全員に見える形で流す（伏せるのは中身だけ）。
+        getToken,
+        dispatch
+      });
     });
-  });
-  container.appendChild(toolBtn);
+    container.appendChild(toolBtn);
+  }
 
   // --- 人物 ---
   const personBtn = document.createElement('button');

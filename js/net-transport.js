@@ -53,7 +53,11 @@ export function isHostMode() {
  *
  * 既定はWebSocket（今までどおり）。`?net=rtc` が付いているときだけWebRTCを試し、
  * 張れなければWebSocketへ落ちる（＝**併存**。P2Pが成立しない人だけ今までどおりになる）。
- * 既定を入れ替えるのは疎通が確認できてから（docs/p2p-migration-notes.md のStep B）。
+ *
+ * 【2026-08-21 凍結】この経路は疎通実験の段階で止めてある。既定を入れ替える前に、
+ * docs/p2p-migration-notes.md の「4-④ フォールバックを片側にしか作らなかった」を
+ * 必ず読むこと——ホスト側にフォールバックが無いため、参加者がWebSocketへ落ちると
+ * 黙って2つのセッションに割れる（警告も出ない）。
  */
 export function createTransport(handlers) {
   const wantsRtc = new URLSearchParams(location.search).get('net') === 'rtc';

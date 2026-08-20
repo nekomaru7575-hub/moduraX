@@ -521,7 +521,7 @@ const roomMenuBtn = document.getElementById('roomMenuBtn');
 const audioMenuBtn = document.getElementById('audioMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 const roomNameInput = document.getElementById('roomNameInput');
-const roomNameLabel = document.getElementById('roomNameLabel');
+const roomTitle = document.getElementById('roomTitle');
 const exportStateBtn = document.getElementById('exportStateBtn');
 const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
@@ -2273,8 +2273,10 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
   if (roomNameInput && document.activeElement !== roomNameInput && roomNameInput.value !== nextValue) {
     roomNameInput.value = nextValue;
   }
-  if (roomNameLabel) {
-    roomNameLabel.textContent = nextValue ? `— ${nextValue}` : '';
+  // ヘッダーの見出しそのものが部屋名。
+  // 名前がまだ空の部屋で見出しが消えてしまわないよう、そのときだけアプリ名に戻す
+  if (roomTitle) {
+    roomTitle.textContent = nextValue || '🎲 もじゅらX';
   }
 });
 

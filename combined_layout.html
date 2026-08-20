@@ -86,12 +86,6 @@
       flex-shrink: 0;
     }
 
-    .room-name-label {
-      color: #999;
-      font-size: 0.9rem;
-      white-space: nowrap;
-    }
-
     .net-status-connected {
       color: #4caf50;
     }
@@ -2242,11 +2236,6 @@
         text-overflow: ellipsis;
       }
 
-      /* 部屋名は⋮のルーム設定から確認できる。狭い1行を取り合わせない */
-      .room-name-label {
-        display: none;
-      }
-
       .app-container,
       .main-area {
         gap: 0;
@@ -2443,8 +2432,9 @@
 <body>
 
   <div class="app-header">
-    <h1>🎲 もじゅらX</h1>
-    <span id="roomNameLabel" class="room-name-label"></span>
+    <!-- 部屋名を見出しにする（js/main.jsのSTATE_CHANGEDで埋める）。
+         部屋名が未設定の間だけアプリ名を出しておく -->
+    <h1 id="roomTitle">🎲 もじゅらX</h1>
     <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
     <button id="audioMenuBtn" class="room-menu-btn" title="音楽" type="button">♪</button>
     <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>

@@ -13,7 +13,8 @@ const RECONNECT_DELAY_MS = 2000;
 import { store } from './game-store.js';
 import { adoptImportedState } from './state-import.js';
 import { EventBus } from './EventBus.js';
-import { createTransport, CLOSE_CODES } from './net-transport.js';
+import { createTransport, CLOSE_CODES, isHostMode } from './net-transport.js';
+import { startHost } from './net-host.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
@@ -24,7 +25,11 @@ import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 const localDispatch = store.dispatch.bind(store);
 
 // 今つながっている道（js/net-transport.jsの契約）。切れている間はnull。
+// ホスト役として動いている間はずっとnull——自分が権威なので、送る先が上に無い。
 let transport = null;
+
+// ホスト役として動いている場合の中継口（js/net-host.js）。ゲスト・WebSocket時はnull。
+let host = null;
 
 // この接続で一度でもINITを受け取ったか。受け取る前に「不正／未作成の部屋」で切られた場合
 // だけ、繋ぎ直さずに部屋一覧へ案内する（下のhandleClose）。接続は常に1本なので、
@@ -250,27 +255,64 @@ function withStampedChatEntry(action, payload) {
   };
 }
 
+// action発生源（＝dispatchのラッパ）で時刻を1回だけ確定させ、payload.timeとして乗せる。
+// ローカル楽観適用（localDispatch）と送信の両方より前に確定させるので、送信者のローカル・
+// 権威側の適用・他クライアントへの中継適用は全員この確定済みの値を見ることになり、
+// 誰も自分の時計でDate.now()を呼び直さない（js/game-store.jsのwithChatEntry/withSystemLogが
+// payload.timeを尊重する）。呼び出し側が渡したpayload自体は書き換えず、新しいオブジェクトを
+// 作って使う（js/game-store.jsと同じく、渡された引数を破壊的に書き換えない流儀に揃える）。
+// チャットの発言に刻むid・ownerIdも同じ理由でここで確定させる（withStampedChatEntry）。
+function stampPayload(action, payload) {
+  const time = Number.isFinite(payload?.time) ? payload.time : Date.now();
+  return withStampedChatEntry(action, { ...(payload || {}), time });
+}
+
 export function initNetSync() {
-  // ローカルでの操作をサーバーへ転送する。サーバー由来のアクション適用はlocalDispatchを
+  if (isHostMode()) {
+    initAsHost();
+    return;
+  }
+
+  // ローカルでの操作を権威へ転送する。権威由来のアクション適用はlocalDispatchを
   // 直接呼ぶため、ここは通らない（再送信ループにならない）。
-  //
-  // action発生源（＝ここ）で時刻を1回だけ確定させ、payload.timeとして乗せる。ローカル楽観適用
-  // （localDispatch）と送信（transport.send）の両方より前に確定させるので、送信者のローカル・
-  // サーバーの権威適用・他クライアントへの中継適用は全員この確定済みの値を見ることになり、
-  // 誰も自分の時計でDate.now()を呼び直さない（js/game-store.jsのwithChatEntry/withSystemLogが
-  // payload.timeを尊重する）。呼び出し側が渡したpayload自体は書き換えず、新しいオブジェクトを
-  // 作って使う（js/game-store.jsと同じく、渡された引数を破壊的に書き換えない流儀に揃える）。
-  // チャットの発言に刻むid・ownerIdも同じ理由でここで確定させる（withStampedChatEntry）。
   store.dispatch = (action, payload) => {
-    const time = Number.isFinite(payload?.time) ? payload.time : Date.now();
-    const stampedPayload = withStampedChatEntry(action, { ...(payload || {}), time });
-
+    const stampedPayload = stampPayload(action, payload);
     localDispatch(action, stampedPayload);
-
     transport?.send({ type: 'ACTION', action, payload: stampedPayload });
   };
 
   connect();
+}
+
+// ホスト役として動く（`?net=rtc&host=1`）。この画面のstoreがそのまま部屋の権威になり、
+// 送り先は「繋がっている参加者たち」になる。トランスポート（transport）は持たない——
+// 自分より上の権威が無いので、送る相手が居ない。
+//
+// 【スパイクの範囲】js/net-host.jsの冒頭を参照。永続化が無いので、このタブを閉じると
+// 部屋の状態は消える。
+function initAsHost() {
+  console.info('[net-sync] ホスト役として動きます（この画面が部屋の権威になります）');
+
+  host = startHost({
+    applyRemote: localDispatch,
+    // サーバーから貰う部屋の初期値。ここから先は自分が権威なので、以後サーバーの
+    // 言うことは聞かない（js/net-signaling.jsのonServerInitは1回だけ呼ばれる）。
+    onSeeded: (state) => {
+      store.hydrate(state);
+      EventBus.emit('NET_STATUS_CHANGED', 'connected');
+      // 参加者としての名乗り等のきっかけ。ゲストのINIT受信時と同じ役割
+      // （js/main.jsがこれを待っている）。
+      EventBus.emit('NET_INITIALIZED', state);
+    }
+  });
+
+  store.dispatch = (action, payload) => {
+    const stampedPayload = stampPayload(action, payload);
+    localDispatch(action, stampedPayload);
+    host.broadcast({ type: 'ACTION', action, payload: stampedPayload });
+  };
+
+  EventBus.emit('NET_STATUS_CHANGED', 'connecting');
 }
 
 // この接続での名乗りをサーバーへ伝える。表示名から導出した公開ID（participantId）と、
@@ -279,6 +321,11 @@ export function initNetSync() {
 // 接続が切れるとサーバーは忘れるので、値はidentityToSendに覚えておき、繋がるたび
 // （open・INIT）にflushIdentifyで送り直す。まだ繋がっていない間に呼ばれても取りこぼさない。
 // nameは入室メッセージ用のニックネーム（サーバーは状態を持たないため、名乗りのたびに渡す）。
+//
+// ホスト役のときは送り先が無いので、flushIdentifyは空振りする（transportがnull）。
+// それでよい：自分の名乗りを自分で検算しても意味が無く、画面の描き直しに要る
+// IDENTITY_CHANGEDはjs/main.js側が既に撃っている。developerIdentityがfalseのままなのも
+// 正しい——開発用の合言葉はサーバーの環境変数で、ホストには判定材料が無い。
 export function sendIdentify(participantId, authToken, name) {
   // 名乗り直しの結果が返るまでは、前の名乗りで得た権限を持ち越さない
   developerIdentity = false;
@@ -338,6 +385,14 @@ export function replaceState(newState) {
     myBackyardOwnerLocalId: getLocalUserId()
   });
   store.hydrate(adopted);
+
+  // ホスト役のときは自分が権威なので、送るのではなく配る。データURLの複製し直し
+  // （サーバー側のadoptStateMedia）に当たるものは無いので、画像は読み込んだ形のまま
+  // 全員へ渡ることになる——スパイクの割り切り（js/net-host.js冒頭）。
+  if (host) {
+    host.broadcast({ type: 'INIT', state: store.state });
+    return;
+  }
 
   transport?.send({ type: 'REPLACE_STATE', state: adopted });
 }

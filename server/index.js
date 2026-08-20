@@ -2675,6 +2675,49 @@ wss.on('connection', async (ws, req) => {
     // 認証前は他のメッセージを受け付けない（名乗りも操作も削除も）
     if (!entryAuthorized) return;
 
+    // --- WebRTCのシグナリング中継（P2P化の実験。docs/p2p-migration-notes.md） ---
+    // ホスト権威P2Pでも「相手を見つける仲介」だけは誰かがやらないといけない。第三者の
+    // 公開シグナリング（Trystero・PeerJS）に部屋の生死を預けるより、どのみち残るこの
+    // サーバーに郵便受けを1つ置く方が短い。運ぶのはSDPとICE候補だけで、**中身は一切
+    // 解釈しない**（解釈すると、ここがまた「知っていなければならないサーバー」に戻る）。
+    //
+    // 部屋の中でしか届かない：宛先は同じentry.clientsの中からしか探さない。入室パスワードの
+    // 照合より後に置いてあるのも同じ理由で、通っていない接続はここへ来られない。
+    if (message.type === 'SIGNAL_HELLO') {
+      // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
+      if (ws.signalPeerId) return;
+      ws.signalPeerId = randomUUID();
+      ws.isSignalHost = !!message.host;
+
+      const host = Array.from(entry.clients).find((client) => client.isSignalHost);
+      ws.send(JSON.stringify({
+        type: 'SIGNAL_WELCOME',
+        peerId: ws.signalPeerId,
+        // ホスト自身にはhostPeerIdを返さない（自分に繋ぎに行かせないため）
+        hostPeerId: ws.isSignalHost ? null : (host?.signalPeerId ?? null)
+      }));
+
+      // ホストより先に来て待っているゲストへ「ホストが来た」と伝える。これが無いと、
+      // 部屋を開くより先に参加者が入っていた場合、誰も繋ぎに行かないまま止まる。
+      if (ws.isSignalHost) {
+        entry.clients.forEach((client) => {
+          if (client === ws || !client.signalPeerId || client.isSignalHost) return;
+          if (client.readyState !== WebSocket.OPEN) return;
+          client.send(JSON.stringify({ type: 'SIGNAL_HOST_READY', hostPeerId: ws.signalPeerId }));
+        });
+      }
+      return;
+    }
+
+    if (message.type === 'SIGNAL') {
+      if (!ws.signalPeerId) return;
+      const target = Array.from(entry.clients)
+        .find((client) => client.signalPeerId === String(message.to || ''));
+      if (!target || target.readyState !== WebSocket.OPEN) return;
+      target.send(JSON.stringify({ type: 'SIGNAL', from: ws.signalPeerId, payload: message.payload }));
+      return;
+    }
+
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
     if (message.type === 'IDENTIFY') {

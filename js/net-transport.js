@@ -23,6 +23,7 @@
 // createTransportを呼ぶたびに新しい接続が1本できる、と考えてよい。
 
 import { createWebSocketTransport } from './net-transport-ws.js';
+import { createRtcGuestTransport } from './net-transport-rtc.js';
 
 // 切断の理由。もともとWebSocketのcloseコード（server/index.jsのws.close(4000, ...)等）
 // だが、意味はプロトコル側にあってWebSocket固有ではない。WebRTC実装も同じ値を立てて
@@ -34,13 +35,44 @@ export const CLOSE_CODES = {
   ENTRY_REJECTED: 4006 // 入室パスワードを通らなかった（試行回数超過・待ち時間切れ）
 };
 
+// WebRTCを一度も張れなかったら、この読み込みの間はもう試さない。
+// TURNを用意していない以上、張れない相手（Symmetric NAT）とは何度やっても張れないので、
+// 繋ぎ直しのたびに8秒待たされるのが一番たちが悪い。
+let rtcGaveUp = false;
+
+// この画面がホスト役として動くか。`?net=rtc&host=1` のときだけ。
+// スパイクの間は明示指定でよい——「部屋を建てた人が自動でホスト」は部屋一覧
+// （/api/rooms）の作り替えを巻き込むので、成立性が確認できてから。
+export function isHostMode() {
+  const params = new URLSearchParams(location.search);
+  return params.get('net') === 'rtc' && params.get('host') === '1';
+}
+
 /**
  * このページで使うトランスポートを1本作る。
  *
- * 既定はWebSocket（今までどおり）。`?net=rtc` が付いているときだけWebRTCを試す。
- * P2Pは実験中なので、既定を変えるのは疎通が確認できてから
- * （docs/p2p-migration-notes.md のStep B）。
+ * 既定はWebSocket（今までどおり）。`?net=rtc` が付いているときだけWebRTCを試し、
+ * 張れなければWebSocketへ落ちる（＝**併存**。P2Pが成立しない人だけ今までどおりになる）。
+ * 既定を入れ替えるのは疎通が確認できてから（docs/p2p-migration-notes.md のStep B）。
  */
 export function createTransport(handlers) {
-  return createWebSocketTransport(handlers);
+  const wantsRtc = new URLSearchParams(location.search).get('net') === 'rtc';
+  if (!wantsRtc || rtcGaveUp) return createWebSocketTransport(handlers);
+
+  // 一度も開かないまま閉じた＝張れなかった。以後はWebSocketへ。
+  let everOpened = false;
+  return createRtcGuestTransport({
+    onOpen: () => {
+      everOpened = true;
+      handlers.onOpen();
+    },
+    onMessage: handlers.onMessage,
+    onClose: (info) => {
+      if (!everOpened) {
+        rtcGaveUp = true;
+        console.warn('[net-transport] WebRTCで繋がらなかったので、以後はWebSocketで同期します');
+      }
+      handlers.onClose(info);
+    }
+  });
 }

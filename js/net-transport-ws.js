@@ -9,7 +9,10 @@
 
 import { parseUntrustedJson } from './untrusted-json.js';
 
-const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + location.search;
+// WebRTCのシグナリング（js/net-signaling.js）も同じ口へ繋ぐので外へ出しておく。
+// 同じ計算を2か所に書くと、片方だけ直したときに「ダイスは同期するのにP2Pだけ繋がらない」
+// のような分かりにくい壊れ方をする。
+export const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + location.search;
 
 export function createWebSocketTransport({ onOpen, onMessage, onClose }) {
   const ws = new WebSocket(WS_URL);

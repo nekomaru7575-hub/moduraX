@@ -281,7 +281,7 @@ function buildSkillChoices() {
       if (!name) return;
       choices.push({
         value: makeCellId(SHINOBIGAMI_SKILL_TABLE, colIndex, rowIndex),
-        label: `${name}（${roll}）`,
+        label: `${name}`,
         group: column.label
       });
     });

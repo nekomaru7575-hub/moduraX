@@ -1,11 +1,11 @@
 ---
 source: js/stamp-catalog.js
-lines: 38
+lines: 39
 exports: 3
 imported_by: 2
 api_sha: 874d7c25ac62
 prose_sha: 874d7c25ac62
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -27,7 +27,7 @@ _(未記入)_
 |---:|---|---|---|---|
 | 21 | const | STAMP_IMAGE_DIR | `STAMP_IMAGE_DIR` | js/stamp-catalog.js Core（どのゲームシステムでも使える）スタンプの一覧。 |
 | 23 | const | STAMPS | `STAMPS` |  |
-| 37 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
+| 38 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 

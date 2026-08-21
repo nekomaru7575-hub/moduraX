@@ -2,10 +2,10 @@
 source: js/local-identity.js
 lines: 162
 exports: 15
-imported_by: 13
+imported_by: 14
 api_sha: d8594b0ef669
 prose_sha: d8594b0ef669
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -70,7 +70,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.audio-dialog]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.identity-dialog]], [[js.image-upload]], [[js.info-panel]], [[js.main]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]]
+- imported by → [[js.audio-dialog]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.identity-dialog]], [[js.image-upload]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]]
 
 ## 注意
 

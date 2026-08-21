@@ -93,9 +93,15 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                             この欄がそのスキルで意味を持つ条件（シノビガミの「間合は
  *                             攻撃忍法だけ」）。偽なら入力させず、表示・式・ログでも無視する。
  *                             ただし保存値は捨てない（条件が戻ったときに入れ直させないため）。
- *     onUse?: { addToParamId: string }
+ *     onUse?: { addToParamId?: string, paramIdFromField?: string, sign?: 1|-1 }
  *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
  *                             （DX3の上昇侵蝕率 → DX3:corruption）。
+ *                             支払い先が行ごとに変わるなら、addToParamIdの代わりに
+ *                             paramIdFromFieldへ「paramIdが入っている別の欄のkey」を書く
+ *                             （アリアンロッドのコスト種別。選択肢のラベルがログの呼び名になる）。
+ *                             sign:-1で、入力された正の数を減算として払う（MPの消費）。
+ *                             支払いはSET_PARAMETERを通るので、対象はeditable:trueの
+ *                             パラメータに限ること（editable:falseは弾かれる）。
  *   }>,
  *   periods?: Array<{key:string, label:string, fixedMax?:number|string}>,
  *                              回数制限の期間。keyはフェーズ終了のリセット

@@ -911,6 +911,31 @@ const MY_SKILL_SPEC = createSkillSpec({
 残った先頭へ寄る。**保存値の検証には効かない** — `normalizeSkill` は宣言された全選択肢を見る。
 絞り込みを検証にも効かせると、属性を切り替えた瞬間に保存済みの感情が既定へ落ちてしまう。
 
+**`onUse`（使用時に払うコスト）**: その欄の数値を、使用時にパラメータの**基礎値**へ足す。
+
+```js
+// 欄と支払い先が1対1（DX3の上昇侵蝕率）
+{ key: 'encroach', label: '上昇侵蝕率', onUse: { addToParamId: 'DX3:corruption' } }
+
+// 減算（アリアンロッドのMP消費）。入力するのは正の数のまま
+{ key: 'mp', label: 'MP', type: 'number', onUse: { addToParamId: 'ARIANRHOD:MP', sign: -1 } }
+
+// 支払い先を行ごとに選ばせる。paramIdを持つ別の欄のkeyを指す
+{ key: 'costType', label: 'コスト種別', type: 'select', options: [
+    { value: '', label: '（なし）' },
+    { value: 'ARIANRHOD:Fate', label: 'フェイト' },
+    { value: 'core:hp', label: 'HP' } ] },
+{ key: 'costValue', label: 'コスト値', type: 'number',
+  availableWhen: f => !!f.costType,
+  onUse: { paramIdFromField: 'costType', sign: -1 } }
+```
+
+`paramIdFromField` を使うと、ログの呼び名は**選ばれた選択肢のラベル**になる（「コスト値: -2」
+ではなく「フェイト: -2」）。支払いは `SET_PARAMETER` を通るので、**支払い先は `editable: true`
+のパラメータに限ること**（`editable: false` は手入力のガードに弾かれて減らない）。
+`availableWhen` が偽の欄は払わせない（保存値は残っているので、見ないと「その種類には
+無いはずのコスト」を取ってしまう）。
+
 **使わない仕組みは畳める**。既定は全部 `true` 相当なので、宣言しなければ今までどおり。
 
 | 宣言 | 効果 |

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-model.js
-lines: 604
+lines: 610
 exports: 18
-imported_by: 9
+imported_by: 10
 api_sha: 4be371c9a6c9
 prose_sha: 4be371c9a6c9
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -29,22 +29,22 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 41 | const | EXPIRE_PHASE_CHOICES | `EXPIRE_PHASE_CHOICES` | バフの効果時間の選択肢。 |
 | 60 | fn | resolveExpirePhase | `resolveExpirePhase(stored, fallback = null)` | スキルのexpirePhase（保存値）を、ADD_BUFFへ渡す値へ変換する。 |
-| 154 | fn | clampQuantity | `clampQuantity(spec, value)` | 個数を宣言の範囲へ丸める。 |
-| 161 | fn | createSkillSpec | `createSkillSpec(definition)` | id: string, noun: string, このシステムでのスキルの呼び名（DX3なら'エフェクト'）。 |
-| 231 | fn | createListSpec | `createListSpec(definition)` | 「名前・（システム固有の欄）・内容」だけを並べる一覧の宣言。 |
-| 260 | fn | createItemSpec | `createItemSpec(definition)` | 「名前・（システム固有の欄）・効果・個数」を持つアイテムの宣言。 |
-| 273 | fn | isChoiceField | `isChoiceField(field)` | 選択肢から選ぶ欄か（'select' と 'toggle'）。 |
-| 292 | fn | buildSkillUseCommandPattern | `buildSkillUseCommandPattern(spec)` | チャットコマンドの書式「（呼び名）使用（スキル名）」。 |
-| 296 | fn | buildSkillUseCommand | `buildSkillUseCommand(spec, skillName)` |  |
-| 377 | fn | normalizeSkill | `normalizeSkill(spec, raw)` | 保存済みの1件を、欠けたフィールドを補った正規形へ揃える。 |
-| 460 | fn | normalizeSkillList | `normalizeSkillList(spec, rawList)` | componentsに保存された一覧を正規形の配列にする。 |
-| 470 | fn | findSkillByName | `findSkillByName(skills, name)` | 一覧から名前（完全一致）で1件引く。 |
-| 478 | fn | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 修正1件の解析結果（値＋なぜその値になったか）。 |
-| 486 | fn | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 複数の修正のうち、追加欄の値が最も小さいもの（DX3のクリティカル値下限は 一番低い＝一番緩いものを適用する）を1つのmetaにまとめる。 |
-| 504 | fn | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | このスキルを今使えるか。 |
-| 540 | fn | collectModProblems | `collectModProblems(spec, skills, context)` | 修正値の式のうち、評価できず0になったものの説明。 |
-| 564 | fn | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 指定スキルの使用回数を全期間+1した新しい一覧を返す（上限が無い期間も記録だけはしておく）。 |
-| 584 | fn | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | フェーズ終了で、その期間の使用回数を0へ戻す。 |
+| 160 | fn | clampQuantity | `clampQuantity(spec, value)` | 個数を宣言の範囲へ丸める。 |
+| 167 | fn | createSkillSpec | `createSkillSpec(definition)` | id: string, noun: string, このシステムでのスキルの呼び名（DX3なら'エフェクト'）。 |
+| 237 | fn | createListSpec | `createListSpec(definition)` | 「名前・（システム固有の欄）・内容」だけを並べる一覧の宣言。 |
+| 266 | fn | createItemSpec | `createItemSpec(definition)` | 「名前・（システム固有の欄）・効果・個数」を持つアイテムの宣言。 |
+| 279 | fn | isChoiceField | `isChoiceField(field)` | 選択肢から選ぶ欄か（'select' と 'toggle'）。 |
+| 298 | fn | buildSkillUseCommandPattern | `buildSkillUseCommandPattern(spec)` | チャットコマンドの書式「（呼び名）使用（スキル名）」。 |
+| 302 | fn | buildSkillUseCommand | `buildSkillUseCommand(spec, skillName)` |  |
+| 383 | fn | normalizeSkill | `normalizeSkill(spec, raw)` | 保存済みの1件を、欠けたフィールドを補った正規形へ揃える。 |
+| 466 | fn | normalizeSkillList | `normalizeSkillList(spec, rawList)` | componentsに保存された一覧を正規形の配列にする。 |
+| 476 | fn | findSkillByName | `findSkillByName(skills, name)` | 一覧から名前（完全一致）で1件引く。 |
+| 484 | fn | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 修正1件の解析結果（値＋なぜその値になったか）。 |
+| 492 | fn | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 複数の修正のうち、追加欄の値が最も小さいもの（DX3のクリティカル値下限は 一番低い＝一番緩いものを適用する）を1つのmetaにまとめる。 |
+| 510 | fn | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | このスキルを今使えるか。 |
+| 546 | fn | collectModProblems | `collectModProblems(spec, skills, context)` | 修正値の式のうち、評価できず0になったものの説明。 |
+| 570 | fn | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 指定スキルの使用回数を全期間+1した新しい一覧を返す（上限が無い期間も記録だけはしておく）。 |
+| 590 | fn | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | フェーズ終了で、その期間の使用回数を0へ戻す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（24）
 
@@ -54,34 +54,34 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 60 | resolveExpirePhase | `resolveExpirePhase(stored, fallback = null)` | 5 | ✓ |
-| 154 | clampQuantity | `clampQuantity(spec, value)` | 6 | ✓ |
-| 161 | createSkillSpec | `createSkillSpec(definition)` | 53 | ✓ |
-| 231 | createListSpec | `createListSpec(definition)` | 13 | ✓ |
-| 260 | createItemSpec | `createItemSpec(definition)` | 3 | ✓ |
-| 273 | isChoiceField | `isChoiceField(field)` | 3 | ✓ |
-| 278 | defaultSelectValue | `defaultSelectValue(field)` | 3 |  |
-| 284 | escapeRegExp | `escapeRegExp(text)` | 3 |  |
-| 292 | buildSkillUseCommandPattern | `buildSkillUseCommandPattern(spec)` | 3 | ✓ |
-| 296 | buildSkillUseCommand | `buildSkillUseCommand(spec, skillName)` | 3 | ✓ |
-| 300 | toNumber | `toNumber(value, fallback = 0)` | 4 |  |
-| 307 | normalizeLimitMax | `normalizeLimitMax(raw)` | 5 |  |
-| 315 | modsFromLegacyCombo | `modsFromLegacyCombo(spec, combo)` | 25 |  |
-| 341 | normalizeMod | `normalizeMod(spec, raw)` | 20 |  |
-| 362 | normalizeCondition | `normalizeCondition(raw)` | 7 |  |
-| 377 | normalizeSkill | `normalizeSkill(spec, raw)` | 74 | ✓ |
-| 460 | normalizeSkillList | `normalizeSkillList(spec, rawList)` | 8 | ✓ |
-| 470 | findSkillByName | `findSkillByName(skills, name)` | 3 | ✓ |
-| 478 | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 3 | ✓ |
-| 486 | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 11 | ✓ |
-| 504 | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | 31 | ✓ |
-| 540 | collectModProblems | `collectModProblems(spec, skills, context)` | 19 | ✓ |
-| 564 | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 14 | ✓ |
-| 584 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 20 | ✓ |
+| 160 | clampQuantity | `clampQuantity(spec, value)` | 6 | ✓ |
+| 167 | createSkillSpec | `createSkillSpec(definition)` | 53 | ✓ |
+| 237 | createListSpec | `createListSpec(definition)` | 13 | ✓ |
+| 266 | createItemSpec | `createItemSpec(definition)` | 3 | ✓ |
+| 279 | isChoiceField | `isChoiceField(field)` | 3 | ✓ |
+| 284 | defaultSelectValue | `defaultSelectValue(field)` | 3 |  |
+| 290 | escapeRegExp | `escapeRegExp(text)` | 3 |  |
+| 298 | buildSkillUseCommandPattern | `buildSkillUseCommandPattern(spec)` | 3 | ✓ |
+| 302 | buildSkillUseCommand | `buildSkillUseCommand(spec, skillName)` | 3 | ✓ |
+| 306 | toNumber | `toNumber(value, fallback = 0)` | 4 |  |
+| 313 | normalizeLimitMax | `normalizeLimitMax(raw)` | 5 |  |
+| 321 | modsFromLegacyCombo | `modsFromLegacyCombo(spec, combo)` | 25 |  |
+| 347 | normalizeMod | `normalizeMod(spec, raw)` | 20 |  |
+| 368 | normalizeCondition | `normalizeCondition(raw)` | 7 |  |
+| 383 | normalizeSkill | `normalizeSkill(spec, raw)` | 74 | ✓ |
+| 466 | normalizeSkillList | `normalizeSkillList(spec, rawList)` | 8 | ✓ |
+| 476 | findSkillByName | `findSkillByName(skills, name)` | 3 | ✓ |
+| 484 | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 3 | ✓ |
+| 492 | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 11 | ✓ |
+| 510 | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | 31 | ✓ |
+| 546 | collectModProblems | `collectModProblems(spec, skills, context)` | 19 | ✓ |
+| 570 | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 14 | ✓ |
+| 590 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 20 | ✓ |
 
 ## 依存
 
 - import → [[js.parameters.skill.skill-formula]]
-- imported by → [[js.dice-draft-panel]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
+- imported by → [[js.dice-draft-panel]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
 
 ## 注意
 

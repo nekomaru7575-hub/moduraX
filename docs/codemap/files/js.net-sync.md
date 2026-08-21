@@ -1,11 +1,11 @@
 ---
 source: js/net-sync.js
-lines: 370
+lines: 399
 exports: 9
 imported_by: 3
 api_sha: 4fc499cfc0b5
 prose_sha: 4fc499cfc0b5
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -26,16 +26,16 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 47 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
-| 265 | fn | initNetSync | `initNetSync()` |  |
-| 296 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
-| 309 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
-| 318 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
-| 327 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
-| 335 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
-| 342 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
-| 351 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
+| 270 | fn | initNetSync | `initNetSync()` |  |
+| 329 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
+| 342 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
+| 349 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
+| 356 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
+| 362 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
+| 367 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
+| 374 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（15）
+## トップレベル関数（LOCAL TASKS 候補）（20）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -44,23 +44,28 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 |---:|---|---|---:|:-:|
 | 47 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
 | 53 | askEntryPassword | `askEntryPassword({ error })` | 10 |  |
-| 66 | sendJoin | `sendJoin()` | 10 |  |
-| 81 | flushIdentify | `flushIdentify()` | 5 |  |
-| 87 | connect | `connect()` | 146 |  |
-| 236 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
-| 252 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
-| 265 | initNetSync | `initNetSync()` | 24 | ✓ |
-| 296 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
-| 309 | requestChatSendSound | `requestChatSendSound()` | 5 | ✓ |
-| 318 | sendStamp | `sendStamp(stampId)` | 5 | ✓ |
-| 327 | requestRoomDeletion | `requestRoomDeletion()` | 5 | ✓ |
-| 335 | sendTypingStart | `sendTypingStart()` | 5 | ✓ |
-| 342 | sendTypingStop | `sendTypingStop()` | 5 | ✓ |
-| 351 | replaceState | `replaceState(newState)` | 19 | ✓ |
+| 66 | sendJoin | `sendJoin()` | 8 |  |
+| 79 | flushIdentify | `flushIdentify()` | 4 |  |
+| 84 | connect | `connect()` | 9 |  |
+| 94 | handleOpen | `handleOpen()` | 6 |  |
+| 103 | handleMessage | `handleMessage(message)` | 90 |  |
+| 195 | handleClose | `handleClose({ code })` | 31 |  |
+| 229 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
+| 245 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
+| 265 | stampPayload | `stampPayload(action, payload)` | 4 |  |
+| 270 | initNetSync | `initNetSync()` | 16 | ✓ |
+| 293 | initAsHost | `initAsHost()` | 24 |  |
+| 329 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
+| 342 | requestChatSendSound | `requestChatSendSound()` | 3 | ✓ |
+| 349 | sendStamp | `sendStamp(stampId)` | 3 | ✓ |
+| 356 | requestRoomDeletion | `requestRoomDeletion()` | 3 | ✓ |
+| 362 | sendTypingStart | `sendTypingStart()` | 3 | ✓ |
+| 367 | sendTypingStop | `sendTypingStop()` | 3 | ✓ |
+| 374 | replaceState | `replaceState(newState)` | 25 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.audio-player]], [[js.game-store]], [[js.local-identity]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]], [[js.untrusted-json]]
+- import → [[js.EventBus]], [[js.audio-player]], [[js.game-store]], [[js.local-identity]], [[js.net-host]], [[js.net-transport]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]]
 - imported by → [[js.main]], [[js.room-authority]], [[js.stamp-layer]]
 
 ## 注意

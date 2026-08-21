@@ -2,10 +2,10 @@
 source: js/read-only-form.js
 lines: 26
 exports: 1
-imported_by: 8
+imported_by: 9
 api_sha: ffcb4929db95
 prose_sha: ffcb4929db95
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.character-dialog]], [[js.parameters.dracurouge-bond-box]], [[js.parameters.dracurouge]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.dx3]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.skill.skill-box]]
+- imported by → [[js.character-dialog]], [[js.parameters.arianrhod-action-set-box]], [[js.parameters.dracurouge-bond-box]], [[js.parameters.dracurouge]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.dx3]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.skill.skill-box]]
 
 ## 注意
 

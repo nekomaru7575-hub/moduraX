@@ -32,31 +32,55 @@ export function buildUseFailureMessage(spec, blocked) {
 }
 
 /**
+ * 支払い先が別の欄で決まるコスト（onUse.paramIdFromField）の、ログに出す呼び名。
+ * 種別の欄が選択肢を持つなら、選ばれた選択肢のラベル（「フェイト」等）をそのまま使う。
+ * 「コスト値: -2」より「フェイト: -2」のほうが、何を払ったのかが読んで分かるため。
+ */
+function costLabelFromField(spec, field, skill) {
+  const sourceKey = field.onUse.paramIdFromField;
+  const sourceField = spec.fields.find(f => f.key === sourceKey);
+  const chosen = sourceField?.options?.find(option => option.value === skill.fields?.[sourceKey]);
+  return chosen?.label || field.label;
+}
+
+/**
  * 使用時に払うコスト（specのfields[].onUseで宣言された欄）を、パラメータごとに合計する。
  * 欄の値は「効果参照」のような非数値も入りうるので、数値化できないものは0として扱う。
+ *
+ * 支払い先の決まり方は2通り。DX3の上昇侵蝕率のように欄と支払い先が1対1なら
+ * `addToParamId`、アリアンロッドのコスト2のように行ごとに種別を選ばせるなら
+ * `paramIdFromField`（同じスキルの別の欄に入っているparamIdを支払い先にする）。
+ * `sign: -1` を付けると、入力された正の数を減算として扱う（MPの消費）。
+ *
  * @returns {Array<{paramId:string, label:string, gain:number}>} 合計が0の項目は含まない
  */
 export function sumSkillCosts(spec, skills) {
   const byParamId = new Map();
 
   spec.fields.forEach(field => {
-    if (!field.onUse?.addToParamId) return;
-    const gain = skills.reduce((sum, skill) => {
+    const onUse = field.onUse;
+    if (!onUse?.addToParamId && !onUse?.paramIdFromField) return;
+    const sign = onUse.sign === -1 ? -1 : 1;
+
+    skills.forEach(skill => {
       // そのスキルで意味を持たない欄は払わせない（保存値は残っているため、
       // ここで見ないと「その種類には無いはずのコスト」を取ってしまう）
-      if (!isFieldAvailable(field, skill.fields)) return sum;
+      if (!isFieldAvailable(field, skill.fields)) return;
       const value = Number(skill.fields?.[field.key]);
-      return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
-    if (!gain) return;
+      if (!Number.isFinite(value) || value === 0) return;
 
-    const paramId = field.onUse.addToParamId;
-    const entry = byParamId.get(paramId) ?? { paramId, label: field.label, gain: 0 };
-    entry.gain += gain;
-    byParamId.set(paramId, entry);
+      // 支払い先が欄で決まる場合、そのスキルで種別が選ばれていなければ払うものが無い
+      const paramId = onUse.addToParamId ?? String(skill.fields?.[onUse.paramIdFromField] ?? '');
+      if (!paramId) return;
+
+      const label = onUse.paramIdFromField ? costLabelFromField(spec, field, skill) : field.label;
+      const entry = byParamId.get(paramId) ?? { paramId, label, gain: 0 };
+      entry.gain += value * sign;
+      byParamId.set(paramId, entry);
+    });
   });
 
-  return [...byParamId.values()];
+  return [...byParamId.values()].filter(entry => entry.gain !== 0);
 }
 
 /**

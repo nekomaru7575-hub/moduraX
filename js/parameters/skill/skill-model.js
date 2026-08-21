@@ -93,6 +93,10 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                             この欄がそのスキルで意味を持つ条件（シノビガミの「間合は
  *                             攻撃忍法だけ」）。偽なら入力させず、表示・式・ログでも無視する。
  *                             ただし保存値は捨てない（条件が戻ったときに入れ直させないため）。
+ *     hideWhenUnavailable?: boolean,
+ *                             availableWhenが偽のとき、薄く出したままにせず欄ごと隠す
+ *                             （アリアンロッドの追加コスト。使う人のほうが少ない欄向け）。
+ *                             既定はfalse＝薄く出したまま押せなくする。
  *     onUse?: { addToParamId?: string, paramIdFromField?: string, sign?: 1|-1 }
  *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
  *                             （DX3の上昇侵蝕率 → DX3:corruption）。

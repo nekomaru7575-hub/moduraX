@@ -69,6 +69,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  /* 見出し付きの欄（.effect-box-field）は背が高いので、入力欄の下端で揃える。
+     見出しを持たないもの（チェック欄・個数・×）が上へ浮かないようにするため。 */
+  align-items: flex-end;
 }
 
 .effect-box-header-row input,
@@ -85,6 +88,39 @@
 .effect-box-header-row .is-unavailable {
   opacity: 0.45;
   color: #999;
+}
+
+/* 入力欄1つと、その上に出す小さな見出し。幅の指定（.effect-box-timing 等）はこの枠に
+   付くので、中の入力欄は枠いっぱいに広げる。 */
+.effect-box-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.effect-box-field > input,
+.effect-box-field > select,
+.effect-box-field > button {
+  width: 100%;
+  /* 枠の幅ぴったりに収める（padding込み。content-boxのままだと枠からはみ出す） */
+  box-sizing: border-box;
+  /* 幅は枠が持つので、中では伸び縮みさせない（縦並びなのでflex-basisは高さになる） */
+  flex: 0 0 auto;
+}
+
+.effect-box-field-label {
+  font-size: 0.7rem;
+  color: #aaa;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 「この種類では使いません」欄は、見出しも一緒に薄くする */
+.effect-box-field.is-unavailable > .effect-box-field-label {
+  opacity: 0.45;
 }
 
 /* 名前欄は他の固定幅項目（タイミング/Lv/上昇侵蝕率）に押しつぶされないよう、

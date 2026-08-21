@@ -1,6 +1,6 @@
 ---
 source: js/parameters/arianrhod.js
-lines: 580
+lines: 584
 exports: 11
 imported_by: 1
 api_sha: c30d2255f777
@@ -28,14 +28,14 @@ tags: [codemap]
 | 60 | const | ARIANRHOD_PARAMETERS | `ARIANRHOD_PARAMETERS` | 全パラメータをlocked:trueにしてある（＝利用者が消せず、既存のコマにも後から補完される）。 |
 | 75 | fn | buildArianrhodCharacterParameters | `buildArianrhodCharacterParameters()` |  |
 | 129 | const | ARIANRHOD_SKILL_SPEC | `ARIANRHOD_SKILL_SPEC` | アリアンロッドのスキルを、汎用の「スキル」として宣言する。 |
-| 184 | const | ARIANRHOD_ITEM_SPEC | `ARIANRHOD_ITEM_SPEC` | 持ち物。 |
-| 205 | const | ARIANRHOD_CONNECTION_SPEC | `ARIANRHOD_CONNECTION_SPEC` | コネクション。 |
-| 218 | fn | readArianrhodSkills | `readArianrhodSkills(components)` | componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。 |
-| 222 | fn | readArianrhodItems | `readArianrhodItems(components)` |  |
-| 226 | fn | readArianrhodConnections | `readArianrhodConnections(components)` |  |
-| 230 | fn | readArianrhodActionSets | `readArianrhodActionSets(components)` |  |
-| 239 | fn | sumItemWeight | `sumItemWeight(items)` | 持ち物の重量の合計。 |
-| 567 | const | ARIANRHOD_PLUGIN | `ARIANRHOD_PLUGIN` |  |
+| 188 | const | ARIANRHOD_ITEM_SPEC | `ARIANRHOD_ITEM_SPEC` | 持ち物。 |
+| 209 | const | ARIANRHOD_CONNECTION_SPEC | `ARIANRHOD_CONNECTION_SPEC` | コネクション。 |
+| 222 | fn | readArianrhodSkills | `readArianrhodSkills(components)` | componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。 |
+| 226 | fn | readArianrhodItems | `readArianrhodItems(components)` |  |
+| 230 | fn | readArianrhodConnections | `readArianrhodConnections(components)` |  |
+| 234 | fn | readArianrhodActionSets | `readArianrhodActionSets(components)` |  |
+| 243 | fn | sumItemWeight | `sumItemWeight(items)` | 持ち物の重量の合計。 |
+| 571 | const | ARIANRHOD_PLUGIN | `ARIANRHOD_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（11）
 
@@ -45,16 +45,16 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 75 | buildArianrhodCharacterParameters | `buildArianrhodCharacterParameters()` | 3 | ✓ |
-| 218 | readArianrhodSkills | `readArianrhodSkills(components)` | 3 | ✓ |
-| 222 | readArianrhodItems | `readArianrhodItems(components)` | 3 | ✓ |
-| 226 | readArianrhodConnections | `readArianrhodConnections(components)` | 3 | ✓ |
-| 230 | readArianrhodActionSets | `readArianrhodActionSets(components)` | 3 | ✓ |
-| 239 | sumItemWeight | `sumItemWeight(items)` | 7 | ✓ |
-| 249 | computeArianrhodDerivedParameters | `computeArianrhodDerivedParameters(parameters, components = {})` | 5 |  |
-| 256 | renderArianrhodCharacterPanel | `renderArianrhodCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, dispatch, tokenId, allowParameterEdit = false })` | 188 |  |
-| 454 | looksLikeArianrhodChatCommand | `looksLikeArianrhodChatCommand(rawInput)` | 4 |  |
-| 464 | handleArianrhodChatCommand | `handleArianrhodChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId, rollBCDice })` | 92 |  |
-| 559 | resetArianrhodComponentsOnPhaseEnd | `resetArianrhodComponentsOnPhaseEnd(components, phase)` | 7 |  |
+| 222 | readArianrhodSkills | `readArianrhodSkills(components)` | 3 | ✓ |
+| 226 | readArianrhodItems | `readArianrhodItems(components)` | 3 | ✓ |
+| 230 | readArianrhodConnections | `readArianrhodConnections(components)` | 3 | ✓ |
+| 234 | readArianrhodActionSets | `readArianrhodActionSets(components)` | 3 | ✓ |
+| 243 | sumItemWeight | `sumItemWeight(items)` | 7 | ✓ |
+| 253 | computeArianrhodDerivedParameters | `computeArianrhodDerivedParameters(parameters, components = {})` | 5 |  |
+| 260 | renderArianrhodCharacterPanel | `renderArianrhodCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, getEffectiveParameterValue, dispatch, tokenId, allowParameterEdit = false })` | 188 |  |
+| 458 | looksLikeArianrhodChatCommand | `looksLikeArianrhodChatCommand(rawInput)` | 4 |  |
+| 468 | handleArianrhodChatCommand | `handleArianrhodChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId, rollBCDice })` | 92 |  |
+| 563 | resetArianrhodComponentsOnPhaseEnd | `resetArianrhodComponentsOnPhaseEnd(components, phase)` | 7 |  |
 
 ## 依存
 

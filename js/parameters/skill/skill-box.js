@@ -12,7 +12,8 @@
 import { lockFormControls } from '../../read-only-form.js';
 import { analyzeFormula, listFormulaNames, COMPARATORS } from './skill-formula.js';
 import {
-  normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable, isChoiceField, clampQuantity
+  normalizeSkillList, EXPIRE_PHASE_CHOICES, isFieldAvailable, isChoiceField, clampQuantity,
+  buildSkillUseCommand
 } from './skill-model.js';
 import { runItemUse, readItems } from './item-use.js';
 
@@ -849,6 +850,34 @@ export function showSkillBox({
     syncFooter();
   }
 
+  // 使用コマンドをまとめてコピー（チャットパレット用）。spec.hasUseCommandを宣言した
+  // 一覧だけに出す（アイテムのitem.use、使用の概念が無い一覧では実際に送れるコマンドが
+  // 無いため）。保存待ちの編集も含めた画面の今の値から組む（保存前でも名前を確かめて
+  // すぐコピーできるように）。
+  let copyBtn = null;
+  if (spec.hasUseCommand) {
+    copyBtn = createElement('button', 'dialog-add-row-btn', '使用コマンドをコピー');
+    copyBtn.type = 'button';
+    copyBtn.title = `登録した${spec.noun}の「${spec.noun}使用(名前)」をまとめてコピーします。チャットパレットに貼り付けて使えます。`;
+    copyBtn.addEventListener('click', async () => {
+      const lines = collectSkills().map(skill => buildSkillUseCommand(spec, skill.name));
+      if (lines.length === 0) {
+        alert(`登録されている${spec.noun}がありません。`);
+        return;
+      }
+      const originalLabel = copyBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        copyBtn.textContent = 'コピーしました';
+      } catch (error) {
+        alert(`クリップボードへのコピーに失敗しました: ${error.message}`);
+        return;
+      }
+      setTimeout(() => { copyBtn.textContent = originalLabel; }, 1500);
+    });
+    form.appendChild(copyBtn);
+  }
+
   const btnRow = createElement('div', 'dialog-button-row');
   const cancelBtn = createElement('button', null, 'キャンセル');
   cancelBtn.type = 'button';
@@ -865,7 +894,8 @@ export function showSkillBox({
     addBtn.style.display = 'none';
     saveBtn.style.display = 'none';
     cancelBtn.textContent = '閉じる';
-    lockFormControls(form, { keep: [cancelBtn] });
+    // コピーは状態を変えないので、他人の一覧を表示だけしている時も押せたままにする。
+    lockFormControls(form, { keep: [cancelBtn, copyBtn] });
   }
 
   // 画面の行を、componentsへ保存する配列にする。保存ボタン（submit）と、

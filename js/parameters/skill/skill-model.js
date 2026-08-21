@@ -138,6 +138,12 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   allowConditions?: boolean, 既定true。falseにすると「使用条件」を扱わない。
  *                              使用という概念を持たない一覧（ドラクルージュの逸話）のためのもの。
  *                              falseのときは保存時にも条件を書かない（空配列になる）。
+ *   hasUseCommand?: boolean,   既定false。trueにすると一覧の下に「使用コマンドをコピー」
+ *                              ボタンが出て、登録済みの名前から「（呼び名）使用（名前）」を
+ *                              まとめてコピーできる（チャットパレットに貼る用）。
+ *                              buildSkillUseCommandPatternで実際にそのコマンドを受け付けて
+ *                              いる一覧だけをtrueにすること（宣言しただけでは押せる見た目に
+ *                              なるだけで、実際にチャットへ送れるかはプラグイン側の実装次第）。
  *   logNote?: boolean,         既定false。trueにすると使用ログに効果（note）を載せ、
  *                              「修正値バフはありません」の断り書きを出さない。
  *                              修正値をほとんど使わないシステム（ステラナイツのスキル、
@@ -192,7 +198,8 @@ export function createSkillSpec(definition) {
     quantity = null,
     allowNote = true,
     rowActions = [],
-    footerNote = null
+    footerNote = null,
+    hasUseCommand = false
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -227,6 +234,11 @@ export function createSkillSpec(definition) {
     footerNote,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
+    // trueにすると一覧の下に「使用コマンドをコピー」ボタンが出る。宣言したプラグインが
+    // buildSkillUseCommandPatternで「◯◯使用(名前)」を実際にチャットコマンドとして
+    // 受け付けている一覧だけをtrueにすること（アイテムはitem.use形式で別物、
+    // 背景・人物・絆のような使用の概念が無い一覧はそもそも押せても送れる先が無い）。
+    hasUseCommand,
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。
     findModTarget: (paramId) => modTargetByParamId.get(paramId) ?? null
   });

@@ -383,7 +383,10 @@ const SHINOBIGAMI_NINPOU_SPEC = createSkillSpec({
   allowExpirePhase: false,
   // 代わりに、使用時のログへ効果（note）を載せる。修正が付かないシステムでは
   // 「その忍法が何をするか」こそ卓が読みたいもので、断り書きは要らない。
-  logNote: true
+  logNote: true,
+  // 「忍法使用(名前)」は下のNINPOU_USE_COMMAND_PATTERNが実際に受け付けているので、
+  // 一覧の下にまとめてコピーするボタンを出す（js/parameters/skill/skill-box.js）。
+  hasUseCommand: true
 });
 
 // 背景。「長所」か「短所」かと、その内容だけを持つ一覧（名前・内容は枠組みの組み込み欄）。

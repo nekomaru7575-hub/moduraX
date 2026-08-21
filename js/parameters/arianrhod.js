@@ -134,7 +134,22 @@ export const ARIANRHOD_SKILL_SPEC = createSkillSpec({
     { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
     { key: 'sl', label: 'SL', type: 'number', className: 'effect-box-level', formulaName: 'SL' },
     {
-      key: 'mp', label: 'MP', type: 'number', className: 'effect-box-encroach',
+      key: 'target', label: '対象', type: 'select',
+      options: [
+        { value: 'self', label: '自身' },
+        { value: 'n', label: 'n体' },
+        { value: 'area', label: '範囲' },
+        { value: 'scene', label: 'シーン' }
+      ]
+    },
+    {
+      key: 'targetCount', label: '体数', type: 'number',
+      availableWhen: fields => fields.target === 'n'
+    },
+    // コストはここから次の段へ。上の段（タイミング・SL・対象）が「何をするスキルか」、
+    // こちらが「何を払うか」で、読むときのまとまりが違う。
+    {
+      key: 'mp', label: 'MP', type: 'number', className: 'effect-box-encroach', newRow: true,
       onUse: { addToParamId: MP_PARAM_ID, sign: -1 }
     },
     // MP以外のコストを持つスキルは多くないので、既定では種別と値の欄を伏せておき、
@@ -154,19 +169,6 @@ export const ARIANRHOD_SKILL_SPEC = createSkillSpec({
       key: 'costValue', label: 'コスト値', type: 'number',
       availableWhen: fields => !!fields.costExtra && !!fields.costType, hideWhenUnavailable: true,
       onUse: { paramIdFromField: 'costType', sign: -1 }
-    },
-    {
-      key: 'target', label: '対象', type: 'select',
-      options: [
-        { value: 'self', label: '自身' },
-        { value: 'n', label: 'n体' },
-        { value: 'area', label: '範囲' },
-        { value: 'scene', label: 'シーン' }
-      ]
-    },
-    {
-      key: 'targetCount', label: '体数', type: 'number',
-      availableWhen: fields => fields.target === 'n'
     }
   ],
   periods: [

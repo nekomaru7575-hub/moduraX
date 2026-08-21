@@ -1,6 +1,6 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 944
+lines: 952
 exports: 1
 imported_by: 5
 api_sha: 160c4976d6de
@@ -43,7 +43,7 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 | 150 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
 | 181 | ensureDialog | `ensureDialog()` | 7 |  |
 | 189 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 214 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **730** | ✓ |
+| 214 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **738** | ✓ |
 
 ## 依存
 

@@ -7,7 +7,7 @@ import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
   checkModifiers,
   hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
-  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic,
+  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic, toggleVerticalCyclic,
   hasCellDisable, isCellDisabled, toggleCellDisabled
 } from './skill-table.js';
 import {
@@ -64,7 +64,8 @@ export function showSkillTableBox({
     extraSlotCount: state.extraSlotCount,
     lostExtraSlots: [...state.lostExtraSlots],
     disabledCells: [...state.disabledCells],
-    cyclic: state.cyclic
+    cyclic: state.cyclic,
+    verticalCyclic: state.verticalCyclic
   };
   const commit = next => {
     current = next;
@@ -264,17 +265,24 @@ export function showSkillTableBox({
   grid.style.gridTemplateColumns = `auto repeat(${spec.columns.length}, 14px minmax(0, 1fr))`;
   form.appendChild(grid);
 
-  // 左右を繋ぐかはキャラクターごとの設定。切り替えると距離＝目標値が変わるので、
-  // 表のすぐ下に置いて今どちらなのかが分かるようにする。
-  const cyclicRow = document.createElement('label');
-  cyclicRow.className = 'sf-skill-table-cyclic';
-  const cyclicBox = document.createElement('input');
-  cyclicBox.type = 'checkbox';
-  cyclicBox.addEventListener('change', () => commit(toggleCyclic(current)));
-  cyclicRow.appendChild(cyclicBox);
-  const cyclicText = document.createElement('span');
-  cyclicRow.appendChild(cyclicText);
-  form.appendChild(cyclicRow);
+  // 左右・上下を繋ぐかはキャラクターごとの設定。切り替えると距離＝目標値が変わるので、
+  // 表のすぐ下に並べて今どちらなのかが分かるようにする。互いに独立で、両方入れれば
+  // 表はトーラスになる。
+  const buildCyclicRow = (onToggle) => {
+    const row = document.createElement('label');
+    row.className = 'sf-skill-table-cyclic';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.addEventListener('change', onToggle);
+    row.appendChild(box);
+    const text = document.createElement('span');
+    row.appendChild(text);
+    form.appendChild(row);
+    return { row, box, text };
+  };
+
+  const cyclic = buildCyclicRow(() => commit(toggleCyclic(current)));
+  const verticalCyclic = buildCyclicRow(() => commit(toggleVerticalCyclic(current)));
 
   const note = document.createElement('div');
   note.className = 'sf-skill-table-note';
@@ -427,18 +435,34 @@ export function showSkillTableBox({
     grid.innerHTML = '';
     grid.classList.toggle('is-check-mode', mode === 'check');
 
-    // --- 左右を繋ぐかの切り替え ---
+    // --- 左右・上下を繋ぐかの切り替え ---
     const first = spec.columns[0].label;
     const last = spec.columns[spec.columns.length - 1].label;
-    cyclicBox.checked = current.cyclic;
-    cyclicBox.disabled = !canEdit;
-    cyclicText.textContent = `表の左右を繋ぐ（${last} の右隣を ${first} にする）`;
-    cyclicRow.title = canEdit
+    const topRoll = spec.rows[0];
+    const bottomRoll = spec.rows[spec.rows.length - 1];
+
+    cyclic.box.checked = current.cyclic;
+    cyclic.box.disabled = !canEdit;
+    cyclic.text.textContent = `表の左右を繋ぐ（${last} の右隣を ${first} にする）`;
+    cyclic.row.title = canEdit
       ? '切り替えると分野間の距離＝目標値が変わります'
       : '表示のみです';
-    note.textContent = current.cyclic
+
+    verticalCyclic.box.checked = current.verticalCyclic;
+    verticalCyclic.box.disabled = !canEdit;
+    verticalCyclic.text.textContent = `表の上下を繋ぐ（${bottomRoll} の下を ${topRoll} にする）`;
+    verticalCyclic.row.title = canEdit
+      ? '切り替えると出目の間の距離＝目標値が変わります'
+      : '表示のみです';
+
+    // 左右と上下は別々に切り替わるので、今どうなっているかを1行にまとめて出す。
+    const horizontalNote = current.cyclic
       ? `左右は繋がっています。左端のギャップが ${last} と ${first} の境目です。`
       : `左右は繋がっていません。${first} と ${last} は表の端から端まで数えます。`;
+    const verticalNote = current.verticalCyclic
+      ? `上下も繋がっています（${bottomRoll} と ${topRoll} は隣どうし）。`
+      : `上下は繋がっていません（${topRoll} と ${bottomRoll} は表の端から端まで数えます）。`;
+    note.textContent = `${horizontalNote}${verticalNote}`;
 
     // 見出し行：左上は空欄、以降は分野名
     const corner = document.createElement('div');

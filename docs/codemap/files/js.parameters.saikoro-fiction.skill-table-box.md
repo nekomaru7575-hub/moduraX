@@ -1,6 +1,6 @@
 ---
 source: js/parameters/saikoro-fiction/skill-table-box.js
-lines: 568
+lines: 592
 exports: 1
 imported_by: 1
 api_sha: b9f5e5502a0a
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-特技表の格子を描画し、習得・ギャップ（分野をまたぐ穴）・失われうる枠（シノビガミの生命力）・マス1つの「使えない印」（シノビガミの変調「マヒ」）・左右を繋ぐかの切り替えと、判定の実行を受け付けるボックス UI。表の中身（特技名・分野名）は一切持たず、渡された spec をそのまま描く。判定モードでは spec.check.modifiers から修正値の入力欄を並べ、その値を onParameterChange 経由でコマのパラメータへ直接書き戻す。データモデルは [[js.parameters.saikoro-fiction.skill-table]]、判定の実行は [[js.parameters.saikoro-fiction.skill-check]]。
+特技表の格子を描画し、習得・ギャップ（分野をまたぐ穴）・失われうる枠（シノビガミの生命力）・マス1つの「使えない印」（シノビガミの変調「マヒ」）・左右／上下を繋ぐかの切り替えと、判定の実行を受け付けるボックス UI。表の中身（特技名・分野名）は一切持たず、渡された spec をそのまま描く。判定モードでは spec.check.modifiers から修正値の入力欄を並べ、その値を onParameterChange 経由でコマのパラメータへ直接書き戻す。データモデルは [[js.parameters.saikoro-fiction.skill-table]]、判定の実行は [[js.parameters.saikoro-fiction.skill-check]]。
 <!-- /prose:role -->
 
 ## export（1）
@@ -35,7 +35,7 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 19 | ensureDialog | `ensureDialog()` | 7 |  |
-| 46 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **522** | ✓ |
+| 46 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **546** | ✓ |
 
 ## 依存
 

@@ -17,6 +17,10 @@
 // specのcyclicはその初期値でしかなく、判定はすべてstate.cyclicを見る。
 // 繋がらない表では gap[0]（表の左端）は存在しないものとして扱い、UIにも出さない。
 //
+// 【上下の結合】表の上端と下端が繋がるか（state.verticalCyclic）も同じくキャラクターごとで、
+// 既定は false＝繋がらない。左右と違って行の間にはギャップが無いので、繋いだときの縦の距離は
+// 単に「近い方の回り」になる。左右とは独立に切り替えられる（両方繋げばトーラス）。
+//
 // 【距離】縦は行の差、横は「列を1つ跨ぐごとに1 ＋ その際に越えるギャップが未塗りつぶしなら1」。
 // 塗りつぶし済みのギャップは0として無視する。円環の場合は左回り・右回りの安い方を採る
 // （ギャップを塗りつぶすと遠回りの方が安くなり得るため）。
@@ -41,6 +45,8 @@ const DEFAULT_CHECK = {
  *   cells: string[][],         cells[列index][行index] = 特技名
  *   cyclic?: boolean,          左端と右端を繋ぐかの初期値（既定: false＝繋がらない）。
  *                              実際に繋ぐかはキャラクターごとに切り替える（state.cyclic）。
+ *   verticalCyclic?: boolean,  上端と下端を繋ぐかの初期値（既定: false＝繋がらない）。
+ *                              こちらもキャラクターごと（state.verticalCyclic）。左右とは独立。
  *   gapFillable?: boolean,     ギャップを塗りつぶせるか（既定: true）
  *   baseTarget?: number,       目標値の基準（既定: 5）
  *   check?: {
@@ -81,6 +87,7 @@ export function createSkillTableSpec(definition) {
     rows,
     cells,
     cyclic = false,
+    verticalCyclic = false,
     gapFillable = true,
     baseTarget = 5,
     check = DEFAULT_CHECK,
@@ -123,7 +130,7 @@ export function createSkillTableSpec(definition) {
   });
 
   return Object.freeze({
-    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check, slots, cellDisable,
+    id, columns, rows, cells, cyclic, verticalCyclic, gapFillable, baseTarget, check, slots, cellDisable,
     gapCount: columns.length,
     cellIndex, nameIndex, columnIndex
   });
@@ -296,7 +303,7 @@ export function findCellIdByName(spec, rawText) {
 export function createEmptySkillTableState(spec) {
   return {
     acquired: [], filledGaps: [], lostColumns: [], extraSlotCount: 0, lostExtraSlots: [],
-    disabledCells: [], cyclic: !!spec?.cyclic
+    disabledCells: [], cyclic: !!spec?.cyclic, verticalCyclic: !!spec?.verticalCyclic
   };
 }
 
@@ -343,10 +350,16 @@ export function normalizeSkillTableState(spec, raw) {
     ? [...new Set(raw.disabledCells.filter(cellId => acquiredSet.has(cellId)))]
     : [];
 
-  // 左右を繋ぐかはキャラクターごとの設定。保存済みの指定が無ければspecの初期値に従う。
+  // 左右・上下を繋ぐかはキャラクターごとの設定。保存済みの指定が無ければspecの初期値に従う。
   const cyclic = typeof raw?.cyclic === 'boolean' ? raw.cyclic : !!spec.cyclic;
+  const verticalCyclic = typeof raw?.verticalCyclic === 'boolean'
+    ? raw.verticalCyclic
+    : !!spec.verticalCyclic;
 
-  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, disabledCells, cyclic };
+  return {
+    acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, disabledCells,
+    cyclic, verticalCyclic
+  };
 }
 
 export function isAcquired(state, cellId) {
@@ -403,6 +416,14 @@ export function toggleCyclic(state) {
   return { ...state, cyclic: !state.cyclic };
 }
 
+/**
+ * 上下を繋ぐかをトグルした新しいstateを返す。
+ * 行の間にはギャップが無いので、こちらは塗りつぶしの状態を気にする必要がない。
+ */
+export function toggleVerticalCyclic(state) {
+  return { ...state, verticalCyclic: !state.verticalCyclic };
+}
+
 /** ギャップの塗りつぶしをトグルした新しいstateを返す */
 export function toggleGap(state, gapIndex) {
   const filledGaps = isGapFilled(state, gapIndex)
@@ -455,15 +476,26 @@ export function columnDistance(spec, state, colA, colB) {
 }
 
 /**
+ * 行Aから行Bまでの縦方向の距離。
+ * 行の間にはギャップが無いので単純な差。上下を繋ぐ設定なら近い方の回りを返す。
+ * 円環かどうかはキャラクターごとの設定（state.verticalCyclic）なので、specではなくstateを見る。
+ */
+export function rowDistance(spec, state, rowA, rowB) {
+  const straight = Math.abs(rowA - rowB);
+  if (!state.verticalCyclic) return straight;
+  return Math.min(straight, spec.rows.length - straight);
+}
+
+/**
  * セル間の距離。横（ギャップを含む）と縦（行の差）は互いに独立なので単純な和になる。
- * 縦方向は繋がらない（表の上端と下端は円環にしない）。
+ * 上下を繋ぐかは左右とは別の設定で、両方繋げば表はトーラスになる。
  */
 export function cellDistance(spec, state, cellIdA, cellIdB) {
   const a = getCell(spec, cellIdA);
   const b = getCell(spec, cellIdB);
   if (!a || !b) return null;
   return columnDistance(spec, state, a.columnIndex, b.columnIndex)
-    + Math.abs(a.rowIndex - b.rowIndex);
+    + rowDistance(spec, state, a.rowIndex, b.rowIndex);
 }
 
 /**

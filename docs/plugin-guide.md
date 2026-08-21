@@ -1034,6 +1034,21 @@ rowActions: [{
 > `js/character-dialog.js` → `renderCharacterPanel`）。探し方はチャットの
 > `バフ>対象コマ名(...)` と同じ完全一致。
 
+#### 一覧の下の1行（`footerNote`）
+
+「全部でいくつになったか」を一覧の下に出す（アリアンロッドの持ち物の重量合計）。
+
+```js
+footerNote: ({ skills, parameters }) => ({
+  text: `携帯重量 ${sumItemWeight(skills)} ／ 重量上限 ${parameters['ARIANRHOD:loadMax']?.value ?? 0}`,
+  warning: sumItemWeight(skills) > (parameters['ARIANRHOD:loadMax']?.value ?? 0)  // trueで赤字
+})
+```
+
+**画面の今の値**（保存待ちの編集・個数の増減も反映済み）で毎回引き直される。同じ合計を
+パラメータにも持たせたいなら、`computeDerivedParameters` から**同じ関数**を呼ぶこと
+（別々に数えると、画面の数字と保存された値が食い違う）。
+
 ### 6.2 特技表（`js/parameters/saikoro-fiction/`）
 
 サイコロ・フィクション系（シノビガミ、インセイン等）の「分野 × 出目」の表と、

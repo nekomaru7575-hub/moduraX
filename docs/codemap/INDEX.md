@@ -20,7 +20,7 @@ generated: 2026-08-21
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 109 | 443 | 950 | 27 | 1 |
+| 109 | 450 | 959 | 27 | 1 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
 
@@ -84,9 +84,9 @@ generated: 2026-08-21
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
-| [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 1 | 1 |
+| [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 3 | 1 |
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
-| [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 6 | 1 |
+| [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
 | [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 2 |
 | [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 16 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |

@@ -118,6 +118,10 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   allowNote?: boolean,       既定true。falseにするとメモ欄（note）を出さない。
  *                              行数が多くて1行を低く保ちたい一覧（シノビガミの人物）向け。
  *                              保存する形は変えない（noteは空文字で残る）。
+ *   footerNote?: ({skills, parameters}) => {text:string, warning?:boolean}|null,
+ *                              一覧の下に出す1行（アリアンロッドの「携帯重量／重量上限」）。
+ *                              **画面の今の値**（保存待ちの編集も反映済み）で毎回呼ばれる。
+ *                              warning:trueで赤字になる。ボックスは中身を解釈しない。
  *   rowActions?: Array<{
  *     key: string, label: string,
  *     availableWhen?: (fields) => boolean,   欄と同じ規則で有効/無効が決まる
@@ -181,7 +185,8 @@ export function createSkillSpec(definition) {
     defaultSkills = [],
     quantity = null,
     allowNote = true,
-    rowActions = []
+    rowActions = [],
+    footerNote = null
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -211,6 +216,9 @@ export function createSkillSpec(definition) {
     // item.use / item.gain の対象になる（createItemSpec）。
     quantity: quantity ? Object.freeze({ ...QUANTITY_DEFAULTS, ...quantity }) : null,
     rowActions: Object.freeze(rowActions.map(action => Object.freeze({ ...action }))),
+    // 一覧の下に出す1行（アリアンロッドの「携帯重量／重量上限」）。ボックスは中身を
+    // 解釈せず、返ってきた文字列と警告の有無を描くだけ。
+    footerNote,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。

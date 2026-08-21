@@ -235,6 +235,10 @@ export function showSkillBox({
 
   const rows = [];
 
+  // 一覧の下の1行（spec.footerNote）を引き直す。行の追加・削除・入力・個数の増減から
+  // 呼ばれる。実体は行を全部作ってから下で差し替えるので、それまでは何もしない。
+  let syncFooter = () => {};
+
   function addRow(skill) {
     const item = createElement('div', 'effect-box-item');
 
@@ -389,6 +393,7 @@ export function showSkillBox({
         if (next === quantityState.value) return;
         quantityState.value = next;
         syncQuantity();
+        syncFooter();
         commitNow();
       };
 
@@ -427,6 +432,7 @@ export function showSkillBox({
         if (!runItemUse({ spec, items, item: target, token, dispatch })) return;
         quantityState.value = clampQuantity(spec, quantityState.value - 1);
         syncQuantity();
+        syncFooter();
       });
 
       wrap.appendChild(useBtn);
@@ -440,6 +446,7 @@ export function showSkillBox({
       item.remove();
       const index = rows.findIndex(row => row.item === item);
       if (index !== -1) rows.splice(index, 1);
+      syncFooter();
     });
     headerRow.appendChild(removeBtn);
     item.appendChild(headerRow);
@@ -756,8 +763,13 @@ export function showSkillBox({
     spec.periods.forEach(period => {
       limitControls[period.key].maxInput?.addEventListener('input', validate);
     });
-    // {Lv}のようにフィールドを参照する式があるため、フィールドを直したら検証し直す
-    Object.values(fieldInputs).forEach(input => input.addEventListener('input', validate));
+    // {Lv}のようにフィールドを参照する式があるため、フィールドを直したら検証し直す。
+    // 合計の行（footerNote）も欄の値から決まるので、同じ入力で引き直す
+    // （アリアンロッドの重量を直した瞬間に携帯重量が動く）。
+    Object.values(fieldInputs).forEach(input => {
+      input.addEventListener('input', validate);
+      input.addEventListener('input', () => syncFooter());
+    });
     validate();
 
     listEl.appendChild(item);
@@ -771,8 +783,25 @@ export function showSkillBox({
 
   const addBtn = createElement('button', 'dialog-add-row-btn', `+ ${spec.noun}を追加`);
   addBtn.type = 'button';
-  addBtn.addEventListener('click', () => addRow(null));
+  addBtn.addEventListener('click', () => { addRow(null); syncFooter(); });
   form.appendChild(addBtn);
+
+  // 一覧の下の1行。何を出すかはspecが決め、ボックスは文字列と警告の有無を描くだけ
+  // （アリアンロッドの「携帯重量／重量上限」。上限を超えたら赤字）。
+  if (typeof spec.footerNote === 'function') {
+    const footerEl = createElement('div', 'effect-box-footer');
+    form.appendChild(footerEl);
+
+    syncFooter = () => {
+      // 保存待ちの編集も含めた「画面の今の値」で引く（保存するまで合計が動かないと、
+      // 上限を超えたことに気付けるのが保存の後になってしまう）。
+      const note = spec.footerNote({ skills: collectSkills(), parameters }) ?? null;
+      footerEl.textContent = note?.text ?? '';
+      footerEl.classList.toggle('is-over', !!note?.warning);
+      footerEl.style.display = note?.text ? '' : 'none';
+    };
+    syncFooter();
+  }
 
   const btnRow = createElement('div', 'dialog-button-row');
   const cancelBtn = createElement('button', null, 'キャンセル');

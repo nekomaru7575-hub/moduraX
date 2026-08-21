@@ -12,12 +12,12 @@
 
 import { buildParameters } from './paramFactory.js';
 import {
-  createSkillSpec, normalizeSkillList, resetSkillUsageOnPhaseEnd, findSkillByName,
-  buildSkillUseCommandPattern
+  createSkillSpec, createListSpec, createItemSpec, normalizeSkillList,
+  resetSkillUsageOnPhaseEnd, findSkillByName, buildSkillUseCommandPattern
 } from './skill/skill-model.js';
 import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
-import { showArianrhodAbilityBox } from './arianrhod-ability-box.js';
+import { showArianrhodAbilityBox, normalizeGeneralChecks } from './arianrhod-ability-box.js';
 import {
   showActionSetBox, normalizeActionSetList, findActionSetByName,
   runActionSetActivate, runActionSetCheck, runActionSetDamage
@@ -35,6 +35,10 @@ const DAMAGE_DICE_PARAM_ID = paramId('DdB'); // ダメージダイス修正
 const ATTACK_PARAM_ID = paramId('atk');
 const MP_PARAM_ID = paramId('MP');
 const FATE_PARAM_ID = paramId('Fate');
+// 携帯重量はアイテムの重量×数の合計（computeDerivedParametersが持ち物から出す）。
+// 重量上限は能力値から決まる値なので、能力ボーナスと同じくボックスから入れる。
+const LOAD_PARAM_ID = paramId('load');
+const LOAD_MAX_PARAM_ID = paramId('loadMax');
 
 // BCDiceのシステムID（/api/bcdice/game_systemの一覧の表記と一字一句同じにすること）。
 // 記述子のbcdiceSystemと、行動セットの判定/ダメージロールの両方でこれを使う。
@@ -63,7 +67,9 @@ export const ARIANRHOD_PARAMETERS = [
   { key: 'AnB', label: '判定値修正(AnB)', value: 0, editable: false, visible: false },
   { key: 'DaB', label: '攻撃力修正(DaB)', value: 0, editable: false, visible: false },
   { key: 'DdB', label: 'ダメージダイス修正(DdB)', value: 0, editable: false, visible: false },
-  { key: 'CL', label: 'レベル(CL)', value: 1, editable: false, visible: false }
+  { key: 'CL', label: 'レベル(CL)', value: 1, editable: false, visible: false },
+  { key: 'loadMax', label: '重量上限', value: 0, editable: false, visible: false },
+  { key: 'load', label: '携帯重量', value: 0, editable: false, visible: false }
 ];
 
 export function buildArianrhodCharacterParameters() {
@@ -75,12 +81,30 @@ const ABILITY_CHOICES = ABILITY_BONUSES.map(ability => ({
   paramId: paramId(ability.key), label: ability.label
 }));
 
-// 能力ボーナス・CLのボックスに並べる行。どちらもeditable:falseで更新ダイアログから
+// 能力ボーナス・CL・重量上限のボックスに並べる行。どれもeditable:falseで更新ダイアログから
 // 手入力できないため、コマ作成ツールでのみ編集できる入口をここで持つ。
+// （携帯重量は持ち物から自動で決まるので、入力欄は出さない）
 const ABILITY_BOX_ROWS = [
   ...ABILITY_CHOICES,
-  { paramId: paramId('CL'), label: 'レベル(CL)' }
+  { paramId: paramId('CL'), label: 'レベル(CL)' },
+  { paramId: LOAD_MAX_PARAM_ID, label: '重量上限' }
 ];
+
+// 汎用判定。ルールブックで能力が決まっているものを並べ、修正値と能力の選択だけを
+// 利用者に持たせる（能力はここが既定で、ボックスから変えられる）。
+// 設定はコマのcomponents（GENERAL_CHECK_COMPONENT_KEY）に入る。
+const GENERAL_CHECK_COMPONENT_KEY = 'generalChecks';
+const GENERAL_CHECKS = [
+  { key: 'hit', label: '命中判定', ability: 'DEX' },
+  { key: 'magic', label: '魔術判定', ability: 'INT' },
+  { key: 'song', label: '呪歌判定', ability: 'MND' },
+  { key: 'alchemy', label: '錬金術判定', ability: 'DEX' },
+  { key: 'dodge', label: '回避判定', ability: 'AGI' },
+  { key: 'trapSearch', label: 'トラップ探知判定', ability: 'PER' },
+  { key: 'trapDisarm', label: 'トラップ解除判定', ability: 'DEX' },
+  { key: 'danger', label: '危機感知判定', ability: 'PER' },
+  { key: 'enemyLore', label: 'エネミー識別', ability: 'INT' }
+].map(({ key, label, ability }) => ({ key, label, abilityParamId: paramId(ability) }));
 
 // 更新ダイアログのプラグイン専用スペースに入力欄を出すパラメータ。
 // プラグインが専用スペースを持つと、そのプラグイン由来のパラメータは汎用一覧から外れる
@@ -154,14 +178,78 @@ export const ARIANRHOD_SKILL_SPEC = createSkillSpec({
   ]
 });
 
+// 持ち物。個数を持つアイテムの枠組み（createItemSpec）そのままで、item.use / item.gain と
+// 「使用」ボタンは共通実装が配る（js/parameters/registry.jsのhandlePluginChatCommand）。
+// 足しているのは重量の欄と、一覧の下に出す合計の1行だけ。
+export const ARIANRHOD_ITEM_SPEC = createItemSpec({
+  id: 'arianrhod-item',
+  noun: 'アイテム',
+  componentKey: 'items',
+  quantity: { label: '数' },
+  fields: [
+    { key: 'weight', label: '重量', type: 'number', className: 'effect-box-level' }
+  ],
+  // 携帯重量／重量上限。画面の今の値で毎回引かれるので、重量や数を直した瞬間に動く。
+  // 上限を超えたら赤字になる（skill-box.jsの.effect-box-footer.is-over）。
+  footerNote: ({ skills, parameters }) => {
+    const load = sumItemWeight(skills);
+    const limit = Number(parameters?.[LOAD_MAX_PARAM_ID]?.value) || 0;
+    return {
+      text: `携帯重量 ${load} ／ 重量上限 ${limit}`,
+      warning: load > limit
+    };
+  }
+});
+
+// コネクション。名前と関係だけを並べる一覧で、使用という概念を持たない（createListSpec）。
+export const ARIANRHOD_CONNECTION_SPEC = createListSpec({
+  id: 'arianrhod-connection',
+  noun: 'コネクション',
+  componentKey: 'connections',
+  fields: [
+    { key: 'relation', label: '関係', type: 'text' }
+  ],
+  // 名前と関係の2つだけを持つ一覧なので、内容（note）の欄は出さない
+  allowNote: false
+});
+
 // componentsから正規形のスキル一覧を取り出す（js/parameters/dx3.jsのreadDX3Effectsと同型）。
 // 保存済みが古い形でもここを通せば新しい形として読める。
 export function readArianrhodSkills(components) {
   return normalizeSkillList(ARIANRHOD_SKILL_SPEC, components?.[ARIANRHOD_SKILL_SPEC.componentKey] ?? []);
 }
 
+export function readArianrhodItems(components) {
+  return normalizeSkillList(ARIANRHOD_ITEM_SPEC, components?.[ARIANRHOD_ITEM_SPEC.componentKey] ?? []);
+}
+
+export function readArianrhodConnections(components) {
+  return normalizeSkillList(ARIANRHOD_CONNECTION_SPEC, components?.[ARIANRHOD_CONNECTION_SPEC.componentKey] ?? []);
+}
+
 export function readArianrhodActionSets(components) {
   return normalizeActionSetList(components?.[ACTION_SET_COMPONENT_KEY] ?? []);
+}
+
+/**
+ * 持ち物の重量の合計。1件の重さは「重量 × 数」で、数を持たない古いデータは1個として数える。
+ * 一覧の下の表示（footerNote）と携帯重量の自動計算の両方がこれを使うので、
+ * 画面の値と保存された値が食い違わない。
+ */
+export function sumItemWeight(items) {
+  return items.reduce((total, item) => {
+    const weight = Number(item.fields?.weight);
+    const count = Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 1;
+    return total + (Number.isFinite(weight) ? weight * count : 0);
+  }, 0);
+}
+
+// 持ち物から決まる値（携帯重量）。SET_COMPONENTのたびに呼び直される
+// （js/parameters/registry.jsのapplyPluginDerivedParameters）。
+function computeArianrhodDerivedParameters(parameters, components = {}) {
+  return {
+    [LOAD_PARAM_ID]: sumItemWeight(readArianrhodItems(components))
+  };
 }
 
 // キャラクター作成/更新ダイアログのプラグイン専用スペース。
@@ -206,14 +294,23 @@ function renderArianrhodCharacterPanel({
     return { paramId: rowParamId, input };
   });
 
-  // 能力ボーナス・CL。editable:falseなので、部屋の外のコマ作成ツール
+  // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む
+  const readComponents = () => (getComponents ? getComponents() : components) ?? {};
+  const readSkills = () => readArianrhodSkills(readComponents());
+  const readItems = () => readArianrhodItems(readComponents());
+  const readConnections = () => readArianrhodConnections(readComponents());
+  const readActionSets = () => readArianrhodActionSets(readComponents());
+
+  // 能力ボーナス・CL・重量上限。editable:falseなので、部屋の外のコマ作成ツール
   // （allowParameterEdit:true）でだけ編集できる（DX3の能力値・技能値と同じ扱い）。
+  // 同じボックスの下半分に汎用判定が並ぶ。あちらはcomponentsなので部屋の中でも直せる。
   const canEditAbilityValues = allowParameterEdit && canEdit && typeof dispatch === 'function' && !!tokenId;
+  const canEditChecks = canEdit && !!onComponentChange;
   const abilityBtn = document.createElement('button');
   abilityBtn.type = 'button';
   abilityBtn.className = 'dialog-add-row-btn';
   abilityBtn.style.marginTop = '8px';
-  abilityBtn.textContent = canEditAbilityValues ? '能力ボーナス・レベルを編集' : '能力ボーナス・レベルを表示';
+  abilityBtn.textContent = canEditAbilityValues ? '能力ボーナス・汎用判定を編集' : '能力ボーナス・汎用判定';
   abilityBtn.addEventListener('click', () => {
     // ボックスで保存した後に開き直しても巻き戻らないよう、都度最新のparametersを読む
     const token = getToken ? getToken() : null;
@@ -225,18 +322,23 @@ function renderArianrhodCharacterPanel({
       // 値の上書きを担当する既存のIMPORT_CHARACTER_DATAで書き込む。
       onSave: canEditAbilityValues
         ? (valueOverrides) => dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, valueOverrides })
-        : undefined
+        : undefined,
+      checks: GENERAL_CHECKS,
+      abilityChoices: ABILITY_CHOICES,
+      checkSettings: normalizeGeneralChecks(GENERAL_CHECKS, readComponents()[GENERAL_CHECK_COMPONENT_KEY]),
+      canEditChecks,
+      onChecksChange: canEditChecks
+        ? (nextSettings) => onComponentChange(GENERAL_CHECK_COMPONENT_KEY, nextSettings)
+        : undefined,
+      diceModName: 'AdB',
+      valueModName: 'AnB'
     });
   });
   container.appendChild(abilityBtn);
 
-  // スキル一覧・行動セット一覧。既存のコマの更新時のみ開ける
+  // 各種一覧。既存のコマの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外）。
   if (mode === 'edit' && onComponentChange) {
-    // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む
-    const readComponents = () => (getComponents ? getComponents() : components) ?? {};
-    const readSkills = () => readArianrhodSkills(readComponents());
-    const readActionSets = () => readArianrhodActionSets(readComponents());
 
     const skillBtn = document.createElement('button');
     skillBtn.type = 'button';
@@ -282,6 +384,55 @@ function renderArianrhodCharacterPanel({
       });
     });
     container.appendChild(setBtn);
+
+    // アイテム。個数の増減と「使用」ボタンを出すため、getToken/dispatchも渡す
+    // （渡さないと個数の増減だけになる。js/parameters/skill/skill-box.js）。
+    const itemBtn = document.createElement('button');
+    itemBtn.type = 'button';
+    itemBtn.className = 'dialog-add-row-btn';
+    itemBtn.style.marginTop = '8px';
+    const updateItemBtnLabel = () => {
+      itemBtn.textContent = `${ARIANRHOD_ITEM_SPEC.noun}一覧を開く（${readItems().length}件）`;
+    };
+    updateItemBtnLabel();
+    itemBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: ARIANRHOD_ITEM_SPEC,
+        skills: readItems(),
+        // 一覧の下の「携帯重量／重量上限」が重量上限を読むので、最新のパラメータを渡す
+        parameters: (getToken ? getToken()?.parameters : null) ?? parameters,
+        readOnly: !canEdit,
+        getToken,
+        dispatch,
+        onSave: (nextItems) => {
+          onComponentChange(ARIANRHOD_ITEM_SPEC.componentKey, nextItems);
+          updateItemBtnLabel();
+        }
+      });
+    });
+    container.appendChild(itemBtn);
+
+    const connectionBtn = document.createElement('button');
+    connectionBtn.type = 'button';
+    connectionBtn.className = 'dialog-add-row-btn';
+    connectionBtn.style.marginTop = '8px';
+    const updateConnectionBtnLabel = () => {
+      connectionBtn.textContent = `${ARIANRHOD_CONNECTION_SPEC.noun}一覧を開く（${readConnections().length}件）`;
+    };
+    updateConnectionBtnLabel();
+    connectionBtn.addEventListener('click', () => {
+      showSkillBox({
+        spec: ARIANRHOD_CONNECTION_SPEC,
+        skills: readConnections(),
+        parameters: (getToken ? getToken()?.parameters : null) ?? parameters,
+        readOnly: !canEdit,
+        onSave: (nextConnections) => {
+          onComponentChange(ARIANRHOD_CONNECTION_SPEC.componentKey, nextConnections);
+          updateConnectionBtnLabel();
+        }
+      });
+    });
+    container.appendChild(connectionBtn);
   }
 
   return {
@@ -417,6 +568,9 @@ export const ARIANRHOD_PLUGIN = {
   id: SOURCE,
   label: 'アリアンロッドRPG 2E',
   buildCharacterParameters: buildArianrhodCharacterParameters,
+  computeDerivedParameters: computeArianrhodDerivedParameters,
+  // item.use(名前) / item.gain(名前,n) はこの宣言だけで生える（registry.jsが配る）
+  item: ARIANRHOD_ITEM_SPEC,
   renderCharacterPanel: renderArianrhodCharacterPanel,
   handleChatCommand: handleArianrhodChatCommand,
   looksLikeOwnChatCommand: looksLikeArianrhodChatCommand,

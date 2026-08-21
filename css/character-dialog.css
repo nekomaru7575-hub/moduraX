@@ -237,6 +237,19 @@
   cursor: default;
 }
 
+/* 一覧の下に出す合計の1行（spec.footerNote。アリアンロッドの携帯重量／重量上限）。
+   上限を超えた状態は色でも知らせる（数字だけだと見落とすため） */
+.effect-box-footer {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #fff;
+}
+
+.effect-box-footer.is-over {
+  color: #e06060;
+  font-weight: bold;
+}
+
 .effect-box-toggle.is-alt {
   background-color: #5a3a3a;
   border-color: #8a5555;

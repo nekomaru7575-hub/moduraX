@@ -1,6 +1,6 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 1341
+lines: 1356
 exports: 9
 imported_by: 1
 api_sha: 9f11e7eabafd
@@ -25,15 +25,15 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 31 | const | SKILL_TABLE_COMPONENT_KEY | `SKILL_TABLE_COMPONENT_KEY` | キャラクターの components に特技表を保存するときのキー。 |
-| 160 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` | PC。 |
-| 173 | const | SHINOBIGAMI_ENEMY_SKILL_TABLE | `SHINOBIGAMI_ENEMY_SKILL_TABLE` | エネミー。 |
-| 182 | const | SHEET_TYPE_COMPONENT_KEY | `SHEET_TYPE_COMPONENT_KEY` | 拡張ステータスの型。 |
-| 343 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
-| 395 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
-| 489 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
-| 533 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
-| 1316 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 32 | const | SKILL_TABLE_COMPONENT_KEY | `SKILL_TABLE_COMPONENT_KEY` | キャラクターの components に特技表を保存するときのキー。 |
+| 161 | const | SHINOBIGAMI_SKILL_TABLE | `SHINOBIGAMI_SKILL_TABLE` | PC。 |
+| 174 | const | SHINOBIGAMI_ENEMY_SKILL_TABLE | `SHINOBIGAMI_ENEMY_SKILL_TABLE` | エネミー。 |
+| 183 | const | SHEET_TYPE_COMPONENT_KEY | `SHEET_TYPE_COMPONENT_KEY` | 拡張ステータスの型。 |
+| 344 | const | SHINOBIGAMI_NINPOU_SPEC | `SHINOBIGAMI_NINPOU_SPEC` |  |
+| 396 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
+| 490 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
+| 534 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
+| 1331 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（40）
 
@@ -42,50 +42,50 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 66 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 6 |  |
-| 96 | resolveShinobigamiCheck | `resolveShinobigamiCheck({ options, targetNumber, getParam })` | 33 |  |
-| 186 | readSheetType | `readSheetType(components)` | 3 |  |
-| 190 | isEnemySheet | `isEnemySheet(components)` | 3 |  |
-| 200 | skillTableSpecFor | `skillTableSpecFor(components)` | 3 |  |
-| 255 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
-| 267 | computePlotValue | `computePlotValue(context)` | 4 |  |
-| 273 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
-| 278 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
-| 293 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 12 |  |
-| 309 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
-| 327 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
-| 408 | readBackgroundList | `readBackgroundList(components)` | 5 |  |
-| 432 | buildEmotionChoices | `buildEmotionChoices()` | 5 |  |
-| 439 | emotionGroupOf | `emotionGroupOf(attitude)` | 3 |  |
-| 450 | runEmotionModifier | `runEmotionModifier({ skill, context })` | 38 |  |
-| 518 | readPersonList | `readPersonList(components)` | 5 |  |
-| 541 | readToolList | `readToolList(components)` | 5 |  |
-| 555 | canViewTools | `canViewTools(token, myParticipantId)` | 5 |  |
-| 562 | readNinpouList | `readNinpouList(components)` | 3 |  |
-| 581 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
-| 592 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
-| 599 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
-| 610 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
-| 627 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel(options)` | **261** |  |
-| 898 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
-| 909 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 32 |  |
-| 947 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
-| 1044 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 46 |  |
-| 1091 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
-| 1115 | sheetText | `sheetText(value)` | 3 |  |
-| 1120 | sheetChecked | `sheetChecked(value)` | 3 |  |
-| 1125 | sheetNumber | `sheetNumber(value)` | 4 |  |
-| 1139 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
-| 1160 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
-| 1198 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
-| 1215 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
-| 1227 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
-| 1254 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 26 |  |
-| 1297 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 67 | buildShinobigamiCheckCommand | `buildShinobigamiCheckCommand({ options, targetNumber })` | 6 |  |
+| 97 | resolveShinobigamiCheck | `resolveShinobigamiCheck({ options, targetNumber, getParam })` | 33 |  |
+| 187 | readSheetType | `readSheetType(components)` | 3 |  |
+| 191 | isEnemySheet | `isEnemySheet(components)` | 3 |  |
+| 201 | skillTableSpecFor | `skillTableSpecFor(components)` | 3 |  |
+| 256 | buildShinobigamiCharacterParameters | `buildShinobigamiCharacterParameters()` | 3 |  |
+| 268 | computePlotValue | `computePlotValue(context)` | 4 |  |
+| 274 | computeFumbleBase | `computeFumbleBase(context)` | 3 |  |
+| 279 | computeRoundNumber | `computeRoundNumber(context)` | 3 |  |
+| 294 | computeShinobigamiDerivedParameters | `computeShinobigamiDerivedParameters(_parameters, components = {}, context = {})` | 12 |  |
+| 310 | readSkillTableState | `readSkillTableState(components)` | 3 |  |
+| 328 | buildSkillChoices | `buildSkillChoices()` | 15 |  |
+| 409 | readBackgroundList | `readBackgroundList(components)` | 5 |  |
+| 433 | buildEmotionChoices | `buildEmotionChoices()` | 5 |  |
+| 440 | emotionGroupOf | `emotionGroupOf(attitude)` | 3 |  |
+| 451 | runEmotionModifier | `runEmotionModifier({ skill, context })` | 38 |  |
+| 519 | readPersonList | `readPersonList(components)` | 5 |  |
+| 542 | readToolList | `readToolList(components)` | 5 |  |
+| 556 | canViewTools | `canViewTools(token, myParticipantId)` | 5 |  |
+| 563 | readNinpouList | `readNinpouList(components)` | 3 |  |
+| 582 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
+| 593 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
+| 600 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
+| 611 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
+| 628 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel(options)` | **261** |  |
+| 899 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
+| 910 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 32 |  |
+| 948 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
+| 1047 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 58 |  |
+| 1106 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
+| 1130 | sheetText | `sheetText(value)` | 3 |  |
+| 1135 | sheetChecked | `sheetChecked(value)` | 3 |  |
+| 1140 | sheetNumber | `sheetNumber(value)` | 4 |  |
+| 1154 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
+| 1175 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
+| 1213 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
+| 1230 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
+| 1242 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
+| 1269 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 26 |  |
+| 1312 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 
-- import → [[js.parameters.paramFactory]], [[js.parameters.saikoro-fiction.skill-check]], [[js.parameters.saikoro-fiction.skill-table-box]], [[js.parameters.saikoro-fiction.skill-table]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami-skills]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-model]], [[js.parameters.skill.skill-use]]
+- import → [[js.parameters.paramFactory]], [[js.parameters.saikoro-fiction.skill-check]], [[js.parameters.saikoro-fiction.skill-table-box]], [[js.parameters.saikoro-fiction.skill-table]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami-skills]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-model]], [[js.parameters.skill.skill-use]], [[js.visibility]]
 - imported by → [[js.parameters.registry]]
 
 ## 注意

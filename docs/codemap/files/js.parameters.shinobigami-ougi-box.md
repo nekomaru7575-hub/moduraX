@@ -63,5 +63,5 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+このファイルは公開先(audience)の器を持つだけで、いつ広げるかは決めない。「奥義使用(名前)」を実行すると audience を null（全員）へ固定して二度と伏せられなくする判断は [[js.parameters.shinobigami]] の handleOugiUseCommand 側にある（normalizeOugiList を呼び直して書き戻す）。ここを見て「使っても公開先は変わらない」と早合点しないこと。
 <!-- /prose:notes -->

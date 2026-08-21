@@ -18,8 +18,9 @@ import {
 import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
 import {
-  OUGI_COMPONENT_KEY, showOugiBox, listVisibleOugi, customizationSideLabel
+  OUGI_COMPONENT_KEY, showOugiBox, listVisibleOugi, normalizeOugiList, customizationSideLabel
 } from './shinobigami-ougi-box.js';
+import { isRestricted } from '../visibility.js';
 import { buildParameters } from './paramFactory.js';
 import { showSkillTableBox } from './saikoro-fiction/skill-table-box.js';
 import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/skill-check.js';
@@ -1036,7 +1037,9 @@ function handleNinpouUseCommand(rawInput, context) {
  *
  * ログはMainタブへ流れる（プラグインのコマンドには「今どのタブを見ているか」が渡ってこない。
  * docs/plugin-guide.md 3.4。特技判定・忍法使用も同じ）。
- * 使用しても公開先は変えない：シート上は伏せたまま1回だけ卓に見せる、という使い方のため。
+ * 使うと公開先は全員へ固定する：奥義は使えば卓に知れるもので、ログで1回見せるだけで
+ * シート上は伏せたままにする旧仕様はやめた。以後は誰でもキャラクターダイアログの
+ * 奥義一覧からも読めるようになる（下のisRestricted判定・SET_COMPONENT）。
  *
  * 自分が見られない奥義は名指しでも使えない。名前を知らないはずの人が打ち間違いで
  * 他人の奥義を卓へ晒す事故を防ぐための歯止め（画面側の歯止めで、なりすましは防げない）。
@@ -1058,6 +1061,18 @@ function handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = nul
   if (!ougi) {
     alert(`奥義「${name}」が見つかりません。`);
     return true;
+  }
+
+  // 公開先を全員へ広げる。書き戻すのは全件（見えていない他人の奥義も含む）でないと、
+  // 保存時にそれらが消えてしまう（showOugiBoxの「常に全件」と同じ注意）。
+  // 既に全員公開なら書き換えない（無駄なSET_COMPONENTを出さない）。
+  if (isRestricted(ougi.audience)) {
+    const fullList = normalizeOugiList(token.components?.[OUGI_COMPONENT_KEY]);
+    dispatch('SET_COMPONENT', {
+      id: token.id,
+      componentKey: OUGI_COMPONENT_KEY,
+      value: fullList.map(entry => (entry.id === ougi.id ? { ...entry, audience: null } : entry))
+    });
   }
 
   // 「奥義名」:種類 ／ 効果 ／ 指定特技 ／（あれば）奥義改造。空欄の行は出さない。

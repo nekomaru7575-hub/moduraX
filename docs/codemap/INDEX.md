@@ -132,7 +132,7 @@ generated: 2026-08-21
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 5 |
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
-| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 8 |
+| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 9 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
 | [[server.memory-budget\|server/memory-budget.js]] | 重い操作（部屋の取り込み・書き出し・ファイルのアップロード）が使うメモリを、実際に 読み込む前に見積もって予約する。 | 7 | 1 |
@@ -149,7 +149,7 @@ generated: 2026-08-21
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 10 |
 | [[js.read-only-form\|js/read-only-form.js]] | 9 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
-| [[js.visibility\|js/visibility.js]] | 8 |
+| [[js.visibility\|js/visibility.js]] | 9 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
 | [[js.file-uploader\|js/file-uploader.js]] | 7 |
 

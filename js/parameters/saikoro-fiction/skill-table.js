@@ -21,6 +21,10 @@
 // 塗りつぶし済みのギャップは0として無視する。円環の場合は左回り・右回りの安い方を採る
 // （ギャップを塗りつぶすと遠回りの方が安くなり得るため）。
 // 目標値は baseTarget（シノビガミなら5）＋ 距離。
+//
+// 【使えない印】取得済みのマス1つに付ける印（state.disabledCells。シノビガミの変調「マヒ」）。
+// 印の付いた特技は代用元の候補から外れる＝習得していないものとして距離を測る。
+// 分野ごとの枠の喪失（lostColumns）を1マスに絞ったものだと思えばよい。
 
 // checkを持たないspec向けのフォールバック。オプションは無く、素の2D6で目標値を判定する。
 const DEFAULT_CHECK = {
@@ -63,7 +67,11 @@ const DEFAULT_CHECK = {
  *     extra?: { label: string, max?: number }
  *       表の上にまとめて置く枠。個数はキャラクターごとに決める（state.extraSlotCount）。
  *       maxは入力できる上限（既定12）。
- *   }
+ *   },
+ *   cellDisable?: { label: string }
+ *     マス1つに「使えない」印を付けられるようにする宣言（シノビガミの変調「マヒ」）。
+ *     labelは判定モードに出すボタンの文字。省略すればボタンは出ず、印も付けられない。
+ *     印の付いた特技は**習得していないものとして扱う**（findNearestAcquired）。
  * }} definition
  */
 export function createSkillTableSpec(definition) {
@@ -76,7 +84,8 @@ export function createSkillTableSpec(definition) {
     gapFillable = true,
     baseTarget = 5,
     check = DEFAULT_CHECK,
-    slots = null
+    slots = null,
+    cellDisable = null
   } = definition;
 
   if (!Array.isArray(columns) || columns.length === 0) {
@@ -114,7 +123,7 @@ export function createSkillTableSpec(definition) {
   });
 
   return Object.freeze({
-    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check, slots,
+    id, columns, rows, cells, cyclic, gapFillable, baseTarget, check, slots, cellDisable,
     gapCount: columns.length,
     cellIndex, nameIndex, columnIndex
   });
@@ -287,7 +296,7 @@ export function findCellIdByName(spec, rawText) {
 export function createEmptySkillTableState(spec) {
   return {
     acquired: [], filledGaps: [], lostColumns: [], extraSlotCount: 0, lostExtraSlots: [],
-    cyclic: !!spec?.cyclic
+    disabledCells: [], cyclic: !!spec?.cyclic
   };
 }
 
@@ -326,10 +335,18 @@ export function normalizeSkillTableState(spec, raw) {
     ? [...new Set(raw.lostExtraSlots.filter(i => Number.isInteger(i) && i >= 0 && i < extraSlotCount))]
     : [];
 
+  // 「使えない」印（マヒ）は取得済みのマスにしか乗らない。取得を外したのに印だけ残ると、
+  // 表に出ない印が距離計算にだけ効いてしまう。specがcellDisableを宣言していなくても
+  // 捨てないのは lostColumns と同じ理由（同じキャラクターをPC↔エネミーで読み替えるため）。
+  const acquiredSet = new Set(acquired);
+  const disabledCells = Array.isArray(raw?.disabledCells)
+    ? [...new Set(raw.disabledCells.filter(cellId => acquiredSet.has(cellId)))]
+    : [];
+
   // 左右を繋ぐかはキャラクターごとの設定。保存済みの指定が無ければspecの初期値に従う。
   const cyclic = typeof raw?.cyclic === 'boolean' ? raw.cyclic : !!spec.cyclic;
 
-  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, cyclic };
+  return { acquired, filledGaps, lostColumns, extraSlotCount, lostExtraSlots, disabledCells, cyclic };
 }
 
 export function isAcquired(state, cellId) {
@@ -342,10 +359,39 @@ export function isGapFilled(state, gapIndex) {
 
 /** 取得状態をトグルした新しいstateを返す（元のstateは変更しない） */
 export function toggleAcquired(state, cellId) {
-  const acquired = isAcquired(state, cellId)
-    ? state.acquired.filter(id => id !== cellId)
-    : [...state.acquired, cellId];
-  return { ...state, acquired };
+  if (!isAcquired(state, cellId)) {
+    return { ...state, acquired: [...state.acquired, cellId] };
+  }
+  // 取得を外すときは「使えない」印も一緒に落とす（印は取得済みのマスにしか乗らない）
+  return {
+    ...state,
+    acquired: state.acquired.filter(id => id !== cellId),
+    disabledCells: state.disabledCells.filter(id => id !== cellId)
+  };
+}
+
+// ---------------------------------------------------------------------------
+// マス1つの「使えない」印（シノビガミの変調「マヒ」）
+//
+// 効くのは代用元の側だけで、目標にはできる（列の枠 isColumnDisabled と同じ扱い）。
+// つまり「習得していないものとして扱う」＝その特技を判定するときは他の分野から
+// 代用することになり、目標値が上がる。
+// ---------------------------------------------------------------------------
+
+export function hasCellDisable(spec) {
+  return !!spec.cellDisable;
+}
+
+export function isCellDisabled(state, cellId) {
+  return state.disabledCells.includes(cellId);
+}
+
+/** 「使えない」印をトグルした新しいstateを返す。 */
+export function toggleCellDisabled(state, cellId) {
+  const disabledCells = isCellDisabled(state, cellId)
+    ? state.disabledCells.filter(id => id !== cellId)
+    : [...state.disabledCells, cellId];
+  return { ...state, disabledCells };
 }
 
 /**
@@ -423,9 +469,10 @@ export function cellDistance(spec, state, cellIdA, cellIdB) {
 /**
  * 目標のセルに一番近い「取得済み」のセルを探す。距離は分離可能なので全セル総当たりでよい。
  *
- * 枠を失った列（isColumnDisabled）の特技は、取得していても代用元にしない。
- * 枠の喪失が効くのはここだけで、目標にする側は制限しない（resolveSkillCheck参照）。
- * その分野の特技を判定するときは、生きている分野から代用することになる。
+ * 枠を失った列（isColumnDisabled）の特技と、「使えない」印の付いたマス（isCellDisabled。
+ * シノビガミの変調「マヒ」）は、取得していても代用元にしない。
+ * 喪失も印も効くのはここだけで、目標にする側は制限しない（resolveSkillCheck参照）。
+ * その特技を判定するときは、生きている分野・生きている特技から代用することになる。
  *
  * @returns {{cellId:string, distance:number, ties:string[]} | null} 使える取得済みが無ければnull
  *   ties は同じ距離だった他の候補（どれを使ってもよいことをUIで示すため）
@@ -437,6 +484,7 @@ export function findNearestAcquired(spec, state, targetCellId) {
   state.acquired.forEach(cellId => {
     const cell = getCell(spec, cellId);
     if (!cell || isColumnDisabled(spec, state, cell.columnIndex)) return;
+    if (isCellDisabled(state, cellId)) return;
 
     const distance = cellDistance(spec, state, targetCellId, cellId);
     if (distance === null) return;
@@ -454,9 +502,9 @@ export function findNearestAcquired(spec, state, targetCellId) {
 /**
  * 目標の特技に対する判定内容を解決する。
  *
- * 枠を失った分野でも「その特技を目標にした判定」自体はできる。効くのは代用元の側で、
- * 失った分野の取得済み特技は無かったものとして距離を測り直す（findNearestAcquired）。
- * 結果として、失った分野の特技は他の分野から代用することになり目標値が上がる。
+ * 枠を失った分野でも、「使えない」印（マヒ）の付いた特技でも、それを目標にした判定自体は
+ * できる。効くのは代用元の側で、失った分野の特技と印の付いた特技は無かったものとして
+ * 距離を測り直す（findNearestAcquired）。結果として他から代用することになり目標値が上がる。
  *
  * @returns {{
  *   targetCell: object, usedCell: object|null, distance: number|null,

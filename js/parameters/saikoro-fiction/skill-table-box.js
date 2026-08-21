@@ -7,10 +7,11 @@ import {
   makeCellId, getCell, isAcquired, isGapFilled, toggleAcquired, toggleGap, resolveSkillCheck,
   checkModifiers,
   hasColumnSlots, hasExtraSlots, extraSlotMax, isColumnLost, isExtraSlotLost, isColumnDisabled,
-  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic
+  countRemainingSlots, toggleColumnSlot, toggleExtraSlot, setExtraSlotCount, toggleCyclic,
+  hasCellDisable, isCellDisabled, toggleCellDisabled
 } from './skill-table.js';
 import {
-  describeSkillCheck, buildSkillCheckCommand, buildCheckCommand, resolveCheckAdjustments
+  describeSkillCheck, buildCheckCommand, resolveCheckAdjustments
 } from './skill-check.js';
 
 let dialogEl = null;
@@ -62,6 +63,7 @@ export function showSkillTableBox({
     lostColumns: [...state.lostColumns],
     extraSlotCount: state.extraSlotCount,
     lostExtraSlots: [...state.lostExtraSlots],
+    disabledCells: [...state.disabledCells],
     cyclic: state.cyclic
   };
   const commit = next => {
@@ -71,6 +73,12 @@ export function showSkillTableBox({
   };
 
   let hoveredCellId = null;
+
+  // 「使えない」印（シノビガミの変調「マヒ」）を付けるための一発モード。ボタンを押している
+  // 間だけ立ち、マスを1つ選ぶと降りて判定モードへ戻る。押しっぱなしで判定が飛ばなくなる
+  // 事故を防ぐため、モードを切り替えたときも必ず降ろす。
+  let armedDisable = false;
+  const disableLabel = hasCellDisable(spec) ? spec.cellDisable.label : '';
 
   // 修正値（シノビガミのAdB等）はコマのパラメータそのもの。ダイアログの中だけの状態は
   // 持たず、読むのも書くのも常にコマ側で、閉じても残る。
@@ -104,11 +112,38 @@ export function showSkillTableBox({
       button.type = 'button';
       button.className = 'sf-skill-table-mode-btn';
       button.textContent = label;
-      button.addEventListener('click', () => { mode = value; hoveredCellId = null; render(); });
+      button.addEventListener('click', () => {
+        mode = value;
+        hoveredCellId = null;
+        armedDisable = false;
+        render();
+      });
       modeButtons[value] = button;
       modeRow.appendChild(button);
     });
     form.appendChild(modeRow);
+  }
+
+  // 「使えない」印のボタン（シノビガミの「マヒ」）。押すと次に選んだ特技1つへ印を付け外し
+  // するだけで、判定は送らない。印は保存される状態なので canEdit のときだけ出す。
+  // 判定モードでしか意味を持たないので、出す・出さないは render() で切り替える。
+  const markRow = document.createElement('div');
+  markRow.className = 'sf-skill-table-marks';
+  let markBtn = null;
+  if (canCheck && canEdit && hasCellDisable(spec)) {
+    markBtn = document.createElement('button');
+    markBtn.type = 'button';
+    markBtn.className = 'sf-skill-table-mark-btn';
+    markBtn.textContent = disableLabel;
+    markBtn.title = `${disableLabel}：特技を1つ選んで「習得していない」扱いにします。`
+      + `同じ操作をもう一度行うと戻ります。`;
+    markBtn.addEventListener('click', () => {
+      armedDisable = !armedDisable;
+      hoveredCellId = null;
+      render();
+    });
+    markRow.appendChild(markBtn);
+    form.appendChild(markRow);
   }
 
   // 判定の修正値。spec.check.modifiers の1件ごとに数値入力欄を並べ、値はコマの
@@ -252,27 +287,6 @@ export function showSkillTableBox({
   const btnRow = document.createElement('div');
   btnRow.className = 'dialog-button-row';
 
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'dialog-add-row-btn';
-  copyBtn.textContent = '判定コマンドをコピー';
-  copyBtn.title = '取得済み特技の「特技判定(名前)」をまとめてコピーします。チャットパレットに貼り付けて使えます。';
-  copyBtn.addEventListener('click', () => {
-    // 枠を失った分野の特技も目標にはできる（他の分野から代用する）ので、ここでは外さない
-    const lines = current.acquired
-      .map(cellId => getCell(spec, cellId))
-      .filter(Boolean)
-      .map(cell => buildSkillCheckCommand(cell.name));
-    if (lines.length === 0) {
-      setStatus('取得している特技がありません。');
-      return;
-    }
-    navigator.clipboard?.writeText(lines.join('\n'))
-      .then(() => setStatus(`${lines.length}件のコマンドをコピーしました。`))
-      .catch(() => setStatus('コピーに失敗しました。'));
-  });
-  btnRow.appendChild(copyBtn);
-
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'dialog-confirm-btn';
@@ -308,6 +322,25 @@ export function showSkillTableBox({
   // カーソルが乗っているマスがあればその判定内容、無ければモードごとの操作説明を出す。
   // オプションを変えた時もここを呼び直して、投げるコマンドの表示を追従させる。
   function refreshStatus() {
+    // 「使えない」印を待っている間は、判定のプレビューではなく印の付け外しを説明する
+    // （このままマスを押しても判定は飛ばないため）。
+    if (mode === 'check' && armedDisable) {
+      const hovered = hoveredCellId ? getCell(spec, hoveredCellId) : null;
+      if (hovered) {
+        const name = spec.cells[hovered.columnIndex][hovered.rowIndex] || '―';
+        if (!isAcquired(current, hoveredCellId)) {
+          setStatus(`${name}：取得していない特技は${disableLabel}にできません。`);
+        } else if (isCellDisabled(current, hoveredCellId)) {
+          setStatus(`クリックで ${name} の${disableLabel}を解除します。`);
+        } else {
+          setStatus(`クリックで ${name} を${disableLabel}にします（習得していないものとして扱われます）。`);
+        }
+        return;
+      }
+      setStatus(`${disableLabel}にする特技のマスをクリックしてください（「${disableLabel}」をもう一度押すとやめます）。`);
+      return;
+    }
+
     if (mode === 'check' && hoveredCellId) {
       const resolution = resolveSkillCheck(spec, current, hoveredCellId);
       if (resolution) {
@@ -352,7 +385,11 @@ export function showSkillTableBox({
     const slotText = slotLabel
       ? `・${slotLabel} ${slots.total}/${slotCapacity}`
       : '';
-    titleEl.textContent = `${title}（取得 ${current.acquired.length}件${slotText}）`;
+    // 「使えない」印は付いている時だけ出す（0件の行が常に並ぶと読みにくいだけのため）
+    const markText = (hasCellDisable(spec) && current.disabledCells.length > 0)
+      ? `・${disableLabel} ${current.disabledCells.length}件`
+      : '';
+    titleEl.textContent = `${title}（取得 ${current.acquired.length}件${slotText}${markText}）`;
 
     // --- 追加枠の行 ---
     if (extraBoxes) {
@@ -381,6 +418,11 @@ export function showSkillTableBox({
     Object.entries(modeButtons).forEach(([value, button]) => {
       button.classList.toggle('is-active', mode === value);
     });
+
+    if (markBtn) {
+      markRow.style.display = mode === 'check' ? '' : 'none';
+      markBtn.classList.toggle('is-active', armedDisable);
+    }
 
     grid.innerHTML = '';
     grid.classList.toggle('is-check-mode', mode === 'check');
@@ -463,19 +505,42 @@ export function showSkillTableBox({
         // 枠を失った分野。判定の目標にはできるので押せるままにし、
         // 「取得していても代用元にならない」ことだけを見た目で伝える。
         const disabled = isColumnDisabled(spec, current, colIndex);
+        // 「使えない」印（マヒ）。こちらは判定モードを離れても赤いままにして、
+        // どの特技が潰れているかが取得の編集中にも読めるようにする。
+        const marked = isCellDisabled(current, cellId);
         const cell = document.createElement('div');
-        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-slot-lost' : ''}`;
+        cell.className = `sf-skill-cell${acquired ? ' is-acquired' : ''}${disabled ? ' is-slot-lost' : ''}`
+          + `${marked ? ' is-cell-disabled' : ''}`;
         cell.textContent = spec.cells[colIndex][rowIndex] || '―';
         cell.style.gridColumn = String(3 + colIndex * 2);
         cell.style.gridRow = String(2 + rowIndex);
         if (disabled && acquired) {
           cell.title = `取得していますが、${spec.columns[colIndex].label}の${spec.slots.column.label}を失っているため代用元に使えません`;
         }
+        if (marked) {
+          cell.title = `${disableLabel}：習得していないものとして扱われます（代用元に使えません）`;
+        }
 
         if (mode === 'edit' && canEdit) {
           cell.classList.add('is-clickable');
           cell.title = acquired ? 'クリックで取得を解除' : 'クリックで取得';
           cell.addEventListener('click', () => commit(toggleAcquired(current, cellId)));
+        } else if (mode === 'check' && armedDisable) {
+          // 一発モード：判定は送らず、印を1つ付け外しして通常状態へ戻る。
+          cell.classList.add('is-clickable');
+          cell.addEventListener('mouseenter', () => { hoveredCellId = cellId; refreshStatus(); });
+          cell.addEventListener('mouseleave', () => { hoveredCellId = null; refreshStatus(); });
+          cell.addEventListener('click', () => {
+            // 印は取得済みの特技にしか乗らない。押し間違いで一発モードを降ろさず、
+            // そのまま選び直せるようにする。
+            if (!acquired) {
+              setStatus(`取得していない特技は${disableLabel}にできません。`);
+              return;
+            }
+            armedDisable = false;
+            hoveredCellId = null;
+            commit(toggleCellDisabled(current, cellId));
+          });
         } else if (mode === 'check' && canCheck) {
           cell.classList.add('is-clickable');
           cell.addEventListener('mouseenter', () => { hoveredCellId = cellId; refreshStatus(); });

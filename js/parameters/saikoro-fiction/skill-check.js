@@ -13,11 +13,6 @@ import { resolveSkillCheck, normalizeCheckOptions } from './skill-table.js';
 // 特技名を後から修正しても書き換えずに済むようにするため。
 export const SKILL_CHECK_COMMAND_PATTERN = /^特技判定\((.+)\)$/;
 
-/** チャット欄に貼れる特技判定コマンドの文字列 */
-export function buildSkillCheckCommand(skillName) {
-  return `特技判定(${skillName})`;
-}
-
 /**
  * 判定内容の1行説明。表UIのプレビューとチャットログの見出しで同じ文言を使う。
  * @param {ReturnType<typeof resolveSkillCheck>} resolution

@@ -1467,6 +1467,31 @@
   font-weight: bold;
 }
 
+/* 「使えない」印（シノビガミの変調「マヒ」）のボタン。判定モードのときだけ出る。
+   押している間（is-active）は次のクリックが判定ではなく印になるので、赤で待たせる。 */
+.sf-skill-table-marks {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.sf-skill-table-mark-btn {
+  background-color: #3a3a3a;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+
+.sf-skill-table-mark-btn.is-active {
+  background-color: #a2494c;
+  border-color: #d08084;
+  color: #fff;
+  font-weight: bold;
+}
+
 /* 判定の修正値（シノビガミのAdB/AnB/SB/FB）。判定モードのときだけ表示する。
    値はコマのパラメータそのもので、入力するとその場で書き戻る（開き直しても残る）。 */
 .sf-skill-table-check-options {
@@ -1692,6 +1717,17 @@
   background-color: #5a5a6e;
   border-color: #7a7a90;
   text-decoration: line-through;
+}
+
+/* 「使えない」印（マヒ）の付いた特技。習得していない扱いになるので、取得の青を赤で
+   上書きする。生命力を失った分野の取り消し線とは重ねられるよう、色だけを差し替える。 */
+.sf-skill-cell.is-cell-disabled,
+.sf-skill-cell.is-acquired.is-cell-disabled,
+.sf-skill-cell.is-acquired.is-slot-lost.is-cell-disabled {
+  background-color: #a2494c;
+  border-color: #d08084;
+  color: #fff;
+  font-weight: bold;
 }
 
 .sf-skill-cell.is-clickable {

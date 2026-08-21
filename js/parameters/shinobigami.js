@@ -147,7 +147,10 @@ const SHINOBIGAMI_TABLE_BASE = {
     modifiers: SHINOBIGAMI_CHECK_MODIFIERS,
     buildCommand: buildShinobigamiCheckCommand,
     resolve: resolveShinobigamiCheck
-  }
+  },
+  // 変調「マヒ」。判定モードのボタンから特技を1つ選ぶと赤くなり、習得していないものとして
+  // 扱われる（代用元から外れる）。エネミーも変調を受けるので、PC・エネミー共通の土台に置く。
+  cellDisable: { label: 'マヒ' }
 };
 
 // PC。生命力は分野ごとに1つずつ枠があり、失うとその分野の特技が使えなくなる。

@@ -260,7 +260,7 @@ const LOG_HELP = {
   ]
 };
 
-const CHAT_PALLET_HELP = {
+const CHATPALLET_HELP = {
   id: `core-chatpallet`,
   label: `チャットパレット`,
   body:[`チャットパレットのことだな。`],
@@ -331,6 +331,7 @@ export const CORE_HELP = {
     BOARD_HELP,
     CHARACTER_PANEL_HELP,
     CHAT_HELP,
+    CHATPALLET_HELP,
     TAB_HELP,
     SCENE_INFO_HELP,
     ROUND_HELP,

@@ -93,9 +93,15 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                             この欄がそのスキルで意味を持つ条件（シノビガミの「間合は
  *                             攻撃忍法だけ」）。偽なら入力させず、表示・式・ログでも無視する。
  *                             ただし保存値は捨てない（条件が戻ったときに入れ直させないため）。
- *     onUse?: { addToParamId: string }
+ *     onUse?: { addToParamId?: string, paramIdFromField?: string, sign?: 1|-1 }
  *                             使用時に、この欄の数値を指定パラメータの基礎値へ加算する
  *                             （DX3の上昇侵蝕率 → DX3:corruption）。
+ *                             支払い先が行ごとに変わるなら、addToParamIdの代わりに
+ *                             paramIdFromFieldへ「paramIdが入っている別の欄のkey」を書く
+ *                             （アリアンロッドのコスト種別。選択肢のラベルがログの呼び名になる）。
+ *                             sign:-1で、入力された正の数を減算として払う（MPの消費）。
+ *                             支払いはSET_PARAMETERを通るので、対象はeditable:trueの
+ *                             パラメータに限ること（editable:falseは弾かれる）。
  *   }>,
  *   periods?: Array<{key:string, label:string, fixedMax?:number|string}>,
  *                              回数制限の期間。keyはフェーズ終了のリセット
@@ -112,6 +118,10 @@ export function resolveExpirePhase(stored, fallback = null) {
  *   allowNote?: boolean,       既定true。falseにするとメモ欄（note）を出さない。
  *                              行数が多くて1行を低く保ちたい一覧（シノビガミの人物）向け。
  *                              保存する形は変えない（noteは空文字で残る）。
+ *   footerNote?: ({skills, parameters}) => {text:string, warning?:boolean}|null,
+ *                              一覧の下に出す1行（アリアンロッドの「携帯重量／重量上限」）。
+ *                              **画面の今の値**（保存待ちの編集も反映済み）で毎回呼ばれる。
+ *                              warning:trueで赤字になる。ボックスは中身を解釈しない。
  *   rowActions?: Array<{
  *     key: string, label: string,
  *     availableWhen?: (fields) => boolean,   欄と同じ規則で有効/無効が決まる
@@ -175,7 +185,8 @@ export function createSkillSpec(definition) {
     defaultSkills = [],
     quantity = null,
     allowNote = true,
-    rowActions = []
+    rowActions = [],
+    footerNote = null
   } = definition;
 
   if (!id) throw new Error('[skill] idが必要です');
@@ -205,6 +216,9 @@ export function createSkillSpec(definition) {
     // item.use / item.gain の対象になる（createItemSpec）。
     quantity: quantity ? Object.freeze({ ...QUANTITY_DEFAULTS, ...quantity }) : null,
     rowActions: Object.freeze(rowActions.map(action => Object.freeze({ ...action }))),
+    // 一覧の下に出す1行（アリアンロッドの「携帯重量／重量上限」）。ボックスは中身を
+    // 解釈せず、返ってきた文字列と警告の有無を描くだけ。
+    footerNote,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // paramIdから修正対象の宣言を引く。追加欄（extra）の有無・meta化の仕方を知るために使う。

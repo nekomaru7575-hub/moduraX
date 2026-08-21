@@ -5,6 +5,7 @@ import { DX3_PLUGIN } from './dx3.js';
 import { SHINOBIGAMI_PLUGIN } from './shinobigami.js';
 import { STELLA_KNIGHTS_PLUGIN } from './stella-knights.js';
 import { DRACUROUGE_PLUGIN } from './dracurouge.js';
+import { ARIANRHOD_PLUGIN } from './arianrhod.js';
 import { handleDiceDraftPoolCommand } from './dice-draft/dice-draft-pool.js';
 import { handleItemChatCommand } from './skill/item-use.js';
 // import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
@@ -14,6 +15,7 @@ const PLUGINS = {
   SHINOBIGAMI: SHINOBIGAMI_PLUGIN,
   STELLA_KNIGHTS: STELLA_KNIGHTS_PLUGIN,
   DRACUROUGE: DRACUROUGE_PLUGIN,
+  ARIANRHOD: ARIANRHOD_PLUGIN,
   // GCREST: GCREST_PLUGIN,
 };
 

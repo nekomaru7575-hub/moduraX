@@ -1,11 +1,11 @@
 ---
 source: server/memory-budget.js
-lines: 179
-exports: 6
+lines: 197
+exports: 7
 imported_by: 1
-api_sha: 8626f4e566de
+api_sha: a34d66a11c02
 prose_sha: 8626f4e566de
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -28,7 +28,7 @@ tags: [codemap]
 実際の読み込み・保存・R2への送信にも一切関わらない。
 <!-- /prose:role -->
 
-## export（6）
+## export（7）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -38,8 +38,9 @@ tags: [codemap]
 | 101 | fn | hasRoomFor | `hasRoomFor(kind, bodyBytes)` | このサイズのボディを扱うだけの余裕があるか（順番待ちには入らない）。 |
 | 148 | fn | acquireHeavySlot | `async acquireHeavySlot(kind, bodyBytes)` | 重い操作の枠を取る。 |
 | 173 | fn | describeBudget | `describeBudget()` | 起動時のログ用。 |
+| 185 | fn | loadSnapshot | `loadSnapshot()` | いまの混み具合の生の数値。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（9）
+## トップレベル関数（LOCAL TASKS 候補）（10）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -55,6 +56,7 @@ tags: [codemap]
 | 132 | releaseSlot | `releaseSlot()` | 8 |  |
 | 148 | acquireHeavySlot | `async acquireHeavySlot(kind, bodyBytes)` | 23 | ✓ |
 | 173 | describeBudget | `describeBudget()` | 6 | ✓ |
+| 185 | loadSnapshot | `loadSnapshot()` | 12 | ✓ |
 
 ## 依存
 

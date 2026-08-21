@@ -1,11 +1,11 @@
 ---
 source: js/room-authority.js
-lines: 83
+lines: 76
 exports: 4
 imported_by: 5
 api_sha: d50dece78adf
 prose_sha: d50dece78adf
-generated: 2026-08-20
+generated: 2026-08-21
 tags: [codemap]
 ---
 
@@ -25,26 +25,25 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 20 | const | GM_ONLY_REASON | `GM_ONLY_REASON` | 無効化した項目のtitleに入れる共通の理由。 |
-| 33 | fn | canOperateAsGm | `canOperateAsGm()` | 部屋レベルの操作をしてよいか。 |
-| 56 | fn | canOperateToken | `canOperateToken(token)` | そのコマを操作してよいか（更新・JSON読み込み・削除・バックヤードへの回収、 ラウンド進行でのプロット提出）。 |
-| 77 | fn | canEditChatEntry | `canEditChatEntry(entry)` | その発言（チャットログ1件）の本文を書き直してよいか。 |
+| 22 | const | GM_ONLY_REASON | `GM_ONLY_REASON` | 無効化した項目のtitleに入れる共通の理由。 |
+| 28 | fn | canOperateAsGm | `canOperateAsGm()` | 部屋レベルの操作をしてよいか。 |
+| 49 | fn | canOperateToken | `canOperateToken(token)` | そのコマを操作してよいか（更新・JSON読み込み・削除・バックヤードへの回収、 ラウンド進行でのプロット提出）。 |
+| 70 | fn | canEditChatEntry | `canEditChatEntry(entry)` | その発言（チャットログ1件）の本文を書き直してよいか。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 24 | hasAnyGm | `hasAnyGm(participants)` | 3 |  |
-| 33 | canOperateAsGm | `canOperateAsGm()` | 9 | ✓ |
-| 56 | canOperateToken | `canOperateToken(token)` | 7 | ✓ |
-| 77 | canEditChatEntry | `canEditChatEntry(entry)` | 6 | ✓ |
+| 28 | canOperateAsGm | `canOperateAsGm()` | 7 | ✓ |
+| 49 | canOperateToken | `canOperateToken(token)` | 7 | ✓ |
+| 70 | canEditChatEntry | `canEditChatEntry(entry)` | 6 | ✓ |
 
 ## 依存
 
-- import → [[js.game-store]], [[js.local-identity]], [[js.net-sync]], [[js.visibility]]
+- import → [[js.game-store]], [[js.local-identity]], [[js.net-sync]], [[js.room-authority-rules]], [[js.visibility]]
 - imported by → [[js.board-data-driven]], [[js.dice-draft-panel]], [[js.main]], [[js.round-panel]], [[js.stamp-panel]]
 
 ## 注意

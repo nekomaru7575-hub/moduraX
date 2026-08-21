@@ -1,9 +1,14 @@
 // js/chat-palette.js
 // チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、
-// クリックだけで即座に送信できるようにする機能。
+// 選ぶだけで送れるようにする機能。
 //
 // 保存単位は「タブ」。1タブ＝｛名前, 改行区切りのプレーンテキスト1本｝で、
 // 1行＝1フレーズとして扱う（ラベルと送信内容を分けない。テキストとして自由に編集できるように）。
+// 例外は「//」で始まる行で、こちらはフレーズではなく見出し（isChatPaletteHeading）。
+//
+// 行の操作は2段階：シングルクリックはパレット内チャット欄へ文面を入れるだけ、
+// ダブルクリックでそのまま発言する。押し間違いがそのまま卓へ流れないように、
+// 「送る」ほうを一段深い操作にしてある。
 //
 // タブの「名前」がそのタブの発言者になる。コマ名と完全一致すればそのコマとして送られ
 // （{パラメータ名}置換・バフ/プラグインコマンドの対象になる）、一致しなければ
@@ -89,6 +94,18 @@ export function parseChatPaletteLines(text) {
     .filter(line => line !== '');
 }
 
+// 見出し行の目印。行そのものはテキストの一部なので消さず、押せなくして色を変えるだけにする。
+const HEADING_PREFIX = '//';
+
+/**
+ * 見出しの行か。「//」で始まる行はフレーズではなく、塊の頭に置く見出しとして扱う。
+ * パレットの一覧では押せなくなり、メインのチャット欄の予測変換（js/main.js）からも外れる。
+ * 判定をここに集めているのは、その2か所で規則がずれないようにするため。
+ */
+export function isChatPaletteHeading(line) {
+  return line.startsWith(HEADING_PREFIX);
+}
+
 /**
  * パレットのUIを描画する。中身の状態はこの関数の中に閉じ、変更のたびにlocalStorageへ保存する。
  * @param {{
@@ -96,8 +113,9 @@ export function parseChatPaletteLines(text) {
  *   onSend: (options: { text: string, name: string, onSent?: () => void }) => void,
  *   findTokenByName: (name: string) => object | null
  * }} options
- *   onSend: パレット内チャット欄からの送信。発言者の解決は呼び出し元に委ねる。
- *     行クリックは送信せず、パレット内チャット欄へ文面を入れるだけなのでここは通らない。
+ *   onSend: パレット内チャット欄からの送信と、行のダブルクリックによる発言。
+ *     発言者の解決は呼び出し元に委ねる。行のシングルクリックは送信せず、
+ *     パレット内チャット欄へ文面を入れるだけなのでここは通らない。
  *   findTokenByName: 名前欄の下に「このコマとして送る／この名前で発言」を出すための照会。
  */
 export function renderChatPalette({ container, onSend, findTokenByName }) {
@@ -164,6 +182,14 @@ export function renderChatPalette({ container, onSend, findTokenByName }) {
   const footer = document.createElement('div');
   footer.className = 'chat-palette-footer';
 
+  // 全タブを捨てて最初の状態へ戻す。取り返しがつかないので、よく押すボタン（編集・保存・
+  // 読み込み）とは離して左端に置く（CSSのmargin-right:autoで押しやられる）。
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'chat-palette-footer-btn is-danger';
+  resetBtn.textContent = '初期化';
+  resetBtn.title = '全タブを削除して、空のタブ1枚に戻す';
+
   const editBtn = document.createElement('button');
   editBtn.type = 'button';
   editBtn.className = 'chat-palette-footer-btn';
@@ -180,6 +206,7 @@ export function renderChatPalette({ container, onSend, findTokenByName }) {
   importBtn.textContent = '読み込み';
   importBtn.title = 'JSONファイルから全タブを読み込む（現在の内容は置き換わる）';
 
+  footer.appendChild(resetBtn);
   footer.appendChild(editBtn);
   footer.appendChild(exportBtn);
   footer.appendChild(importBtn);
@@ -273,15 +300,33 @@ export function renderChatPalette({ container, onSend, findTokenByName }) {
 
     lines.forEach(line => {
       const row = document.createElement('div');
-      row.className = 'chat-palette-line';
       row.textContent = line;
-      row.title = line;
+
+      // 見出し行（「//」始まり）はフレーズではないので、押せる要素にしない。
+      // 「//」も消さずにそのまま出す：編集画面のテキストと一覧の見た目を一致させておくと、
+      // どの行が見出しなのかがどちらの画面でも同じに読める。
+      if (isChatPaletteHeading(line)) {
+        row.className = 'chat-palette-line is-heading';
+        row.title = '見出し（「//」で始まる行は送信できません）';
+        listEl.appendChild(row);
+        return;
+      }
+
+      row.className = 'chat-palette-line';
+      row.title = `${line}\nクリックでチャット欄へ／ダブルクリックで発言`;
       row.addEventListener('click', () => {
         // 即送信はしない。パレット内チャット欄（sendInput）へ文面を入れるだけにし、
-        // 送信は利用者の操作（送信ボタン／Enter）に委ねる。打ちかけの文字は上書きする。
+        // 送信は利用者の操作（送信ボタン／Enter／ダブルクリック）に委ねる。
+        // 打ちかけの文字は上書きする。
         sendInput.value = line;
         sendInput.focus();
         sendInput.setSelectionRange(sendInput.value.length, sendInput.value.length);
+      });
+      // ダブルクリックはそのまま発言する。clickが2回先に走るので、実際には
+      // 「チャット欄に入る → 送られる」の順で起きる。判定用の遅延は入れない：
+      // シングル側の動作は何度起きても無害なので、待たせるほうが操作感を損ねる。
+      row.addEventListener('dblclick', () => {
+        onSend({ text: line, name: nameInput.value, onSent: () => { sendInput.value = ''; } });
       });
       listEl.appendChild(row);
     });
@@ -343,6 +388,20 @@ export function renderChatPalette({ container, onSend, findTokenByName }) {
       e.preventDefault();
       sendFromInput();
     }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    // 消える枚数と、書き出しておけば戻せることを確認文に出す（取り消しは効かないため）
+    if (!confirm(
+      `チャットパレットの全タブ（${state.tabs.length}枚）を削除して、空のタブ1枚に戻します。\n`
+      + '元に戻せません。残しておきたい場合は「保存」でファイルへ書き出してください。\n'
+      + 'よろしいですか？'
+    )) return;
+
+    state = emptyState();
+    editing = false;
+    persist();
+    renderAll();
   });
 
   exportBtn.addEventListener('click', () => {

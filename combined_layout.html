@@ -1653,11 +1653,27 @@
       white-space: pre;
       cursor: pointer;
       border-bottom: 1px solid #2a2a2a;
+      /* ダブルクリックで発言できるので、そのたびに行の文字が選択されないようにする */
+      user-select: none;
     }
 
     .chat-palette-line:hover {
       background-color: #33405a;
       color: #fff;
+    }
+
+    /* 見出し行（「//」始まり）。フレーズではないので押せず、色で塊の頭だと分かるようにする。
+       hoverの色変化も打ち消して、「押せそう」に見せない。 */
+    .chat-palette-line.is-heading {
+      color: #e5c453;
+      cursor: default;
+      border-bottom-color: #3a3423;
+      margin-top: 4px;
+    }
+
+    .chat-palette-line.is-heading:hover {
+      background-color: transparent;
+      color: #e5c453;
     }
 
     .chat-palette-empty {
@@ -1736,6 +1752,18 @@
 
     .chat-palette-footer-btn:hover {
       background-color: #3a3a3a;
+    }
+
+    /* 初期化（全タブ削除）。取り返しがつかないので、よく押すボタンから引き離して左端へ置く。 */
+    .chat-palette-footer-btn.is-danger {
+      margin-right: auto;
+      color: #c88;
+      border-color: #5a4444;
+    }
+
+    .chat-palette-footer-btn.is-danger:hover {
+      background-color: #4a3030;
+      color: #fbb;
     }
 
     /* 情報パネル：タイトル＋内容の組をタブで並べる共有メモ（js/info-panel.js）。

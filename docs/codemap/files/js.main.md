@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 2410
+lines: 2413
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -86,17 +86,17 @@ _(未記入)_
 | 1759 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
 | 1801 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
 | 1879 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
-| 1885 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 41 |  |
-| 1932 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
-| 2009 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 2136 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 2144 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 2193 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 2197 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 2214 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2311 | splitForSpace | `splitForSpace(string)` | 3 |  |
-| 2327 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
-| 2362 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 1885 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
+| 1935 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
+| 2012 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 2139 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 2147 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 2196 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 2200 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 2217 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 2314 | splitForSpace | `splitForSpace(string)` | 3 |  |
+| 2330 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
+| 2365 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

@@ -24,7 +24,7 @@ import { downloadJSON } from './character-snapshot.js';
 import { findTrackByPhraseSuffix } from './audio-phrase.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
-import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines } from './chat-palette.js';
+import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines, isChatPaletteHeading } from './chat-palette.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { setChatPaletteController } from './board-data-driven.js';
 import {
@@ -1900,6 +1900,9 @@ function updateCommandInputSuggestions() {
     .filter(tab => tab.name.trim() === tokenName)
     .forEach(tab => {
       parseChatPaletteLines(tab.text).forEach(line => {
+        // 見出し（「//」始まり）はフレーズではないので候補にしない。
+        // パレット側で押せなくしているのと同じ規則をここでも通す。
+        if (isChatPaletteHeading(line)) return;
         if (line.toLowerCase().includes(needle)) phrases.push(line);
       });
     });

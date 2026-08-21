@@ -93,6 +93,8 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                             この欄がそのスキルで意味を持つ条件（シノビガミの「間合は
  *                             攻撃忍法だけ」）。偽なら入力させず、表示・式・ログでも無視する。
  *                             ただし保存値は捨てない（条件が戻ったときに入れ直させないため）。
+ *     newRow?: boolean,       この欄から次の段へ送る（アリアンロッドのコスト一式を
+ *                             タイミング・SL・対象とは別の行にまとめている）。
  *     hideWhenUnavailable?: boolean,
  *                             availableWhenが偽のとき、薄く出したままにせず欄ごと隠す
  *                             （アリアンロッドの追加コスト。使う人のほうが少ない欄向け）。

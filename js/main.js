@@ -10,7 +10,7 @@ import {
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
-  usesInitiativeProcess, showsEntryMessages, generateDeckId, generateDeckTemplateId,
+  usesInitiativeProcess, showsEntryMessages, snapsToGrid, generateDeckId, generateDeckTemplateId,
   generateCardId, CARD_COLS, CARD_ROWS, SYSTEM_CHAT_TAB_ID
 } from './game-store.js';
 import { showDeckListDialog } from './deck-list-dialog.js';
@@ -531,6 +531,7 @@ const entryPasswordBtn = document.getElementById('entryPasswordBtn');
 const entryPasswordNote = document.getElementById('entryPasswordNote');
 const roundInitiativeProcessCheck = document.getElementById('roundInitiativeProcessCheck');
 const showEntryMessagesCheck = document.getElementById('showEntryMessagesCheck');
+const gridSnapCheck = document.getElementById('gridSnapCheck');
 
 // --- GM限定の操作（js/room-authority.js参照） ---
 // 部屋そのものを左右する操作は、GMが決まっている部屋ではGMだけができるようにする。
@@ -544,7 +545,8 @@ function applyGmOnlyControls() {
   const allowed = canOperateAsGm();
 
   [gameSystemSelect, roomPluginSelect, importStateBtn, deleteRoomBtn,
-    entryPasswordInput, entryPasswordBtn, roundInitiativeProcessCheck, showEntryMessagesCheck].forEach(el => {
+    entryPasswordInput, entryPasswordBtn, roundInitiativeProcessCheck, showEntryMessagesCheck,
+    gridSnapCheck].forEach(el => {
     if (!el) return;
     el.disabled = !allowed;
     el.title = allowed ? '' : GM_ONLY_REASON;
@@ -2081,6 +2083,25 @@ if (showEntryMessagesCheck) {
   EventBus.subscribe('STATE_CHANGED', (state) => {
     const next = showsEntryMessages(state);
     if (showEntryMessagesCheck.checked !== next) showEntryMessagesCheck.checked = next;
+  });
+}
+
+// マス目への吸着。オフにすると盤面のオブジェクトを離した位置に置けるようになり、
+// マス目の線も描かれなくなる（js/board-data-driven.jsが状態を読んで両方を決める）。
+// 上の2つと同じく、操作はdispatch・表示は状態への追従で揃える。
+if (gridSnapCheck) {
+  gridSnapCheck.addEventListener('change', () => {
+    // 表示が古い状態で操作された場合の保険（無効化はapplyGmOnlyControls側で行っている）
+    if (!canOperateAsGm()) {
+      gridSnapCheck.checked = snapsToGrid(store.state);
+      return;
+    }
+    store.dispatch('SET_GRID_SNAP', { enabled: gridSnapCheck.checked });
+  });
+
+  EventBus.subscribe('STATE_CHANGED', (state) => {
+    const next = snapsToGrid(state);
+    if (gridSnapCheck.checked !== next) gridSnapCheck.checked = next;
   });
 }
 

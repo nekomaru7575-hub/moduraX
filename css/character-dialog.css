@@ -90,6 +90,14 @@
   color: #999;
 }
 
+/* 欄をここから次の段へ送る区切り（specのnewRow）。見出し行はflex-wrapなので、
+   幅いっぱい・高さ0の要素を挟むと、これ以降が次の行から並ぶ。 */
+.effect-box-row-break {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 0;
+}
+
 /* 入力欄1つと、その上に出す小さな見出し。幅の指定（.effect-box-timing 等）はこの枠に
    付くので、中の入力欄は枠いっぱいに広げる。 */
 .effect-box-field {
@@ -165,6 +173,9 @@
   align-items: center;
   gap: 3px;
   flex: 0 0 auto;
+  /* <label>の既定のmargin-bottom（5px）を消す。見出し行は入力欄の下端で揃えるので、
+     残っているとチェック欄だけ5px浮く。 */
+  margin-bottom: 0;
   font-size: 0.8rem;
   color: #ccc;
   cursor: pointer;

@@ -302,6 +302,10 @@ export function showSkillBox({
       }
       element.title = field.type === 'toggle' ? `${field.label}（クリックで切り替え）` : field.label;
 
+      // 欄をここから次の段へ送る（アリアンロッドのコスト一式）。幅いっぱいの高さ0の
+      // 区切りを挟むだけ：見出し行はflex-wrapなので、これ以降が次の行から並ぶ。
+      if (field.newRow) headerRow.appendChild(createElement('div', 'effect-box-row-break'));
+
       // チェック欄は文言そのものがラベルなので、そのまま行へ並べる（二重に名前が出ない）。
       // それ以外は小さな見出しを付けた枠へ入れる：入力欄だけが並んでいると、
       // どの欄が何なのかを開いた人が推測するしかない。
@@ -486,7 +490,11 @@ export function showSkillBox({
       if (index !== -1) rows.splice(index, 1);
       syncFooter();
     });
-    headerRow.appendChild(removeBtn);
+    // ×はその行全体を消すボタンなので、欄を段組みしたspecでも1段目の末尾に置く
+    // （最後の段に混ざると、その段の欄を消すボタンに見える）。
+    const firstBreak = headerRow.querySelector('.effect-box-row-break');
+    if (firstBreak) headerRow.insertBefore(removeBtn, firstBreak);
+    else headerRow.appendChild(removeBtn);
     item.appendChild(headerRow);
 
     // 式の検証に渡す「今この行に入力されているフィールド値」。{Lv}のように

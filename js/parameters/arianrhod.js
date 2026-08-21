@@ -137,8 +137,12 @@ export const ARIANRHOD_SKILL_SPEC = createSkillSpec({
       key: 'mp', label: 'MP', type: 'number', className: 'effect-box-encroach',
       onUse: { addToParamId: MP_PARAM_ID, sign: -1 }
     },
+    // MP以外のコストを持つスキルは多くないので、既定では種別と値の欄を伏せておき、
+    // このチェックを入れたときだけ出す（伏せている間は払われもしない。isFieldAvailable）。
+    { key: 'costExtra', label: '追加コスト', type: 'checkbox' },
     {
       key: 'costType', label: 'コスト種別', type: 'select',
+      availableWhen: fields => !!fields.costExtra, hideWhenUnavailable: true,
       options: [
         { value: '', label: '（なし）' },
         { value: FATE_PARAM_ID, label: 'フェイト' },
@@ -148,7 +152,7 @@ export const ARIANRHOD_SKILL_SPEC = createSkillSpec({
     },
     {
       key: 'costValue', label: 'コスト値', type: 'number',
-      availableWhen: fields => !!fields.costType,
+      availableWhen: fields => !!fields.costExtra && !!fields.costType, hideWhenUnavailable: true,
       onUse: { paramIdFromField: 'costType', sign: -1 }
     },
     {

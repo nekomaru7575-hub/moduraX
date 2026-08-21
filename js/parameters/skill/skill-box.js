@@ -16,6 +16,27 @@ import {
 } from './skill-model.js';
 import { runItemUse, readItems } from './item-use.js';
 
+/**
+ * 入力欄に小さな見出しを付けて返す。見出し行に入力欄だけが並んでいると、
+ * 何を入れる欄なのかがプレースホルダを消したあと分からなくなるため。
+ *
+ * **幅の指定（specのclassName）は枠のほうに付ける**：中の入力欄に残すと、縦並びの枠の
+ * 中でflex-basisが「高さ」として効いてしまう。中の入力欄はCSSで幅100%にしてある。
+ */
+function wrapWithLabel(control, labelText, widthClass) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'effect-box-field';
+  if (widthClass) wrapper.classList.add(widthClass);
+
+  const label = document.createElement('span');
+  label.className = 'effect-box-field-label';
+  label.textContent = labelText;
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(control);
+  return wrapper;
+}
+
 // 選択肢欄（type:'select'）を組む。optionにgroupがあれば、その名前でoptgroupにまとめる
 // （シノビガミの指定特技は66件あるので、分野ごとに畳まないと選べない）。
 function buildSelectField(field, value) {
@@ -247,14 +268,16 @@ export function showSkillBox({
 
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.className = 'effect-box-name';
     nameInput.placeholder = `${spec.noun}名`;
     nameInput.value = skill?.name ?? '';
-    headerRow.appendChild(nameInput);
+    headerRow.appendChild(wrapWithLabel(nameInput, `${spec.noun}名`, 'effect-box-name'));
 
     const fieldInputs = {};
     // 無効化・タイトルの付け替えは「行に並べた要素」に対して行う（チェック欄は<label>）。
     const fieldElements = {};
+    // 見出しラベルを付ける枠。無効な欄ではラベルも一緒に薄くする（チェック欄は自分で
+    // ラベルを持つので枠に入れない＝ここに入らない）。
+    const fieldWrappers = {};
     spec.fields.forEach(field => {
       const stored = skill?.fields?.[field.key];
       let input;
@@ -277,15 +300,22 @@ export function showSkillBox({
         input.value = stored ?? (field.type === 'number' ? 0 : '');
         element = input;
       }
-      // トグルとチェックは見た目と状態を自分でクラスに持つ（is-alt / is-opt-N）ので、
-      // classNameごと置き換えず、specの指定を足すだけにする。
-      if (field.type === 'toggle' || field.type === 'checkbox') {
-        if (field.className) element.classList.add(field.className);
-      } else {
-        input.className = field.className || 'effect-box-timing';
-      }
       element.title = field.type === 'toggle' ? `${field.label}（クリックで切り替え）` : field.label;
-      headerRow.appendChild(element);
+
+      // チェック欄は文言そのものがラベルなので、そのまま行へ並べる（二重に名前が出ない）。
+      // それ以外は小さな見出しを付けた枠へ入れる：入力欄だけが並んでいると、
+      // どの欄が何なのかを開いた人が推測するしかない。
+      // 幅の指定（specのclassName）は枠のほうへ移す。縦並びの枠の中に残すと、
+      // flex-basisが「高さ」として効いてしまうため。
+      if (field.type === 'checkbox') {
+        if (field.className) element.classList.add(field.className);
+        headerRow.appendChild(element);
+      } else {
+        // トグルは見た目と状態を自分のクラスに持つ（is-alt / is-opt-N）ので触らない。
+        const wrapper = wrapWithLabel(element, field.label, field.className || 'effect-box-timing');
+        headerRow.appendChild(wrapper);
+        fieldWrappers[field.key] = wrapper;
+      }
       fieldInputs[field.key] = input;
       fieldElements[field.key] = element;
     });
@@ -301,6 +331,14 @@ export function showSkillBox({
         const available = isFieldAvailable(field, values);
         input.disabled = !available;
         element.classList.toggle('is-unavailable', !available);
+        // 見出しも一緒に薄くする（欄だけ薄いと、どこまでが使えない欄なのか読めない）
+        fieldWrappers[field.key]?.classList.toggle('is-unavailable', !available);
+
+        // 既定は「薄く出したまま押せなくする」。使わないときは場所ごと消したい欄
+        // （アリアンロッドの追加コスト）だけ、宣言で引っ込められるようにしてある。
+        if (field.hideWhenUnavailable) {
+          (fieldWrappers[field.key] ?? element).style.display = available ? '' : 'none';
+        }
 
         // 選択肢を他の欄の値で絞る欄（シノビガミの人物の感情）は、ここで組み直す。
         // 今の値が絞り込みから外れたら、残った先頭へ寄せる（画面と保存値がずれないように）。

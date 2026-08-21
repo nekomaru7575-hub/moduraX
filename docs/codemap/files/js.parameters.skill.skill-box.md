@@ -1,6 +1,6 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 906
+lines: 944
 exports: 1
 imported_by: 5
 api_sha: 160c4976d6de
@@ -25,24 +25,25 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 193 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
+| 214 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
 
-## トップレベル関数（LOCAL TASKS 候補）（9）
+## トップレベル関数（LOCAL TASKS 候補）（10）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 21 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
-| 56 | buildToggleField | `buildToggleField(field, value)` | 33 |  |
-| 95 | readFieldValue | `readFieldValue(field, input)` | 5 |  |
-| 102 | readRowFieldValues | `readRowFieldValues(spec, fieldInputs)` | 5 |  |
-| 109 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
-| 129 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
-| 160 | ensureDialog | `ensureDialog()` | 7 |  |
-| 168 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 193 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **713** | ✓ |
+| 26 | wrapWithLabel | `wrapWithLabel(control, labelText, widthClass)` | 13 |  |
+| 42 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
+| 77 | buildToggleField | `buildToggleField(field, value)` | 33 |  |
+| 116 | readFieldValue | `readFieldValue(field, input)` | 5 |  |
+| 123 | readRowFieldValues | `readRowFieldValues(spec, fieldInputs)` | 5 |  |
+| 130 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
+| 150 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
+| 181 | ensureDialog | `ensureDialog()` | 7 |  |
+| 189 | createElement | `createElement(tag, className, text)` | 6 |  |
+| 214 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **730** | ✓ |
 
 ## 依存
 

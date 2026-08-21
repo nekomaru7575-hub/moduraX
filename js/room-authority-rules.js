@@ -57,6 +57,9 @@ export const GM_ONLY_ACTIONS = new Set([
   'SET_ROUND_SETTINGS',
   // 入室メッセージ表示の切り替え。イニシアチブ設定と同じ権限判定に揃える。
   'SET_SHOW_ENTRY_MESSAGES',
+  // マス目への吸着の切り替え。盤面の見た目（マス目の線）と全員の操作感を左右するので、
+  // 背景設定と同じくGM限定。
+  'SET_GRID_SNAP',
   // 入室メッセージ本体の追加は、名乗り（IDENTIFY）の処理から権威側だけが直接dispatchする
   // （このGM_ONLY_ACTIONSチェックを経由しない）。ここに入れているのは、直接WebSocketで
   // このACTIONを騙って偽の入室メッセージを流し込まれないようにする歯止め。

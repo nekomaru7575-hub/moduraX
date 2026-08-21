@@ -337,6 +337,16 @@ export function showsEntryMessages(state) {
   return state?.room?.showEntryMessages !== false;
 }
 
+// 盤面のオブジェクト（コマ・パネル・カード・デッキ）を、離した位置からマス目へ吸着させるか
+// （ルーム単位・全員共通）。既定は吸着あり。この機能より前の部屋にはキーが無いので、
+// showEntryMessagesと同じく「falseの場合だけ無効」の形で読む。
+// 吸着しない部屋ではマス目の線も描かない（js/board-data-driven.jsのapplyBoardBackground）。
+// 大きさの指定（コマのsize、パネル/カード/デッキのcols/rows、盤面のピクセルサイズ）は
+// この設定と関係なく常にマス単位のまま。
+export function snapsToGrid(state) {
+  return state?.room?.snapToGrid !== false;
+}
+
 // 指定フェーズ(phase: 'scene'|'round'|'scenario'|'check'|'process')の終了条件を持つバフ/デバフを
 // トークンから取り除く。フェーズは完全一致で見る（入れ子の連鎖は呼び出し元のapplyPhaseEndが
 // フェーズを1段ずつ渡すことで表現する）。
@@ -2375,6 +2385,22 @@ export class ImmutableStore {
         return;
       }
 
+      // マス目への吸着（js/main.jsのルーム設定）。オフにすると、盤面のオブジェクトは
+      // 離した位置にそのまま留まり、マス目の線も描かれなくなる。
+      // 既にある物の位置はここでは動かさない：オンへ戻した瞬間に盤面が並び替わると、
+      // 意図して置いた微調整が黙って失われる。次にドラッグして離した時点で吸着する。
+      case 'SET_GRID_SNAP': {
+        const { enabled } = payload;
+        const room = prevState.room;
+        const next = !!enabled;
+        if (snapsToGrid(prevState) === next) return;
+
+        this.#commit(prevState, {
+          room: { ...room, snapToGrid: next }
+        });
+        return;
+      }
+
       // 入室メッセージ本体の追加。identify（名乗り）完了時にサーバーだけがdispatchする
       // （server/index.jsのIDENTIFYメッセージ処理）。フラグが無効な部屋では何もしない。
       // 名前は他人が自由に設定できるニックネームだが、ここではエスケープしない。
@@ -3623,6 +3649,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       boardWidth: null,
       boardHeight: null,
       showGrid: true,        // マス目（グリッド線）を敷くか。地図画像をそのまま見せたい時に外す
+      // 盤面のオブジェクトをマス目へ吸着させるか（SET_GRID_SNAP・snapsToGrid）。
+      // 外すと離した位置にそのまま置けるようになり、マス目の線も描かれなくなる。
+      snapToGrid: true,
       // シーンへ遷移しても背景・盤面サイズを変えないか（js/background-dialog.js）。
       // シーン側への保存は従来どおり行い、遷移時の上書きだけを止める
       keepBackgroundOnSceneChange: false,

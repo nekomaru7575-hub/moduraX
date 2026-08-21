@@ -24,7 +24,7 @@ import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
-  getEffectiveParameterValue, BUFF_PHASE_LABELS, normalizeStackOrder
+  getEffectiveParameterValue, BUFF_PHASE_LABELS, normalizeStackOrder, snapsToGrid
 } from './game-store.js';
 export {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
@@ -90,6 +90,23 @@ function panelToggleItem(controller, label) {
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
+
+/**
+ * オブジェクトの位置を確定するときの丸め。**位置を決める箇所は必ずここを通すこと**：
+ * 判断を各所に散らすと「コマは自由に置けるがパネルは吸着する」というちぐはぐな壊れ方をする。
+ *
+ * ルーム設定でマス目に合わせる指定（room.snapToGrid、既定）ならマス単位へ吸着し、
+ * 自由配置ならピクセル単位へ丸めるだけにする。丸めるのは、ドラッグ中の座標をそのまま
+ * 確定させると小数が状態に残り、同期や保存データに意味の無い桁が乗り続けるため。
+ *
+ * 大きさ（コマのsize、パネル/カード/デッキのcols/rows、盤面のピクセルサイズ）は
+ * この設定と関係なく常にマス単位のまま。
+ */
+function settlePosition(value) {
+  return snapsToGrid(store.state)
+    ? Math.round(value / GRID_SIZE) * GRID_SIZE
+    : Math.round(value);
+}
 
 // ルームにプラグインが適用されていれば、そのプラグイン独自の拡張JSON読み込みを使う。
 // 未適用の場合はCore側の汎用読み込み（本アプリ自身の保存形式）にフォールバックする。
@@ -275,7 +292,10 @@ function resolveBoardPixelSize(board, room) {
 function applyBoardBackground(board, room) {
   const imageUrl = room?.backgroundImage;
   // 既定はマス目あり。この項目より前の部屋・シーンにはキーが無いので !== false で読む。
-  const showGrid = room?.showGrid !== false;
+  // 吸着しない部屋（ルーム設定のマス目に合わせて配置する＝オフ）では線も描かない：
+  // 何にも吸い付かない線は位置の目安にならず、ずれて置いた物が間違って見える。
+  // 背景設定側のshowGridは書き換えないので、吸着を戻せば元の設定がそのまま戻る。
+  const showGrid = room?.showGrid !== false && snapsToGrid({ room });
 
   ensureBackgroundImageMeasured(board, room);
   const { width: bw, height: bh } = resolveBoardPixelSize(board, room);
@@ -344,10 +364,11 @@ function bindTokenDrag(element) {
       const latestState = store.state.tokens[tokenId];
       if (!latestState) return;
 
-      const snappedX = Math.round(latestState.x / GRID_SIZE) * GRID_SIZE;
-      const snappedY = Math.round(latestState.y / GRID_SIZE) * GRID_SIZE;
-
-      store.dispatch('MOVE_TOKEN', { id: tokenId, x: snappedX, y: snappedY });
+      store.dispatch('MOVE_TOKEN', {
+        id: tokenId,
+        x: settlePosition(latestState.x),
+        y: settlePosition(latestState.y)
+      });
     },
 
     // タッチには右クリックが無いので、長押しからも同じメニューを開く
@@ -713,10 +734,11 @@ function bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag 
       // 落とし先（ストッカー・デッキ）が引き取ったなら、位置の確定はそちらに任せる
       if (onDrop?.(event, context)) return;
 
-      const snappedX = Math.round(latest.x / GRID_SIZE) * GRID_SIZE;
-      const snappedY = Math.round(latest.y / GRID_SIZE) * GRID_SIZE;
-
-      store.dispatch(moveAction, { id: element.id, x: snappedX, y: snappedY });
+      store.dispatch(moveAction, {
+        id: element.id,
+        x: settlePosition(latest.x),
+        y: settlePosition(latest.y)
+      });
     },
 
     onLongPress: (event) => openMenu(event)
@@ -1350,7 +1372,7 @@ function createDeckElement(deckData, panelLayer) {
 }
 
 /**
- * 今見えている範囲の真ん中あたりの、グリッドに乗った盤面ローカル座標。
+ * 今見えている範囲の真ん中あたりの盤面ローカル座標（マス目に合わせる設定ならそのマスの上）。
  * ルームメニューのように「盤面のどこか」を指していない操作から物を置くときに使う
  * （js/main.jsの「デッキを配置」）。cols/rowsを渡すと、その大きさの物の左上を返す
  * （＝物の中心が画面の中心に来る）。
@@ -1367,8 +1389,8 @@ export function getBoardDropSpot({ cols = 0, rows = 0 } = {}) {
   const centerX = (viewportRect.left + viewportRect.width / 2 - boardRect.left) / scale;
   const centerY = (viewportRect.top + viewportRect.height / 2 - boardRect.top) / scale;
 
-  let x = Math.round((centerX - cols * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE;
-  const y = Math.round((centerY - rows * GRID_SIZE / 2) / GRID_SIZE) * GRID_SIZE;
+  let x = settlePosition(centerX - cols * GRID_SIZE / 2);
+  const y = settlePosition(centerY - rows * GRID_SIZE / 2);
 
   // 同じ場所に既にデッキがあるなら右へ避ける。2つ目のデッキを置いたときに1つ目へ
   // ぴったり重なって、下の山が触れなくなるのを防ぐ。
@@ -1608,9 +1630,9 @@ window.addEventListener('DOMContentLoaded', () => {
       {
         label: 'パネルを追加',
         onSelect: () => {
-          // パネルの左上をクリック位置のマスに吸着させる
-          const snapX = Math.round(dropX / GRID_SIZE) * GRID_SIZE;
-          const snapY = Math.round(dropY / GRID_SIZE) * GRID_SIZE;
+          // パネルの左上をクリック位置へ置く（マス目に合わせる設定ならそのマスへ吸着する）
+          const snapX = settlePosition(dropX);
+          const snapY = settlePosition(dropY);
 
           showPanelDialog({
             title: 'パネルを追加',

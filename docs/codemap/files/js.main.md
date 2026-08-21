@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 2389
+lines: 2410
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -50,53 +50,53 @@ _(未記入)_
 | 416 | openLogEntryMenu | `openLogEntryMenu(clientX, clientY, entry)` | 15 |  |
 | 433 | editableEntryFromEvent | `editableEntryFromEvent(event)` | 6 |  |
 | 451 | initLogEntryMenu | `initLogEntryMenu(container)` | 53 |  |
-| 543 | applyGmOnlyControls | `applyGmOnlyControls()` | 12 |  |
-| 563 | openRoomParametersDialog | `openRoomParametersDialog()` | 19 |  |
-| 585 | openOriginalTableEditor | `openOriginalTableEditor(table = null)` | 15 |  |
-| 602 | openOriginalTableListDialog | `openOriginalTableListDialog()` | 11 |  |
-| 620 | currentBoardSnapshot | `currentBoardSnapshot()` | 17 |  |
-| 639 | openSceneEditor | `openSceneEditor(scene = null)` | 27 |  |
-| 668 | openSceneListDialog | `openSceneListDialog()` | 15 |  |
-| 686 | openAudioDialog | `openAudioDialog()` | 33 |  |
-| 727 | currentRoomId | `currentRoomId()` | 3 |  |
-| 733 | activateAndRegisterIdentity | `async activateAndRegisterIdentity(name, devPassphrase)` | 19 |  |
-| 753 | openIdentityDialog | `openIdentityDialog()` | 17 |  |
-| 797 | placeDeckOnBoard | `placeDeckOnBoard(name, back, cards)` | 6 |  |
-| 806 | builtInAsTemplate | `builtInAsTemplate(builtIn)` | 14 |  |
-| 821 | openDeckEditor | `openDeckEditor(template = null)` | 13 |  |
-| 836 | importDeckFromFile | `async importDeckFromFile()` | 27 |  |
-| 864 | openDeckListDialog | `openDeckListDialog()` | 46 |  |
-| 999 | downloadBlob | `downloadBlob(blob, filename)` | 10 |  |
-| 1025 | exportStateToFile | `async exportStateToFile()` | 32 |  |
-| 1060 | openLogExportDialog | `openLogExportDialog()` | 19 |  |
-| 1082 | openLogClearDialog | `openLogClearDialog()` | 5 |  |
-| 1244 | substituteCharacterParameters | `substituteCharacterParameters(text, character, depth = 0)` | 28 |  |
-| 1284 | parseFinalDiceNumber | `parseFinalDiceNumber(resultText)` | 7 |  |
-| 1294 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 |  |
-| 1306 | shouldMaskParameterValue | `shouldMaskParameterValue(param)` | 3 |  |
-| 1313 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId })` | 21 |  |
-| 1335 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character, tabId = activeTabId)` | 82 |  |
-| 1449 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character, tabId = activeTabId)` | 101 |  |
-| 1562 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
-| 1579 | tryHandleStampCommand | `tryHandleStampCommand(rawInput)` | 23 |  |
-| 1603 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
-| 1644 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 17 |  |
-| 1666 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 47 |  |
-| 1718 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
-| 1757 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
-| 1799 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
-| 1877 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
-| 1883 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 41 |  |
-| 1930 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
-| 2007 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 2115 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 2123 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 2172 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 2176 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 2193 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2290 | splitForSpace | `splitForSpace(string)` | 3 |  |
-| 2306 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
-| 2341 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 544 | applyGmOnlyControls | `applyGmOnlyControls()` | 13 |  |
+| 565 | openRoomParametersDialog | `openRoomParametersDialog()` | 19 |  |
+| 587 | openOriginalTableEditor | `openOriginalTableEditor(table = null)` | 15 |  |
+| 604 | openOriginalTableListDialog | `openOriginalTableListDialog()` | 11 |  |
+| 622 | currentBoardSnapshot | `currentBoardSnapshot()` | 17 |  |
+| 641 | openSceneEditor | `openSceneEditor(scene = null)` | 27 |  |
+| 670 | openSceneListDialog | `openSceneListDialog()` | 15 |  |
+| 688 | openAudioDialog | `openAudioDialog()` | 33 |  |
+| 729 | currentRoomId | `currentRoomId()` | 3 |  |
+| 735 | activateAndRegisterIdentity | `async activateAndRegisterIdentity(name, devPassphrase)` | 19 |  |
+| 755 | openIdentityDialog | `openIdentityDialog()` | 17 |  |
+| 799 | placeDeckOnBoard | `placeDeckOnBoard(name, back, cards)` | 6 |  |
+| 808 | builtInAsTemplate | `builtInAsTemplate(builtIn)` | 14 |  |
+| 823 | openDeckEditor | `openDeckEditor(template = null)` | 13 |  |
+| 838 | importDeckFromFile | `async importDeckFromFile()` | 27 |  |
+| 866 | openDeckListDialog | `openDeckListDialog()` | 46 |  |
+| 1001 | downloadBlob | `downloadBlob(blob, filename)` | 10 |  |
+| 1027 | exportStateToFile | `async exportStateToFile()` | 32 |  |
+| 1062 | openLogExportDialog | `openLogExportDialog()` | 19 |  |
+| 1084 | openLogClearDialog | `openLogClearDialog()` | 5 |  |
+| 1246 | substituteCharacterParameters | `substituteCharacterParameters(text, character, depth = 0)` | 28 |  |
+| 1286 | parseFinalDiceNumber | `parseFinalDiceNumber(resultText)` | 7 |  |
+| 1296 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 |  |
+| 1308 | shouldMaskParameterValue | `shouldMaskParameterValue(param)` | 3 |  |
+| 1315 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId })` | 21 |  |
+| 1337 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character, tabId = activeTabId)` | 82 |  |
+| 1451 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character, tabId = activeTabId)` | 101 |  |
+| 1564 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
+| 1581 | tryHandleStampCommand | `tryHandleStampCommand(rawInput)` | 23 |  |
+| 1605 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
+| 1646 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 17 |  |
+| 1668 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 47 |  |
+| 1720 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
+| 1759 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
+| 1801 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
+| 1879 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
+| 1885 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 41 |  |
+| 1932 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
+| 2009 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 2136 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 2144 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 2193 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 2197 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 2214 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 2311 | splitForSpace | `splitForSpace(string)` | 3 |  |
+| 2327 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
+| 2362 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

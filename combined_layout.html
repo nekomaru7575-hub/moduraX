@@ -2541,6 +2541,16 @@
           入室メッセージを表示する
         </label>
       </div>
+      <!-- マス目への吸着（js/game-store.jsのSET_GRID_SNAP）。ルーム単位・全員共通で、
+           外すとマス目の線も描かれなくなる（js/board-data-driven.jsのapplyBoardBackground）。
+           大きさの指定は今までどおりマス単位のまま -->
+      <div class="dialog-form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+               title="盤面のコマ・パネル・カード・デッキを、離した位置からマス目へ吸着させます。外すと離した位置にそのまま置けるようになり、マス目の線も描かれなくなります。">
+          <input type="checkbox" id="gridSnapCheck">
+          マス目に合わせて配置する（オフにするとマス目を隠して自由に置ける）
+        </label>
+      </div>
       <!-- 入室パスワード。現在の値はサーバーに平文で残っていないため表示できない。
            空欄で「変更」を押すと解除になる（js/main.jsのapplyEntryPassword） -->
       <div class="dialog-form-group">

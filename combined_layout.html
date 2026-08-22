@@ -2008,6 +2008,12 @@
       vertical-align: middle;
     }
 
+    /* display:inline-blockの指定がUA既定のdisplay:noneを上書きしてしまうので、
+       hidden属性側にも明示的にdisplay:noneを指定しておく（付けないとbadge.hidden=trueが効かない）。 */
+    .chat-tab-badge[hidden] {
+      display: none;
+    }
+
     .chat-tab.active .chat-tab-badge {
       background-color: #fff;
     }

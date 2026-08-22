@@ -114,6 +114,13 @@ let lastRenderedMainCount = 0;   // currentChatLogへ反映済みの件数（Mai
 let lastRenderedMainEntry = null; // currentChatLogに出している発言（同じく編集の検知用）
 let lastSpokenCharacterId = null; // カレントチャット欄に最後に流れたメッセージの参照キャラクター（立ち絵表示用）
 
+// Main・システム以外のタブで、見ていない間に発言が増えたタブのID集合（タブボタンの未読ドット用）。
+// Mainは下のカレントチャット欄に常に最新発言が出るので対象外、システムは進行通知専用で
+// 人が探しに行く場ではないため対象外（どちらもユーザー指定）。
+const unreadTabIds = new Set();
+const tabBadgeEls = new Map(); // tabId → 未読ドット要素（renderChatTabsのたびに作り直す）
+let lastSeenTabLogRef = new Map(); // tabId → 直近のSTATE_CHANGEDで見たchatLogs[tabId]の参照（新着検知用）
+
 // 自分に見えるチャットタブだけを返す（限定公開タブは宛先に入っている人にだけ見せる）。
 function visibleChatTabs(state) {
   const myId = getCurrentParticipantId();
@@ -123,6 +130,16 @@ function visibleChatTabs(state) {
 function renderChatTabs(state) {
   if (!chatTabsEl) return;
   chatTabsEl.innerHTML = '';
+  tabBadgeEls.clear();
+
+  // 消えたタブの未読状態は引きずらない
+  const liveTabIds = new Set(state.chatTabs.map(tab => tab.id));
+  for (const tabId of unreadTabIds) {
+    if (!liveTabIds.has(tabId)) unreadTabIds.delete(tabId);
+  }
+  for (const tabId of lastSeenTabLogRef.keys()) {
+    if (!liveTabIds.has(tabId)) lastSeenTabLogRef.delete(tabId);
+  }
 
   visibleChatTabs(state).filter(tab => tab.id !== SYSTEM_CHAT_TAB_ID).forEach(tab => {
     const tabBtn = document.createElement('button');
@@ -141,6 +158,16 @@ function renderChatTabs(state) {
       event.preventDefault();
       openChatTabAudienceDialog(tab);
     });
+
+    // 未読ドット。Mainは常時カレントチャット欄に最新発言が出るので対象外（ユーザー指定）。
+    if (tab.id !== MAIN_TAB_ID) {
+      const badge = document.createElement('span');
+      badge.className = 'chat-tab-badge';
+      badge.hidden = !unreadTabIds.has(tab.id);
+      tabBtn.appendChild(badge);
+      tabBadgeEls.set(tab.id, badge);
+    }
+
     chatTabsEl.appendChild(tabBtn);
   });
 
@@ -211,6 +238,7 @@ function ensureActiveTabVisible(state) {
 function switchChatTab(tabId) {
   if (helpOpen) closeHelp();
   activeTabId = tabId;
+  unreadTabIds.delete(tabId); // 今から見るタブなので未読ドットは消す
   lastRenderedLogTabId = null; // 強制的にlogContainerを描き直させる
   syncChatInputLock();
   renderChatTabs(store.state);
@@ -391,6 +419,38 @@ function renderMainChatMirror(state) {
   lastRenderedMainCount = entries.length;
 }
 
+// タブボタン1個分だけ未読ドットの表示を直す（renderChatTabs丸ごとの作り直しを避ける軽い経路）。
+function updateTabBadge(tabId) {
+  const badge = tabBadgeEls.get(tabId);
+  if (badge) badge.hidden = !unreadTabIds.has(tabId);
+}
+
+// Main・システム以外のタブで、今見ていない間に発言が増えていないか調べ、未読ドットを立てる。
+// chatLogs[tabId]は発言のたびに新しい配列に置き換わる（js/game-store.jsのwithChatEntry）ので、
+// 参照が変わったかどうかで新着を判定できる。件数が増えていない場合（発言の編集・ログ消去）は
+// 対象にしない。
+function updateUnreadTabs(state) {
+  for (const [tabId, entries] of Object.entries(state.chatLogs)) {
+    if (tabId === MAIN_TAB_ID || tabId === SYSTEM_CHAT_TAB_ID) continue;
+    const prevEntries = lastSeenTabLogRef.get(tabId);
+    lastSeenTabLogRef.set(tabId, entries);
+
+    if (prevEntries === undefined || entries === prevEntries || entries.length <= prevEntries.length) continue;
+    if (tabId === activeTabId && !helpOpen) continue; // 今まさに見ている本人には不要
+
+    unreadTabIds.add(tabId);
+    updateTabBadge(tabId);
+  }
+}
+
+// 再接続で全ログが丸ごと再送されると新着扱いになってしまうので、mobile版
+// （js/mobile-layout.js）同様に基準を引き直す。
+EventBus.subscribe('NET_INITIALIZED', (state) => {
+  lastSeenTabLogRef = new Map(Object.entries(state.chatLogs));
+  unreadTabIds.clear();
+  renderChatTabs(state);
+});
+
 EventBus.subscribe('STATE_CHANGED', (state) => {
   if (state.chatTabs !== lastRenderedChatTabsRef) {
     lastRenderedChatTabsRef = state.chatTabs;
@@ -399,6 +459,7 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     ensureActiveTabVisible(state);
   }
 
+  updateUnreadTabs(state);
   renderActiveTabLog(state);
   renderMainChatMirror(state);
   updateCurrentChatPortrait();

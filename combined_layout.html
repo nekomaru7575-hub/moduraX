@@ -1996,6 +1996,22 @@
       border-color: #007acc;
     }
 
+    /* 見ていない間に発言が増えたタブに出す未読ドット（Main・システムは対象外）。
+       件数は出さず、更新があったことだけ知らせるシンプルな見た目にする。 */
+    .chat-tab-badge {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-left: 5px;
+      border-radius: 50%;
+      background-color: #d9534f;
+      vertical-align: middle;
+    }
+
+    .chat-tab.active .chat-tab-badge {
+      background-color: #fff;
+    }
+
     .chat-tab-add {
       background: none;
       color: #888;

@@ -39,7 +39,7 @@
     body {
       background-color: var(--surface-page);
       color: var(--text-default);
-      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-family: var(--font-body);
       margin: 0;
       padding: 20px;
       touch-action: pan-x pan-y;
@@ -71,9 +71,25 @@
        リングは即座に出す（transitionを掛けない）。フェードで現れると、キーボードで移動した
        瞬間に「今どこにいるか」が分からない時間ができる。 */
     :focus-visible {
-      outline: 2px solid var(--text-emphasis);
+      outline: 2px solid var(--focus-ring);
       outline-offset: 2px;
-      box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.65);
+      box-shadow: 0 0 0 4px var(--focus-ring-halo);
+    }
+
+    /* 動きを減らす設定にしている人には、動き自体を出さない（OS側の設定を尊重する）。
+       この画面のアニメは発言・キャラ行・スタンプの登場だけで、いずれも一度きりの
+       短いもの。止めても情報は失われない（回り続けて状態を示すものは無い）。
+       消さずに極短時間へ潰すのは、終了イベント(animationend)を待つコードが
+       あっても動くようにするため。 */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
 
     /* 入力中の文を選び直す・貼り付けるは残す必要があるので、フォーム部品だけ選択可に戻す */
@@ -2577,7 +2593,11 @@
       /* 浮動パネルの初期位置はPC幅前提なので、はめ込む前に一瞬はみ出して
          横スクロールが出ることがある。狭幅では常に切っておく。 */
       body {
+        /* clipを解さない古いブラウザ向けにhiddenを先に置く（後勝ちでclipになる）。
+           clipを使うのは、hiddenがスクロール枠を作ってしまい、中のposition:stickyが
+           効かなくなるため。切りたいだけなのでclipが正しい。 */
         overflow-x: hidden;
+        overflow-x: clip;
       }
     }
   </style>

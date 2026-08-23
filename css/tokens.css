@@ -41,7 +41,11 @@
   /* --- 文字。淡い順 --- */
   --text-faint: #666;           /* 補足の中でも弱いもの */
   --text-disabled: #777;        /* 無効・済みの表示 */
-  --text-muted: #888;           /* 補足 */
+  /* 補足。#888だと最も明るい地(--surface-base)の上で4.05:1しか差が出ず、本文として
+     読める下限(4.5:1)に届かなかったため#919191へ上げた（同じ地で4.55:1）。
+     この文字が乗る地はログ欄(#222)・ページ地(#1a1a1a)・パネル(#2a2a2a)で、
+     一番明るい#2a2a2aで満たせば残りは自動的に満たす。 */
+  --text-muted: #919191;
   --text-tertiary: #999;
   --text-secondary: #aaa;       /* 副次的な本文・ラベル */
   --text-body-dim: #bbb;
@@ -61,4 +65,14 @@
   /* --- キーボード操作の目印（combined_layout.html の :focus-visible 参照） --- */
   --focus-ring: #fff;
   --focus-ring-halo: rgba(0, 0, 0, 0.65);
+
+  /* --- 書体 ---
+     以前は 'Helvetica Neue', Arial, sans-serif だったが、この2つは日本語の字を
+     持っていない。そのため日本語はブラウザ任せの代替書体へ落ち、環境ごとに別の
+     字面で表示されていた（この画面はほぼ全部が日本語なので、実質そちらが本体）。
+     OSの標準UI書体を先頭に置き、日本語も明示して環境差を減らす。
+     system-uiはWindowsでは日本語グリフを持たないことがあるので、後ろに各OSの
+     日本語書体を並べて受け止める。 */
+  --font-body: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
 }

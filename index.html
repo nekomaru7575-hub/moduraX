@@ -7,6 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>もじゅらX - 部屋一覧</title>
 <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+<!-- 書体と色のトークン。このページの色はまだ直書きだが、書体だけは共通のものを使う -->
+<link rel="stylesheet" href="/css/tokens.css">
 
 <!-- PWA（ホーム画面／デスクトップへのインストール）。詳しくは manifest.webmanifest と sw.js。 -->
 <link rel="manifest" href="/manifest.webmanifest">
@@ -29,7 +31,7 @@
   body {
     background-color: #1a1a1a;
     color: #e0e0e0;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-body);
     margin: 0;
     /* 20pxを下限に、ノッチ・ホームバーのぶんだけ広げる（横向きのiPhone等） */
     padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))

@@ -87,6 +87,20 @@ function panelToggleItem(controller, label) {
   }];
 }
 
+// 5パネル分の表示/非表示項目を名前付きで返す。盤外メニュー（openBoardMenu）とヘッダーの
+// 「パネル表示」ボタン（js/main.js）の両方から呼ぶ。それぞれ展開する順が違う
+// （盤外メニューは既存の並びを変えない、ヘッダー側はキャラクター一覧を先頭にする）ので、
+// 1本の配列ではなくキーごとに返し、呼び出し側で好きな順に...展開できるようにしてある。
+export function buildPanelToggleItems() {
+  return {
+    chatPalette: panelToggleItem(chatPaletteController, 'チャットパレット'),
+    info: panelToggleItem(infoPanelController, '情報'),
+    characterList: panelToggleItem(characterPanelController, 'キャラクター一覧'),
+    stamp: panelToggleItem(stampPanelController, 'スタンプ送信'),
+    diceDraft: panelToggleItem(diceDraftPanelController, 'ダイスドラフト')
+  };
+}
+
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
 const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
@@ -1404,6 +1418,133 @@ export function getBoardDropSpot({ cols = 0, rows = 0 } = {}) {
   return { x, y };
 }
 
+// 盤外メニュー（openBoardMenu）とヘッダーの「+」ボタン（js/main.js）の両方から呼ぶ
+// 「キャラクターを追加」項目。x/yを省略すると、右クリックのように狙った位置を指せない
+// 代わりに、今見えている範囲の中央（getBoardDropSpot）へ置く。cols:1, rows:1を渡すのは、
+// クリック位置基準の計算（newTokenX = dropX - GRID_SIZE / 2）と同じ結果になるようにするため。
+export function buildAddCharacterMenuItem(x, y) {
+  if (x === undefined || y === undefined) {
+    const spot = getBoardDropSpot({ cols: 1, rows: 1 });
+    x = spot.x;
+    y = spot.y;
+  }
+  return {
+    label: 'キャラクターを追加',
+    onSelect: () => {
+      showCharacterDialog({
+        activePluginId: store.state.room?.activePlugin ?? null,
+        participants: store.state.participants ?? {},
+        onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters }) => {
+          store.dispatch('ADD_CHARACTER', {
+            id: generateTokenId(),
+            name,
+            image,
+            imageCrop,
+            size,
+            textColor,
+            visible,
+            x,
+            y,
+            // 登録した人のコマにする（表示名未設定なら所有者なし＝誰でも触れる）。
+            // NPC等をみんなで触りたい場合は「コマを手放す」で外す。
+            ownerId: getCurrentParticipantId(),
+            parameterOverrides,
+            parameterVisibility,
+            parameterAudience,
+            customParameters
+          });
+        }
+      });
+    }
+  };
+}
+
+// 「パネルを追加」項目。サイズはダイアログの中で選ぶため置く時点では分からず、
+// dropX/dropYを省略した場合はgetBoardDropSpot()の生の中央位置をそのまま使う
+// （クリック位置版が生のdropX/dropYをそのまま使うのと同じ扱い）。
+export function buildAddPanelMenuItem(dropX, dropY) {
+  const hasPos = dropX !== undefined && dropY !== undefined;
+  return {
+    label: 'パネルを追加',
+    onSelect: () => {
+      // パネルの左上を置く位置（マス目に合わせる設定ならそのマスへ吸着する）
+      let snapX, snapY;
+      if (hasPos) {
+        snapX = settlePosition(dropX);
+        snapY = settlePosition(dropY);
+      } else {
+        const spot = getBoardDropSpot();
+        snapX = spot.x;
+        snapY = spot.y;
+      }
+
+      showPanelDialog({
+        title: 'パネルを追加',
+        gridSize: GRID_SIZE,
+        onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
+          const panelId = generatePanelId();
+          store.dispatch('ADD_PANEL', {
+            id: panelId,
+            image,
+            text,
+            x: snapX,
+            y: snapY,
+            cols,
+            rows,
+            stackOrder,
+            keepOnSceneChange
+          });
+
+          // ストッカー化は所有者を決める必要があるので専用のアクションで続ける
+          // （ADD_PANELは「誰が作ったか」を持たない）
+          if (isStocker) {
+            const { participantId, localUserId } = actingUserPayload();
+            store.dispatch('SET_PANEL_STOCKER', {
+              id: panelId,
+              isStocker: true,
+              ownerId: stockerOwned ? participantId : null,
+              localUserId: stockerOwned ? localUserId : null,
+              gridSize: GRID_SIZE
+            });
+          }
+        }
+      });
+    }
+  };
+}
+
+// 「背景設定」項目。背景と盤面サイズは部屋全体の見た目を左右するのでGM限定（サーバー側も
+// server/index.jsのGM_ONLY_ACTIONSでSET_BOARD_BACKGROUNDを弾く）。項目自体は残して、
+// 押せない理由をツールチップで示す。
+export function buildBackgroundSettingsMenuItem() {
+  const canSetBackground = canOperateAsGm();
+  return {
+    label: '背景設定',
+    disabled: !canSetBackground,
+    title: canSetBackground ? undefined : GM_ONLY_REASON,
+    onSelect: () => {
+      const room = store.state.room;
+      const board = document.getElementById('board');
+      // boardWidth/boardHeightがnull＝自動（ビューポートに合わせる）。
+      // 自動のときは、今画面に出ている実サイズを数値欄の初期値として渡す。
+      const auto = !room.boardWidth || !room.boardHeight;
+
+      showBackgroundDialog({
+        initialImage: room.backgroundImage,
+        initialImageKey: room.backgroundImageKey,
+        initialCols: auto ? null : Math.round(room.boardWidth / GRID_SIZE),
+        initialRows: auto ? null : Math.round(room.boardHeight / GRID_SIZE),
+        fallbackCols: Math.max(1, Math.round((board?.offsetWidth || 0) / GRID_SIZE)),
+        fallbackRows: Math.max(1, Math.round((board?.offsetHeight || 0) / GRID_SIZE)),
+        initialShowGrid: room.showGrid !== false,
+        initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
+        gridSize: GRID_SIZE,
+        onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)
+      });
+    }
+  };
+}
+
 function clampPan(viewport, board) {
   const vw = viewport.clientWidth;
   const vh = viewport.clientHeight;
@@ -1592,118 +1733,24 @@ window.addEventListener('DOMContentLoaded', () => {
     const newTokenX = Math.round(dropX - GRID_SIZE / 2);
     const newTokenY = Math.round(dropY - GRID_SIZE / 2);
 
-    // 背景と盤面サイズは部屋全体の見た目を左右するのでGM限定（サーバー側も
-    // server/index.jsのGM_ONLY_ACTIONSでSET_BOARD_BACKGROUNDを弾く）。
-    // 項目自体は残して、押せない理由をツールチップで示す。
-    const canSetBackground = canOperateAsGm();
-
+    const t = buildPanelToggleItems();
     showContextMenu(event.clientX, event.clientY, [
-      {
-        label: 'キャラクターを追加',
-        onSelect: () => {
-          showCharacterDialog({
-            activePluginId: store.state.room?.activePlugin ?? null,
-            participants: store.state.participants ?? {},
-            onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters }) => {
-              store.dispatch('ADD_CHARACTER', {
-                id: generateTokenId(),
-                name,
-                image,
-                imageCrop,
-                size,
-                textColor,
-                visible,
-                x: newTokenX,
-                y: newTokenY,
-                // 登録した人のコマにする（表示名未設定なら所有者なし＝誰でも触れる）。
-                // NPC等をみんなで触りたい場合は「コマを手放す」で外す。
-                ownerId: getCurrentParticipantId(),
-                parameterOverrides,
-                parameterVisibility,
-                parameterAudience,
-                customParameters
-              });
-            }
-          });
-        }
-      },
-      {
-        label: 'パネルを追加',
-        onSelect: () => {
-          // パネルの左上をクリック位置へ置く（マス目に合わせる設定ならそのマスへ吸着する）
-          const snapX = settlePosition(dropX);
-          const snapY = settlePosition(dropY);
-
-          showPanelDialog({
-            title: 'パネルを追加',
-            gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
-              const panelId = generatePanelId();
-              store.dispatch('ADD_PANEL', {
-                id: panelId,
-                image,
-                text,
-                x: snapX,
-                y: snapY,
-                cols,
-                rows,
-                stackOrder,
-                keepOnSceneChange
-              });
-
-              // ストッカー化は所有者を決める必要があるので専用のアクションで続ける
-              // （ADD_PANELは「誰が作ったか」を持たない）
-              if (isStocker) {
-                const { participantId, localUserId } = actingUserPayload();
-                store.dispatch('SET_PANEL_STOCKER', {
-                  id: panelId,
-                  isStocker: true,
-                  ownerId: stockerOwned ? participantId : null,
-                  localUserId: stockerOwned ? localUserId : null,
-                  gridSize: GRID_SIZE
-                });
-              }
-            }
-          });
-        }
-      },
-      {
-        label: '背景設定',
-        disabled: !canSetBackground,
-        title: canSetBackground ? undefined : GM_ONLY_REASON,
-        onSelect: () => {
-          const room = store.state.room;
-          // boardWidth/boardHeightがnull＝自動（ビューポートに合わせる）。
-          // 自動のときは、今画面に出ている実サイズを数値欄の初期値として渡す。
-          const auto = !room.boardWidth || !room.boardHeight;
-
-          showBackgroundDialog({
-            initialImage: room.backgroundImage,
-            initialImageKey: room.backgroundImageKey,
-            initialCols: auto ? null : Math.round(room.boardWidth / GRID_SIZE),
-            initialRows: auto ? null : Math.round(room.boardHeight / GRID_SIZE),
-            fallbackCols: Math.max(1, Math.round(board.offsetWidth / GRID_SIZE)),
-            fallbackRows: Math.max(1, Math.round(board.offsetHeight / GRID_SIZE)),
-            initialShowGrid: room.showGrid !== false,
-            initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
-            gridSize: GRID_SIZE,
-            onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)
-          });
-        }
-      },
+      buildAddCharacterMenuItem(newTokenX, newTokenY),
+      buildAddPanelMenuItem(dropX, dropY),
+      buildBackgroundSettingsMenuItem(),
       // チャットパレットは浮動パネルなので、閉じたあと戻す手段がここだけになる。
       // パネルの生成はjs/main.js側なので、実体はsetChatPaletteControllerで受け取る。
-      ...panelToggleItem(chatPaletteController, 'チャットパレット'),
+      ...t.chatPalette,
       // 情報パネルは既定で非表示なので、ここが唯一の出しどころになる（生成はjs/info-panel.js）。
-      ...panelToggleItem(infoPanelController, '情報'),
+      ...t.info,
       // キャラクター一覧も浮動パネル（生成はjs/character-panel.js）。バックヤードは
       // このパネルのタブに統合したので、しまったコマを取り出す導線もここから辿る。
-      ...panelToggleItem(characterPanelController, 'キャラクター一覧'),
+      ...t.characterList,
       // スタンプ送信も既定で非表示なので、ここが唯一の出しどころ（生成はjs/stamp-panel.js）。
-      ...panelToggleItem(stampPanelController, 'スタンプ送信'),
+      ...t.stamp,
       // ダイスドラフトも既定で非表示（生成はjs/dice-draft-panel.js）。ダイスの割り当てを
       // 持たないシステムの部屋でも項目は出す：中を開けば理由が読めるようにしてある。
-      ...panelToggleItem(diceDraftPanelController, 'ダイスドラフト')
+      ...t.diceDraft
     ]);
   }
 

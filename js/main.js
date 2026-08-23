@@ -6,7 +6,8 @@ import { escapeHtml, safeCssColor } from './html-escape.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
-  BUFF_PHASE_LABELS, getBoardDropSpot
+  BUFF_PHASE_LABELS, getBoardDropSpot,
+  buildPanelToggleItems, buildAddCharacterMenuItem, buildAddPanelMenuItem, buildBackgroundSettingsMenuItem
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
@@ -580,6 +581,8 @@ EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
 const roomPluginSelect = document.getElementById('roomPluginSelect');
 const roomMenuBtn = document.getElementById('roomMenuBtn');
 const audioMenuBtn = document.getElementById('audioMenuBtn');
+const panelVisibilityBtn = document.getElementById('panelVisibilityBtn');
+const addMenuBtn = document.getElementById('addMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 const roomNameInput = document.getElementById('roomNameInput');
 const roomTitle = document.getElementById('roomTitle');
@@ -971,6 +974,51 @@ function openDeckListDialog() {
   });
 }
 
+// 「パネル表示」ボタン：5つの浮動パネルの表示/非表示を切り替える。項目自体は盤外右クリック
+// メニュー（js/board-data-driven.jsのopenBoardMenu）と共有（buildPanelToggleItems）。
+// こちらはキャラクター一覧を先頭にする（右クリックメニューの並びはそのまま変えない）。
+if (panelVisibilityBtn) {
+  panelVisibilityBtn.addEventListener('click', () => {
+    const rect = panelVisibilityBtn.getBoundingClientRect();
+    const t = buildPanelToggleItems();
+    showContextMenu(rect.left, rect.bottom + 4, [
+      ...t.characterList, ...t.chatPalette, ...t.info, ...t.stamp, ...t.diceDraft
+    ]);
+  });
+}
+
+// 「+」ボタン：キャラクター/パネルの追加・背景設定は盤外右クリックメニューと、
+// シーン一覧・ラウンド進行開始・デッキ一覧は元は「⋯」ルームメニューにあったものと同じ
+// 関数を共有する（buildAddCharacterMenuItem等・openSceneListDialog・startRoundProgression・
+// openDeckListDialog）。GM限定の判定・ラウンド進行開始の表示条件も元のまま踏襲する。
+if (addMenuBtn) {
+  addMenuBtn.addEventListener('click', () => {
+    const rect = addMenuBtn.getBoundingClientRect();
+    const allowed = canOperateAsGm();
+    const items = [
+      buildAddCharacterMenuItem(),
+      buildAddPanelMenuItem(),
+      buildBackgroundSettingsMenuItem(),
+      {
+        label: 'シーン一覧',
+        onSelect: openSceneListDialog,
+        disabled: !allowed,
+        title: allowed ? undefined : GM_ONLY_REASON
+      }
+    ];
+    if (!store.state.round.active) {
+      items.push({
+        label: 'ラウンド進行を開始',
+        onSelect: startRoundProgression,
+        disabled: !allowed,
+        title: allowed ? undefined : GM_ONLY_REASON
+      });
+    }
+    items.push({ label: 'デッキ一覧', onSelect: openDeckListDialog });
+    showContextMenu(rect.left, rect.bottom + 4, items);
+  });
+}
+
 // ルームメニューボタン：クリックでドロップダウンを出し、選択でダイアログを開く
 if (roomMenuBtn && roomSettingsDialog) {
   roomMenuBtn.addEventListener('click', () => {
@@ -989,10 +1037,6 @@ if (roomMenuBtn && roomSettingsDialog) {
         onSelect: openOriginalTableListDialog
       },
       {
-        label: 'デッキ一覧',
-        onSelect: openDeckListDialog
-      },
-      {
         label: 'ログを保存',
         onSelect: openLogExportDialog
       }
@@ -1006,30 +1050,6 @@ if (roomMenuBtn && roomSettingsDialog) {
         label: 'ログを消去',
         onSelect: openLogClearDialog,
         danger: true,
-        disabled: !allowed,
-        title: allowed ? undefined : GM_ONLY_REASON
-      });
-    }
-
-    // シーンの作成・遷移・編集・削除はGM限定（サーバー側もserver/index.jsの
-    // GM_ONLY_ACTIONSで同じ4つを弾く）。項目自体は残して理由を示す。
-    {
-      const allowed = canOperateAsGm();
-      items.push({
-        label: 'シーン一覧',
-        onSelect: openSceneListDialog,
-        disabled: !allowed,
-        title: allowed ? undefined : GM_ONLY_REASON
-      });
-    }
-
-    // ラウンド進行の常時パネルは邪魔にならないよう進行中(round.active)にだけ表示するため、
-    // 開始のきっかけはこのルームメニューに置く（進行中はパネル自身の⋮メニューから終了する）。
-    if (!store.state.round.active) {
-      const allowed = canOperateAsGm();
-      items.push({
-        label: 'ラウンド進行を開始',
-        onSelect: startRoundProgression,
         disabled: !allowed,
         title: allowed ? undefined : GM_ONLY_REASON
       });

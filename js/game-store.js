@@ -1262,6 +1262,19 @@ function joinTokenNames(tokensState, ids) {
   return ids.map(id => tokensState[id]?.name || id).join('、');
 }
 
+// 下の各テーブルからアクション名で規則を引く。必ずここを通すこと。
+//
+// 素の TABLE[action] で引いてはいけない。テーブルはオブジェクトリテラルなので
+// Object.prototype 由来の名前まで拾ってしまう（SEND_STAMPのparticipantsと同じ罠。
+// あちらのコメントも参照）。特に action:'constructor' は Object そのものを返し、
+// Object(payload) は payload 自身なので、payloadの全キーがそのままコマへマージされ、
+// 保存・全員への配信まで通ってしまう。GM_ONLY_ACTIONS にも載っていない名前なので、
+// server/index.js の権限チェックも素通りする。
+// 自分で書いた名前だけを引くようにして塞ぐ。
+function fieldPatchFor(table, action) {
+  return Object.prototype.hasOwnProperty.call(table, action) ? table[action] : null;
+}
+
 // コマの「決まった項目だけを差し替える」アクション。payloadから差分オブジェクトを作る規則だけを
 // 持ち、対象の存在確認・凍結・コミットはdispatch側の共通処理に任せる（nullを返すと何もしない）。
 // アクション名はネットワーク同期の識別子（js/net-sync.js・server/index.js）なので、
@@ -1437,7 +1450,7 @@ export class ImmutableStore {
 
     // コマ／パネルの決まった項目を差し替えるだけのアクションは、対象の存在確認・凍結・コミットが
     // 完全に共通なので、switchの手前でまとめて処理する（差分の作り方だけがテーブル側にある）。
-    const characterFieldPatch = CHARACTER_FIELD_PATCHES[action];
+    const characterFieldPatch = fieldPatchFor(CHARACTER_FIELD_PATCHES, action);
     if (characterFieldPatch) {
       const { id } = payload;
       const fields = nextTokensState[id] ? characterFieldPatch(payload) : null;
@@ -1448,7 +1461,7 @@ export class ImmutableStore {
       return;
     }
 
-    const panelFieldPatch = PANEL_FIELD_PATCHES[action];
+    const panelFieldPatch = fieldPatchFor(PANEL_FIELD_PATCHES, action);
     if (panelFieldPatch) {
       const { id } = payload;
       const panel = prevState.panels[id];
@@ -1461,7 +1474,7 @@ export class ImmutableStore {
       return;
     }
 
-    const cardFieldPatch = CARD_FIELD_PATCHES[action];
+    const cardFieldPatch = fieldPatchFor(CARD_FIELD_PATCHES, action);
     if (cardFieldPatch) {
       const { id } = payload;
       const card = prevState.cards[id];
@@ -1474,7 +1487,7 @@ export class ImmutableStore {
       return;
     }
 
-    const deckFieldPatch = DECK_FIELD_PATCHES[action];
+    const deckFieldPatch = fieldPatchFor(DECK_FIELD_PATCHES, action);
     if (deckFieldPatch) {
       const { id } = payload;
       const deck = prevState.decks[id];

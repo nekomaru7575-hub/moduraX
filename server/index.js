@@ -452,7 +452,9 @@ const MIME_TYPES = {
 // 制御できないため。/以下すべてを見せたいので、ルートに置くしかない。
 const PUBLIC_FILES = new Set([
   'index.html', 'combined_layout.html', 'character-builder.html',
-  'manifest.webmanifest', 'sw.js', 'offline.html'
+  'manifest.webmanifest', 'sw.js', 'offline.html',
+  // 利用規約・プライバシーポリシー・免責事項・問い合わせ先（部屋一覧の下から辿れる）
+  'about.html'
 ]);
 const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
 // 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の

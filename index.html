@@ -71,6 +71,22 @@
     margin-bottom: 16px;
   }
 
+  .site-footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid #333;
+    font-size: 0.85rem;
+  }
+
+  .site-footer a {
+    color: #8ab4f8;
+    text-decoration: none;
+  }
+
+  .site-footer a:hover {
+    text-decoration: underline;
+  }
+
   .header-links a {
     color: #8ab4f8;
     text-decoration: none;
@@ -323,6 +339,12 @@
     <div id="roomList" class="room-list">
       <p style="color:#888;">読み込み中...</p>
     </div>
+
+    <!-- 利用規約・プライバシーポリシー・免責事項・問い合わせ先。
+         公開するサービスとして、画面から辿れる場所に置いておく必要がある。 -->
+    <footer class="site-footer">
+      <a href="/about.html">このサービスについて（利用規約・プライバシー・問い合わせ）</a>
+    </footer>
   </div>
 
   <script type="module" src="/js/room-index.js"></script>

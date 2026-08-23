@@ -175,10 +175,20 @@ function roomSummaryFilePath(roomId) {
   return path.join(ROOMS_DIR, `${roomId}.meta.json`);
 }
 
+// 最終更新時刻をこの粒度に切り捨ててから要約へ載せる。
+// 素の時刻をそのまま入れると要約のJSONが保存のたびに変わり、syncRoomSummaryの
+// 「前回と同じなら書かない」が毎回すり抜けて保存先への書き込みが倍になる。
+// 判定は2週間単位（ROOM_TTL_MS）なので、1時間の粗さは効かない。
+const TOUCH_GRANULARITY_MS = 60 * 60 * 1000;
+
 function roomSummaryOf(entry) {
   const { name, activePlugin, bcdiceSystem } = entry.store.state.room;
   // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは載せない。
-  return { name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword };
+  return {
+    name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword,
+    // 部屋の自動削除（sweepExpiredRooms）と、一覧の残り日数表示の唯一の根拠。
+    updatedAt: Math.floor((entry.updatedAt || Date.now()) / TOUCH_GRANULARITY_MS) * TOUCH_GRANULARITY_MS
+  };
 }
 
 async function readRoomSummary(roomId) {
@@ -757,10 +767,22 @@ async function getOrLoadRoom(roomId) {
     // ※entryを組み立てる場所はここと handleCreateRoom の2か所しかない。
     //   片方に足し忘れると、その経路で作られた部屋は接続のたびに例外を投げる
     //   （typingUsersListがArray.from(undefined)になる）ので、必ず両方に入れること。
+    // 最終更新は要約から引き継ぐ。要約が無い・updatedAtを持たない（この機能より前から
+    // ある）部屋は「今」を入れる。ここを0やundefinedのままにすると、昔からある部屋が
+    // 読み込まれた瞬間に期限切れとみなされて消える。
+    let updatedAt = Date.now();
+    try {
+      const summary = await readRoomSummary(roomId);
+      if (Number.isFinite(summary?.updatedAt)) updatedAt = summary.updatedAt;
+    } catch (error) {
+      console.warn(`[server] ${roomId} の最終更新時刻の読み込みに失敗しました:`, error.message);
+    }
+
     return {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
       lastPersistedJson: null, lastSummaryJson: null,
-      entryPassword: meta.entryPassword || null, typing: new Map()
+      entryPassword: meta.entryPassword || null, typing: new Map(),
+      updatedAt
     };
 
   }
@@ -835,6 +857,10 @@ async function persistRoomNow(roomId, entry) {
     if (json === entry.lastPersistedJson) return;
     await writeRoomStateJson(roomId, json);
     entry.lastPersistedJson = json;
+    // 中身が実際に変わったときだけ「最終更新」を進める。ここより上のreturnに落ちる
+    // 操作（同じ座標へのMOVE_TOKEN、再入室時のREGISTER_PARTICIPANT等、状態を変えない
+    // もの）では進まない。この値が部屋の寿命（ROOM_TTL_MS）の起点になる。
+    entry.updatedAt = Date.now();
   } catch (error) {
     console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message);
   }
@@ -1099,6 +1125,87 @@ async function deleteRoomData(roomId) {
       console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
     }
   }
+}
+
+// --- 使われなくなった部屋の自動削除 ---
+// 最終更新（roomSummaryOfのupdatedAt）からROOM_TTL_MSが過ぎた部屋を消す。
+// 保存期間はabout.htmlの「3-5. 保存期間と消し方」に明記してあるので、
+// 変えるときはあちらも直すこと。
+//
+// 【RedisのTTL（ex）を使わない理由】キーに期限を付ければ自動で消えるが、消えるのは
+// Redis上の記録だけで、R2のファイルはそのまま残る。参照する記録が無くなるぶん、
+// 誰からも辿れないのに課金され続けるファイルになる。R2まで確実に消すために、
+// 手動削除と同じ経路（startRoomDeletion / deleteRoomData）を通す掃除の形にしてある。
+const ROOM_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+// 掃除を走らせる間隔の下限。一覧を開くたびに毎回走らせる必要は無い。
+const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+let sweeping = false;
+let lastSweepAt = 0;
+
+async function sweepExpiredRooms() {
+  if (sweeping) return;
+  sweeping = true;
+  lastSweepAt = Date.now();
+
+  try {
+    const limit = Date.now() - ROOM_TTL_MS;
+
+    for (let n = 1; n <= MAX_ROOMS; n++) {
+      const roomId = `room-${n}`;
+      const entry = rooms.get(roomId);
+
+      // 消している最中のものには触らない
+      if (entry?.pendingDelete) continue;
+
+      // 今つないでいる人がいる部屋は消さない。目の前で部屋が消えるのを避けるための
+      // 保険で、通常は接続中＝操作もされるので期限切れにならない。
+      if (entry && entry.clients.size > 0) continue;
+
+      // メモリに載っていればそちらが最新。載っていなければ要約だけ読む（数十バイト）。
+      let updatedAt = entry?.updatedAt;
+      if (updatedAt === undefined) {
+        try {
+          const summary = await readRoomSummary(roomId);
+          if (!summary) continue; // 空きスロット
+          updatedAt = summary.updatedAt;
+        } catch (error) {
+          console.warn(`[server] ${roomId} の最終更新時刻の読み込みに失敗しました:`, error.message);
+          continue;
+        }
+      }
+
+      // 最終更新が分からない部屋は消さない。この機能より前からある部屋がここに来るが、
+      // 次に読み込まれた時点でupdatedAtが入る（getOrLoadRoomのbuildEntry参照）ので、
+      // 判断はそれからでよい。分からないものを消す側に倒さない。
+      if (!Number.isFinite(updatedAt)) continue;
+      if (updatedAt > limit) continue;
+
+      const days = Math.floor((Date.now() - updatedAt) / (24 * 60 * 60 * 1000));
+      console.log(`[server] ${roomId} を自動削除します（最終更新から${days}日）`);
+
+      try {
+        // メモリに載っている場合は保存タイマーの停止や墓標の始末が要るので、
+        // 手動削除と同じstartRoomDeletionを通す。
+        if (entry) await startRoomDeletion(roomId, entry);
+        else await deleteRoomData(roomId);
+      } catch (error) {
+        console.warn(`[server] ${roomId} の自動削除に失敗しました:`, error.message);
+      }
+    }
+  } finally {
+    sweeping = false;
+  }
+}
+
+// 一覧の表示など、応答を待たせたくないところから呼ぶ用。前回から時間が経っていなければ
+// 何もしない。失敗しても呼び出し元には影響させない。
+function sweepExpiredRoomsInBackground() {
+  if (sweeping) return;
+  if (Date.now() - lastSweepAt < SWEEP_INTERVAL_MS) return;
+  sweepExpiredRooms()
+    .catch((error) => console.warn('[server] 部屋の自動削除に失敗しました:', error.message));
 }
 
 // 起動時、まだserver/rooms/が無ければ作成する。既存のserver/state.json（本機能より前の
@@ -1626,6 +1733,11 @@ async function handleImageCopy(req, res) {
 // 併せて、そのときのサーバーの混み具合（serverLoad）も載せる。入る前に「今このサーバーは
 // 重い操作を受け付けられる状態か」が分かると、大きな取り込みで503を食う前に判断できる。
 async function handleListRooms(req, res) {
+  // 使われなくなった部屋の掃除は、人が来たついでに走らせる。無料枠のPaaSは誰も
+  // 来ない間スピンダウンするので、定期タイマーだけに任せると動く保証が無い。
+  // 一覧の応答は待たせない（投げっぱなし。中で間引きもしている）。
+  sweepExpiredRoomsInBackground();
+
   const list = [];
   for (let n = 1; n <= MAX_ROOMS; n++) {
     list.push(await summarizeRoomSlot(`room-${n}`));
@@ -1811,11 +1923,12 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  // typingを忘れないこと（理由はgetOrLoadRoom側の同じ組み立てのコメント参照）
+  // typing・updatedAtを忘れないこと（理由はgetOrLoadRoom側の同じ組み立てのコメント参照）
   const entry = {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
     lastPersistedJson: null, lastSummaryJson: null,
-    entryPassword: entryPasswordRecord, typing: new Map()
+    entryPassword: entryPasswordRecord, typing: new Map(),
+    updatedAt: Date.now()
   };
   rooms.set(id, entry);
   // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、
@@ -3095,4 +3208,12 @@ httpServer.listen(PORT, () => {
   // メモリ上限の検出を誤ると、断りすぎ（機能が使えない）か断らなすぎ（OOMで全部屋切断）の
   // どちらかになる。実際に効いている値を必ずログに出す（memory-budget.js参照）。
   console.log(`[server] ${describeBudget()}`);
+  console.log(`[server] 部屋の保存期間: 最終更新から${Math.floor(ROOM_TTL_MS / 86400000)}日`);
+
+  // 使われなくなった部屋の掃除を起動時にも1回。一覧が開かれるまで待たずに済む。
+  // 起動直後は他の初期化と重なるので、少し置いてから走らせる。
+  setTimeout(() => {
+    sweepExpiredRooms()
+      .catch((error) => console.warn('[server] 部屋の自動削除に失敗しました:', error.message));
+  }, 10_000).unref();
 });

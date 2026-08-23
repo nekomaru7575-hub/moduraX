@@ -128,6 +128,27 @@ function renderServerStatus(load) {
   serverStatusEl.replaceChildren(box);
 }
 
+// 部屋の保存期間（server/index.jsのROOM_TTL_MS）。片方だけ変えると表示と実際がずれる。
+const ROOM_TTL_DAYS = 14;
+// 残りがこれ以下になったら一覧に出す
+const EXPIRY_NOTICE_DAYS = 3;
+
+// 「あと何日で自動削除されるか」の一行。まだ先なら null（何も出さない）。
+// updatedAtは1時間単位に丸めた値がサーバーから来る（roomSummaryOf）。
+function describeExpiry(updatedAt) {
+  if (!Number.isFinite(updatedAt)) return null;
+
+  const elapsedDays = (Date.now() - updatedAt) / (24 * 60 * 60 * 1000);
+  const remaining = ROOM_TTL_DAYS - elapsedDays;
+  if (remaining > EXPIRY_NOTICE_DAYS) return null;
+
+  // 残り0.2日を「あと0日」と出すと消えたのかどうか分からないので、切り上げて
+  // 最低でも「あと1日」にする。実際の削除は掃除が走ったときなので、
+  // 表示より少し遅れて消えることはあっても早く消えることはない。
+  const days = Math.max(1, Math.ceil(remaining));
+  return `あと${days}日で自動削除されます（入室して操作すれば延びます）`;
+}
+
 function buildOccupiedCard(room) {
   const card = document.createElement('div');
   card.className = 'room-card';
@@ -154,6 +175,19 @@ function buildOccupiedCard(room) {
   const peopleLabel = room.clients > 0 ? `${room.clients}人が入室中` : '誰もいません';
   meta.textContent = `${pluginLabel} / ${bcdiceLabel} ・ ${peopleLabel}`;
   titleBlock.appendChild(meta);
+
+  // 期限が近い部屋にだけ、あと何日で自動削除されるかを出す。常に出すと普段の一覧が
+  // うるさくなるだけなので、気づいて手を打てる範囲（3日以内）に絞る。
+  // 保存期間そのものの説明はabout.htmlに書いてあるので、ここは一行だけ。
+  const expiry = describeExpiry(room.updatedAt);
+  if (expiry) {
+    const expiryEl = document.createElement('div');
+    expiryEl.className = 'room-card-expiry';
+    expiryEl.textContent = expiry;
+    expiryEl.title = '部屋は最終更新から2週間で自動的に削除されます。'
+      + '入室して何か操作すれば、そこから2週間に延びます。';
+    titleBlock.appendChild(expiryEl);
+  }
 
   header.appendChild(titleBlock);
 

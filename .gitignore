@@ -16,3 +16,8 @@ txt/
 js/room.js
 .loop/runs/
 docs/user-registration-draft.md
+# 外部から入れた開発支援スキル（このアプリの動作には関係しない）。
+# 末尾に / を付けてディレクトリだけを指す。js/parameters/skill-*.js のような
+# アプリ側の「特技」のファイルまで巻き込まないため。
+.agents/
+skills-lock.json

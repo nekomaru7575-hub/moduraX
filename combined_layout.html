@@ -992,6 +992,22 @@
       opacity: 0.75;
     }
 
+    /* 戦闘離脱したコマ。行動済み（横線・グレー）とは違う状態だと一目で分かるよう、赤系の色と
+       斜線（対角線）で示す。行動済みも同時に付いている場合は斜線を優先する
+       （js/round-panel.jsのbuildTurnRow。復帰時は行動済みも一緒に外すため、通常は同時発生しない）。 */
+    .round-panel-turn-row.withdrawn {
+      color: #ff6b6b;
+      text-decoration: none;
+      opacity: 0.85;
+      background-image: linear-gradient(
+        to top right,
+        transparent calc(50% - 1px),
+        currentColor calc(50% - 1px),
+        currentColor calc(50% + 1px),
+        transparent calc(50% + 1px)
+      );
+    }
+
     /* 次の手番に割り込む予約が入っているコマ */
     .round-panel-turn-row.interrupt-reserved {
       border: 1px solid #d0a000;

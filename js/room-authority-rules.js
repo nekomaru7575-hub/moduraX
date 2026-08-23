@@ -54,6 +54,8 @@ export const GM_ONLY_ACTIONS = new Set([
   // 行動済みの付け外し・次の手番への割り込み指定・ラウンド進行の設定も進行操作の一部
   'ROUND_SET_ACTED',
   'ROUND_SET_INTERRUPT',
+  // 戦闘離脱の付け外しも進行操作の一部（上と同じ理由）
+  'ROUND_SET_WITHDRAWN',
   'SET_ROUND_SETTINGS',
   // 入室メッセージ表示の切り替え。イニシアチブ設定と同じ権限判定に揃える。
   'SET_SHOW_ENTRY_MESSAGES',

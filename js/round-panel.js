@@ -103,9 +103,11 @@ function buildTurnRow(state, round, turnRow, canOperate, tiedKeys = []) {
   const isCurrent = tokenId === round.currentActorId;
   const isActed = (round.acted || []).includes(tokenId);
   const isInterrupt = tokenId === round.interruptId;
+  const isWithdrawn = (round.withdrawn || []).includes(tokenId);
   if (isCurrent) row.classList.add('active-turn');
   if (isActed) row.classList.add('acted');
   if (isInterrupt) row.classList.add('interrupt-reserved');
+  if (isWithdrawn) row.classList.add('withdrawn');
 
   const token = state.tokens[tokenId];
 
@@ -155,6 +157,13 @@ function buildTurnRow(state, round, turnRow, canOperate, tiedKeys = []) {
         disabled: !canOperate,
         title: canOperate ? undefined : GM_ONLY_REASON,
         onSelect: () => store.dispatch('ROUND_SET_INTERRUPT', { tokenId: isInterrupt ? null : tokenId })
+      },
+      {
+        // 復帰時はリデューサー側で必ず未行動へ戻る（行動済みからも外れる）
+        label: isWithdrawn ? '戦闘に復帰' : '戦闘を離脱',
+        disabled: !canOperate,
+        title: canOperate ? undefined : GM_ONLY_REASON,
+        onSelect: () => store.dispatch('ROUND_SET_WITHDRAWN', { tokenId, withdrawn: !isWithdrawn })
       }
     ]);
   });
@@ -171,7 +180,8 @@ function listBoardTokens(state) {
 // プロットを自分が出せるコマ（持ち主が自分か、持ち主のいないコマ。GMは全部出せる）。
 // 判定は盤面のコマ操作と同じ規則（js/room-authority.jsのcanOperateToken）。
 function listMyPlotTokenIds(state, round) {
-  return round.participants.filter(id => canOperateToken(state.tokens[id]));
+  const withdrawn = round.withdrawn || [];
+  return round.participants.filter(id => canOperateToken(state.tokens[id]) && !withdrawn.includes(id));
 }
 
 // プロットの枠1つ分の提出欄（名前 + min〜maxのボタン）。もう一度同じ数字を押すと取り消す。
@@ -338,7 +348,8 @@ function buildPlotChoiceRow(state, round, tokenId) {
 // 提出状況の1行。公開前は誰が出し終えたかだけ（●/○）、公開後は値を出す。
 // プロットを増やしているコマは枠の数だけ●/○が並ぶので、増えていることが全員に伝わる。
 function describePlotStatus(state, round) {
-  const entries = round.participants.map(id => {
+  const withdrawn = round.withdrawn || [];
+  const entries = round.participants.filter(id => !withdrawn.includes(id)).map(id => {
     const name = getTokenName(state, id);
     const slots = listPlotSlots(round, id);
 

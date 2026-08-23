@@ -177,6 +177,9 @@ function createInitialRoundState() {
     phaseIndex: 0,
     participants: [],      // 参加者のtokenId（順序は開始時点の記録。実際の手番順は都度計算する）
     acted: [],             // このラウンドで行動を終えたtokenId
+    // 戦闘離脱したtokenId。手番決定（pickNextActor）・プロット提出の対象からは外れるが、
+    // round.participants自体からは消さない（js/round-panel.jsの一覧に赤＋斜線で残す）。
+    withdrawn: [],
     currentActorId: null,  // 現在手番のコマ（kind:'perCharacter'かつstep:'act'のときだけ非null）
     step: 'act',           // perCharacterフェーズ内のサブステップ。'preTurn'（イニシアチブプロセス）| 'act'
     interruptId: null,     // 次の手番に割り込ませるコマ（GM指定。手番が決まる時に1回で消費する）
@@ -236,7 +239,9 @@ function normalizeRoundState(round) {
     plotSubmitters: round.plotSubmitters || base.plotSubmitters,
     // 増やしたプロット枠（plotExtras/plotChoice）より前の状態にはキーが無い。上と同じ理由で埋め直す。
     plotExtras: round.plotExtras || base.plotExtras,
-    plotChoice: round.plotChoice || base.plotChoice
+    plotChoice: round.plotChoice || base.plotChoice,
+    // 戦闘離脱機能より前の状態にはキーが無い。上と同じ理由で埋め直す。
+    withdrawn: round.withdrawn || base.withdrawn
   };
   delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
   return next;
@@ -1229,14 +1234,20 @@ export function listTiedPlotTokenIds(round) {
 // そのまま反映される（＝「イニシアチブプロセスで順番を計算し直す」の実体）。
 export function listUnactedParticipants(tokensState, round) {
   const acted = round.acted || [];
-  return sortForTurnOrder(tokensState, round, round.participants.filter(id => !acted.includes(id)));
+  const withdrawn = round.withdrawn || [];
+  return sortForTurnOrder(tokensState, round,
+    round.participants.filter(id => !acted.includes(id) && !withdrawn.includes(id)));
 }
 
 // 次に手番を得るコマ。割り込み指定が最優先で、無ければ未行動者のうち行動値が最大のもの。
 // 割り込み指定されたコマはROUND_SET_INTERRUPT側でactedから外してあるので、ここでは
 // 「参加者として残っているか」だけを確かめればよい。誰も残っていなければnull。
+// 離脱者はROUND_SET_WITHDRAWN側で割り込み予約も一緒に外すので通常は起きないが、
+// 二重の安全策として離脱済みのコマは割り込み優先の対象からも除く。
 export function pickNextActor(tokensState, round) {
-  if (round.interruptId && round.participants.includes(round.interruptId)) return round.interruptId;
+  const withdrawn = round.withdrawn || [];
+  if (round.interruptId && round.participants.includes(round.interruptId)
+    && !withdrawn.includes(round.interruptId)) return round.interruptId;
   return listUnactedParticipants(tokensState, round)[0] || null;
 }
 
@@ -1927,6 +1938,7 @@ export class ImmutableStore {
         // 手番中のコマが外された場合はcurrentActorIdをnullにし、次の「次へ進む」で
         // pickNextActorに選び直させる。
         const acted = (round.acted || []).filter(id => participants.includes(id));
+        const withdrawn = (round.withdrawn || []).filter(id => participants.includes(id));
         const currentActorId = participants.includes(round.currentActorId) ? round.currentActorId : null;
         const interruptId = participants.includes(round.interruptId) ? round.interruptId : null;
         const keepParticipant = ([id]) => participants.includes(id);
@@ -1941,7 +1953,7 @@ export class ImmutableStore {
 
         this.#commit(prevState, {
           round: {
-            ...round, participants, acted, currentActorId, interruptId,
+            ...round, participants, acted, withdrawn, currentActorId, interruptId,
             plots, plotSubmitters, plotExtras, plotChoice
           },
           chatLogs: withSystemLog(prevState.chatLogs, `参加者を更新しました（現在: ${participantNames}）。`, payload?.time)
@@ -2169,15 +2181,48 @@ export class ImmutableStore {
         return;
       }
 
+      // 戦闘離脱の付け外し。離脱させると以降の手番決定（pickNextActor）・プロット提出対象から
+      // 外れる（listUnactedParticipants・js/round-panel.jsのlistMyPlotTokenIdsが見る）。
+      // 復帰時は必ず未行動へ戻す（actedからも外す。「もう一度離脱すると行動済みのまま」という
+      // 分かりにくい状態を避けるため）。割り込み予約中のコマを離脱させた場合は予約も一緒に外す
+      // （離脱者が次の手番へ割り込むのは筋が悪い）。
+      case 'ROUND_SET_WITHDRAWN': {
+        const { tokenId, withdrawn } = payload;
+        const round = prevState.round;
+        if (!round.active || !round.participants.includes(tokenId)) return;
+
+        const current = round.withdrawn || [];
+        const isWithdrawn = current.includes(tokenId);
+        if (isWithdrawn === !!withdrawn) return; // 変化なし
+
+        const nextWithdrawn = withdrawn ? [...current, tokenId] : current.filter(id => id !== tokenId);
+        // 復帰時は「未行動で復帰」を保証するため、行動済みからも外す
+        const acted = withdrawn ? (round.acted || []) : (round.acted || []).filter(id => id !== tokenId);
+        const interruptId = withdrawn && round.interruptId === tokenId ? null : round.interruptId;
+        const name = nextTokensState[tokenId]?.name || '？';
+
+        this.#commit(prevState, {
+          round: { ...round, withdrawn: nextWithdrawn, acted, interruptId },
+          chatLogs: withSystemLog(
+            prevState.chatLogs,
+            withdrawn ? `${name}が戦闘から離脱しました。` : `${name}が戦闘に復帰しました。`,
+            payload?.time
+          )
+        });
+        return;
+      }
+
       // 次の手番への割り込み指定。行動済みのコマにも割り込ませられるよう、ここで
       // actedからも外しておく（回復と割り込みが1操作で済み、pickNextActor側は
       // 「参加者に残っているか」だけを見ればよくなる）。tokenId=nullで予約解除。
-      // 進行中の手番は中断しない（あくまで「次の手番」に割り込む）。
+      // 進行中の手番は中断しない（あくまで「次の手番」に割り込む）。離脱済みのコマは
+      // 割り込ませられない（ROUND_SET_WITHDRAWN側で予約解除も行うが、ここでも二重に防ぐ）。
       case 'ROUND_SET_INTERRUPT': {
         const { tokenId = null } = payload;
         const round = prevState.round;
         if (!round.active) return;
         if (tokenId && !round.participants.includes(tokenId)) return;
+        if (tokenId && (round.withdrawn || []).includes(tokenId)) return;
 
         const acted = tokenId ? (round.acted || []).filter(id => id !== tokenId) : (round.acted || []);
         const logText = tokenId

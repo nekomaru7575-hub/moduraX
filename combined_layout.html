@@ -2353,6 +2353,14 @@
         box-sizing: border-box;
       }
 
+      /* この幅ではチャットパレット・情報・キャラクター一覧・スタンプ送信・ダイスドラフトが
+         中央スペースのタブに統合され（js/mobile-layout.js）、浮動パネルの表示/非表示という
+         概念自体が無くなる。ボタンを残すと空か大半グレーアウトのメニューしか出せず、
+         押しても意味が薄いので表示ごと消す。 */
+      #panelVisibilityBtn {
+        display: none;
+      }
+
       h1 {
         font-size: 1rem;
         white-space: nowrap;

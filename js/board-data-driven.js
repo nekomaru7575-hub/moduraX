@@ -7,7 +7,7 @@ import { loadImageDimensions } from './image-dimensions.js';
 import { showCharacterDialog, showCharacterEditDialog, applyImageCropStyle, applyCharacterEditResult } from './character-dialog.js';
 import { showBackgroundDialog } from './background-dialog.js';
 import { showPanelDialog } from './panel-dialog.js';
-import { showDrawCountDialog, showCardPeekDialog } from './deck-dialog.js';
+import { showDrawCountDialog, showCardPeekDialog, showStockerSendDialog } from './deck-dialog.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import {
   pluginHasCharacterImport, importCharacterJsonForPlugin, getPluginSheetSource
@@ -638,6 +638,15 @@ function stockerOwnerName(panelData) {
   return panelData.stockerOwnerLocalId ? '名前を設定していない人' : '';
 }
 
+// 送り先候補として一覧に出すときの1行分の表示名（デッキの「ストッカーへ」・
+// ストッカーの「カードを送る」の両方で使う）。パネルのtextを名前として使い、
+// 所有者が居なければ「誰でも」と添える。
+function describeStockerForPicker(panelData) {
+  const label = panelData.text?.trim() || '(名前なし)';
+  const owner = stockerOwnerName(panelData);
+  return owner ? `${label}（${owner}）` : `${label}（誰でも）`;
+}
+
 // その箱に入っているカードを、入れた順に返す（js/game-store.jsのlistStockerCardsと同じ順）。
 function storedCardsOf(panelId) {
   return Object.values(store.state.cards || {})
@@ -816,6 +825,36 @@ function bindPanelDrag(element) {
             onSelect: () => {
               store.dispatch('RELEASE_STOCKER_CARDS', {
                 panelId, gridSize: GRID_SIZE, ...actingUserPayload()
+              });
+            }
+          });
+          // 別のストッカーか出身デッキへ、選んだカードだけをまとめて送る。
+          stockerItems.push({
+            label: 'カードを送る',
+            onSelect: () => {
+              const latestStored = storedCardsOf(panelId);
+              if (latestStored.length === 0) return;
+              const stockerCandidates = Object.values(store.state.panels)
+                .filter(p => p.isStocker && p.id !== panelId && canUseStocker(p));
+
+              showStockerSendDialog({
+                cards: latestStored.map(card => ({ id: card.id, label: card.face.text || '(名前なし)' })),
+                stockers: stockerCandidates.map(p => ({ id: p.id, label: describeStockerForPicker(p) })),
+                onConfirm: ({ cardIds, destination, stockerId }) => {
+                  if (destination === 'stocker') {
+                    cardIds.forEach(cardId => {
+                      store.dispatch('STORE_CARD_IN_STOCKER', {
+                        cardId, panelId: stockerId, ...actingUserPayload()
+                      });
+                    });
+                  } else {
+                    cardIds.forEach(cardId => {
+                      const card = store.state.cards[cardId];
+                      if (!card?.deckId) return; // 出身デッキが無いカードは山札へは送れない
+                      store.dispatch('RETURN_CARD_TO_DECK', { cardId, deckId: card.deckId });
+                    });
+                  }
+                }
               });
             }
           });
@@ -1283,18 +1322,32 @@ function bindDeckDrag(element) {
       }
     });
 
-    const drawManyItem = (label, faceUp) => ({
-      label,
+    // 枚数を指定して引く：表側/裏側（盤面へ）またはストッカーへ直接収納する（送るカードの
+    // 状態は問わない＝ストッカーに入っている間は描画されないため）。ストッカーは
+    // canUseStocker（誰でも使えるか自分専用）で絞り込んだものだけを候補にする。
+    const drawManyItem = () => ({
+      label: '枚数を指定して引く',
       disabled: remaining === 0,
       title: emptyReason,
       onSelect: () => {
         const latest = store.state.decks[deckId];
         if (!latest || latest.cards.length === 0) return;
+        const stockers = Object.values(store.state.panels)
+          .filter(p => p.isStocker && canUseStocker(p))
+          .map(p => ({ id: p.id, label: describeStockerForPicker(p) }));
         showDrawCountDialog({
-          faceUp,
           max: latest.cards.length,
-          onConfirm: (count) => {
-            store.dispatch('DRAW_CARDS', { deckId, count, faceUp, gridSize: GRID_SIZE });
+          stockers,
+          onConfirm: ({ count, destination, stockerId }) => {
+            if (destination === 'stocker') {
+              store.dispatch('DRAW_CARDS', {
+                deckId, count, gridSize: GRID_SIZE, stockerId, ...actingUserPayload()
+              });
+            } else {
+              store.dispatch('DRAW_CARDS', {
+                deckId, count, faceUp: destination === 'faceUp', gridSize: GRID_SIZE
+              });
+            }
           }
         });
       }
@@ -1308,8 +1361,7 @@ function bindDeckDrag(element) {
       },
       drawItem('表向きで1枚引く', true, 1),
       drawItem('裏向きで1枚引く', false, 1),
-      drawManyItem('表向きで枚数を指定して引く', true),
-      drawManyItem('裏向きで枚数を指定して引く', false),
+      drawManyItem(),
       {
         label: 'シャッフル',
         disabled: remaining < 2,

@@ -3328,13 +3328,22 @@ export class ImmutableStore {
       // --- カードストッカーへの出し入れ（stockerAllowsUser の節を参照） ---
       // 収納したカードは盤面から消えるが、状態としては残る（stockerIdが入るだけ）。
       // 所有者付きの箱は、操作した人がその所有者のときだけ受け付ける。
+      // 【箱から箱への移動も受け付ける】既に別の箱に入っているカードでも、移動先の権限
+      // だけでなく移動元の権限も確認したうえで動かす。移動元の確認を省くと、権限のない人が
+      // 他人の専用ストッカーから自分の箱へカードを引き抜けてしまう（「取り出す」が移動元の
+      // 権限を見ているのと同じ理由）。盤面のカード（stockerIdがnull）は移動元が無いので、
+      // ここは常に素通りする＝既存のドラッグ&ドロップの挙動は変わらない。
       case 'STORE_CARD_IN_STOCKER': {
         const { cardId, panelId, participantId = null, localUserId = null } = payload;
         const card = prevState.cards[cardId];
         const panel = prevState.panels[panelId];
         if (!card || !panel) return;
-        if (card.stockerId) return; // 既にどこかの箱の中
+        if (card.stockerId === panelId) return; // 既に同じ箱の中
         if (!stockerAllowsUser(panel, participantId, localUserId)) return;
+        if (card.stockerId) {
+          const sourcePanel = prevState.panels[card.stockerId];
+          if (sourcePanel && !stockerAllowsUser(sourcePanel, participantId, localUserId)) return;
+        }
 
         this.#commit(prevState, {
           cards: withMapEntry(prevState.cards, cardId, Object.freeze({
@@ -3457,14 +3466,27 @@ export class ImmutableStore {
         return;
       }
 
-      // デッキの一番上からn枚引いて盤面へ出す。表向き(faceUp:true)でも裏向きでも引ける。
-      // 置き場所はデッキの位置から導く（findFreeCardSpot）ので、全員の画面で同じ位置に出る。
-      // gridSizeは描画側の定数（js/board-data-driven.jsのGRID_SIZE）で、game-storeは画面の
-      // 都合を持たない方針なのでpayloadで受け取る。
+      // デッキの一番上からn枚引く。表向き(faceUp:true)/裏向きで盤面へ出すか、stockerIdを
+      // 渡してストッカーへ直接収納するかの3択（js/board-data-driven.jsのopenDeckMenu）。
+      // 盤面へ出す場合の置き場所はデッキの位置から導く（findFreeCardSpot）ので、全員の画面で
+      // 同じ位置に出る。gridSizeは描画側の定数（js/board-data-driven.jsのGRID_SIZE）で、
+      // game-storeは画面の都合を持たない方針なのでpayloadで受け取る。
+      // ストッカーへ送る場合はstockerAllowsUserで権限を確かめる（STORE_CARD_IN_STOCKERと同じ
+      // 規則）。ストッカーの中では表/裏の区別が描画に効かない（storedカードは盤面に描かれない）
+      // ので、送るカードの状態は問わず一律faceUp:falseにする。
       case 'DRAW_CARDS': {
-        const { deckId, count = 1, faceUp = false, gridSize = 25 } = payload;
+        const {
+          deckId, count = 1, faceUp = false, gridSize = 25,
+          stockerId = null, participantId = null, localUserId = null
+        } = payload;
         const deck = prevState.decks[deckId];
         if (!deck || deck.cards.length === 0) return;
+
+        let targetPanel = null;
+        if (stockerId) {
+          targetPanel = prevState.panels[stockerId];
+          if (!stockerAllowsUser(targetPanel, participantId, localUserId)) return;
+        }
 
         const grid = Math.max(1, Math.round(Number(gridSize) || 25));
         const drawCount = Math.min(
@@ -3475,21 +3497,35 @@ export class ImmutableStore {
 
         const drawn = deck.cards.slice(0, drawCount);
         let nextCards = prevState.cards;
+        let nextSeq = targetPanel ? nextStockerSeq(nextCards) : 0;
 
         drawn.forEach((card, index) => {
-          const baseX = deck.x + (CARD_COLS + 1) * grid * (index + 1);
-          const spot = findFreeCardSpot(nextCards, baseX, deck.y, grid);
-          nextCards = withMapEntry(nextCards, card.id, buildCard({
-            id: card.id,
-            face: card.face,
-            // 裏面は引いた時点のものをカード自身が持つ（あとでデッキの裏面を変えても、
-            // 既に出ているカードの裏は変わらない）
-            back: deck.back,
-            x: spot.x,
-            y: spot.y,
-            faceUp,
-            deckId: deck.id
-          }));
+          if (targetPanel) {
+            nextCards = withMapEntry(nextCards, card.id, buildCard({
+              id: card.id,
+              face: card.face,
+              back: deck.back,
+              faceUp: false,
+              deckId: deck.id,
+              stockerId: targetPanel.id,
+              stockerSeq: nextSeq
+            }));
+            nextSeq += 1;
+          } else {
+            const baseX = deck.x + (CARD_COLS + 1) * grid * (index + 1);
+            const spot = findFreeCardSpot(nextCards, baseX, deck.y, grid);
+            nextCards = withMapEntry(nextCards, card.id, buildCard({
+              id: card.id,
+              face: card.face,
+              // 裏面は引いた時点のものをカード自身が持つ（あとでデッキの裏面を変えても、
+              // 既に出ているカードの裏は変わらない）
+              back: deck.back,
+              x: spot.x,
+              y: spot.y,
+              faceUp,
+              deckId: deck.id
+            }));
+          }
         });
 
         this.#commit(prevState, {

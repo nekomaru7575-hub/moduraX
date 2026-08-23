@@ -9,6 +9,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>もじゅらX</title>
   <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+  <!-- 色のトークン。character-dialog.cssより必ず先に読むこと（var()の定義元） -->
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/character-dialog.css">
 
   <!-- PWA。3つのHTMLで同じものを並べている。意図は index.html 側のコメントに書いた。 -->
@@ -20,6 +22,9 @@
   <meta name="apple-mobile-web-app-title" content="もじゅらX">
   <link rel="apple-touch-icon" href="/image/apple-touch-icon-180.png">
   <style>
+    /* 色は css/tokens.css（上の<link>）でだけ決める。ここでは生の色コードを
+       直接書かず var(--…) で引くこと。理由と各トークンの意味はそのファイル参照。 */
+
     /* ピンチズーム／ダブルタップズームを外す（スクロールは残す）。
        #board-viewport等のtouch-action:noneは要素側が優先されるので盤面の自前ピンチは動く。 */
     html {
@@ -32,8 +37,8 @@
     }
 
     body {
-      background-color: #1a1a1a;
-      color: #e0e0e0;
+      background-color: var(--surface-page);
+      color: var(--text-default);
       font-family: 'Helvetica Neue', Arial, sans-serif;
       margin: 0;
       padding: 20px;
@@ -54,6 +59,23 @@
       box-sizing: border-box;
     }
 
+    /* --- キーボード操作の位置表示 ---
+       ボタン・入力欄・タブなど、操作できるものすべてに共通の目印を出す。この画面の部品は
+       ほとんどがJS側で組み立てられる（コンテキストメニュー・各ダイアログ）ので、部品ごとに
+       書くのではなく:focus-visibleへまとめて当てる。
+       :focusではなく:focus-visibleなのは、マウスで押しただけの時に出さないため。
+       【2色にする理由】この画面の操作部品は、地色が濃灰(#2a2a2a)・アクセント青(#007acc)・
+       ヘルプの黄(#f0c419)と幅があり、1色のリングではどれかの上で埋もれる（白は黄の上で
+       1.4:1、青は濃灰の上で2.5:1しか差が出ない）。白い線の外側に暗いハローを重ねて、
+       どの地色の上でも線そのものが浮くようにする。
+       リングは即座に出す（transitionを掛けない）。フェードで現れると、キーボードで移動した
+       瞬間に「今どこにいるか」が分からない時間ができる。 */
+    :focus-visible {
+      outline: 2px solid var(--text-emphasis);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.65);
+    }
+
     /* 入力中の文を選び直す・貼り付けるは残す必要があるので、フォーム部品だけ選択可に戻す */
     input,
     textarea,
@@ -68,13 +90,13 @@
       align-items: center;
       gap: 12px;
       width: 100%;
-      border-bottom: 2px solid #3a3a3a;
+      border-bottom: 2px solid var(--surface-control);
       padding-bottom: 5px;
       margin-bottom: 15px;
     }
 
     h1 {
-      color: #ffffff;
+      color: var(--text-emphasis);
       font-size: 1.5rem;
       margin: 0;
       flex: 1;
@@ -99,9 +121,9 @@
     }
 
     .room-menu-btn {
-      background-color: #2a2a2a;
-      color: #e0e0e0;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      color: var(--text-default);
+      border: 1px solid var(--border-subtle);
       border-radius: 6px;
       width: 36px;
       height: 36px;
@@ -112,7 +134,7 @@
     }
 
     .room-menu-btn:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     /* bodyがflexの縦並びなので、ヘッダーの残り全部をここが取る。
@@ -142,7 +164,7 @@
       display: flex;
       justify-content: space-between;
       font-size: 0.8rem;
-      color: #bbb;
+      color: var(--text-body-dim);
     }
 
     /* キャラクター一覧パネル専用（ルーム変数一覧とは見た目を分ける） */
@@ -151,7 +173,7 @@
       grid-template-columns: 4.4em 1fr;
       column-gap: 8px;
       font-size: 0.8rem;
-      color: #bbb;
+      color: var(--text-body-dim);
       /* ラベル（日本語）と値（数字）は別のグリッドアイテムなので、line-height:normalのままだと
          それぞれが自分の実フォント（日本語はフォールバック）の行の高さになり、同じ行の中で
          ベースラインが3pxほどずれる（行の高さも15px/19pxと不揃いになる）。行の高さを明示して
@@ -190,9 +212,9 @@
     }
 
     .character-panel-tab {
-      background-color: #333;
-      color: #bbb;
-      border: 1px solid #555;
+      background-color: var(--surface-raised);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-default);
       border-radius: 4px 4px 0 0;
       padding: 3px 8px;
       font-size: 0.75rem;
@@ -200,9 +222,9 @@
     }
 
     .character-panel-tab.is-active {
-      background-color: #444;
-      color: #fff;
-      border-color: #777;
+      background-color: var(--surface-raised-2);
+      color: var(--text-emphasis);
+      border-color: var(--border-strong);
     }
 
     .character-panel-list {
@@ -215,7 +237,7 @@
     }
 
     .character-panel-empty {
-      color: #888;
+      color: var(--text-muted);
       font-size: 0.8rem;
       margin: 4px 2px;
     }
@@ -224,9 +246,9 @@
     .character-panel-restore-btn {
       margin-left: auto;
       flex-shrink: 0;
-      background-color: #3a3a3a;
-      color: #ccc;
-      border: 1px solid #555;
+      background-color: var(--surface-control);
+      color: var(--text-body);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       padding: 4px 10px;
       font-size: 0.75rem;
@@ -234,8 +256,8 @@
     }
 
     .character-panel-restore-btn:hover {
-      background-color: #4a4a4a;
-      color: #fff;
+      background-color: var(--surface-hover);
+      color: var(--text-emphasis);
     }
 
 /* 盤面＋コントロールのコンテナ */
@@ -341,16 +363,16 @@
       text-align: center;
       font-size: 0.7rem;
       line-height: 1.2;
-      color: #eee;
+      color: var(--text-bright);
       background-color: rgba(40, 40, 40, 0.85);
-      border: 1px dashed #888;
+      border: 1px dashed var(--border-bright);
       border-radius: 8px;
     }
 
     .stamp-item-name {
       max-width: 100%;
       font-size: 0.7rem;
-      color: #fff;
+      color: var(--text-emphasis);
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
@@ -390,15 +412,15 @@
       align-items: center;
       gap: 2px;
       padding: 6px 2px;
-      background-color: #2a2a2a;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      border: 1px solid var(--border-subtle);
       border-radius: 6px;
       cursor: pointer;
     }
 
     .stamp-send-btn:hover:not(:disabled) {
-      background-color: #333;
-      border-color: #007acc;
+      background-color: var(--surface-raised);
+      border-color: var(--accent);
     }
 
     /* 押せないのは、名前が未設定のときと連打よけの上限に達したとき（理由は上の案内に出る） */
@@ -425,15 +447,15 @@
       text-align: center;
       font-size: 0.65rem;
       line-height: 1.2;
-      color: #eee;
-      border: 1px dashed #888;
+      color: var(--text-bright);
+      border: 1px dashed var(--border-bright);
       border-radius: 6px;
     }
 
     .stamp-send-label {
       max-width: 100%;
       font-size: 0.7rem;
-      color: #ccc;
+      color: var(--text-body);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -444,14 +466,14 @@
     .stamp-count-section {
       margin-top: 10px;
       padding-top: 8px;
-      border-top: 1px solid #3a3a3a;
+      border-top: 1px solid var(--surface-control);
     }
 
     .stamp-count-heading {
       margin-top: 6px;
       font-size: 0.75rem;
       font-weight: bold;
-      color: #ddd;
+      color: var(--text-body-strong);
     }
 
     .stamp-count-heading:first-child {
@@ -464,7 +486,7 @@
       gap: 8px;
       padding: 1px 0 1px 8px;
       font-size: 0.75rem;
-      color: #bbb;
+      color: var(--text-body-dim);
     }
 
     /* 名前は長くなりうるので、はみ出す側はこちらに寄せる（枚数は必ず読めるように） */
@@ -477,24 +499,24 @@
 
     .stamp-count-value {
       flex: 0 0 auto;
-      color: #eee;
+      color: var(--text-bright);
     }
 
     .stamp-count-reset {
       margin-top: 8px;
       width: 100%;
       padding: 4px;
-      background-color: #2a2a2a;
-      color: #bbb;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-subtle);
       border-radius: 4px;
       font-size: 0.75rem;
       cursor: pointer;
     }
 
     .stamp-count-reset:hover:not(:disabled) {
-      background-color: #333;
-      color: #fff;
+      background-color: var(--surface-raised);
+      color: var(--text-emphasis);
     }
 
     .stamp-count-reset:disabled {
@@ -527,7 +549,7 @@
     .dice-draft-owner {
       font-size: 0.8rem;
       font-weight: bold;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     .dice-draft-section {
@@ -539,12 +561,12 @@
     .dice-draft-heading {
       font-size: 0.75rem;
       font-weight: bold;
-      color: #ddd;
+      color: var(--text-body-strong);
     }
 
     .dice-draft-empty {
       font-size: 0.7rem;
-      color: #777;
+      color: var(--text-disabled);
       line-height: 1.4;
     }
 
@@ -558,8 +580,8 @@
       gap: 4px;
       min-height: 40px;
       padding: 4px;
-      background-color: #2a2a2a;
-      border: 1px dashed #4a4a4a;
+      background-color: var(--surface-base);
+      border: 1px dashed var(--surface-hover);
       border-radius: 4px;
     }
 
@@ -615,7 +637,7 @@
       right: 1px;
       bottom: 0;
       font-size: 0.5rem;
-      color: #777;
+      color: var(--text-disabled);
       line-height: 1;
     }
 
@@ -653,8 +675,8 @@
       gap: 3px;
       padding: 5px;
       overflow: hidden;
-      background-color: #333;
-      border: 1px solid #444;
+      background-color: var(--surface-raised);
+      border: 1px solid var(--border-subtle);
       border-radius: 5px;
     }
 
@@ -666,7 +688,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 0.75rem;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     /* カードの中で余った高さを全部もらう。ダイスが増えたらここだけが縦にスクロールする */
@@ -707,7 +729,7 @@
 
     .dice-draft-use-btn:hover:not(:disabled) {
       background-color: #356035;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     .dice-draft-use-btn:disabled {
@@ -721,7 +743,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 0.62rem;
-      color: #999;
+      color: var(--text-tertiary);
     }
 
     .dice-draft-status.is-ready {
@@ -741,17 +763,17 @@
       flex: 1 1 auto;
       min-width: 40px;
       padding: 3px 6px;
-      background-color: #2a2a2a;
-      color: #bbb;
-      border: 1px solid #555;
+      background-color: var(--surface-base);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       font-size: 0.72rem;
       cursor: pointer;
     }
 
     .dice-draft-tab:hover {
-      background-color: #333;
-      color: #fff;
+      background-color: var(--surface-raised);
+      color: var(--text-emphasis);
     }
 
     .dice-draft-tab.is-active {
@@ -765,9 +787,9 @@
       flex: 0 0 auto;
       width: 100%;
       padding: 1px 2px;
-      background-color: #2a2a2a;
-      color: #ddd;
-      border: 1px solid #555;
+      background-color: var(--surface-base);
+      color: var(--text-body-strong);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       font-size: 0.66rem;
     }
@@ -776,17 +798,17 @@
       flex: 0 0 auto;
       width: 100%;
       padding: 5px;
-      background-color: #2a2a2a;
-      color: #bbb;
-      border: 1px dashed #555;
+      background-color: var(--surface-base);
+      color: var(--text-body-dim);
+      border: 1px dashed var(--border-default);
       border-radius: 4px;
       font-size: 0.72rem;
       cursor: pointer;
     }
 
     .dice-draft-migrate-btn:hover {
-      background-color: #333;
-      color: #fff;
+      background-color: var(--surface-raised);
+      color: var(--text-emphasis);
     }
 
     /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
@@ -796,20 +818,20 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 10px;
-      background-color: #2a2a2a;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      border: 1px solid var(--border-subtle);
       border-radius: 8px;
       padding: 6px 10px;
     }
 
     .round-panel-status {
-      color: #e0e0e0;
+      color: var(--text-default);
       font-size: 0.9rem;
       font-weight: bold;
     }
 
     .round-panel-nickname {
-      color: #999;
+      color: var(--text-tertiary);
       font-size: 0.8rem;
       white-space: nowrap;
     }
@@ -818,7 +840,7 @@
        混在して折り返し位置が不安定にならないようにするため。 */
     .round-panel-ready-list {
       flex: 1 0 100%;
-      color: #ccc;
+      color: var(--text-body);
       font-size: 0.85rem;
     }
 
@@ -830,7 +852,7 @@
       align-items: center;
       gap: 6px;
       font-size: 0.85rem;
-      color: #ccc;
+      color: var(--text-body);
     }
 
     /* 自分のコマ1つ分の提出欄（コマ名 + 1〜6のボタン）。複数のコマを持つ人がいるので行で分ける */
@@ -843,14 +865,14 @@
     }
 
     .round-panel-plot-name {
-      color: #e0e0e0;
+      color: var(--text-default);
       margin-right: 2px;
     }
 
     .round-panel-plot-btn {
-      background-color: #444;
-      color: #ddd;
-      border: 1px solid #666;
+      background-color: var(--surface-raised-2);
+      color: var(--text-body-strong);
+      border: 1px solid var(--border-mid);
       border-radius: 4px;
       min-width: 28px;
       padding: 2px 6px;
@@ -860,9 +882,9 @@
 
     /* 自分が今出している数字。公開前は自分にだけ見えている状態なので、はっきり示す */
     .round-panel-plot-btn.selected {
-      background-color: #007acc;
-      color: #fff;
-      border-color: #007acc;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
+      border-color: var(--accent);
       font-weight: bold;
     }
 
@@ -873,9 +895,9 @@
 
     /* 増やしたプロット選択の名前（「コマA（影法師）」の括弧の中身）。行に収めたいので狭くする */
     .round-panel-plot-label-input {
-      background-color: #3a3a3a;
-      color: #e0e0e0;
-      border: 1px solid #666;
+      background-color: var(--surface-control);
+      color: var(--text-default);
+      border: 1px solid var(--border-mid);
       border-radius: 4px;
       width: 7em;
       padding: 1px 4px;
@@ -885,9 +907,9 @@
     /* 「選択を増やす」「削除」。数字ボタンより控えめにして、押し間違いを減らす */
     .round-panel-plot-add-btn,
     .round-panel-plot-remove-btn {
-      background-color: #3a3a3a;
-      color: #bbb;
-      border: 1px solid #666;
+      background-color: var(--surface-control);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-mid);
       border-radius: 4px;
       padding: 2px 8px;
       margin-left: 6px;
@@ -898,15 +920,15 @@
 
     .round-panel-plot-add-btn:hover,
     .round-panel-plot-remove-btn:hover {
-      background-color: #4a4a4a;
-      color: #e0e0e0;
+      background-color: var(--surface-hover);
+      color: var(--text-default);
     }
 
     /* 複数のプロットに出ているコマの「どれで動くか」を選ぶ行（公開後だけ出る） */
     .round-panel-plot-choice-btn {
-      background-color: #444;
-      color: #ddd;
-      border: 1px solid #666;
+      background-color: var(--surface-raised-2);
+      color: var(--text-body-strong);
+      border: 1px solid var(--border-mid);
       border-radius: 4px;
       padding: 2px 8px;
       cursor: pointer;
@@ -915,9 +937,9 @@
 
     /* 選んだプロット。数字ボタンのselectedと同じ色で「これが効いている」と示す */
     .round-panel-plot-choice-btn.selected {
-      background-color: #007acc;
-      color: #fff;
-      border-color: #007acc;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
+      border-color: var(--accent);
       font-weight: bold;
     }
 
@@ -931,14 +953,14 @@
     /* 提出状況（公開前は●/○だけ、公開後は値）。 */
     .round-panel-plot-status {
       flex: 1 0 100%;
-      color: #aaa;
+      color: var(--text-secondary);
       font-size: 0.8rem;
     }
 
     .round-panel-btn {
-      background-color: #444;
-      color: #ddd;
-      border: 1px solid #666;
+      background-color: var(--surface-raised-2);
+      color: var(--text-body-strong);
+      border: 1px solid var(--border-mid);
       border-radius: 4px;
       padding: 4px 10px;
       cursor: pointer;
@@ -947,15 +969,15 @@
     }
 
     .round-panel-action-btn {
-      background-color: #007acc;
-      color: #fff;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
       font-weight: bold;
-      border-color: #007acc;
+      border-color: var(--accent);
     }
 
     .round-panel-btn.active {
       background-color: #2e7d32;
-      color: #fff;
+      color: var(--text-emphasis);
       border-color: #2e7d32;
     }
 
@@ -964,30 +986,30 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      background-color: #1a1a1a;
-      border: 1px solid #333;
+      background-color: var(--surface-page);
+      border: 1px solid var(--border-faint);
       border-radius: 8px;
       padding: 6px 10px;
     }
 
     .round-panel-turn-row {
-      background-color: #2a2a2a;
-      color: #ccc;
+      background-color: var(--surface-base);
+      color: var(--text-body);
       border-radius: 4px;
       padding: 3px 8px;
       font-size: 0.8rem;
     }
 
     .round-panel-turn-row.active-turn {
-      background-color: #007acc;
-      color: #fff;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
       font-weight: bold;
     }
 
     /* このラウンドで行動を終えたコマ。手番が回ってこないことが一目で分かるよう薄く沈める
        （GMがクリックして「行動済みを解除」すると戻る。js/round-panel.js参照） */
     .round-panel-turn-row.acted {
-      color: #777;
+      color: var(--text-disabled);
       text-decoration: line-through;
       opacity: 0.75;
     }
@@ -1033,7 +1055,7 @@
     }
 
     .round-panel-turn-row.clickable:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     /* 盤面下1/4：既存ログのミラー表示エリア */
@@ -1042,8 +1064,8 @@
       min-height: 0;
       display: flex;
       gap: 10px;
-      background-color: #1a1a1a;
-      border: 1px solid #333;
+      background-color: var(--surface-page);
+      border: 1px solid var(--border-faint);
       border-radius: 8px;
       overflow: hidden;
     }
@@ -1053,7 +1075,7 @@
     .current-chat-portrait {
       flex: 0 0 220px;
       height: 100%;
-      background-color: #111;
+      background-color: var(--surface-deepest);
       background-size: contain;
       background-position: bottom center;
       background-repeat: no-repeat;
@@ -1073,7 +1095,7 @@
 
     .current-chat-log-item {
       font-size: 1.05rem;
-      color: #ddd;
+      color: var(--text-body-strong);
       animation: fadeIn 0.3s ease-out;
     }
 
@@ -1092,8 +1114,7 @@
       width: 100%;
       height: 100%;
       background-color: #808080;
-      background-image:
-        linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+      background-image: linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
       background-size: 25px 25px, 25px 25px;
       background-position: 0 0, 0 0;
@@ -1107,7 +1128,7 @@
       height: 25px;
       background-color: transparent;
       overflow: hidden;
-      border: 2px solid #ffffff;
+      border: 2px solid var(--text-emphasis);
       border-radius: 10px;
       position: absolute;
       cursor: grab;
@@ -1213,7 +1234,7 @@
       bottom: 0;
       font-size: 14px;
       font-weight: bold;
-      color: #fff;
+      color: var(--text-emphasis);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
       pointer-events: none;
     }
@@ -1259,8 +1280,7 @@
     .card-object.face-down,
     .deck-object {
       background-color: #2a3f6b;
-      background-image:
-        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 12px);
+      background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 12px);
       border-color: rgba(255, 255, 255, 0.35);
     }
 
@@ -1319,7 +1339,7 @@
       left: 0;
       right: 0;
       text-align: center;
-      color: #fff;
+      color: var(--text-emphasis);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
       pointer-events: none;
     }
@@ -1356,7 +1376,7 @@
       align-items: center;
       justify-content: center;
       border-radius: 8px;
-      border: 1px solid #444;
+      border: 1px solid var(--border-subtle);
       background-color: #f7f5ef;
       overflow: hidden;
     }
@@ -1384,7 +1404,7 @@
       margin: 0 0 8px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      color: #ddd;
+      color: var(--text-body-strong);
       font-size: 0.9rem;
     }
 
@@ -1449,9 +1469,9 @@
       margin-bottom: 4px;
       max-height: 160px;
       overflow-y: auto;
-      border: 1px solid #333;
+      border: 1px solid var(--border-faint);
       border-radius: 4px;
-      background-color: #1e1e1e;
+      background-color: var(--surface-well);
       z-index: 20;
     }
 
@@ -1475,7 +1495,7 @@
     .typing-indicator {
       text-align: right;
       font-size: 0.75rem;
-      color: #999;
+      color: var(--text-tertiary);
     }
 
     /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。枠と操作だけを持つ汎用スタイルで、
@@ -1486,7 +1506,7 @@
       display: flex;
       flex-direction: column;
       background-color: #262626;
-      border: 1px solid #444;
+      border: 1px solid var(--border-subtle);
       border-radius: 8px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
       overflow: hidden;
@@ -1499,8 +1519,8 @@
       align-items: center;
       gap: 8px;
       padding: 6px 8px;
-      background-color: #333;
-      border-bottom: 1px solid #444;
+      background-color: var(--surface-raised);
+      border-bottom: 1px solid var(--border-subtle);
       cursor: move;
       /* ドラッグ移動はPointer Eventsで自前処理する（js/floating-panel.js）。
          これが無いとタッチではブラウザのスクロールに指を持っていかれる。 */
@@ -1511,7 +1531,7 @@
       flex: 1;
       min-width: 0;
       font-size: 0.85rem;
-      color: #ddd;
+      color: var(--text-body-strong);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1521,7 +1541,7 @@
       flex: 0 0 auto;
       background: none;
       border: none;
-      color: #aaa;
+      color: var(--text-secondary);
       font-size: 1rem;
       line-height: 1;
       padding: 2px 6px;
@@ -1531,7 +1551,7 @@
 
     .floating-panel-close:hover {
       background-color: #4a3a3a;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     .floating-panel-body {
@@ -1551,9 +1571,8 @@
       height: 16px;
       cursor: nwse-resize;
       touch-action: none;
-      background:
-        linear-gradient(135deg, transparent 0 45%, #666 45% 55%, transparent 55% 100%),
-        linear-gradient(135deg, transparent 0 70%, #666 70% 80%, transparent 80% 100%);
+      background: linear-gradient(135deg, transparent 0 45%, var(--border-mid) 45% 55%, transparent 55% 100%),
+        linear-gradient(135deg, transparent 0 70%, var(--border-mid) 70% 80%, transparent 80% 100%);
     }
 
     /* チャットパレット：保存フレーズを1行1つで並べ、行のクリックだけで送信できる */
@@ -1577,9 +1596,9 @@
     }
 
     .chat-palette-tab {
-      background-color: #333;
-      color: #bbb;
-      border: 1px solid #555;
+      background-color: var(--surface-raised);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-default);
       border-radius: 4px 4px 0 0;
       padding: 3px 8px;
       font-size: 0.75rem;
@@ -1591,16 +1610,16 @@
     }
 
     .chat-palette-tab.is-active {
-      background-color: #444;
-      color: #fff;
-      border-color: #777;
+      background-color: var(--surface-raised-2);
+      color: var(--text-emphasis);
+      border-color: var(--border-strong);
     }
 
     .chat-palette-tab-add,
     .chat-palette-tab-remove {
       background: none;
-      border: 1px solid #444;
-      color: #aaa;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
       border-radius: 4px;
       padding: 2px 7px;
       font-size: 0.75rem;
@@ -1609,7 +1628,7 @@
 
     .chat-palette-tab-add:hover,
     .chat-palette-tab-remove:hover:not(:disabled) {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     .chat-palette-tab-remove:disabled {
@@ -1627,9 +1646,9 @@
     .chat-palette-name {
       flex: 1;
       min-width: 0;
-      background-color: #3a3a3a;
-      color: #fff;
-      border: 1px solid #555;
+      background-color: var(--surface-control);
+      color: var(--text-emphasis);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       padding: 4px 6px;
       font-size: 0.8rem;
@@ -1639,7 +1658,7 @@
     .chat-palette-name-status {
       flex: 0 0 auto;
       font-size: 0.7rem;
-      color: #666;
+      color: var(--text-faint);
       white-space: nowrap;
     }
 
@@ -1655,9 +1674,9 @@
       flex: 1;
       min-height: 0;
       overflow: auto;
-      border: 1px solid #333;
+      border: 1px solid var(--border-faint);
       border-radius: 4px;
-      background-color: #1e1e1e;
+      background-color: var(--surface-well);
     }
 
     /* メモ帳のような1行1フレーズの並び。長い行は折り返さず横スクロールさせる */
@@ -1665,17 +1684,17 @@
       padding: 3px 8px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.8rem;
-      color: #ddd;
+      color: var(--text-body-strong);
       white-space: pre;
       cursor: pointer;
-      border-bottom: 1px solid #2a2a2a;
+      border-bottom: 1px solid var(--surface-base);
       /* ダブルクリックで発言できるので、そのたびに行の文字が選択されないようにする */
       user-select: none;
     }
 
     .chat-palette-line:hover {
       background-color: #33405a;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     /* 見出し行（「//」始まり）。フレーズではないので押せず、色で塊の頭だと分かるようにする。
@@ -1693,7 +1712,7 @@
     }
 
     .chat-palette-empty {
-      color: #666;
+      color: var(--text-faint);
       font-size: 0.8rem;
       margin: 0;
       padding: 6px 8px;
@@ -1702,9 +1721,9 @@
     .chat-palette-editor {
       flex: 1;
       min-height: 0;
-      background-color: #1e1e1e;
-      color: #fff;
-      border: 1px solid #555;
+      background-color: var(--surface-well);
+      color: var(--text-emphasis);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       padding: 6px 8px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1723,9 +1742,9 @@
     .chat-palette-send-input {
       flex: 1;
       min-width: 0;
-      background-color: #3a3a3a;
-      color: #fff;
-      border: 1px solid #555;
+      background-color: var(--surface-control);
+      color: var(--text-emphasis);
+      border: 1px solid var(--border-default);
       border-radius: 4px;
       padding: 4px 6px;
       font-family: inherit;
@@ -1736,8 +1755,8 @@
 
     .chat-palette-send-btn {
       flex: 0 0 auto;
-      background-color: #007acc;
-      color: #fff;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
       border: none;
       border-radius: 4px;
       padding: 0 12px;
@@ -1758,8 +1777,8 @@
 
     .chat-palette-footer-btn {
       background: none;
-      border: 1px solid #444;
-      color: #aaa;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
       border-radius: 4px;
       padding: 3px 10px;
       font-size: 0.75rem;
@@ -1767,7 +1786,7 @@
     }
 
     .chat-palette-footer-btn:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     /* 初期化（全タブ削除）。取り返しがつかないので、よく押すボタンから引き離して左端へ置く。 */
@@ -1805,9 +1824,9 @@
     }
 
     .info-panel-tab {
-      background-color: #333;
-      color: #bbb;
-      border: 1px solid #555;
+      background-color: var(--surface-raised);
+      color: var(--text-body-dim);
+      border: 1px solid var(--border-default);
       border-radius: 4px 4px 0 0;
       padding: 3px 8px;
       font-size: 0.75rem;
@@ -1819,15 +1838,15 @@
     }
 
     .info-panel-tab.is-active {
-      background-color: #444;
-      color: #fff;
-      border-color: #777;
+      background-color: var(--surface-raised-2);
+      color: var(--text-emphasis);
+      border-color: var(--border-strong);
     }
 
     .info-panel-tab-add {
       background: none;
-      border: 1px solid #444;
-      color: #aaa;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
       border-radius: 4px;
       padding: 2px 7px;
       font-size: 0.75rem;
@@ -1835,23 +1854,23 @@
     }
 
     .info-panel-tab-add:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     .info-panel-sections {
       flex: 1;
       min-height: 0;
       overflow: auto;
-      border: 1px solid #333;
+      border: 1px solid var(--border-faint);
       border-radius: 4px;
-      background-color: #1e1e1e;
+      background-color: var(--surface-well);
       padding: 6px 8px;
     }
 
     .info-panel-section + .info-panel-section {
       margin-top: 10px;
       padding-top: 10px;
-      border-top: 1px solid #2a2a2a;
+      border-top: 1px solid var(--surface-base);
     }
 
     /* 区画の見出し。将来のダブルハンドアウト（表の使命／裏の使命）で使う */
@@ -1863,14 +1882,14 @@
 
     /* 本文はtextContentで入れるので、改行はここで見せる */
     .info-panel-section-body {
-      color: #ddd;
+      color: var(--text-body-strong);
       font-size: 0.8rem;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
     .info-panel-empty {
-      color: #666;
+      color: var(--text-faint);
       font-size: 0.8rem;
       margin: 0;
     }
@@ -1884,8 +1903,8 @@
 
     .info-panel-footer-btn {
       background: none;
-      border: 1px solid #444;
-      color: #aaa;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
       border-radius: 4px;
       padding: 3px 10px;
       font-size: 0.75rem;
@@ -1893,7 +1912,7 @@
     }
 
     .info-panel-footer-btn:hover:not(:disabled) {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     .info-panel-footer-btn:disabled {
@@ -1903,7 +1922,7 @@
 
     /* ログ／チャット欄／チャットパレットの高さをユーザーがドラッグで調整するためのハンドル */
     .panel {
-      background-color: #2a2a2a;
+      background-color: var(--surface-base);
       padding: 15px;
       border-radius: 8px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
@@ -1919,26 +1938,28 @@
 
     label {
       font-size: 0.85rem;
-      color: #aaa;
+      color: var(--text-secondary);
       margin-bottom: 5px;
     }
 
     select, input[type="text"], textarea {
-      background-color: #3a3a3a;
-      color: #fff;
-      border: 1px solid #555;
+      background-color: var(--surface-control);
+      color: var(--text-emphasis);
+      border: 1px solid var(--border-default);
       padding: 8px;
       border-radius: 4px;
       font-size: 1rem;
-      outline: none;
     }
 
+    /* 枠色の変化はあくまで補助。キーボード操作時の主たる目印は下の:focus-visibleのリングで、
+       こちらだけに頼らせない（枠色#007accと地色#3a3a3aの明度差は2.5:1しかなく、
+       これ単独では目印として足りない）。 */
     select:focus, input[type="text"]:focus, textarea:focus {
-      border-color: #007acc;
+      border-color: var(--accent);
     }
 
     .btn-send {
-      background-color: #007acc;
+      background-color: var(--accent);
       color: white;
       border: none;
       padding: 10px;
@@ -1956,7 +1977,7 @@
 
     .btn-send:disabled {
       background-color: #555;
-      color: #888;
+      color: var(--text-muted);
       cursor: not-allowed;
     }
 
@@ -1990,9 +2011,9 @@
     }
 
     .chat-tab {
-      background-color: #2a2a2a;
-      color: #aaa;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
       border-radius: 0 0 4px 4px;
       padding: 4px 10px;
       font-size: 0.8rem;
@@ -2002,14 +2023,14 @@
     }
 
     .chat-tab:hover {
-      background-color: #333;
-      color: #fff;
+      background-color: var(--surface-raised);
+      color: var(--text-emphasis);
     }
 
     .chat-tab.active {
-      background-color: #007acc;
-      color: #fff;
-      border-color: #007acc;
+      background-color: var(--accent);
+      color: var(--text-emphasis);
+      border-color: var(--accent);
     }
 
     /* 見ていない間に発言が増えたタブに出す未読ドット（Main・システムは対象外）。
@@ -2031,13 +2052,13 @@
     }
 
     .chat-tab.active .chat-tab-badge {
-      background-color: #fff;
+      background-color: var(--surface-invert);
     }
 
     .chat-tab-add {
       background: none;
-      color: #888;
-      border: 1px dashed #555;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-default);
       border-radius: 4px;
       padding: 4px 8px;
       font-size: 0.8rem;
@@ -2046,8 +2067,8 @@
     }
 
     .chat-tab-add:hover {
-      color: #fff;
-      border-color: #007acc;
+      color: var(--text-emphasis);
+      border-color: var(--accent);
     }
 
     /* 「システム」タブ。進行の通知だけが流れる固定タブで、タブ列の外に置く。
@@ -2061,12 +2082,12 @@
 
     .chat-tab-system:hover {
       background-color: #2e404e;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     .chat-tab-system.active {
       background-color: #3a6b8a;
-      color: #fff;
+      color: var(--text-emphasis);
       border-color: #4d88ad;
     }
 
@@ -2074,29 +2095,29 @@
        （「困ったらここ」の目印なので、探させたくない） */
     .chat-tab-help {
       background-color: #f0c419;
-      color: #2a2a2a;
+      color: var(--text-on-light);
       border-color: #c99f0a;
       font-weight: bold;
     }
 
     .chat-tab-help:hover {
       background-color: #ffd633;
-      color: #2a2a2a;
+      color: var(--text-on-light);
     }
 
     /* .chat-tab.active が color:#fff を持っているので、ここで打ち消しておく
        （黄色地に白文字だと読めない） */
     .chat-tab-help.active {
       background-color: #ffd633;
-      color: #2a2a2a;
+      color: var(--text-on-light);
       border-color: #fff0a0;
       box-shadow: inset 0 0 0 1px #fff0a0;
     }
 
     /* --- ヘルプの対話（js/help/help-panel.js）。枠はログ欄と同じ見た目に揃える --- */
     .help-chat {
-      background-color: #222;
-      border: 1px solid #333;
+      background-color: var(--surface-sunken);
+      border: 1px solid var(--border-faint);
       border-radius: 8px;
       flex: 1;
       overflow-y: auto;
@@ -2119,14 +2140,14 @@
       width: 40px;
       height: 40px;
       border-radius: 8px;
-      border: 1px solid #fff;
+      border: 1px solid var(--text-emphasis);
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
     }
 
     .help-bubble {
-      background-color: #2f2f2f;
+      background-color: var(--surface-base-2);
       border-radius: 8px;
       padding: 8px 10px;
       font-size: 0.9rem;
@@ -2156,8 +2177,8 @@
     }
 
     .help-choice {
-      background-color: #2a2a2a;
-      color: #e0e0e0;
+      background-color: var(--surface-base);
+      color: var(--text-default);
       border: 1px solid #f0c419;
       border-radius: 6px;
       padding: 8px 10px;
@@ -2167,18 +2188,18 @@
     }
 
     .help-choice:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     /* 戻る導線は本題の選択肢と区別が付くよう色を落とす */
     .help-choice.is-back {
-      border-color: #555;
-      color: #bbb;
+      border-color: var(--border-default);
+      color: var(--text-body-dim);
     }
 
     .log-container {
-      background-color: #222;
-      border: 1px solid #333;
+      background-color: var(--surface-sunken);
+      border: 1px solid var(--border-faint);
       border-radius: 8px;
       flex: 1;
       overflow-y: auto;
@@ -2187,7 +2208,7 @@
     }
 
     .log-item {
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid var(--border-faint);
       padding: 8px 5px;
       font-size: 0.9rem;
       animation: fadeIn 0.3s ease-out;
@@ -2202,7 +2223,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background-color: #333;
+      background-color: var(--surface-raised);
       padding: 6px 8px;
       border-radius: 4px;
       font-size: 0.9rem;
@@ -2221,7 +2242,7 @@
       width: 36px;
       height: 36px;
       border-radius: 8px;
-      border: 1px solid #fff;
+      border: 1px solid var(--text-emphasis);
       background-color: transparent;
       background-size: cover;
       background-position: center;
@@ -2235,9 +2256,9 @@
       min-width: 14px;
       height: 14px;
       padding: 0 2px;
-      background-color: #1a1a1a;
-      color: #fff;
-      border: 1px solid #888;
+      background-color: var(--surface-page);
+      color: var(--text-emphasis);
+      border: 1px solid var(--border-bright);
       border-radius: 3px;
       font-size: 0.6rem;
       line-height: 1;
@@ -2248,7 +2269,7 @@
 
     .character-avatar-name {
       font-size: 0.65rem;
-      color: #bbb;
+      color: var(--text-body-dim);
       max-width: 44px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2259,8 +2280,8 @@
     .context-menu {
       position: fixed;
       z-index: 1000;
-      background-color: #2a2a2a;
-      border: 1px solid #444;
+      background-color: var(--surface-base);
+      border: 1px solid var(--border-subtle);
       border-radius: 6px;
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
       display: flex;
@@ -2273,7 +2294,7 @@
     .context-menu-item {
       background: none;
       border: none;
-      color: #e0e0e0;
+      color: var(--text-default);
       text-align: left;
       padding: 8px 12px;
       font-size: 0.9rem;
@@ -2282,13 +2303,13 @@
     }
 
     .context-menu-item:hover {
-      background-color: #3a3a3a;
+      background-color: var(--surface-control);
     }
 
     /* 権限が無くてできない操作（他人のコマの更新など）。項目自体は残して、
        できないことと理由（title属性）が分かるようにする */
     .context-menu-item:disabled {
-      color: #777;
+      color: var(--text-disabled);
       cursor: not-allowed;
     }
 
@@ -2298,7 +2319,7 @@
 
     .context-menu-item.danger:hover {
       background-color: #a8323f;
-      color: #fff;
+      color: var(--text-emphasis);
     }
 
     /* ======================================================================
@@ -2425,9 +2446,9 @@
         display: flex;
         gap: 4px;
         padding: 4px 6px;
-        background-color: #222;
-        border-top: 1px solid #3a3a3a;
-        border-bottom: 1px solid #3a3a3a;
+        background-color: var(--surface-sunken);
+        border-top: 1px solid var(--surface-control);
+        border-bottom: 1px solid var(--surface-control);
         overflow-x: auto;
       }
 
@@ -2440,9 +2461,9 @@
         align-items: center;
         justify-content: center;
         gap: 3px;
-        background-color: #2a2a2a;
-        color: #aaa;
-        border: 1px solid #444;
+        background-color: var(--surface-base);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-subtle);
         border-radius: 6px;
         padding: 10px 2px;
         font-size: 0.8rem;
@@ -2451,9 +2472,9 @@
       }
 
       .mobile-stage-tab.is-active {
-        background-color: #007acc;
-        color: #fff;
-        border-color: #007acc;
+        background-color: var(--accent);
+        color: var(--text-emphasis);
+        border-color: var(--accent);
       }
 
       /* 束のタブには中身の名前が入る。収まらないときは末尾を省略して、
@@ -2468,7 +2489,7 @@
       .mobile-stage-tab-badge {
         flex: 0 0 auto;
         background-color: #d9534f;
-        color: #fff;
+        color: var(--text-emphasis);
         border-radius: 999px;
         padding: 0 5px;
         font-size: 0.7rem;
@@ -2477,8 +2498,8 @@
       }
 
       .mobile-stage-tab.is-active .mobile-stage-tab-badge {
-        background-color: #fff;
-        color: #007acc;
+        background-color: var(--surface-invert);
+        color: var(--accent);
       }
 
       /* PC用のheight:100%は、中央スペース（flexの縦並び）の中では余計な高さになる */

@@ -1,0 +1,64 @@
+/* css/tokens.css
+   画面の色をここでだけ決める。各CSSでは生の色コード（#xxx）を直接書かず、
+   必ず var(--…) で引くこと。
+
+   【なぜ集めたか】色が各ルールに直書きされていたため、同じ役割の灰色が
+   #1a1a1a / #1b1b1b / #1e1e1e のように微妙に違う値で散らばり、「本文の文字色を
+   少し明るくしたい」といった変更が数十箇所の書き換えになっていた。
+
+   【名前は役割で付ける】--gray-3a3a3a のような値そのままの名前だと集めた意味が
+   無い（色を変えた瞬間に名前が嘘になる）。何に使う色かで名付ける。
+
+   【ここに無い色】プラグイン固有の色や1箇所だけの装飾色は、役割が共有されていない
+   のでトークンにせず各ルールに残してある。共有され始めたらここへ上げる。
+
+   【別ファイルにした理由】css/character-dialog.css は combined_layout.html と
+   character-builder.html の両方から読まれる。トークンを combined_layout.html の
+   <style> に置くと、character-builder.html 側で var() が解決できず色が消える。
+   両方から読む1枚に置くこと。読み込む順番は必ずこのファイルが先。 */
+
+:root {
+  /* --- 面（背景）。暗い順 --- */
+  --surface-deepest: #111;      /* 最も暗い面 */
+  --surface-page: #1a1a1a;      /* ページの地。body */
+  --surface-well: #1e1e1e;      /* 一段窪んだ面。ログ欄・一覧の内側 */
+  --surface-sunken: #222;       /* 窪んだ面（wellより浅い） */
+  --surface-base: #2a2a2a;      /* パネル・タブ・行の基本の面 */
+  --surface-base-2: #2f2f2f;    /* baseより少し明るい面。吹き出し・区切り帯 */
+  --surface-raised: #333;       /* 上に乗る面。hoverの受け皿 */
+  --surface-control: #3a3a3a;   /* 入力欄・ボタンなど操作部品の面 */
+  --surface-raised-2: #444;     /* さらに上に乗る面 */
+  --surface-hover: #4a4a4a;     /* 操作部品のhover */
+
+  /* --- 線。淡い順。この画面には6段の枠色が実在するので、そのまま段として持つ --- */
+  --border-faint: #333;         /* ほとんど見えない区切り */
+  --border-subtle: #444;        /* 区切りの線 */
+  --border-default: #555;       /* 入力欄・パネルの標準の枠 */
+  --border-mid: #666;           /* ダイアログ内の部品の枠 */
+  --border-strong: #777;        /* 目立たせる枠 */
+  --border-bright: #888;        /* 破線の枠など、最も目立つもの */
+
+  /* --- 文字。淡い順 --- */
+  --text-faint: #666;           /* 補足の中でも弱いもの */
+  --text-disabled: #777;        /* 無効・済みの表示 */
+  --text-muted: #888;           /* 補足 */
+  --text-tertiary: #999;
+  --text-secondary: #aaa;       /* 副次的な本文・ラベル */
+  --text-body-dim: #bbb;
+  --text-body: #ccc;
+  --text-body-strong: #ddd;
+  --text-default: #e0e0e0;      /* 既定の本文（body） */
+  --text-bright: #eee;
+  --text-emphasis: #fff;        /* 強調・見出し */
+  --text-on-light: #2a2a2a;     /* 明るい面（ヘルプタブの黄など）に乗る文字 */
+
+  /* --- 反転した面。明るい地に暗い文字を置くとき --- */
+  --surface-invert: #fff;
+
+  /* --- アクセント --- */
+  --accent: #007acc;            /* 選択中・主ボタン */
+
+  /* --- キーボード操作の目印（combined_layout.html の :focus-visible 参照） --- */
+  --focus-ring: #fff;
+  --focus-ring-halo: rgba(0, 0, 0, 0.65);
+}

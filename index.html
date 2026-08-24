@@ -60,6 +60,17 @@
   .app-header h1 {
     margin: 0;
     font-size: 1.4rem;
+    /* 見出しの中でロゴと文字の天地を揃える。imgはベースラインに乗るので、
+       inline-flexにして中央で合わせる方が字面のばらつきに強い。 */
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* 見出しのロゴ。favicon（上の<link>）と同じファイルなので、ここで新しく
+     読み込みが増えることはない。高さだけを文字に合わせ、幅は絵の比率に任せる。 */
+  .app-logo {
+    height: 1.3em;
+    width: auto;
   }
 
   .app-header span {
@@ -357,9 +368,9 @@
 <body>
   <div class="page">
     <div class="app-header">
-      <!-- data-iconの中身はjs/icons.jsが差し込む（線の形を1箇所で持つため、
-           HTMLには置き場所だけを書く） -->
-      <h1><span class="icon-lead" data-icon="dice"></span>もじゅらX</h1>
+      <!-- ロゴはfaviconと同じ画像。alt=""なのは、すぐ隣に「もじゅらX」と
+           書いてあるため（読み上げで名前を二度言わせない） -->
+      <h1><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
       <span>部屋一覧</span>
     </div>
     <div class="header-links">

@@ -14,6 +14,34 @@ import { bindDragGesture } from './drag-gesture.js';
 const MIN_WIDTH = 200;
 const MIN_HEIGHT = 120;
 
+// パネル同士の重なり順。CSSの.floating-panel（z-index:60）を土台に、下から順に
+// BASE_Z、BASE_Z+1…とインラインで振り直す。クリックしたパネルを配列の末尾へ動かして
+// 振り直すだけなので、値はパネルの枚数までしか増えない（押すたびに足していく方式だと、
+// いつか上に居るべきもの＝ダイスドラフトの影・コンテキストメニューを追い越してしまう）。
+// 重なり順はページを開いている間だけのもので、位置・大きさと違って保存しない。
+const BASE_Z = 60;
+
+// 下から順に並べたパネルの要素。生成した順がそのまま初期の重なり順になる。
+const stack = [];
+
+function restack() {
+  stack.forEach((panel, index) => {
+    // dock中（狭幅レイアウト）はタブで1枚ずつ出すので重なり順の出番が無い。
+    // 大きさと同じく#mobileStage側のCSSに任せるため、インラインのz-indexは残さない。
+    panel.style.zIndex = panel.classList.contains('is-docked') ? '' : String(BASE_Z + index);
+  });
+}
+
+// クリックされたパネルを最前面へ。既に一番上なら何もしない。
+function bringToFront(panel) {
+  const index = stack.indexOf(panel);
+  if (index < 0 || index === stack.length - 1) return;
+
+  stack.splice(index, 1);
+  stack.push(panel);
+  restack();
+}
+
 // ヘッダーが画面外へ完全に出てしまうと掴めなくなるため、必ずこの幅/高さだけは画面内に残す
 const KEEP_VISIBLE_X = 80;
 const KEEP_VISIBLE_Y = 32;
@@ -197,6 +225,7 @@ export function createFloatingPanel({
     docked = true;
 
     panel.classList.add('is-docked');
+    panel.style.zIndex = '';
     panel.style.left = '';
     panel.style.top = '';
     panel.style.width = '';
@@ -216,6 +245,7 @@ export function createFloatingPanel({
     panel.classList.remove('is-docked');
     closeBtn.style.display = '';
     document.body.appendChild(panel);
+    restack();
 
     // 保存値から位置・大きさを取り直す。スマホ幅でページを開くと、生成時のclampRectが
     // 狭い画面に合わせて位置を丸めてしまっている。dock中は保存側を一切書き換えないので、
@@ -235,9 +265,16 @@ export function createFloatingPanel({
     applyRect();
   });
 
+  // 触ったパネルを最前面へ。capture段階で拾うのは、中身の要素がイベントを止めていても
+  // 前に出せるようにするため。キーボードで中の入力欄へ移ったときも同じ扱いにしたい。
+  panel.addEventListener('pointerdown', () => bringToFront(panel), true);
+  panel.addEventListener('focusin', () => bringToFront(panel));
+
   applyRect();
   applyVisibility();
   document.body.appendChild(panel);
+  stack.push(panel);
+  restack();
 
   return {
     element: panel,

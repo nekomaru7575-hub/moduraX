@@ -659,10 +659,12 @@
 
     /* 掴んだダイスに追従する影。落とし先はdocument.elementFromPointで拾うので、
        これ自身が拾われないようpointer-events:noneにする。
-       z-indexは.floating-panel(60)より上、.context-menu(1000)より下。 */
+       z-indexは浮動パネルより上、.context-menu(1000)より下。パネルは60から始めて
+       クリックされた順に振り直される（js/floating-panel.js）ので、枚数が増えても
+       追い越されないようここは十分大きく取ってある。 */
     .dice-draft-ghost {
       position: fixed;
-      z-index: 65;
+      z-index: 200;
       pointer-events: none;
       opacity: 0.9;
       transform: scale(1.1);
@@ -1515,7 +1517,9 @@
     }
 
     /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。枠と操作だけを持つ汎用スタイルで、
-       中身（チャットパレット・情報・キャラクター一覧）はそれぞれのクラスが持つ */
+       中身（チャットパレット・情報・キャラクター一覧）はそれぞれのクラスが持つ。
+       z-indexはここの60を土台に、触ったパネルが上に来るようjs/floating-panel.jsが
+       60、61…とインラインで振り直す。 */
     .floating-panel {
       position: fixed;
       z-index: 60;

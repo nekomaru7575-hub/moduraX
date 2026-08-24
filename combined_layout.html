@@ -2616,7 +2616,10 @@
   <div class="app-header">
     <!-- 部屋名を見出しにする（js/main.jsのSTATE_CHANGEDで埋める）。
          部屋名が未設定の間だけアプリ名を出しておく -->
-    <h1 id="roomTitle"><span class="icon-lead" data-icon="dice"></span>もじゅらX</h1>
+    <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo）。
+         部屋名が入るとこの見出しは部屋名だけになり、ロゴは外れる。戻せるように
+         js/main.js が最初にこのimgを控えている。 -->
+    <h1 id="roomTitle" class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
     <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
     <!-- ボタンの中身（アイコン）はjs/icons.jsが差し込む。data-iconはその置き場所の指定。
          以前はここに ♪ ▤ + ⋮ と文字を直接書いていたが、字面が環境任せで、隣り合う

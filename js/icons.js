@@ -48,10 +48,6 @@ const ICON_SHAPES = {
   // ホーム画面への追加（PWA）。端末に入れる、という向きを矢印で示す。
   install: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/>',
   tool: '<path d="M14.5 6.5a1.4 1.4 0 0 0 0 2l1 1a1.4 1.4 0 0 0 2 0l3.2-3.2a6 6 0 0 1-7.9 7.4l-6 6a2.1 2.1 0 0 1-3-3l6-6a6 6 0 0 1 7.4-7.9Z"/>',
-  dice: '<rect x="3" y="3" width="18" height="18" rx="4"/>'
-    + '<circle cx="8.5" cy="8.5" r="1.4" fill="currentColor" stroke="none"/>'
-    + '<circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>'
-    + '<circle cx="15.5" cy="15.5" r="1.4" fill="currentColor" stroke="none"/>',
   'wifi-off': '<path d="m2 2 20 20"/><path d="M8.6 16.1a5 5 0 0 1 6.8 0"/>'
     + '<path d="M5 12.6a10 10 0 0 1 5.2-2.4"/><path d="M16.7 11.1A10 10 0 0 1 19 12.6"/>'
     + '<path d="M1.5 9.1A16 16 0 0 1 6 6.2"/><path d="M10.7 5.1A16 16 0 0 1 22.5 9.1"/>'
@@ -130,7 +126,7 @@ export function setIconText(el, name, text, label = '') {
 /**
  * HTMLに直接書いてあるアイコン置き場を埋める。
  *   <button data-icon="music">…</button>   … その要素の中身をアイコンにする
- *   <span class="icon-lead" data-icon="dice"></span> … spanごとアイコンに差し替える
+ *   <span class="icon-lead" data-icon="music"></span> … spanごとアイコンに差し替える
  * ページの入口（js/main.js・js/room-index.js・js/character-builder.js）から1回呼ぶ。
  * HTMLの中に線データを書き写さずに済ませるための仕組みで、こうしておくと形を直すのが
  * このファイル1箇所で済む。

@@ -85,7 +85,6 @@ function createInstallButton(container) {
   button.type = 'button';
   button.className = 'btn btn-secondary';
   setIconText(button, 'install', 'アプリとして追加');
-  button.style.marginLeft = '12px';
 
   button.addEventListener('click', async () => {
     if (!deferredPrompt) return;
@@ -131,7 +130,7 @@ function createIosHint(container) {
   container.appendChild(hint);
 }
 
-// 部屋一覧（index.html）から呼ぶ。containerはヘッダーのリンク行（.header-links）。
+// 部屋一覧（index.html）から呼ぶ。containerはヘッダーの下の置き場所（#installPrompt）。
 export function mountInstallPrompt(container) {
   if (!container) return;
   // 入れて開いている人に「追加」を見せても意味が無い

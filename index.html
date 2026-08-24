@@ -67,8 +67,14 @@
     font-size: 0.9rem;
   }
 
-  .header-links {
+  /* 「アプリとして追加」（js/pwa.js）の置き場所。出せる状況でしか中身が入らないので、
+     空のときは下の余白も作らない。 */
+  .install-prompt {
     margin-bottom: 16px;
+  }
+
+  .install-prompt:empty {
+    margin-bottom: 0;
   }
 
   .site-footer {
@@ -84,16 +90,6 @@
   }
 
   .site-footer a:hover {
-    text-decoration: underline;
-  }
-
-  .header-links a {
-    color: #8ab4f8;
-    text-decoration: none;
-    font-size: 0.9rem;
-  }
-
-  .header-links a:hover {
     text-decoration: underline;
   }
 
@@ -362,10 +358,10 @@
            二度言わせない） -->
       <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
       <span>部屋一覧</span>
+      <!-- 他のページ（コマ作成ツール・このサービスについて）への行き先。中身はjs/site-nav.js -->
+      <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
     </div>
-    <div class="header-links">
-      <a href="/character-builder.html"><span class="icon-lead" data-icon="tool"></span>コマ作成ツール（外部シート/スナップショットJSONから）</a>
-    </div>
+    <div id="installPrompt" class="install-prompt"></div>
 
     <div id="serverStatus"></div>
 
@@ -384,5 +380,6 @@
   </div>
 
   <script type="module" src="/js/room-index.js"></script>
+  <script type="module" src="/js/site-nav.js"></script>
 </body>
 </html>

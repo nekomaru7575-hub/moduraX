@@ -1,6 +1,14 @@
 /* css/tokens.css
-   画面の色をここでだけ決める。各CSSでは生の色コード（#xxx）を直接書かず、
-   必ず var(--…) で引くこと。
+   全ページが読む土台。中身は2つ。
+     1. 色と書体のトークン（:root）
+     2. どのページにも出る小さな共通部品（アイコン・見出しのロゴ・右上のメニュー・
+        キーボード操作の目印）
+   部品をここに置くのは、部屋のページ（combined_layout.html）の<style>にしか無いと
+   他のページから同じものが使えないため。実際「⋯」メニューを部屋の外へ出すときに、
+   コンテキストメニューの見た目がここへ移ってきた。
+   ページ1枚でしか使わないものは、そのページの<style>に置くこと。
+
+   色は、各CSSで生の色コード（#xxx）を直接書かず、必ず var(--…) で引くこと。
 
    【なぜ集めたか】色が各ルールに直書きされていたため、同じ役割の灰色が
    #1a1a1a / #1b1b1b / #1e1e1e のように微妙に違う値で散らばり、「本文の文字色を
@@ -108,8 +116,122 @@
 }
 
 /* ロゴを置く見出し。imgはベースラインに乗るため、そのままだと絵の下端が文字の
-   下端に揃って数px沈む。天地の中央で合わせる。 */
+   下端に揃って数px沈む。天地の中央で合わせる。
+   flex-shrink: 0 は、狭い画面でアプリ名が「もじゅら／X」と折り返されるのを防ぐため
+   （ヘッダーが flex なので、指定しないと見出しから先に潰れる）。代わりに隣の
+   ページ名の方が折り返す。部屋の画面の見出しだけは部屋名が長くなりうるので、
+   そちら側の h1 { flex: 1 } で上書きしている。 */
 .app-title {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+}
+
+/* --- キーボード操作の位置表示 ---
+   ボタン・入力欄・タブなど、操作できるものすべてに共通の目印を出す。画面の部品は
+   ほとんどがJS側で組み立てられる（コンテキストメニュー・各ダイアログ）ので、部品ごとに
+   書くのではなく:focus-visibleへまとめて当てる。
+   :focusではなく:focus-visibleなのは、マウスで押しただけの時に出さないため。
+   【2色にする理由】部屋の画面の操作部品は、地色が濃灰(#2a2a2a)・アクセント青(#007acc)・
+   ヘルプの黄(#f0c419)と幅があり、1色のリングではどれかの上で埋もれる（白は黄の上で
+   1.4:1、青は濃灰の上で2.5:1しか差が出ない）。白い線の外側に暗いハローを重ねて、
+   どの地色の上でも線そのものが浮くようにする。
+   リングは即座に出す（transitionを掛けない）。フェードで現れると、キーボードで移動した
+   瞬間に「今どこにいるか」が分からない時間ができる。 */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
+}
+
+/* --- ヘッダー右上の四角いボタン ---
+   部屋の画面のヘッダー（音楽・パネル表示・追加・ルームメニュー）と、部屋の外の
+   3ページの「⋯」（js/site-nav.js）で同じものを使う。
+   中身はSVGアイコン1つ（js/icons.js）。文字と違って自動では天地中央に来ないので、
+   入れ物側で中央に置く。 */
+.app-menu-btn {
+  background-color: var(--surface-base);
+  color: var(--text-default);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 部屋の外の3ページはヘッダーが align-items: baseline なので、そのままだと
+     ボタンの下端が文字のベースラインに揃って沈む。中央で合わせる。
+     右端へ寄せるのも合わせてここで。部屋の画面は見出しが flex:1 で既に押し出して
+     いるため、margin-left: auto は効かず影響しない。 */
+  align-self: center;
+  margin-left: auto;
+}
+
+.app-menu-btn:hover {
+  background-color: var(--surface-control);
+}
+
+/* --- 右クリック／ボタンから出るメニュー（js/context-menu.js が組み立てる） --- */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.context-menu-item {
+  background: none;
+  border: none;
+  color: var(--text-default);
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background-color: var(--surface-control);
+}
+
+/* 権限が無くてできない操作（他人のコマの更新など）や、今いるページ自身。項目自体は
+   残して、できないことと理由（title属性）が分かるようにする */
+.context-menu-item:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.context-menu-item:disabled:hover {
+  background: none;
+}
+
+.context-menu-item.danger:hover {
+  background-color: #a8323f;
+  color: var(--text-emphasis);
+}
+
+/* 指で操作する環境（タッチ・ペン）。画面幅とは独立に、当たり判定だけを広げる。
+   タッチ対応ノートPCも該当するが、押しやすくなるだけで害は無い。
+   指で正確に狙える下限とされる44px前後まで持ち上げる。 */
+@media (pointer: coarse) {
+  .app-menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .context-menu-item {
+    padding: 12px 16px;
+    font-size: 1rem;
+  }
 }

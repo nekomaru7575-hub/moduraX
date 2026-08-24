@@ -14,7 +14,7 @@ import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
 import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
-import { applyStaticIcons, setIconText } from './icons.js';
+import { setIconText } from './icons.js';
 
 const serverStatusEl = document.getElementById('serverStatus');
 const roomEntryEl = document.getElementById('roomEntry');
@@ -555,12 +555,9 @@ async function loadRooms() {
   }
 }
 
-// HTMLにdata-iconで置き場所だけ書いてあるアイコン（コマ作成ツールへのリンク）を埋める
-applyStaticIcons();
-
 loadRooms();
 
 // 「アプリとして追加」の導線は部屋一覧にだけ置く（盤面の狭いヘッダーには置き場が無く、
 // セッション中に出ても邪魔なだけなので）。
 registerServiceWorker();
-mountInstallPrompt(document.querySelector('.header-links'));
+mountInstallPrompt(document.getElementById('installPrompt'));

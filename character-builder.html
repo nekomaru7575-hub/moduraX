@@ -55,18 +55,6 @@
     font-size: 0.9rem;
   }
 
-  .back-link {
-    display: inline-block;
-    color: #8ab4f8;
-    text-decoration: none;
-    font-size: 0.9rem;
-    margin-bottom: 20px;
-  }
-
-  .back-link:hover {
-    text-decoration: underline;
-  }
-
   .builder-card {
     background-color: #242424;
     border: 1px solid #3a3a3a;
@@ -151,12 +139,14 @@
       <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo） -->
       <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
       <span>コマ作成ツール</span>
+      <!-- 他のページ（部屋入口・このサービスについて）への行き先。中身はjs/site-nav.js -->
+      <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
     </div>
-    <a class="back-link" href="/">← 部屋一覧に戻る</a>
 
     <div id="builderRoot"></div>
   </div>
 
   <script type="module" src="/js/character-builder.js"></script>
+  <script type="module" src="/js/site-nav.js"></script>
 </body>
 </html>

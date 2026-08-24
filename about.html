@@ -57,10 +57,25 @@
     margin: 0 0 8px;
   }
 
-  .back {
-    display: inline-block;
-    margin-bottom: 24px;
-    font-size: 0.85rem;
+  /* 部屋入口・コマ作成ツールと同じヘッダー行。値もその2ページに合わせてある（部屋の
+     画面だけは align-items などが違うので、この3つは共通CSSにしていない）。 */
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid var(--surface-control);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+  }
+
+  .app-header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  .app-header span {
+    color: var(--text-muted);
+    font-size: 0.9rem;
   }
 
   .note {
@@ -96,9 +111,14 @@
 <body>
 <div class="doc">
 
-  <a class="back" href="/">← 部屋一覧へ戻る</a>
+  <div class="app-header">
+    <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo） -->
+    <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
+    <span>このサービスについて</span>
+    <!-- 他のページ（部屋入口・コマ作成ツール）への行き先。中身はjs/site-nav.js -->
+    <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
+  </div>
 
-  <h1>もじゅらX について</h1>
   <p class="updated">最終更新: 2026年8月24日</p>
 
   <p>
@@ -334,5 +354,7 @@
   </p>
 
 </div>
+
+<script type="module" src="/js/site-nav.js"></script>
 </body>
 </html>

@@ -36,6 +36,17 @@
     margin: 0 0 12px;
   }
 
+  /* 上と同じ事情で、js/icons.js も css/tokens.css も使えない（どちらもプリキャッシュ
+     していない＝オフラインでは取りに行けない）。このページのアイコンだけは中身を
+     直接書く。形を直すときは js/icons.js の wifi-off と揃えること。 */
+  .icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.14em;
+    margin-right: 0.35em;
+  }
+
   p {
     color: #aaa;
     font-size: 0.95rem;
@@ -58,7 +69,18 @@
 </style>
 </head>
 <body>
-  <h1>📡 つながりませんでした</h1>
+  <h1>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m2 2 20 20"/>
+      <path d="M8.6 16.1a5 5 0 0 1 6.8 0"/>
+      <path d="M5 12.6a10 10 0 0 1 5.2-2.4"/>
+      <path d="M16.7 11.1A10 10 0 0 1 19 12.6"/>
+      <path d="M1.5 9.1A16 16 0 0 1 6 6.2"/>
+      <path d="M10.7 5.1A16 16 0 0 1 22.5 9.1"/>
+      <path d="M12 20h.01"/>
+    </svg>つながりませんでした
+  </h1>
   <p>
     ネットワークに届かないため、このページを開けませんでした。<br>
     電波・Wi-Fiを確かめて、もう一度お試しください。

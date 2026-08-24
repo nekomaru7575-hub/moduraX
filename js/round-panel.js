@@ -17,6 +17,7 @@ import { store } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { showRoundSetupDialog } from './round-setup-dialog.js';
+import { createIcon, setIconText } from './icons.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
 import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
 import {
@@ -123,7 +124,13 @@ function buildTurnRow(state, round, turnRow, canOperate, tiedKeys = []) {
   } else {
     score = token ? getEffectiveParameterValue(token, 'core:initiative') : undefined;
   }
-  row.textContent = `${isInterrupt ? '⏭ ' : ''}${name}${score === undefined ? '' : ` (${score})`}`;
+  const rowText = `${name}${score === undefined ? '' : ` (${score})`}`;
+  // 割り込み予約の行だけ、順番を飛ばす印を先頭に付ける
+  if (isInterrupt) {
+    setIconText(row, 'skip-next', rowText, '割り込み予約');
+  } else {
+    row.textContent = rowText;
+  }
 
   // 同値であることは並び順からは読み取れないので、理由をツールチップにも書いておく
   const tieNote = row.classList.contains('plot-tied')
@@ -457,11 +464,18 @@ export function initRoundPanel() {
       : (phase?.kind === 'perCharacter' && round.currentActorId)
         ? `（手番: ${getTokenName(state, round.currentActorId)}）`
         : '';
-    // 割り込み予約は「次に誰が動くか」が変わる重要な状態なので、手番と並べて常に出す
-    const interruptText = round.interruptId
-      ? ` ⏭ 次: ${getTokenName(state, round.interruptId)}`
-      : '';
-    statusEl.textContent = `ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}${interruptText}`;
+    // 割り込み予約は「次に誰が動くか」が変わる重要な状態なので、手番と並べて常に出す。
+    // 印は一覧の行と同じアイコンにしたいので、文字列を組み立てるのではなく要素で足す。
+    statusEl.replaceChildren(
+      document.createTextNode(`ラウンド${round.roundNumber} - ${phase?.label || ''}${turnText}`)
+    );
+    if (round.interruptId) {
+      statusEl.append(
+        document.createTextNode(' '),
+        createIcon('skip-next', '割り込み予約'),
+        document.createTextNode(` 次: ${getTokenName(state, round.interruptId)}`)
+      );
+    }
 
     // --- 「割り込みなし」まわり（一覧・自分のニックネーム・トグル）---
     // 割り込みは「フェーズが割り込み確認中かどうか」に関係なく宣言したくなるものなので、

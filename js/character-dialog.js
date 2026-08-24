@@ -10,6 +10,7 @@ import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
 import { canView, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
 import { lockFormControls } from './read-only-form.js';
+import { setIcon } from './icons.js';
 
 // コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
 // これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
@@ -375,7 +376,7 @@ function buildParameterVisibilityToggle(initialChecked = true) {
   return { element: label, checkbox };
 }
 
-// パラメータ1件の「公開先」ボタン（🔓＝全員／🔒＝限定）。押すと宛先選択ダイアログを開く。
+// パラメータ1件の「公開先」ボタン（開いた錠＝全員／閉じた錠＝限定）。押すと宛先選択ダイアログを開く。
 // 表示/非表示(visible)が「自分も含めて一覧に出すか」なのに対し、こちらは「誰に見せるか」。
 // 値の保持は呼び出し側（getAudience/setAudience）に任せ、確定時にまとめて反映する。
 function buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId }) {
@@ -385,7 +386,8 @@ function buildAudienceButton({ getLabel, getAudience, setAudience, participants,
 
   function sync() {
     const audience = getAudience();
-    button.textContent = isRestricted(audience) ? '🔒' : '🔓';
+    setIcon(button, isRestricted(audience) ? 'lock' : 'unlock',
+      isRestricted(audience) ? '限定公開' : '全員に公開');
     button.title = `${describeAudience(audience, participants)}（クリックで変更）`;
     button.classList.toggle('restricted', isRestricted(audience));
   }

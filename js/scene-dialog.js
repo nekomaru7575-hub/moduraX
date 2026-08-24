@@ -114,7 +114,7 @@ export function showSceneDialog({ scene = null, tracks = [], onConfirm, onOverwr
   if (tracks.length === 0) {
     const trackNote = document.createElement('p');
     trackNote.className = 'audio-note';
-    trackNote.textContent = 'BGMに使える音源がまだありません（ヘッダーの「♪」から登録できます）。';
+    trackNote.textContent = 'BGMに使える音源がまだありません（ヘッダーの音符ボタン「音楽」から登録できます）。';
     form.appendChild(trackNote);
   }
 

@@ -14,6 +14,7 @@ import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
 import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
+import { applyStaticIcons, setIconText } from './icons.js';
 
 const serverStatusEl = document.getElementById('serverStatus');
 const roomEntryEl = document.getElementById('roomEntry');
@@ -262,6 +263,8 @@ function fillRoomSelect() {
       option.value = room.id;
       // 鍵マークは入室パスワードのある部屋の目印。パスワード自体の照合はサーバー側
       // （server/index.jsのWebSocket接続時）。
+      // ここだけ絵文字のままなのは、<option>の中に要素を置けないため（HTMLの仕様）。
+      // 他の鍵はjs/icons.jsのSVGに揃えてある。
       const people = room.clients > 0 ? `${room.clients}人` : '';
       option.textContent = (room.locked ? '🔒 ' : '') + (room.name || room.id)
         + (people ? `（${people}）` : '');
@@ -295,7 +298,7 @@ function renderSelectedRoom() {
 
   if (room.locked) {
     const lockNote = document.createElement('div');
-    lockNote.textContent = '🔒 この部屋に入るには入室パスワードが必要です';
+    setIconText(lockNote, 'lock', 'この部屋に入るには入室パスワードが必要です');
     entry.info.appendChild(lockNote);
   }
 
@@ -551,6 +554,9 @@ async function loadRooms() {
     }
   }
 }
+
+// HTMLにdata-iconで置き場所だけ書いてあるアイコン（見出しのダイスなど）を埋める
+applyStaticIcons();
 
 loadRooms();
 

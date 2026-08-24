@@ -25,6 +25,7 @@
 import { lockFormControls } from '../read-only-form.js';
 import { showAudienceDialog } from '../audience-picker.js';
 import { canView, isRestricted, describeAudience } from '../visibility.js';
+import { setIcon } from '../icons.js';
 
 // components に奥義一覧を保存するときのキー。
 export const OUGI_COMPONENT_KEY = 'ougi';
@@ -258,7 +259,8 @@ export function showOugiBox({
     audienceBtn.className = 'dialog-audience-btn';
 
     function syncAudienceBtn() {
-      audienceBtn.textContent = isRestricted(audience) ? '🔒' : '🔓';
+      setIcon(audienceBtn, isRestricted(audience) ? 'lock' : 'unlock',
+        isRestricted(audience) ? '限定公開' : '全員に公開');
       audienceBtn.title = describeAudience(audience, participants);
       audienceBtn.classList.toggle('restricted', isRestricted(audience));
     }

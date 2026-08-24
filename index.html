@@ -357,11 +357,13 @@
 <body>
   <div class="page">
     <div class="app-header">
-      <h1>🎲 もじゅらX</h1>
+      <!-- data-iconの中身はjs/icons.jsが差し込む（線の形を1箇所で持つため、
+           HTMLには置き場所だけを書く） -->
+      <h1><span class="icon-lead" data-icon="dice"></span>もじゅらX</h1>
       <span>部屋一覧</span>
     </div>
     <div class="header-links">
-      <a href="/character-builder.html">🛠️ コマ作成ツール（外部シート/スナップショットJSONから）</a>
+      <a href="/character-builder.html"><span class="icon-lead" data-icon="tool"></span>コマ作成ツール（外部シート/スナップショットJSONから）</a>
     </div>
 
     <div id="serverStatus"></div>

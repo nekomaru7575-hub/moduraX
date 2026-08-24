@@ -75,7 +75,7 @@ function renderLandingForm() {
 
   const hint = document.createElement('p');
   hint.className = 'builder-hint';
-  hint.textContent = '外部キャラクターシートツール（ゆとシート等）が出力したJSON、または本ツールで書き出したコマのスナップショットJSONを読み込みます。スナップショットJSONの場合、プラグインは自動で判定されます。';
+  hint.textContent = '外部キャラクターシートツール（ゆとシート様等）が出力したJSON、または本ツールで書き出したコマのスナップショットJSONを読み込みます。スナップショットJSONの場合、プラグインは自動で判定されます。';
   card.appendChild(hint);
 
   const loadBtn = document.createElement('button');

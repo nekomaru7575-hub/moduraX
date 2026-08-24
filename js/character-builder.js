@@ -73,29 +73,48 @@ function renderLandingForm() {
   pluginGroup.appendChild(pluginSelect);
   card.appendChild(pluginGroup);
 
-  const hint = document.createElement('p');
-  hint.className = 'builder-hint';
-  hint.textContent = '外部キャラクターシートツール（ゆとシート等）が出力したJSON、または本ツールで書き出したコマのスナップショットJSONを読み込みます。スナップショットJSONの場合、プラグインは自動で判定されます。';
-  card.appendChild(hint);
+  // 始め方は3つ。何も無いところから作る道を主（青）にし、手持ちのJSONから始める
+  // 2つは副（枠線）にしてある。シートを持っていない人が最初に見るのがこのページなので、
+  // 3つとも同じ見た目だと、どれを押せばいいのかが色から読み取れない。
+  const actionList = document.createElement('div');
+  actionList.className = 'builder-action-list';
+
+  const newBtn = document.createElement('button');
+  newBtn.type = 'button';
+  newBtn.className = 'builder-primary-btn';
+  newBtn.textContent = '新規作成して編集';
+  actionList.appendChild(newBtn);
 
   const loadBtn = document.createElement('button');
   loadBtn.type = 'button';
-  loadBtn.className = 'builder-primary-btn';
+  loadBtn.className = 'builder-secondary-btn';
   loadBtn.textContent = 'JSONファイルを読み込んで編集';
-  card.appendChild(loadBtn);
+  actionList.appendChild(loadBtn);
 
   // シートのURLから直接取り込む道。受け付け先を宣言しているシステムを選んだときだけ出す
   // （宣言が無いシステムでは、貼れるURLが1つも無いのでボタンごと隠す）。
   const urlBtn = document.createElement('button');
   urlBtn.type = 'button';
-  urlBtn.className = 'builder-primary-btn';
-  urlBtn.style.marginTop = '8px';
-  card.appendChild(urlBtn);
+  urlBtn.className = 'builder-secondary-btn';
+  actionList.appendChild(urlBtn);
+
+  card.appendChild(actionList);
+
+  // 説明しているのは下2つのボタンだけなので、ボタンの後ろに置く
+  const hint = document.createElement('p');
+  hint.className = 'builder-hint';
+  hint.textContent = '「JSONファイルを読み込んで編集」では、外部キャラクターシートツール（ゆとシート様等）が出力したJSON、または本ツールで書き出したコマのスナップショットJSONを読み込みます。スナップショットJSONの場合、プラグインは自動で判定されます。';
+  card.appendChild(hint);
 
   const errorEl = document.createElement('p');
   errorEl.className = 'builder-error';
   errorEl.style.display = 'none';
   card.appendChild(errorEl);
+
+  newBtn.addEventListener('click', () => {
+    errorEl.style.display = 'none';
+    startNew(pluginSelect.value || null);
+  });
 
   function syncUrlButton() {
     const source = getPluginSheetSource(pluginSelect.value || null);
@@ -139,6 +158,15 @@ function renderLandingForm() {
   });
 
   root.appendChild(card);
+}
+
+// 何も読み込まずに1体作る道。ADD_CHARACTER が、選ばれたプラグインの初期パラメータを
+// 組み立てて自動計算（applyPluginDerivedParameters）まで済ませるので（js/game-store.js）、
+// ここでやることは器を用意して撃つことだけ。この先は読み込み経路と同じ道を通る。
+function startNew(pluginId) {
+  draftStore = new ImmutableStore({ room: { activePlugin: pluginId }, tokens: {} });
+  draftStore.dispatch('ADD_CHARACTER', { id: DRAFT_TOKEN_ID, name: '新規キャラクター', x: 0, y: 0 });
+  openEditDialog(pluginId);
 }
 
 function startEditing(pluginId, json, errorEl) {
@@ -211,27 +239,29 @@ function renderPostSaveActions(pluginId, name) {
   setIconText(status, 'check-circle', `「${name}」のJSONを保存しました。`);
   card.appendChild(status);
 
-  const actionRow = document.createElement('div');
-  actionRow.className = 'builder-action-row';
+  const actionList = document.createElement('div');
+  actionList.className = 'builder-action-list';
 
   const editAgainBtn = document.createElement('button');
   editAgainBtn.type = 'button';
   editAgainBtn.className = 'builder-primary-btn';
   editAgainBtn.textContent = '再編集してもう一度保存';
   editAgainBtn.addEventListener('click', () => openEditDialog(pluginId));
-  actionRow.appendChild(editAgainBtn);
+  actionList.appendChild(editAgainBtn);
 
+  // 「別のファイルを読み込む」だと、新規作成から来た人には行き先が嘘になる。
+  // どちらの経路から来ても正しい言い方にしてある。
   const restartBtn = document.createElement('button');
   restartBtn.type = 'button';
   restartBtn.className = 'builder-secondary-btn';
-  restartBtn.textContent = '別のファイルを読み込む';
+  restartBtn.textContent = '最初の画面に戻る';
   restartBtn.addEventListener('click', () => {
     draftStore = null;
     renderLandingForm();
   });
-  actionRow.appendChild(restartBtn);
+  actionList.appendChild(restartBtn);
 
-  card.appendChild(actionRow);
+  card.appendChild(actionList);
   root.appendChild(card);
 }
 

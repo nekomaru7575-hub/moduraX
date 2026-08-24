@@ -20,6 +20,7 @@ import { showContextMenu } from './context-menu.js';
 const PAGES = [
   { id: 'index', label: '部屋入口', href: '/' },
   { id: 'builder', label: 'コマ作成ツール', href: '/character-builder.html' },
+  { id: 'notes', label: 'リリースノート', href: '/release-notes.html' },
   { id: 'about', label: 'このサービスについて', href: '/about.html' }
 ];
 
@@ -29,6 +30,7 @@ function currentPageId() {
   const path = window.location.pathname;
   if (path === '/' || path === '/index.html') return 'index';
   if (path === '/character-builder.html') return 'builder';
+  if (path === '/release-notes.html') return 'notes';
   if (path === '/about.html') return 'about';
   return '';
 }

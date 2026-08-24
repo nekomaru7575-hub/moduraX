@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<!--
+  release-notes.html — もじゅらXの更新の記録。
+
+  【並び順は手で保つ】新しい版が上。自動で並べ替える仕組みは無く、書き足す位置だけが
+  並び順を決める。更新するときは「▼ここから下が版のかたまり▼」のコメントのすぐ下へ、
+  section ごと足すこと。
+
+  【読み手はテスターであって開発者ではない】「コードがどう変わったか」ではなく
+  「あなたの遊び方がどう変わるか」を書く。以下はそのための決めごと。
+
+  1. 画面が変わらない変更は載せない。
+     コードの整理・内部の名前の付け替え・依存の更新は書かない。載せる基準は
+     「テスターが操作して気づけるか」の一点。履歴は長くなるほど読み飛ばされる。
+
+  2. 1項目は文にする。名詞で止めない。
+     ✗「新規作成ボタンの追加」
+     ✓「コマ作成ツールに「新規作成」を足しました。既にあるコマを読み込まなくても、
+        白紙から作り始められます」
+
+  3. 不具合の項目は、直した中身ではなく「何が起きていたか」を先に書く。
+     読む人は、自分が遭遇した現象と照らし合わせたい。症状が索引になる。
+     ✗「ダイスの不具合を修正」
+     ✓「3Dダイスを振ったとき、たまに出目がチャットに出ないことがあったのを直しました」
+
+  4. 分類は「追加」「変更」「直した不具合」の3つまで。増やすと分類に迷う時間が増えて
+     続かない。その版に該当が無い分類は、見出しごと省く。
+
+  5. 言葉は画面の表記に揃える。「コマ」「盤面」「部屋」「コマ作成ツール」。
+     コードの中の名前（token, layer, room-index など）は使わない。
+
+  6. 作ったものに影響する変更は目立たせる。保存済みのコマ・部屋のデータ・共有URLに
+     影響するものは、その版の一番上に置き、.note の枠で囲って「何をすればいいか」まで書く。
+     オープンテスト中は作り直しをお願いすることもあるので、ここを曖昧にしない。
+
+  7. 要約（.summary）は項目が5つを超える版にだけ付ける。2〜3項目の版には要らない。
+
+  8. まだ直っていないと分かっている問題は、版の中ではなくページ上部に固定で置き、
+     直った時点で消す。版ごとの履歴に混ぜると、直った後もその記述が残り続けて
+     未修正に見える。（今は無いので置いていない。必要になったら .lead の下へ）
+
+  9. 日付は「2026年8月25日」の形。about.html の「最終更新」と同じ書き方に揃える。
+
+  いずれ版が20を超えて縦に長くなったら、古い版を details で畳む。項目が少ないうちは
+  畳むほうが邪魔なので、今はやらない。
+
+  なお、このファイルは server/index.js の PUBLIC_FILES に挙がっているから配信される。
+  ルート直下のファイルは許可リストに無いと404になる。
+-->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>もじゅらX - リリースノート</title>
+<link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+<link rel="stylesheet" href="/css/tokens.css">
+<style>
+  /* 見た目は about.html と同じ雛形。あちらを直したらこちらも合わせること
+     （3ページとも各自コピーしていて、共通CSSにはしていない）。 */
+  body {
+    background-color: var(--surface-page);
+    color: var(--text-default);
+    font-family: var(--font-body);
+    margin: 0;
+    padding: 24px 20px 64px;
+    line-height: 1.8;
+  }
+
+  .doc {
+    max-width: 46rem;   /* 1行が長くなりすぎると読み返しづらいので幅を切る */
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+  }
+
+  /* 版の見出し（日付）。1つの版のかたまりの頭にあることが分かるよう、
+     about.html の h2 より上の余白を広めに取る。 */
+  h2 {
+    font-size: 1.1rem;
+    margin: 44px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  /* 「追加」「変更」「直した不具合」の見出し */
+  h3 {
+    font-size: 0.95rem;
+    margin: 20px 0 4px;
+    color: var(--text-body-strong);
+  }
+
+  p, li {
+    font-size: 0.9rem;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
+
+  ul {
+    padding-left: 1.3em;
+    margin: 4px 0;
+  }
+
+  a {
+    color: #6aa9e0;
+  }
+
+  /* ページ冒頭の説明。本文より一段引いた色にして、版の中身と見分ける。 */
+  .lead {
+    color: var(--text-body);
+    margin: 0 0 8px;
+  }
+
+  /* 版の要約（日付のすぐ下の1〜2行）。項目が多い版にだけ付ける。 */
+  .summary {
+    color: var(--text-body-strong);
+    margin: 0 0 4px;
+  }
+
+  /* 部屋入口・コマ作成ツール・このサービスについてと同じヘッダー行。値もその3ページに
+     合わせてある（部屋の画面だけは align-items などが違うので共通CSSにしていない）。 */
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid var(--surface-control);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+  }
+
+  .app-header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  .app-header span {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* 作ったものに影響する変更・お願いごとを囲む枠（about.html と同じ見た目）。 */
+  .note {
+    background-color: var(--surface-base);
+    border-left: 3px solid var(--border-mid);
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 0.85rem;
+    color: var(--text-body);
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="app-header">
+    <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo） -->
+    <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
+    <span>リリースノート</span>
+    <!-- 他のページ（部屋入口・コマ作成ツール・このサービスについて）への行き先。中身はjs/site-nav.js -->
+    <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
+  </div>
+
+  <p class="lead">
+    もじゅらXの更新の記録です。新しいものが上にあります。
+  </p>
+  <p class="lead">
+    うまく動かないところを見つけたら、
+    <a href="/about.html">このサービスについて</a>の連絡先までお知らせください。
+  </p>
+
+  <!-- ▼ここから下が版のかたまり。新しい版は、このコメントのすぐ下に section ごと足す。▼ -->
+
+  <section class="release">
+
+    <!-- オープンテストを始める日が決まったら、●を実際の日付に置き換えること -->
+    <h2>●年●月●日</h2>
+
+    <p class="summary">
+      オープンテストを始めました。これより前の変更は記録していません。
+      ここから先は、更新のたびにこのページへ書き足していきます。
+    </p>
+
+    <div class="note">
+      <strong>部屋は2週間で消えます。</strong>
+      最後に使った日から2週間が過ぎた部屋は、自動で削除されます。
+      続きを遊ぶ予定がある部屋は、間を空けすぎないようご注意ください。
+      残しておきたい盤面やコマは、書き出して手元に保存しておくことをおすすめします。
+    </div>
+
+    <h3>追加</h3>
+    <ul>
+      <li>
+        コマ作成ツールに「新規作成」を足しました。
+        既にあるコマを読み込まなくても、白紙から作り始められます。
+      </li>
+      <li>
+        プラグインごとに、使うダイスボットを決められるようにしました。
+        部屋を作るときにダブルクロスのプラグインを選ぶと、
+        ダイスボットも自動でダブルクロスになります。
+      </li>
+      <li>
+        各ページの右上に「⋯」を置き、部屋入口・コマ作成ツール・このページ・
+        このサービスについて、を行き来できるようにしました。
+      </li>
+      <li>
+        カードを引くとき、デッキから直接ストッカーへ引けるようにしました。
+        ストッカー同士でカードを渡したり、元のデッキへ戻したりもできます。
+      </li>
+      <li>
+        利用規約・プライバシーポリシー・免責事項・連絡先をまとめた
+        <a href="/about.html">このサービスについて</a>のページを用意しました。
+      </li>
+    </ul>
+
+    <h3>変更</h3>
+    <ul>
+      <li>
+        ダイスコマンドとコメントの区切りに、全角スペースも使えるようにしました。
+        半角に打ち直さなくてもコメント付きで振れます。
+      </li>
+      <li>
+        浮動パネルを触ると、そのパネルが一番手前に出るようにしました。
+        重なったパネルの後ろ側を触っても隠れたままになりません。
+      </li>
+      <li>
+        画面のアイコンを、絵文字から線の揃った1式に置き換えました。
+        見出しのダイスの絵も、もじゅらXのロゴに変えています。
+      </li>
+      <li>
+        1つの部屋に置けるデッキ・カード・デッキ定義の数に上限を設けました。
+        普通に遊ぶ範囲では届かない数です。
+      </li>
+    </ul>
+
+  </section>
+
+</div>
+
+<script type="module" src="/js/site-nav.js"></script>
+</body>
+</html>

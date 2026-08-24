@@ -643,6 +643,21 @@ const MAX_DECK_TEMPLATE_ROWS = 100;
 const MAX_DECK_TEMPLATE_ROW_COUNT = 99;
 const MAX_DECK_NAME_LENGTH = 40;
 
+// 1部屋あたりの総数の上限。上の上限が「1つあたり何枚・何文字か」なのに対し、こちらは
+// 「いくつ置けるか」。これが無いと、idを変えたADD_DECKを連打するだけで部屋を太らせられる
+// （状態は全員へ配られ、Redisへも書き戻るので、流量制限の範囲でも効いてしまう）。
+// 取り込んだ部屋データはreducerを通らずhydrate()へ直接入るため、そちらでも同じ数で切る。
+//
+// 最悪ケースの状態量は、デッキ20×200枚×約1.4KB≒5.6MBと札600枚×約1.4KB≒0.85MB。
+// MAX_IMPORT_BYTES（書き出し64MBから導く）と同じ桁に収まる。実際の卓は「52枚の山を
+// 5人分」でも山5つ・札260枚なので、普通の使い方は削らない。
+//
+// **下げるときは注意。** hydrate側は超過分を捨てるので、既にこの数を超えている部屋を
+// 開くと差分が消える。上げる方向は安全。
+const MAX_ROOM_DECKS = 20;
+const MAX_ROOM_CARDS = 600;
+const MAX_DECK_TEMPLATES = 50;
+
 function clampCardText(value, max) {
   return typeof value === 'string' ? value.slice(0, max) : '';
 }
@@ -750,6 +765,9 @@ function buildDeck({
 
 // 保存済み・同期されてきたカード／デッキを、状態へ入れられる形へ均す（hydrate専用）。
 // 取り込んだ部屋データ（信用しないJSON）もここを通るので、上限もまとめて掛かる。
+// 1つあたりの上限（buildCard・buildDeck）に加えて、要素の数そのものもここで切る
+// （MAX_ROOM_CARDS・MAX_ROOM_DECKS・MAX_DECK_TEMPLATES）。取り込みはreducerを
+// 通らないので、reducer側の歯止めだけでは1リクエストで好きなだけ積めてしまう。
 function isNamedObjectEntry([id, value]) {
   return typeof id === 'string' && id !== '' && !!value && typeof value === 'object';
 }
@@ -758,6 +776,7 @@ function normalizeCardMap(cards) {
   return Object.freeze(Object.fromEntries(
     Object.entries(cards || {})
       .filter(isNamedObjectEntry)
+      .slice(0, MAX_ROOM_CARDS)
       .map(([id, card]) => [id, buildCard({ ...card, id })])
   ));
 }
@@ -780,6 +799,7 @@ function normalizeDeckMap(decks) {
   return Object.freeze(Object.fromEntries(
     Object.entries(decks || {})
       .filter(isNamedObjectEntry)
+      .slice(0, MAX_ROOM_DECKS)
       .map(([id, deck]) => [id, buildDeck({ ...deck, id })])
   ));
 }
@@ -816,6 +836,7 @@ function normalizeDeckTemplateMap(templates) {
   return Object.freeze(Object.fromEntries(
     Object.entries(templates || {})
       .filter(isNamedObjectEntry)
+      .slice(0, MAX_DECK_TEMPLATES)
       .map(([id, template]) => [id, buildDeckTemplate({ ...template, id })])
   ));
 }
@@ -2724,6 +2745,10 @@ export class ImmutableStore {
         const { id, name } = payload;
         if (!id || !name) return;
         const room = prevState.room;
+        // 数を見るのは新規のときだけ。同じidでの上書きは数が増えないので通す
+        // （「キー重複＝上書き」の規則を上限のせいで壊さないため）。
+        if (!room.deckTemplates?.[id]
+          && Object.keys(room.deckTemplates || {}).length >= MAX_DECK_TEMPLATES) return;
 
         this.#commit(prevState, {
           room: {
@@ -3301,6 +3326,7 @@ export class ImmutableStore {
         const { id } = payload;
         if (!id) return;
         if (prevState.cards[id]) return;
+        if (Object.keys(prevState.cards).length >= MAX_ROOM_CARDS) return;
 
         this.#commit(prevState, {
           cards: withMapEntry(prevState.cards, id, buildCard(payload))
@@ -3409,6 +3435,7 @@ export class ImmutableStore {
         const { id } = payload;
         if (!id) return;
         if (prevState.decks[id]) return;
+        if (Object.keys(prevState.decks).length >= MAX_ROOM_DECKS) return;
 
         this.#commit(prevState, {
           decks: withMapEntry(prevState.decks, id, buildDeck(payload))
@@ -3502,10 +3529,15 @@ export class ImmutableStore {
         }
 
         const grid = Math.max(1, Math.round(Number(gridSize) || 25));
+        // 部屋の残り枠でも切る。断るのではなく引ける分だけ引くのは、山の残り枚数で
+        // 切るのと同じ扱い（上限に触れた瞬間にボタンが無反応になるより素直）。
+        const freeSlots = MAX_ROOM_CARDS - Object.keys(prevState.cards).length;
+        if (freeSlots <= 0) return;
         const drawCount = Math.min(
           Math.max(1, Math.round(Number(count) || 1)),
           MAX_DRAW_COUNT,
-          deck.cards.length
+          deck.cards.length,
+          freeSlots
         );
 
         const drawn = deck.cards.slice(0, drawCount);

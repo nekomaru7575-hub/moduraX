@@ -1,11 +1,11 @@
 ---
 source: js/net-sync.js
-lines: 399
+lines: 409
 exports: 9
 imported_by: 3
 api_sha: 4fc499cfc0b5
 prose_sha: 4fc499cfc0b5
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 
@@ -26,14 +26,14 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 47 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
-| 270 | fn | initNetSync | `initNetSync()` |  |
-| 329 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
-| 342 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
-| 349 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
-| 356 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
-| 362 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
-| 367 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
-| 374 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
+| 280 | fn | initNetSync | `initNetSync()` |  |
+| 339 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
+| 352 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
+| 359 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
+| 366 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除をサーバーへ要求する。 |
+| 372 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
+| 377 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
+| 384 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（20）
 
@@ -49,19 +49,19 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 | 84 | connect | `connect()` | 9 |  |
 | 94 | handleOpen | `handleOpen()` | 6 |  |
 | 103 | handleMessage | `handleMessage(message)` | 90 |  |
-| 195 | handleClose | `handleClose({ code })` | 31 |  |
-| 229 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
-| 245 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
-| 265 | stampPayload | `stampPayload(action, payload)` | 4 |  |
-| 270 | initNetSync | `initNetSync()` | 16 | ✓ |
-| 293 | initAsHost | `initAsHost()` | 24 |  |
-| 329 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
-| 342 | requestChatSendSound | `requestChatSendSound()` | 3 | ✓ |
-| 349 | sendStamp | `sendStamp(stampId)` | 3 | ✓ |
-| 356 | requestRoomDeletion | `requestRoomDeletion()` | 3 | ✓ |
-| 362 | sendTypingStart | `sendTypingStart()` | 3 | ✓ |
-| 367 | sendTypingStop | `sendTypingStop()` | 3 | ✓ |
-| 374 | replaceState | `replaceState(newState)` | 25 | ✓ |
+| 195 | handleClose | `handleClose({ code })` | 41 |  |
+| 239 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
+| 255 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
+| 275 | stampPayload | `stampPayload(action, payload)` | 4 |  |
+| 280 | initNetSync | `initNetSync()` | 16 | ✓ |
+| 303 | initAsHost | `initAsHost()` | 24 |  |
+| 339 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 8 | ✓ |
+| 352 | requestChatSendSound | `requestChatSendSound()` | 3 | ✓ |
+| 359 | sendStamp | `sendStamp(stampId)` | 3 | ✓ |
+| 366 | requestRoomDeletion | `requestRoomDeletion()` | 3 | ✓ |
+| 372 | sendTypingStart | `sendTypingStart()` | 3 | ✓ |
+| 377 | sendTypingStop | `sendTypingStop()` | 3 | ✓ |
+| 384 | replaceState | `replaceState(newState)` | 25 | ✓ |
 
 ## 依存
 

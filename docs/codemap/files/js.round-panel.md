@@ -1,11 +1,11 @@
 ---
 source: js/round-panel.js
-lines: 605
+lines: 616
 exports: 2
 imported_by: 1
 api_sha: 607d81b1a1a8
 prose_sha: 607d81b1a1a8
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 
@@ -25,8 +25,8 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 410 | fn | startRoundProgression | `startRoundProgression()` | ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。 |
-| 420 | fn | initRoundPanel | `initRoundPanel()` |  |
+| 421 | fn | startRoundProgression | `startRoundProgression()` | ルームメニュー（⋮）の「ラウンド進行を開始」から呼ばれる。 |
+| 431 | fn | initRoundPanel | `initRoundPanel()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（16）
 
@@ -41,16 +41,16 @@ tags: [codemap]
 | 48 | isPlotPhase | `isPlotPhase(round)` | 3 |  |
 | 53 | usesPlotTurnOrder | `usesPlotTurnOrder(round)` | 3 |  |
 | 69 | listTurnOrderRows | `listTurnOrderRows(state, round)` | 22 |  |
-| 98 | buildTurnRow | `buildTurnRow(state, round, turnRow, canOperate, tiedKeys = [])` | 66 |  |
-| 165 | listBoardTokens | `listBoardTokens(state)` | 5 |  |
-| 173 | listMyPlotTokenIds | `listMyPlotTokenIds(state, round)` | 3 |  |
-| 187 | buildPlotSlotRow | `buildPlotSlotRow(state, round, tokenId, slot, slotIndex)` | 85 |  |
-| 274 | buildPlotInputRows | `buildPlotInputRows(state, round, tokenId)` | 21 |  |
-| 299 | buildPlotChoiceRow | `buildPlotChoiceRow(state, round, tokenId)` | 38 |  |
-| 340 | describePlotStatus | `describePlotStatus(state, round)` | 23 |  |
-| 369 | renderPlotSection | `renderPlotSection(plotEl, state, round)` | 37 |  |
-| 410 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
-| 420 | initRoundPanel | `initRoundPanel()` | 185 | ✓ |
+| 98 | buildTurnRow | `buildTurnRow(state, round, turnRow, canOperate, tiedKeys = [])` | 75 |  |
+| 174 | listBoardTokens | `listBoardTokens(state)` | 5 |  |
+| 182 | listMyPlotTokenIds | `listMyPlotTokenIds(state, round)` | 4 |  |
+| 197 | buildPlotSlotRow | `buildPlotSlotRow(state, round, tokenId, slot, slotIndex)` | 85 |  |
+| 284 | buildPlotInputRows | `buildPlotInputRows(state, round, tokenId)` | 21 |  |
+| 309 | buildPlotChoiceRow | `buildPlotChoiceRow(state, round, tokenId)` | 38 |  |
+| 350 | describePlotStatus | `describePlotStatus(state, round)` | 24 |  |
+| 380 | renderPlotSection | `renderPlotSection(plotEl, state, round)` | 37 |  |
+| 421 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
+| 431 | initRoundPanel | `initRoundPanel()` | 185 | ✓ |
 
 ## 依存
 

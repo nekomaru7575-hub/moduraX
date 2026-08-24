@@ -547,5 +547,6 @@ export const STELLA_KNIGHTS_PLUGIN = {
   diceDraft: STELLA_KNIGHTS_DRAFT_SPEC,
   stamps: [
     {id:`bouquet`, label : `ブーケ`,file:`bouquet.png`}
-  ]
+  ],
+  bcdiceSystem:STELLA_KNIGHTS_BCDICE_SYSTEM
 };

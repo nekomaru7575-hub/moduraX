@@ -1347,7 +1347,8 @@ export const SHINOBIGAMI_PLUGIN = {
   // アイテムを持つシステム共通の操作のため（dice.* と同じ扱い。js/main.js）。
   item: SHINOBIGAMI_TOOL_SPEC,
   // シーン終了・ラウンド終了で忍法の使用回数を戻す
-  resetComponentsOnPhaseEnd: resetShinobigamiComponentsOnPhaseEnd
+  resetComponentsOnPhaseEnd: resetShinobigamiComponentsOnPhaseEnd,
+  bcdiceSystem:SHINOBIGAMI_BCDICE_SYSTEM
 };
 
 // 他プラグイン（インセイン等）や動作確認から参照できるように公開しておく。

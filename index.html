@@ -60,17 +60,6 @@
   .app-header h1 {
     margin: 0;
     font-size: 1.4rem;
-    /* 見出しの中でロゴと文字の天地を揃える。imgはベースラインに乗るので、
-       inline-flexにして中央で合わせる方が字面のばらつきに強い。 */
-    display: inline-flex;
-    align-items: center;
-  }
-
-  /* 見出しのロゴ。favicon（上の<link>）と同じファイルなので、ここで新しく
-     読み込みが増えることはない。高さだけを文字に合わせ、幅は絵の比率に任せる。 */
-  .app-logo {
-    height: 1.3em;
-    width: auto;
   }
 
   .app-header span {
@@ -368,9 +357,10 @@
 <body>
   <div class="page">
     <div class="app-header">
-      <!-- ロゴはfaviconと同じ画像。alt=""なのは、すぐ隣に「もじゅらX」と
-           書いてあるため（読み上げで名前を二度言わせない） -->
-      <h1><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
+      <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo）。
+           alt=""なのは、すぐ隣に「もじゅらX」と書いてあるため（読み上げで名前を
+           二度言わせない） -->
+      <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
       <span>部屋一覧</span>
     </div>
     <div class="header-links">

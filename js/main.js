@@ -595,6 +595,10 @@ const addMenuBtn = document.getElementById('addMenuBtn');
 const roomSettingsDialog = document.getElementById('roomSettingsDialog');
 const roomNameInput = document.getElementById('roomNameInput');
 const roomTitle = document.getElementById('roomTitle');
+// 見出しの中のロゴ。部屋名が入ると見出しは部屋名だけになってロゴがDOMから外れるので、
+// 名前が消えたときに戻せるよう最初に控えておく。ここで<img>を組み立て直さないのは、
+// 画像のパスと見た目の指定をHTML側の1箇所だけに残すため。
+const roomTitleLogo = roomTitle ? roomTitle.querySelector('.app-logo') : null;
 const exportStateBtn = document.getElementById('exportStateBtn');
 const importStateBtn = document.getElementById('importStateBtn');
 const importStateInput = document.getElementById('importStateInput');
@@ -2388,12 +2392,14 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     roomNameInput.value = nextValue;
   }
   // ヘッダーの見出しそのものが部屋名。
-  // 名前がまだ空の部屋で見出しが消えてしまわないよう、そのときだけアプリ名（＋ダイスの印）に戻す
+  // 名前がまだ空の部屋で見出しが消えてしまわないよう、そのときだけアプリ名（＋ロゴ）に戻す
   if (roomTitle) {
     if (nextValue) {
       roomTitle.textContent = nextValue;
+    } else if (roomTitleLogo) {
+      roomTitle.replaceChildren(roomTitleLogo, document.createTextNode('もじゅらX'));
     } else {
-      setIconText(roomTitle, 'dice', 'もじゅらX');
+      roomTitle.textContent = 'もじゅらX';
     }
   }
 });

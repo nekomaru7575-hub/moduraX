@@ -555,7 +555,7 @@ async function loadRooms() {
   }
 }
 
-// HTMLにdata-iconで置き場所だけ書いてあるアイコン（見出しのダイスなど）を埋める
+// HTMLにdata-iconで置き場所だけ書いてあるアイコン（コマ作成ツールへのリンク）を埋める
 applyStaticIcons();
 
 loadRooms();

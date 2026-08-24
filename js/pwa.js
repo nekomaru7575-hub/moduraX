@@ -10,6 +10,8 @@
 // このアプリの参加者ID・チャットパレット・覚えた入室パスワードはすべてlocalStorage
 // なので、Safariで使っていた内容は引き継がれず「別のデバイス」として振る舞う。
 
+import { setIcon, setIconText } from './icons.js';
+
 const HINT_DISMISSED_KEY = 'mojulaX:pwaHintDismissed';
 
 // すでにインストール済みの状態で開かれているか。
@@ -82,7 +84,7 @@ function createInstallButton(container) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'btn btn-secondary';
-  button.textContent = '📲 アプリとして追加';
+  setIconText(button, 'install', 'アプリとして追加');
   button.style.marginLeft = '12px';
 
   button.addEventListener('click', async () => {
@@ -108,11 +110,11 @@ function createIosHint(container) {
   hint.style.fontSize = '0.85rem';
   hint.style.margin = '8px 0 0';
   hint.style.lineHeight = '1.6';
-  hint.textContent = '📲 共有ボタン →「ホーム画面に追加」で、アプリとして全画面で使えます。';
+  setIconText(hint, 'install', '共有ボタン →「ホーム画面に追加」で、アプリとして全画面で使えます。');
 
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = '✕';
+  setIcon(close, 'close');
   close.setAttribute('aria-label', 'この案内を閉じる');
   close.style.background = 'none';
   close.style.border = 'none';

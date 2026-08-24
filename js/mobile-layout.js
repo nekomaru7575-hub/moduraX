@@ -148,7 +148,10 @@ export function initMobileLayout({ panels = [] } = {}) {
   function openTabMenu(item, btn) {
     const rect = btn.getBoundingClientRect();
     showContextMenu(rect.left, rect.top, item.members.map(member => ({
-      label: member === item.current ? `✓ ${member.label}` : `　${member.label}`,
+      label: member.label,
+      // 印の無い行にも同じ幅の場所取りを置いて、名前の頭を揃える
+      icon: member === item.current ? 'check' : 'blank',
+      iconLabel: member === item.current ? '表示中' : '',
       onSelect: () => {
         item.current = member;
         setActiveView(member.id);

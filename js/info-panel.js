@@ -28,6 +28,7 @@ import { showAudienceDialog } from './audience-picker.js';
 import { showContextMenu } from './context-menu.js';
 import { canView, isGm, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
+import { setIconText } from './icons.js';
 
 const EDIT_DENIED_REASON = '作成者とGMだけが編集できます。';
 
@@ -155,7 +156,11 @@ export function initInfoPanel() {
       btn.className = 'info-panel-tab';
       btn.classList.toggle('is-active', entry.id === activeEntryId);
       // 限定公開が混ざっていることは、チャットタブと同じく鍵で示す
-      btn.textContent = (restricted.length > 0 ? '🔒' : '') + entryLabel(entry);
+      if (restricted.length > 0) {
+        setIconText(btn, 'lock', entryLabel(entry), '限定公開を含む');
+      } else {
+        btn.textContent = entryLabel(entry);
+      }
       btn.title = [
         entryLabel(entry),
         ...restricted.map(section => describeAudience(section.audience, state.participants))
@@ -198,7 +203,11 @@ export function initInfoPanel() {
       if (section.label.trim() !== '' || isRestricted(section.audience)) {
         const head = document.createElement('div');
         head.className = 'info-panel-section-head';
-        head.textContent = (isRestricted(section.audience) ? '🔒' : '') + section.label;
+        if (isRestricted(section.audience)) {
+          setIconText(head, 'lock', section.label, '限定公開');
+        } else {
+          head.textContent = section.label;
+        }
         head.title = describeAudience(section.audience, state.participants);
         sectionEl.appendChild(head);
       }
@@ -316,8 +325,9 @@ export function initInfoPanel() {
 
     const rect = audienceBtn.getBoundingClientRect();
     showContextMenu(rect.left, rect.bottom + 4, sections.map((section, index) => ({
-      label: (isRestricted(section.audience) ? '🔒' : '')
-        + (section.label.trim() || `区画${index + 1}`),
+      label: section.label.trim() || `区画${index + 1}`,
+      icon: isRestricted(section.audience) ? 'lock' : '',
+      iconLabel: '限定公開',
       title: describeAudience(section.audience, store.state.participants),
       onSelect: () => openAudienceDialog(entry, section, myId)
     })));

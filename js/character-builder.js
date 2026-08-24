@@ -21,6 +21,7 @@ import { promptForCharacterSheetJson } from './character-sheet-import.js';
 import { showCharacterEditDialog, applyCharacterEditResult } from './character-dialog.js';
 import { pickFileAsText } from './file-uploader.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
+import { applyStaticIcons, setIconText } from './icons.js';
 
 const DRAFT_TOKEN_ID = 'draft';
 
@@ -207,7 +208,7 @@ function renderPostSaveActions(pluginId, name) {
 
   const status = document.createElement('p');
   status.className = 'builder-status';
-  status.textContent = `✅「${name}」のJSONを保存しました。`;
+  setIconText(status, 'check-circle', `「${name}」のJSONを保存しました。`);
   card.appendChild(status);
 
   const actionRow = document.createElement('div');
@@ -233,6 +234,9 @@ function renderPostSaveActions(pluginId, name) {
   card.appendChild(actionRow);
   root.appendChild(card);
 }
+
+// HTMLにdata-iconで置き場所だけ書いてあるアイコン（見出しのダイスなど）を埋める
+applyStaticIcons();
 
 renderLandingForm();
 

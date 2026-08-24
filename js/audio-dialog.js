@@ -10,6 +10,7 @@ import {
   isBlockedByAutoplayPolicy, isMuted, setMuted
 } from './audio-player.js';
 import { AUDIO_CHANNEL_LABELS } from './game-store.js';
+import { setIconText } from './icons.js';
 
 // サーバーが上限を教えてくれるまでの暫定値（server/index.jsのMAX_AUDIO_MBの既定と同じ）。
 // 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
@@ -286,7 +287,11 @@ export function showAudioDialog({
   const muteBtn = document.createElement('button');
   muteBtn.type = 'button';
   function renderMuteBtn() {
-    muteBtn.textContent = isMuted() ? '🔇 ミュート中（解除する）' : '🔊 自分だけミュートする';
+    if (isMuted()) {
+      setIconText(muteBtn, 'volume-off', 'ミュート中（解除する）');
+    } else {
+      setIconText(muteBtn, 'volume-on', '自分だけミュートする');
+    }
   }
   renderMuteBtn();
   muteBtn.addEventListener('click', () => {
@@ -363,7 +368,7 @@ export function showAudioDialog({
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'dialog-table-name-btn';
-    playBtn.textContent = `▶ ${track.name}`;
+    setIconText(playBtn, 'play', track.name);
     playBtn.title = `${AUDIO_CHANNEL_LABELS[track.channel] || track.channel} として再生`;
     playBtn.addEventListener('click', () => onPlay(track));
     row.appendChild(playBtn);

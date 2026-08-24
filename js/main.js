@@ -73,6 +73,11 @@ import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, canEditChatEntry, GM_ONLY_REASON } from './room-authority.js';
 import { createHelpPanel } from './help/help-panel.js';
+import { applyStaticIcons, setIconText } from './icons.js';
+
+// HTMLにdata-iconで置き場所だけ書いてあるアイコン（ヘッダーのボタンなど）を埋める。
+// DOM要素の取得より先に済ませておく。
+applyStaticIcons();
 
 // DOM要素の取得（ダイス関連）
 const sendBtn = document.getElementById('sendBtn');
@@ -149,7 +154,11 @@ function renderChatTabs(state) {
     // （どちらも光っていると「今どっちを見ているのか」が分からなくなる）
     tabBtn.className = 'chat-tab' + (tab.id === activeTabId && !helpOpen ? ' active' : '');
     // 限定公開のタブは、うっかり全体向けの発言を書き込まないよう鍵アイコンで区別する
-    tabBtn.textContent = isRestricted(tab.audience) ? `🔒${tab.name}` : tab.name;
+    if (isRestricted(tab.audience)) {
+      setIconText(tabBtn, 'lock', tab.name, '限定公開');
+    } else {
+      tabBtn.textContent = tab.name;
+    }
     tabBtn.title = describeAudience(tab.audience, state.participants);
     tabBtn.addEventListener('click', () => switchChatTab(tab.id));
     // 設定ダイアログ（名前変更・公開先変更・削除）は、そのタブが見えている人なら誰でも開ける。
@@ -2379,9 +2388,13 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
     roomNameInput.value = nextValue;
   }
   // ヘッダーの見出しそのものが部屋名。
-  // 名前がまだ空の部屋で見出しが消えてしまわないよう、そのときだけアプリ名に戻す
+  // 名前がまだ空の部屋で見出しが消えてしまわないよう、そのときだけアプリ名（＋ダイスの印）に戻す
   if (roomTitle) {
-    roomTitle.textContent = nextValue || '🎲 もじゅらX';
+    if (nextValue) {
+      roomTitle.textContent = nextValue;
+    } else {
+      setIconText(roomTitle, 'dice', 'もじゅらX');
+    }
   }
 });
 

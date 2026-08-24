@@ -10,6 +10,7 @@
 // そのまま穴になる。最初からtextContentだけで組む。
 
 import { GREETINGS, buildHelpRoot } from './help-content.js';
+import { setIconText } from '../icons.js';
 
 // アバター画像。差し替えるときはここだけ触ればよい。
 // image/ は server/index.js の PUBLIC_DIRS に入っているので、そこへ置いたものは
@@ -88,7 +89,7 @@ export function createHelpPanel({ container, getActivePlugin }) {
     container.appendChild(row);
   }
 
-  // 選択肢の並びを1ブロック積む。itemsは { label, isBack, onSelect } の配列。
+  // 選択肢の並びを1ブロック積む。itemsは { label, isBack, icon, onSelect } の配列。
   // 積んだブロックは押されたら消す（過去の選択肢が残っていると、どれが「今の問い」か
   // 分からなくなるため）。
   function appendChoices(items) {
@@ -101,7 +102,11 @@ export function createHelpPanel({ container, getActivePlugin }) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'help-choice' + (item.isBack ? ' is-back' : '');
-      btn.textContent = item.label;
+      if (item.icon) {
+        setIconText(btn, item.icon, item.label);
+      } else {
+        btn.textContent = item.label;
+      }
       btn.addEventListener('click', () => {
         box.remove();
         appendUserRow(item.label);
@@ -153,7 +158,8 @@ export function createHelpPanel({ container, getActivePlugin }) {
     const grandParent = path.length >= 4 ? path[path.length - 3] : null;
     if (parent && grandParent) {
       items.push({
-        label: `◀ ${grandParent.label}にもどる`,
+        label: `${grandParent.label}にもどる`,
+        icon: 'chevron-left',
         isBack: true,
         onSelect: () => {
           path = path.slice(0, -3); // 終端・親・祖父を降ろしてから開き直す

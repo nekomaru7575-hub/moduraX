@@ -147,6 +147,11 @@
       line-height: 1;
       cursor: pointer;
       flex-shrink: 0;
+      /* 中身はSVGアイコン1つ（js/icons.js）。文字と違って自動では天地中央に来ないので、
+         入れ物側で中央に置く。 */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .room-menu-btn:hover {
@@ -2611,12 +2616,15 @@
   <div class="app-header">
     <!-- 部屋名を見出しにする（js/main.jsのSTATE_CHANGEDで埋める）。
          部屋名が未設定の間だけアプリ名を出しておく -->
-    <h1 id="roomTitle">🎲 もじゅらX</h1>
+    <h1 id="roomTitle"><span class="icon-lead" data-icon="dice"></span>もじゅらX</h1>
     <span id="netStatus" class="net-status net-status-connecting">● 接続中...</span>
-    <button id="audioMenuBtn" class="room-menu-btn" title="音楽" type="button">♪</button>
-    <button id="panelVisibilityBtn" class="room-menu-btn" title="パネル表示" type="button">▤</button>
-    <button id="addMenuBtn" class="room-menu-btn" title="追加" type="button">+</button>
-    <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" type="button">⋮</button>
+    <!-- ボタンの中身（アイコン）はjs/icons.jsが差し込む。data-iconはその置き場所の指定。
+         以前はここに ♪ ▤ + ⋮ と文字を直接書いていたが、字面が環境任せで、隣り合う
+         ボタン同士でも線の太さが揃わなかった。 -->
+    <button id="audioMenuBtn" class="room-menu-btn" title="音楽" aria-label="音楽" type="button" data-icon="music"></button>
+    <button id="panelVisibilityBtn" class="room-menu-btn" title="パネル表示" aria-label="パネル表示" type="button" data-icon="panels"></button>
+    <button id="addMenuBtn" class="room-menu-btn" title="追加" aria-label="追加" type="button" data-icon="plus"></button>
+    <button id="roomMenuBtn" class="room-menu-btn" title="ルームメニュー" aria-label="ルームメニュー" type="button" data-icon="more"></button>
   </div>
 
   <dialog id="roomSettingsDialog" class="character-dialog">
@@ -2709,7 +2717,8 @@
         <span class="round-panel-nickname" id="roundPanelNicknameLabel"></span>
         <button type="button" id="roundPanelReadyToggleBtn" class="round-panel-btn">割り込みなし</button>
         <button type="button" id="roundPanelActionBtn" class="round-panel-btn round-panel-action-btn">ラウンド進行を開始</button>
-        <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了">⋮</button>
+        <button type="button" id="roundPanelMenuBtn" class="round-panel-btn" title="参加者編集・終了"
+                aria-label="参加者編集・終了" data-icon="more"></button>
         <div class="round-panel-ready-list" id="roundPanelReadyList"></div>
         <!-- プロット（kind:'plot'のフェーズ）の提出欄と提出状況。中身はjs/round-panel.jsが組む -->
         <div class="round-panel-plot" id="roundPanelPlot" style="display: none;"></div>

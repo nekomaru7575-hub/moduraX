@@ -76,3 +76,22 @@
   --font-body: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
     "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
 }
+
+/* --- アイコン（js/icons.js が作るSVG）---
+   線の太さ・色・角の丸みはSVG側の属性で揃えてあるので、ここは置き場所への収まりだけを
+   決める。大きさを1emにしているのは、アイコンが置かれる場所の文字サイズが0.75rem〜1.3rem
+   まで幅があるため。個別に指定して回るより、その場の文字に追従させる方が揃う。
+   inline-blockのままにしてあるのは、.info-panel-tab のような text-overflow: ellipsis を
+   使う入れ物の中でも、文字と同じ流れに乗せるため（flexにすると省略が効かなくなる）。 */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.14em;   /* ベースラインより少し下げると、隣の文字と天地が揃う */
+  flex-shrink: 0;            /* flexの入れ物に置かれたとき潰れないように */
+}
+
+/* 文字を伴うときの、アイコンと文字の間隔 */
+.icon-lead {
+  margin-right: 0.35em;
+}

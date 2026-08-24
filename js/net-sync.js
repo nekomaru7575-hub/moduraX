@@ -213,6 +213,16 @@ function handleClose({ code }) {
     return;
   }
 
+  // 混んでいて入れなかった。繋ぎ直さずに部屋一覧へ戻す——ここで再接続に回すと、
+  // 混雑が解けるまで数秒ごとに接続を張り直し続けることになり、混んでいるサーバーを
+  // さらに叩く。空いたかどうかは部屋一覧の混雑状況を見て判断してもらう。
+  if (code === CLOSE_CODES.TOO_MANY_ACTIVE_ROOMS || code === CLOSE_CODES.TOO_MANY_CONNECTIONS) {
+    alert('いまサーバーが混み合っているため、この部屋に入れませんでした。'
+      + '\n少し待ってから、部屋一覧の混雑状況を見てお試しください。');
+    window.location.href = '/';
+    return;
+  }
+
   // 一度もINITを受け取れないまま、不正/未作成の部屋を理由に切断された場合は、
   // 再接続を試みても無駄なので部屋一覧へ案内する。
   if (!hasReceivedInit && (code === CLOSE_CODES.INVALID_ROOM || code === CLOSE_CODES.ROOM_NOT_FOUND)) {

@@ -1,11 +1,11 @@
 ---
 source: js/room-authority-rules.js
-lines: 96
+lines: 98
 exports: 2
 imported_by: 3
 api_sha: e51908621897
 prose_sha: e51908621897
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 

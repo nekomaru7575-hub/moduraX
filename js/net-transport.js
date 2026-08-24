@@ -32,7 +32,9 @@ export const CLOSE_CODES = {
   INVALID_ROOM: 4000,  // 部屋IDが不正
   ROOM_NOT_FOUND: 4004, // まだ作られていない部屋
   ROOM_DELETED: 4005,  // 部屋が削除された
-  ENTRY_REJECTED: 4006 // 入室パスワードを通らなかった（試行回数超過・待ち時間切れ）
+  ENTRY_REJECTED: 4006, // 入室パスワードを通らなかった（試行回数超過・待ち時間切れ）
+  TOO_MANY_CONNECTIONS: 4008, // サーバー全体の同時接続数が上限
+  TOO_MANY_ACTIVE_ROOMS: 4009 // 同時に動いている卓が上限。この卓は今から始められない
 };
 
 // WebRTCを一度も張れなかったら、この読み込みの間はもう試さない。

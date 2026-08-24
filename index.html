@@ -164,47 +164,57 @@
     color: #e0b13a;
   }
 
-  .room-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .room-card {
+  /* --- 入室・新規作成の2枚（js/room-index.jsが中身を作る） --- */
+  .panel {
     background-color: #2a2a2a;
     border: 1px solid #3a3a3a;
     border-radius: 8px;
     padding: 14px 16px;
+    margin-bottom: 16px;
   }
 
-  .room-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-  .room-card-title {
-    font-weight: bold;
+  .panel h2 {
+    margin: 0 0 10px;
     font-size: 1.05rem;
   }
 
-  .room-card-meta {
+  /* 「部屋を探す」の1行。狭い画面では下の@mediaで縦に積む */
+  .entry-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .entry-row select {
+    flex: 1;
+    min-width: 0; /* これが無いと、長い部屋名でselectが親からはみ出す */
+  }
+
+  .entry-search {
+    margin-bottom: 8px;
+  }
+
+  /* 選択中の部屋の説明（プラグイン・システム・人数）。 */
+  .room-info {
     color: #999;
     font-size: 0.85rem;
-    margin-top: 2px;
+    margin-top: 8px;
+    min-height: 1.2em; /* 選択のたびに下の要素が跳ねないよう、1行ぶん先に空けておく */
   }
 
   /* 自動削除が近い部屋の一行（js/room-index.jsのdescribeExpiry）。
      見落とすと卓が消えるので、他のメタ情報より強い色で出す。 */
-  .room-card-expiry {
+  .room-expiry {
     color: #ffd479;
     font-size: 0.85rem;
     margin-top: 4px;
   }
 
-  .room-card.vacant .room-card-title {
-    color: #888;
+  /* 入れない・作れないときの理由。サーバーが断る根拠をそのまま出す */
+  .panel-blocked {
+    color: #e0b13a;
+    font-size: 0.85rem;
+    margin: 8px 0 0;
   }
 
   .btn {
@@ -232,7 +242,7 @@
     background-color: #555;
   }
 
-  .vacant-form {
+  .create-form {
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -241,19 +251,21 @@
     padding-top: 10px;
   }
 
-  .room-card.vacant.open .vacant-form {
+  .panel.open .create-form {
     display: flex;
   }
 
-  .vacant-form label {
+  label {
     font-size: 0.8rem;
     color: #aaa;
     display: block;
     margin-bottom: 3px;
   }
 
-  .vacant-form input[type="text"],
-  .vacant-form select {
+  input[type="text"],
+  input[type="search"],
+  input[type="password"],
+  select {
     width: 100%;
     background-color: #3a3a3a;
     color: #fff;
@@ -263,25 +275,33 @@
     box-sizing: border-box;
   }
 
-  .vacant-form input[type="file"] {
+  input[type="file"] {
     color: #ccc;
     font-size: 0.85rem;
   }
 
-  .vacant-form-row {
+  .create-form-row {
     display: flex;
     gap: 8px;
   }
 
-  .vacant-form-row > div {
+  .create-form-row > div {
     flex: 1;
   }
 
-  .vacant-form-buttons {
+  .create-form-buttons {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
     margin-top: 4px;
+  }
+
+  /* 押せないボタン（枠が満杯・置き場の残量不足）。理由は隣の.panel-blockedに出す */
+  .btn:disabled,
+  .btn:disabled:hover {
+    background-color: #3a3a3a;
+    color: #888;
+    cursor: not-allowed;
   }
 
   .error-text {
@@ -298,20 +318,20 @@
                max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
-    .room-card-header {
-      flex-wrap: wrap;
+    /* プルダウンと入室ボタンが1行に収まらない幅では、縦に積んでどちらも全幅にする。
+       .btnはcontent-boxなので、border-boxにしないと左右のpaddingの分だけはみ出す。 */
+    .entry-row {
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    /* 部屋名と入室ボタンが同じ行に収まらない幅では、ボタンを次の行いっぱいに置く。
-       .btnはcontent-boxなので、border-boxにしないと左右のpaddingの分だけはみ出す。 */
-    .room-card-header .btn {
-      flex: 1 0 100%;
+    .entry-row .btn {
       box-sizing: border-box;
       text-align: center;
     }
 
-    /* 「盤面サイズ 横×縦」のような横並びは、指では狭すぎるので縦に積む */
-    .vacant-form-row {
+    /* プラグインとBCDiceシステムの横並びは、指では狭すぎるので縦に積む */
+    .create-form-row {
       flex-direction: column;
     }
   }
@@ -323,8 +343,10 @@
       font-size: 1rem;
     }
 
-    .vacant-form input[type="text"],
-    .vacant-form select {
+    input[type="text"],
+    input[type="search"],
+    input[type="password"],
+    select {
       padding: 10px 8px;
       /* iOS Safariは16px未満の入力欄にフォーカスすると画面を勝手に拡大する */
       font-size: 16px;
@@ -344,9 +366,12 @@
 
     <div id="serverStatus"></div>
 
-    <div id="roomList" class="room-list">
-      <p style="color:#888;">読み込み中...</p>
+    <!-- 入室（部屋名で探す／プルダウンから選ぶ）と、新規作成。
+         中身はどちらもjs/room-index.jsが組み立てる。 -->
+    <div id="roomEntry" class="panel">
+      <p style="color:#888;margin:0;">読み込み中...</p>
     </div>
+    <div id="roomCreate" class="panel"></div>
 
     <!-- 利用規約・プライバシーポリシー・免責事項・問い合わせ先。
          公開するサービスとして、画面から辿れる場所に置いておく必要がある。 -->

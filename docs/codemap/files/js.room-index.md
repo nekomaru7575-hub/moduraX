@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 381
+lines: 561
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 
@@ -25,20 +25,26 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（13）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 23 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
-| 55 | formatUptime | `formatUptime(sec)` | 8 |  |
-| 64 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
-| 76 | renderServerStatus | `renderServerStatus(load)` | 54 |  |
-| 131 | buildOccupiedCard | `buildOccupiedCard(room)` | 38 |  |
-| 170 | buildVacantCard | `buildVacantCard(room)` | 173 |  |
-| 344 | loadRooms | `async loadRooms()` | 30 |  |
+| 33 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
+| 65 | formatUptime | `formatUptime(sec)` | 8 |  |
+| 74 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
+| 86 | renderServerStatus | `renderServerStatus(load)` | 61 |  |
+| 155 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
+| 179 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
+| 239 | visibleRooms | `visibleRooms()` | 5 |  |
+| 245 | fillRoomSelect | `fillRoomSelect()` | 30 |  |
+| 277 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
+| 327 | mountCreatePanel | `mountCreatePanel()` | 154 |  |
+| 483 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 497 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 510 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 

@@ -9,7 +9,8 @@
 // server/rooms/room-N.json（あれば）から一度だけ移行する。
 //
 // 起動: npm start　（ポートは環境変数PORTで上書き可、既定8081）
-// 部屋数上限は環境変数MAX_ROOMSで上書き可、既定5。
+// 部屋の総数に上限は無い。縛るのは「同時にアクティブな卓の数」（MAX_ACTIVE_ROOMS、既定10）で、
+// 非アクティブな部屋はメモリから降りて保存先だけに残る（scheduleRoomUnload参照）。
 // 環境変数 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN が必須（Upstashのダッシュボードで発行）。
 // 任意の環境変数 DEVELOPER_PASSPHRASE を設定すると、その合言葉で名乗った人がどの部屋でも
 // GMと同じ操作をできる（開発・後始末用。詳細はisDeveloperTokenの説明を参照）。
@@ -23,7 +24,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 import { Redis } from '@upstash/redis';
-import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
@@ -47,9 +48,13 @@ import {
 import {
   acquireHeavySlot, hasRoomFor, maxBodyBytesFor, describeBudget, loadSnapshot
 } from './memory-budget.js';
+// 全部屋の要約をまとめた名簿。一覧・検索・掃除はここだけを見る（server/room-directory.js）。
+import {
+  configureRoomDirectory, loadRoomDirectory, upsertRoomSummary, removeRoomSummary,
+  getRoomSummary, listRoomSummaries, allRoomIds, roomCount
+} from './room-directory.js';
 
 const PORT = Number(process.env.PORT) || 8081;
-const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 5;
 // 音源1ファイルの上限。MP3 192kbpsで20MB＝約14分。環境変数で調整できるようにしておく。
 const MAX_AUDIO_BYTES = (Number(process.env.MAX_AUDIO_MB) || 20) * 1024 * 1024;
 // 部屋データの取り込み以外のJSONボディの上限。パスワード・URL・IDの配列しか来ないので
@@ -92,6 +97,9 @@ const redis = USE_REDIS
 // 既定はオフ。オンにすると「Redis側で削除した部屋が、古いローカルファイルから勝手に
 // 復活する」ことが起きるため（実際に起きた）、移行が必要なときだけ明示的に有効化する。
 const MIGRATE_LEGACY_ROOM_FILES = process.env.MIGRATE_LEGACY_ROOM_FILES === '1';
+
+// 部屋の名簿にも同じ保存先を使わせる（Redisが無ければローカルファイル）。
+configureRoomDirectory(redis, path.join(ROOMS_DIR, 'directory.json'));
 
 function roomKey(roomId) {
   return `room:${roomId}`;
@@ -165,13 +173,17 @@ async function deleteRoomState(roomId) {
 // --- 部屋一覧用の要約 ---
 // 一覧（GET /api/rooms）が要るのは名前とプラグイン名など数項目だけなのに、以前は
 // そのためだけに全部屋の状態を丸ごと読んでいた。無料枠のPaaSはアイドルでスピンダウン
-// するので、インデックスページを開くたびにこの全読みが起きる。要約だけを別のキーに
-// 持たせて、一覧はそちらを見るようにする（1部屋あたり数十バイト）。
-function roomSummaryKey(roomId) {
+// するので、インデックスページを開くたびにこの全読みが起きる。要約だけを分けて持たせ、
+// 一覧はそちらを見るようにする（1部屋あたり数十バイト）。
+//
+// 置き場はserver/room-directory.jsの名簿（全部屋分を1つのハッシュにまとめたもの）。
+// 部屋数の上限を外したので、1部屋1キーで持つと一覧のために部屋数ぶんの往復が要る。
+// 下のLEGACY_*は、その名簿より前に使っていた1部屋1キーの形（移行のときだけ読む）。
+function legacySummaryKey(roomId) {
   return `roomMeta:${roomId}`;
 }
 
-function roomSummaryFilePath(roomId) {
+function legacySummaryFilePath(roomId) {
   return path.join(ROOMS_DIR, `${roomId}.meta.json`);
 }
 
@@ -191,31 +203,17 @@ function roomSummaryOf(entry) {
   };
 }
 
-async function readRoomSummary(roomId) {
-  if (USE_REDIS) return (await redis.get(roomSummaryKey(roomId))) || null;
-
-  try {
-    return JSON.parse(await readFile(roomSummaryFilePath(roomId), 'utf-8'));
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return null;
-  }
-}
-
-async function writeRoomSummary(roomId, summary) {
-  if (USE_REDIS) {
-    await redis.set(roomSummaryKey(roomId), summary);
-    return;
-  }
-  await mkdir(ROOMS_DIR, { recursive: true });
-  await writeFile(roomSummaryFilePath(roomId), JSON.stringify(summary));
+// 名簿はプロセス内にキャッシュされているので、これは保存先を見ない同期関数でよい。
+function readRoomSummary(roomId) {
+  return getRoomSummary(roomId);
 }
 
 async function deleteRoomSummary(roomId) {
-  if (USE_REDIS) {
-    await redis.del(roomSummaryKey(roomId));
-  }
-  await unlink(roomSummaryFilePath(roomId)).catch(() => {});
+  await removeRoomSummary(roomId);
+  // 名簿より前の形（1部屋1キー）の残りも一緒に片付ける。消し忘れると、Redis側に
+  // 誰からも読まれないキーが残り続ける。
+  if (USE_REDIS) await redis.del(legacySummaryKey(roomId)).catch(() => {});
+  await unlink(legacySummaryFilePath(roomId)).catch(() => {});
 }
 
 // 要約が前回書いたものと変わっていれば書き直す。名前やプラグインの変更はめったに
@@ -228,11 +226,49 @@ async function syncRoomSummary(roomId, entry) {
     const summary = roomSummaryOf(entry);
     const json = JSON.stringify(summary);
     if (json === entry.lastSummaryJson) return;
-    await writeRoomSummary(roomId, summary);
+    await upsertRoomSummary(roomId, summary);
     entry.lastSummaryJson = json;
   } catch (error) {
     console.warn(`[server] ${roomId} の一覧用の要約の保存に失敗しました:`, error.message);
   }
+}
+
+// --- 名簿への移行 ---
+// 部屋の要約を1部屋1キー（roomMeta:room-N）で持っていた頃のデータを、名簿へ移す。
+// 対象は固定スロット時代のIDだけ（room-1 .. room-LEGACY_ROOM_SLOTS）。それ以外のIDは
+// この形で保存されたことが無い。名簿に既に何か入っていれば移行済みとして何もしない。
+//
+// 部屋の状態そのもの（room:<id>）とR2のファイルには一切触らない。ここで移すのは
+// 「一覧に出すための要約」だけなので、失敗しても部屋は無事で、次に読み込まれた時点で
+// summarizeRoomから作り直される。
+const LEGACY_ROOM_SLOTS = 5;
+
+async function migrateLegacySummariesIfNeeded() {
+  if (roomCount() > 0) return;
+
+  let moved = 0;
+  for (let n = 1; n <= LEGACY_ROOM_SLOTS; n++) {
+    const roomId = `room-${n}`;
+    try {
+      let summary = null;
+      if (USE_REDIS) {
+        summary = (await redis.get(legacySummaryKey(roomId))) || null;
+      } else {
+        try {
+          summary = JSON.parse(await readFile(legacySummaryFilePath(roomId), 'utf-8'));
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
+      if (!summary) continue;
+      await upsertRoomSummary(roomId, summary);
+      moved += 1;
+    } catch (error) {
+      console.warn(`[server] ${roomId} の要約を名簿へ移せませんでした:`, error.message);
+    }
+  }
+
+  if (moved > 0) console.log(`[server] ${moved}件の部屋を名簿へ移行しました`);
 }
 
 // --- 参加者の名乗りの検証 ---
@@ -682,8 +718,14 @@ function readBinaryBody(req, maxBytes) {
 
 // --- 部屋管理 ---
 // roomId -> { store, clients: Set<ws>, saveTimer, saveDeadline, lastPersistedJson,
-//             lastSummaryJson, entryPassword, pendingDelete?, deletion? }
-// 部屋数はMAX_ROOMSで固定（サーバー負荷を制限する）。IDは room-1 .. room-{MAX_ROOMS}。
+//             lastSummaryJson, entryPassword, typing, updatedAt,
+//             activeUntil, unloadTimer, pendingDelete?, deletion? }
+//
+// このMapに載っているのは「いま扱っている部屋」だけで、部屋の全件ではない（全件は
+// server/room-directory.jsの名簿）。部屋の総数に上限は無く、代わりに同時にアクティブな
+// 卓の数を縛る（MAX_ACTIVE_ROOMS）。誰も居なくなった部屋は少し置いてからこのMapから
+// 降ろす（scheduleRoomUnload）——これをしないと、起動後に一度でも触られた部屋が
+// すべて常駐し続け、部屋数に比例してメモリを食う。
 const rooms = new Map();
 
 // 削除中の部屋か。削除は「印を付けた瞬間に部屋を無いものとして扱い、実データの片付けは
@@ -693,20 +735,114 @@ function isDeletingRoom(roomId) {
   return rooms.get(roomId)?.pendingDelete === true;
 }
 
-// 同じスロットの削除の片付けが終わるのを待つ。部屋の作り直しの前にだけ使う：
-// 待たずに作ると、古い部屋のファイル一括削除（接頭辞 rooms/room-N/）が、同じ番号で
-// 作られた新しい部屋のファイルまで巻き込んで消してしまう。
-function waitForRoomDeletion(roomId) {
-  const entry = rooms.get(roomId);
-  return entry?.pendingDelete ? entry.deletion : Promise.resolve();
-}
-
+// 部屋IDの形。RedisのキーとR2の接頭辞（rooms/<id>/）にそのまま入るので、英数字と
+// ハイフンだけに絞る。2つ認めているのは移行のため：
+//   room-<16進10桁> … 現行。generateRoomIdが作る
+//   room-<数字>     … 固定スロット時代（room-1 .. room-5）。既存の部屋とブックマークが
+//                      生きているので受け続ける
 function isValidRoomId(id) {
   if (typeof id !== 'string') return false;
-  const match = id.match(/^room-([1-9]\d*)$/);
-  if (!match) return false;
-  const n = Number(match[1]);
-  return n >= 1 && n <= MAX_ROOMS;
+  return /^room-[0-9a-f]{10}$/.test(id) || /^room-[1-9]\d*$/.test(id);
+}
+
+// 新しい部屋のID。40ビットあれば衝突はまず起きないが、万一ぶつかっても困らないよう
+// 呼び出し側（handleCreateRoom）が空いているIDを確かめてから使う。
+//
+// 連番にしないのは、採番カウンタを別に持たずに済むこと以上に、削除した部屋のIDが
+// 二度と使い回されないことが効くため。固定スロットの頃は「削除した部屋のファイル一括
+// 削除（接頭辞 rooms/<id>/）が、同じ番号で作り直された新しい部屋のファイルまで巻き込む」
+// 事故を、作成前に片付けの完了を待つことで避けていた。IDを使い回さなければ起きない。
+function generateRoomId() {
+  return `room-${randomBytes(5).toString('hex')}`;
+}
+
+// --- アクティブな卓の数 ---
+// 部屋の総数ではなく「同時に動いている卓の数」を縛る。テストプレイで確かめられている
+// のは10卓程度までの同時運用で、そこを超えると全部屋の同期がまとめて遅くなる。
+// 非アクティブな部屋は保存先（RedisとR2）を使うだけで、メモリと通信には効かないため
+// 数える必要が無い。
+const MAX_ACTIVE_ROOMS = Number(process.env.MAX_ACTIVE_ROOMS) || 10;
+
+// 最後の1人が切れてから、枠を確保しておく時間。0にはしないこと：回線断やスマホのタブ
+// 凍結で全員が一時的に落ちることがあり（heartbeatTimerが気づいて切る）、戻ってきたら
+// 自分の卓が枠切れで入れない、という壊れ方をする。メモリから降ろすのも同じ間だけ待つ。
+const ACTIVE_GRACE_MS = Number(process.env.ACTIVE_GRACE_MS) || 3 * 60 * 1000;
+
+// この部屋がアクティブな卓の枠を1つ使っているか。
+function isRoomActive(entry) {
+  if (entry.pendingDelete) return false;
+  if (entry.clients.size > 0) return true;
+  return entry.activeUntil !== null && Date.now() < entry.activeUntil;
+}
+
+// いま枠を使っている卓の数。数えるのはメモリに載っている部屋だけなので、部屋が何千あっても
+// ここのコストは変わらない（載っているのはアクティブな分と猶予中の分だけ）。
+function activeRoomCount() {
+  let count = 0;
+  rooms.forEach((entry) => { if (isRoomActive(entry)) count += 1; });
+  return count;
+}
+
+// この部屋を今からアクティブにできるか。既にアクティブな部屋への参加は常に通す
+// （枠は卓の数で数えるので、同じ卓に何人来ても増えない）。
+function canActivateRoom(entry) {
+  return isRoomActive(entry) || activeRoomCount() < MAX_ACTIVE_ROOMS;
+}
+
+// 誰かが入ってきた。枠の予約と、メモリから降ろす予定を取り消す。
+function markRoomEntered(entry) {
+  entry.activeUntil = null;
+  if (entry.unloadTimer) {
+    clearTimeout(entry.unloadTimer);
+    entry.unloadTimer = null;
+  }
+}
+
+// --- 誰も居なくなった部屋をメモリから降ろす ---
+// これが無いと、起動後に一度でも触られた部屋がすべてroomsに残り続け、部屋数に比例して
+// メモリを食う。固定5部屋の頃は成立していたが、部屋数の上限を外した今は成立しない。
+//
+// 降ろしても部屋は消えない。要約は名簿に、中身は保存先に残っているので、次に誰かが来れば
+// getOrLoadRoomが読み直す。失われるのはメモリ上のキャッシュと、記入中の一覧（typing。
+// 揮発情報なので元から保存していない）だけ。
+function scheduleRoomUnload(roomId, entry) {
+  if (entry.pendingDelete) return;
+  if (entry.unloadTimer) clearTimeout(entry.unloadTimer);
+
+  entry.unloadTimer = setTimeout(() => {
+    entry.unloadTimer = null;
+
+    // 待っている間に誰か戻ってきた／削除された場合は何もしない
+    if (entry.clients.size > 0 || entry.pendingDelete) return;
+    // 入れ替わっていたら（降ろした後に読み直された等）触らない
+    if (rooms.get(roomId) !== entry) return;
+
+    // デバウンス待ちの保存があれば、書き出してから降ろす。待たずに降ろすと直前の操作が
+    // そのまま失われる（次に読み直したときに巻き戻る）。
+    const saving = flushPendingSave(roomId, entry);
+    if (!saving) {
+      unloadRoom(roomId, entry);
+      return;
+    }
+
+    saving
+      .catch((error) => console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message))
+      .finally(() => {
+        // 書き出しの間に事情が変わっていないか、もう一度確かめる
+        if (entry.clients.size > 0 || entry.pendingDelete) return;
+        if (rooms.get(roomId) !== entry) return;
+        unloadRoom(roomId, entry);
+      });
+  }, ACTIVE_GRACE_MS);
+}
+
+function unloadRoom(roomId, entry) {
+  rooms.delete(roomId);
+  entry.activeUntil = null;
+  // 使用量の集計も一緒に捨てる。次に使うときR2から数え直せばよく、抱えたままだと
+  // 降ろした部屋のぶんが残り続ける。
+  forgetRoomStorage(roomId);
+  console.log(`[server] ${roomId} をメモリから降ろしました（アクティブな卓: ${activeRoomCount()}/${MAX_ACTIVE_ROOMS}）`);
 }
 
 function roomFilePath(roomId) {
@@ -782,7 +918,10 @@ async function getOrLoadRoom(roomId) {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
       lastPersistedJson: null, lastSummaryJson: null,
       entryPassword: meta.entryPassword || null, typing: new Map(),
-      updatedAt
+      updatedAt,
+      // activeUntil: 誰も居なくなってもこの時刻まではアクティブな卓として枠を確保する。
+      // unloadTimer: そのあとメモリから降ろすためのタイマー（どちらもisRoomActive参照）。
+      activeUntil: null, unloadTimer: null
     };
 
   }
@@ -1031,6 +1170,100 @@ async function refuseIfRoomStorageFull(roomId, bytes) {
     + '使わない画像・音源を消してからお試しください。';
 }
 
+// --- バケット全体の残量 ---
+// 部屋ごとの上限（MAX_ROOM_STORAGE_BYTES）は1部屋の使い過ぎを止めるだけで、部屋の数に
+// 上限が無い今は全体の天井にならない。500MBの部屋が20個できればそれで無料枠を使い切る。
+// バケット全体で見て、残りが少なくなったら受け付けるほうを絞る。
+//
+// 二段構えにしているのは、新しい部屋の作成だけ止めても既存の部屋のアップロードで埋まり
+// 続けるため。先に作成を止めて（まだ余裕があるうちに新しい消費者を増やさない）、
+// それでも減り続けたらアップロードも止める。
+const R2_QUOTA_BYTES = (Number(process.env.R2_QUOTA_MB) || 10 * 1024) * 1024 * 1024;
+const R2_MIN_FREE_CREATE_BYTES = (Number(process.env.R2_MIN_FREE_CREATE_MB) || 1024) * 1024 * 1024;
+const R2_MIN_FREE_UPLOAD_BYTES = (Number(process.env.R2_MIN_FREE_UPLOAD_MB) || 256) * 1024 * 1024;
+
+// 数え直しの間隔。部屋ごとの集計（ROOM_STORAGE_RECHECK_MS）より長くしてある：
+// totalBytesByPrefixはバケットの全オブジェクトを1000件ずつ列挙するので、部屋ごとの
+// 数え直しより桁違いに重く、ListObjectsV2自体がR2の課金対象（Class A操作）でもある。
+// 間の増減は addBucketBytes の足し引きで追う。
+const BUCKET_RECHECK_MS = 30 * 60 * 1000;
+
+// { bytes, checkedAt } または null（まだ一度も数えられていない）
+let bucketUsage = null;
+let bucketCounting = false;
+
+// バケット全体を数え直す。重いので、待たせたくない経路から呼ぶときは投げっぱなしにする。
+async function recountBucketUsage() {
+  if (bucketCounting) return;
+  bucketCounting = true;
+  try {
+    const bytes = await totalBytesByPrefix('rooms/');
+    bucketUsage = { bytes, checkedAt: Date.now() };
+    console.log(`[server] ファイル置き場の使用量: ${Math.round(bytes / 1024 / 1024)}MB`
+      + ` / ${Math.floor(R2_QUOTA_BYTES / 1024 / 1024)}MB`);
+  } catch (error) {
+    console.warn('[server] ファイル置き場の使用量を数えられませんでした:', error.message);
+  } finally {
+    bucketCounting = false;
+  }
+}
+
+// 古ければ裏で数え直す。応答は待たせない（一覧の表示やアップロードの判定から呼ぶ）。
+function refreshBucketUsageInBackground() {
+  if (!isR2Configured()) return;
+  if (bucketUsage && Date.now() - bucketUsage.checkedAt < BUCKET_RECHECK_MS) return;
+  recountBucketUsage().catch(() => {}); // recountBucketUsage内で記録済み
+}
+
+// 置いた分・消した分を手元の集計へ反映する（addRoomStorageBytesと同じ考え方）。
+function addBucketBytes(delta) {
+  if (bucketUsage) bucketUsage.bytes = Math.max(0, bucketUsage.bytes + delta);
+}
+
+// 減った量が分からない片付け（部屋ごとのファイル一括削除、音源の差し替え）のあとに呼ぶ。
+// 手元の集計を古い印にして、次の確認で数え直させる。減ったことに気づけないと、実際には
+// 空いているのに「残りが少ない」と言い続けて作成・アップロードを断ってしまう。
+function invalidateBucketUsage() {
+  if (bucketUsage) bucketUsage.checkedAt = 0;
+}
+
+/**
+ * いまの残量。まだ数えられていない・R2を使っていない場合はnull（＝分からない）。
+ * @returns {{usedBytes: number, quotaBytes: number, freeBytes: number}|null}
+ */
+function bucketSpace() {
+  if (!isR2Configured() || !bucketUsage) return null;
+  return {
+    usedBytes: bucketUsage.bytes,
+    quotaBytes: R2_QUOTA_BYTES,
+    freeBytes: Math.max(0, R2_QUOTA_BYTES - bucketUsage.bytes)
+  };
+}
+
+/**
+ * 残量が足りないなら断り文句を返す。分からないときは通す：使用量が読めないことを理由に
+ * 正規の利用まで止めるほうが困る、という部屋ごとの判定（refuseIfRoomStorageFull）と
+ * 同じ方針。
+ * @param {'create'|'upload'} kind
+ */
+function refuseIfBucketFull(kind) {
+  refreshBucketUsageInBackground();
+
+  const space = bucketSpace();
+  if (!space) return null;
+
+  const needed = kind === 'create' ? R2_MIN_FREE_CREATE_BYTES : R2_MIN_FREE_UPLOAD_BYTES;
+  if (space.freeBytes >= needed) return null;
+
+  const freeMb = Math.floor(space.freeBytes / 1024 / 1024);
+  console.warn(`[server] ファイル置き場の残りが少ないため${kind}を断りました（残り${freeMb}MB）`);
+  return kind === 'create'
+    ? 'サーバーのファイル置き場の残りが少ないため、いまは新しい部屋を作れません。'
+      + '使わなくなった部屋を削除するか、しばらく経ってからお試しください。'
+    : 'サーバーのファイル置き場の残りが少ないため、いまは画像・音源をアップロードできません。'
+      + '使わないファイルを消してからお試しください。';
+}
+
 // 部屋を削除する。要求を受けたその場で「削除中」の印を付け、全員を退室させ、実データの
 // 片付けを始める。切断イベントは待たない。
 //
@@ -1055,6 +1288,14 @@ function startRoomDeletion(roomId, entry) {
   }
   entry.saveDeadline = null;
 
+  // メモリから降ろす予定も止める。降ろされてしまうと墓標がroomsから消え、片付けの
+  // 途中で新しい接続や一覧が「まだ在る部屋」として保存先から読み直してしまう。
+  if (entry.unloadTimer) {
+    clearTimeout(entry.unloadTimer);
+    entry.unloadTimer = null;
+  }
+  entry.activeUntil = null;
+
   // 削除を要求した本人を含む全員を退室させる。切断の完了は待たない（待つ必要がない）。
   // 集合を先に空にしておくのは、この後に届く操作を確実に配らないため。
   Array.from(entry.clients).forEach((client) => {
@@ -1065,8 +1306,7 @@ function startRoomDeletion(roomId, entry) {
   entry.deletion = deleteRoomData(roomId)
     .then(() => console.log(`[server] ${roomId} を削除しました`))
     .finally(() => {
-      // 墓標を下ろす。ここまで来て初めてこのスロットを空きとして作り直せる
-      // （作り直しはwaitForRoomDeletionでここを待っている）。
+      // 墓標を下ろす。ここまで来れば、このIDを指す記録もファイルも残っていない。
       if (rooms.get(roomId) === entry) rooms.delete(roomId);
     });
 
@@ -1120,6 +1360,8 @@ async function deleteRoomData(roomId) {
         + (failed > 0 ? `（${failed}件は失敗）` : ''));
       // 空になったので集計も捨てる（次に使うときはR2から数え直す）
       forgetRoomStorage(roomId);
+      // バケット全体からも減っている。減った量は分からないので数え直させる
+      invalidateBucketUsage();
     } catch (error) {
       // 一覧が取れなくても部屋データの削除自体は止めない（残るのは孤児だけ）
       console.warn(`[server] ${roomId} のファイル削除に失敗しました:`, error.message);
@@ -1152,8 +1394,9 @@ async function sweepExpiredRooms() {
   try {
     const limit = Date.now() - ROOM_TTL_MS;
 
-    for (let n = 1; n <= MAX_ROOMS; n++) {
-      const roomId = `room-${n}`;
+    // 名簿の全件を回る。載っているのは要約だけなので、部屋が何千あっても
+    // ここでの読み込みは起きない（メモリ上のMapを走査するだけ）。
+    for (const roomId of allRoomIds()) {
       const entry = rooms.get(roomId);
 
       // 消している最中のものには触らない
@@ -1163,17 +1406,12 @@ async function sweepExpiredRooms() {
       // 保険で、通常は接続中＝操作もされるので期限切れにならない。
       if (entry && entry.clients.size > 0) continue;
 
-      // メモリに載っていればそちらが最新。載っていなければ要約だけ読む（数十バイト）。
+      // メモリに載っていればそちらが最新。載っていなければ名簿の要約を見る。
       let updatedAt = entry?.updatedAt;
       if (updatedAt === undefined) {
-        try {
-          const summary = await readRoomSummary(roomId);
-          if (!summary) continue; // 空きスロット
-          updatedAt = summary.updatedAt;
-        } catch (error) {
-          console.warn(`[server] ${roomId} の最終更新時刻の読み込みに失敗しました:`, error.message);
-          continue;
-        }
+        const summary = readRoomSummary(roomId);
+        if (!summary) continue; // 回っている間に消えた
+        updatedAt = summary.updatedAt;
       }
 
       // 最終更新が分からない部屋は消さない。この機能より前からある部屋がここに来るが、
@@ -1371,6 +1609,13 @@ async function handleMediaUpload(req, res, {
     return;
   }
 
+  // 部屋ごとの上限に余裕があっても、バケット全体が尽きかけていれば受け取らない
+  const bucketFull = refuseIfBucketFull('upload');
+  if (bucketFull) {
+    sendJson(res, 507, { error: bucketFull });
+    return;
+  }
+
   // 部屋の削除時に接頭辞でまとめて消せるよう、必ず部屋のフォルダの下に置く
   const key = `${roomObjectPrefix(roomId)}${randomUUID()}.${ext}`;
 
@@ -1383,6 +1628,7 @@ async function handleMediaUpload(req, res, {
   }
 
   addRoomStorageBytes(roomId, body.length);
+  addBucketBytes(body.length);
   sendJson(res, 200, { key, url: publicUrlFor(key) });
 }
 
@@ -1481,6 +1727,7 @@ async function adoptMediaUrl(roomId, url, { extensions, maxBytes, label }) {
     return drop(`保存に失敗しました … ${error.message}`);
   }
   addRoomStorageBytes(roomId, source.body.length);
+  addBucketBytes(source.body.length);
   return { url: publicUrlFor(newKey), key: newKey, changed: true, dropped: false };
 }
 
@@ -1729,46 +1976,87 @@ async function handleImageCopy(req, res) {
   sendJson(res, 200, { url: adopted.url });
 }
 
-// GET /api/rooms：全スロットの一覧（インデックスページ用）。空きスロットは最小限の情報のみ返す。
-// 併せて、そのときのサーバーの混み具合（serverLoad）も載せる。入る前に「今このサーバーは
-// 重い操作を受け付けられる状態か」が分かると、大きな取り込みで503を食う前に判断できる。
-async function handleListRooms(req, res) {
+// 一覧で一度に返す部屋の数。プルダウンに並べる数としてはこれでも多いくらいで、
+// これを超える環境では名前で検索してもらう（?q=）。
+const ROOM_LIST_MAX = 200;
+
+// GET /api/rooms[?q=部屋名の一部]：部屋の一覧（インデックスページ用）。
+// 最終更新の新しい順に、最大ROOM_LIST_MAX件。
+//
+// 併せて、そのときのサーバーの混み具合（serverLoad）と、新しい部屋を作れるかどうか
+// （canCreate）も載せる。入る前に「今このサーバーは受け付けられる状態か」が分かると、
+// 部屋を作ろうとして503を食う前に判断できる。
+async function handleListRooms(req, res, url) {
   // 使われなくなった部屋の掃除は、人が来たついでに走らせる。無料枠のPaaSは誰も
   // 来ない間スピンダウンするので、定期タイマーだけに任せると動く保証が無い。
   // 一覧の応答は待たせない（投げっぱなし。中で間引きもしている）。
   sweepExpiredRoomsInBackground();
+  // ファイル置き場の残量も同じ扱い。数え直しは重いので裏で走らせ、表示には手元の値を使う。
+  refreshBucketUsageInBackground();
 
-  const list = [];
-  for (let n = 1; n <= MAX_ROOMS; n++) {
-    list.push(await summarizeRoomSlot(`room-${n}`));
+  // 検索語は名前の部分一致にしか使わないが、長すぎるものは受け取らない
+  const query = (url.searchParams.get('q') || '').slice(0, 100);
+  const { rooms: list, total, truncated } = listRoomSummaries({ query, limit: ROOM_LIST_MAX });
+
+  const blocked = createBlockedReason();
+  sendJson(res, 200, {
+    rooms: list.map(summarizeRoom).filter(Boolean),
+    total,
+    truncated,
+    serverLoad: serverLoadSnapshot(),
+    canCreate: blocked === null,
+    createBlockedReason: blocked
+  },
+  // 混雑状況は数秒で変わる。中継やブラウザに寝かされると、古い数字を見て判断することになる。
+  { 'Cache-Control': 'no-store' });
+}
+
+// 新しい部屋を作れない理由。作れるならnull。一覧（案内のため）と実際の作成の両方が
+// これを呼ぶので、画面に出る文言とサーバーが断る条件が食い違わない。
+function createBlockedReason() {
+  const bucketFull = refuseIfBucketFull('create');
+  if (bucketFull) return bucketFull;
+
+  if (activeRoomCount() >= MAX_ACTIVE_ROOMS) {
+    return `いま${MAX_ACTIVE_ROOMS}卓が同時に動いているため、新しい部屋を作れません。`
+      + 'どこかの卓が終わるまで少しお待ちください。';
   }
-  sendJson(res, 200, { maxRooms: MAX_ROOMS, rooms: list, serverLoad: serverLoadSnapshot() },
-    // 混雑状況は数秒で変わる。中継やブラウザに寝かされると、古い数字を見て判断することになる。
-    { 'Cache-Control': 'no-store' });
+
+  return null;
 }
 
 // --- 混雑状況 ---
-// サーバーが実際に断る根拠にしている3つの上限を、そのまま「どれだけ埋まっているか」として
+// サーバーが実際に断る根拠にしている上限を、そのまま「どれだけ埋まっているか」として
 // 出す。ここに出すのは総量だけで、誰が・どの部屋が使っているかという内訳は出さない。
-//   接続    … WS_MAX_CONNECTIONS。超えると新しい入室が4008で閉じられる
-//   重い操作 … MAX_HEAVY_OPERATIONS + HEAVY_QUEUE_MAX。溢れると取り込み・書き出しが503
-//   メモリ   … 重い操作に回せる予算。足りないと大きな取り込みが503（memory-budget.js）
+//   アクティブな卓 … MAX_ACTIVE_ROOMS。埋まると新しい卓への入室が4009で閉じられる
+//   接続         … WS_MAX_CONNECTIONS。超えると新しい入室が4008で閉じられる
+//   重い操作      … MAX_HEAVY_OPERATIONS + HEAVY_QUEUE_MAX。溢れると取り込み・書き出しが503
+//   メモリ        … 重い操作に回せる予算。足りないと大きな取り込みが503（memory-budget.js）
+//   ファイル置き場 … R2の残量。少なくなると部屋作成・アップロードを断る（refuseIfBucketFull）
 function serverLoadSnapshot() {
   const budget = loadSnapshot();
   const connections = wss.clients.size;
   const heavy = budget.running + budget.waiting;
   const heavyMax = budget.maxConcurrent + budget.queueMax;
   const memoryUsedBytes = Math.max(0, budget.budgetBytes - budget.availableBytes);
+  const activeRooms = activeRoomCount();
+  const space = bucketSpace();
 
   // 一番詰まっているものが全体の混み具合を決める。どれか1つが埋まれば断られるため。
   const ratio = Math.max(
+    activeRooms / MAX_ACTIVE_ROOMS,
     connections / WS_MAX_CONNECTIONS,
     heavy / heavyMax,
     budget.budgetBytes > 0 ? memoryUsedBytes / budget.budgetBytes : 0
   );
 
+  // GBは小数第1位まで。MBで出すと桁が多くて読み取りにくい。
+  const gb = (bytes) => Math.round(bytes / 1024 / 1024 / 1024 * 10) / 10;
+
   return {
     level: ratio >= 0.85 ? 'crowded' : ratio >= 0.5 ? 'busy' : 'quiet',
+    activeRooms,
+    maxActiveRooms: MAX_ACTIVE_ROOMS,
     connections,
     maxConnections: WS_MAX_CONNECTIONS,
     heavyRunning: budget.running,
@@ -1778,42 +2066,39 @@ function serverLoadSnapshot() {
     memoryBudgetMb: Math.round(budget.budgetBytes / 1024 / 1024),
     // 取り込みに回せる残り。「今このサイズのファイルを読ませられるか」の目安になる
     importHeadroomMb: Math.floor(maxBodyBytesFor('import') / 1024 / 1024),
+    // R2を使っていない・まだ数えられていないときはnull（画面側は「不明」として出さない）
+    storageUsedGb: space ? gb(space.usedBytes) : null,
+    storageQuotaGb: space ? gb(space.quotaBytes) : null,
+    storageFreeGb: space ? gb(space.freeBytes) : null,
     uptimeSec: Math.floor(process.uptime())
   };
 }
 
-// 一覧1スロット分。安い順に3段構え：
-//   1. メモリに載っている部屋はそこから（保存先を見ない）
-//   2. 要約のキーがあればそれだけを読む（数十バイト）
-//   3. どちらも無ければ従来どおり状態を丸ごと読み、ついでに要約を作っておく
-// 3に落ちるのは、この機能より前に作られた部屋の初回だけ。以後は2で済む。
+// 名簿の1件を、一覧の応答に載せる形へ整える。
 //
-// clients（今その部屋にいる人数）は要約には保存せず、メモリに載っている部屋からその場で
-// 数える。人が1人でもいる部屋は必ずメモリに載っている（接続がある間はrooms.getに残る）ので、
-// 保存先しか見なかった部屋は0で正しい。
-async function summarizeRoomSlot(id) {
-  const cached = rooms.get(id);
-  if (cached && !cached.pendingDelete) {
-    return { id, occupied: true, clients: cached.clients.size, ...roomSummaryOf(cached) };
-  }
-  // 削除中の部屋は「もう無い部屋」として扱う（getOrLoadRoomと同じ約束）
-  if (cached) return { id, occupied: false };
+// 名簿には今その部屋にいる人数が入っていない（揮発情報なので保存しない）ので、メモリに
+// 載っている部屋からその場で数える。人が1人でもいる部屋は必ずメモリに載っているため、
+// 載っていない部屋を0と数えて正しい。
+//
+// 削除中の部屋はnullを返して一覧から落とす（getOrLoadRoomと同じ「もう無い部屋」の扱い）。
+// 名簿からの削除は片付けの中で行われるので、その数秒の間だけここに現れうる。
+function summarizeRoom(summary) {
+  const entry = rooms.get(summary.id);
+  if (entry?.pendingDelete) return null;
 
-  try {
-    const summary = await readRoomSummary(id);
-    if (summary) return { id, occupied: true, clients: 0, ...summary };
-  } catch (error) {
-    console.warn(`[server] ${id} の一覧用の要約の読み込みに失敗しました:`, error.message);
-  }
-
-  const entry = await getOrLoadRoom(id);
-  if (!entry) return { id, occupied: false };
-  await syncRoomSummary(id, entry);
-  return { id, occupied: true, clients: entry.clients.size, ...roomSummaryOf(entry) };
+  return {
+    ...summary,
+    clients: entry ? entry.clients.size : 0,
+    // この卓に今から入れるか。満杯でも、既に動いている卓へは入れる
+    joinable: entry ? canActivateRoom(entry) : activeRoomCount() < MAX_ACTIVE_ROOMS
+  };
 }
 
-// POST /api/rooms：空きスロットに新しい部屋を作成する。
-// body: { id, name, activePlugin, bcdiceSystem, entryPassword?, importedState? }
+// POST /api/rooms：新しい部屋を作成する。
+// body: { name, activePlugin, bcdiceSystem, entryPassword?, importedState? }
+//
+// 部屋IDはサーバーが決める（generateRoomId）。ボディのidは見ない：受け付けると、
+// 好きなIDを名乗って部屋を作れてしまう。
 async function handleCreateRoom(req, res) {
   let body;
   try {
@@ -1825,13 +2110,8 @@ async function handleCreateRoom(req, res) {
   }
 
   const {
-    id, name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState
+    name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState
   } = body;
-
-  if (!isValidRoomId(id)) {
-    sendJson(res, 400, { error: '無効な部屋IDです。' });
-    return;
-  }
 
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   if (!trimmedName) {
@@ -1848,13 +2128,34 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  // 同じ番号の部屋を削除した直後なら、ファイルの片付けが終わるまでここで待つ。
-  // 待たずに作ると、古い部屋の一括削除が新しい部屋のファイルまで消してしまう。
-  await waitForRoomDeletion(id);
+  // アクティブな卓の枠と、ファイル置き場の残量。作った部屋は必ずアクティブになるので、
+  // 入室と同じ枠をここでも見る。一覧のcanCreateと同じ関数を通すので、画面の案内と
+  // 実際に断る条件がずれない。
+  //
+  // 503にするのは、利用者の側に非が無く時間を置けば通るため（429との使い分けは
+  // withHeavySlotのコメント参照）。ただしretryableは立てない：ブラウザ側に自動で
+  // 送り直させると、混雑が解けるまで作成のリクエストを撃ち続けることになる。
+  const blocked = createBlockedReason();
+  if (blocked) {
+    sendJson(res, 503, { error: blocked, retryable: false }, { 'Retry-After': '60' });
+    return;
+  }
 
-  const existing = await getOrLoadRoom(id);
-  if (existing) {
-    sendJson(res, 409, { error: 'その部屋は既に使われています。' });
+  // 使われていないIDを引く。40ビットのランダムなので普通は1回で決まるが、万一
+  // ぶつかったときに既存の部屋を上書きしないよう、必ず空きを確かめてから使う。
+  let id = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generateRoomId();
+    if (rooms.has(candidate) || readRoomSummary(candidate)) continue;
+    // 名簿に無くても保存先に残っている可能性を潰す（名簿の書き込みに失敗した部屋など）
+    if (await getOrLoadRoom(candidate)) continue;
+    id = candidate;
+    break;
+  }
+
+  if (!id) {
+    console.warn('[server] 部屋IDを決められませんでした（5回とも既存と衝突）');
+    sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
     return;
   }
 
@@ -1923,15 +2224,21 @@ async function handleCreateRoom(req, res) {
     return;
   }
 
-  // typing・updatedAtを忘れないこと（理由はgetOrLoadRoom側の同じ組み立てのコメント参照）
+  // typing・updatedAt・activeUntilを忘れないこと（理由はgetOrLoadRoom側の同じ組み立ての
+  // コメント参照）。activeUntilを入れておくのは、作った本人が盤面を開くまでの間に枠を
+  // 他の卓に取られないようにするため：作成の応答を受けてから遷移してWebSocketが繋がる
+  // までに数秒あり、その間この部屋は誰も居ない部屋に見える。
   const entry = {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
     lastPersistedJson: null, lastSummaryJson: null,
     entryPassword: entryPasswordRecord, typing: new Map(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    activeUntil: Date.now() + ACTIVE_GRACE_MS, unloadTimer: null
   };
   rooms.set(id, entry);
-  // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoomSlot）、
+  // 作った部屋に誰も来なかった場合に、メモリへ載りっぱなしにならないようにする
+  scheduleRoomUnload(id, entry);
+  // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoom）、
   // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
   await syncRoomSummary(id, entry);
   sendJson(res, 201, { id });
@@ -2373,7 +2680,8 @@ async function handleCharacterSheet(req, res, url) {
 // --- 呼び出し回数の制限 ---
 // 誰でもURLを踏める前提だと、認証の要らない・あるいは入室できれば通るAPIは、そのまま
 // 連打の的になる。困るのは落ちることより、こちらの財布と居場所が削られること：
-//   部屋作成      … 部屋は5つしかない。連打で埋められると正規の利用者が入れない
+//   部屋作成      … 1回ごとにアクティブな卓の枠（MAX_ACTIVE_ROOMS）を1つ取り、保存先に
+//                    部屋データが1件増える。連打で枠を埋められると正規の利用者が卓を建てられない
 //   アップロード  … R2の保存容量と転送量がそのまま課金になる
 //   書き出し      … 1回で最大64MBぶんの画像をR2から読み直す（MAX_EXPORT_EMBED_BYTES）
 //   BCDice        … キャッシュに無いIDは上流へ転送される。踏み台にされると相手に迷惑がかかる
@@ -2519,12 +2827,16 @@ async function withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = 
 }
 
 await migrateLegacyStateIfNeeded();
+// 名簿はこの後のあらゆる判断（一覧・検索・掃除・ID の空き確認）の土台になるので、
+// リクエストを受け付ける前に読み終えておく。
+await loadRoomDirectory();
+await migrateLegacySummariesIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (url.pathname === '/api/rooms' && req.method === 'GET') {
-    await handleListRooms(req, res);
+    await handleListRooms(req, res, url);
     return;
   }
 
@@ -2686,6 +2998,15 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
+  // アクティブな卓の枠（1段目）。メモリに載っていない部屋＝いま動いていない卓なので、
+  // 枠が埋まっていればここで断れる。保存先を読む前に返せるのが要点で、満杯のときに
+  // 押し寄せた接続がそのままRedisへの読み込みに化けるのを防ぐ。
+  if (!rooms.has(roomId) && activeRoomCount() >= MAX_ACTIVE_ROOMS) {
+    console.warn(`[server] アクティブな卓の上限（${MAX_ACTIVE_ROOMS}）に達したため ${roomId} への接続を断りました`);
+    ws.close(4009, 'too many active rooms');
+    return;
+  }
+
   const entry = await getOrLoadRoom(roomId);
   if (!entry) {
     ws.close(4004, 'room not found');
@@ -2697,6 +3018,21 @@ wss.on('connection', async (ws, req) => {
     ws.close(4005, 'room deleted');
     return;
   }
+
+  // アクティブな卓の枠（2段目）。メモリには載っているが猶予も切れている部屋は、
+  // 1段目を素通りしてここへ来る。読み込みを待っている間に他の卓で埋まった場合も同じ。
+  if (!canActivateRoom(entry)) {
+    console.warn(`[server] アクティブな卓の上限（${MAX_ACTIVE_ROOMS}）に達したため ${roomId} への接続を断りました`);
+    ws.close(4009, 'too many active rooms');
+    return;
+  }
+
+  // この接続が来た時点で枠を確保する。admit()まで待たないのは、入室パスワード待ちの
+  // 接続がclientsに入らないため：待つ形にすると、パスワードを入力している数十秒の間に
+  // 他の卓で枠が埋まり、正しいパスワードを入れた人が弾かれる。
+  // 確保するのは名乗りの制限時間ぶんだけで、通ればadmit()が本来の確保に切り替える。
+  markRoomEntered(entry);
+  entry.activeUntil = Date.now() + ENTRY_TIMEOUT_MS;
 
   // 入室パスワードが設定されている部屋では、正しいパスワードをJOINで受け取るまで
   // INIT（＝部屋の中身）を送らず、他のメッセージも一切受け付けない。
@@ -2715,6 +3051,9 @@ wss.on('connection', async (ws, req) => {
       return;
     }
     entry.clients.add(ws);
+    // 人が入った。枠の期限付きの確保と、メモリから降ろす予定を取り消す
+    // （以後はclients.size > 0 がそのまま「アクティブ」の根拠になる）。
+    markRoomEntered(entry);
     console.log(`[server] ${roomId} クライアント接続（現在${entry.clients.size}件）`);
     ws.send(JSON.stringify({ type: 'INIT', state: entry.store.state }));
     // 記入中はentry.store（INITの中身）に乗らない揮発情報なので別送りする。T-013。
@@ -3103,7 +3442,7 @@ wss.on('connection', async (ws, req) => {
         // 音源トラックは大きさを持たないので、何バイト減ったかはここでは分からない。
         // 集計を捨てて、次のアップロードでR2から数え直させる（消したのに「上限に達して
         // います」と言われ続けるのを防ぐ）。
-        .then(() => forgetRoomStorage(roomId))
+        .then(() => { forgetRoomStorage(roomId); invalidateBucketUsage(); })
         .catch((error) => console.warn(`[server] 音源の削除に失敗しました (${removedAudioKey}):`, error.message));
     }
     schedulePersistForRoom(roomId, entry);
@@ -3126,6 +3465,14 @@ wss.on('connection', async (ws, req) => {
       }
     }
     console.log(`[server] ${roomId} クライアント切断（残り${entry.clients.size}件）`);
+
+    // 最後の1人が抜けた。すぐに枠を開けず、少しの間は確保したままにする（ACTIVE_GRACE_MS）。
+    // 回線断やスマホのタブ凍結で全員が一時的に落ちることがあり、戻ってきたときに自分の卓が
+    // 枠切れで入れない、という壊れ方を避けるため。同じ猶予のあとメモリからも降ろす。
+    if (entry.clients.size === 0 && !entry.pendingDelete) {
+      entry.activeUntil = Date.now() + ACTIVE_GRACE_MS;
+      scheduleRoomUnload(roomId, entry);
+    }
   });
 });
 
@@ -3195,7 +3542,11 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 httpServer.listen(PORT, () => {
-  console.log(`[server] サーバーを起動しました: http://localhost:${PORT}　（部屋数上限: ${MAX_ROOMS}）`);
+  console.log(`[server] サーバーを起動しました: http://localhost:${PORT}`);
+  // 部屋の総数に上限は無い代わりに、ここが運用の天井になる。実際に効いている値を出す。
+  console.log(`[server] 同時にアクティブな卓の上限: ${MAX_ACTIVE_ROOMS}卓`
+    + `（誰も居なくなってから${Math.floor(ACTIVE_GRACE_MS / 1000)}秒は枠を確保）`);
+  console.log(`[server] 名簿にある部屋: ${roomCount()}件`);
   // 既定で閉じている口なので、開いているときだけ出す（開けたことを本番のログで確かめられるように）
   if (ENABLE_P2P_SIGNALING) {
     console.log('[server] P2Pのシグナリング中継を有効にしました（?net=rtc が使えます）');
@@ -3204,6 +3555,11 @@ httpServer.listen(PORT, () => {
   // （課金に直結する設定なので、本番のログで確かめられるようにする）。
   if (isR2Configured()) {
     console.log(`[server] 1部屋あたりのファイル合計の上限: ${Math.floor(MAX_ROOM_STORAGE_BYTES / 1024 / 1024)}MB`);
+    console.log(`[server] ファイル置き場の想定容量: ${Math.floor(R2_QUOTA_BYTES / 1024 / 1024)}MB`
+      + `（残り${Math.floor(R2_MIN_FREE_CREATE_BYTES / 1024 / 1024)}MBで部屋作成を停止、`
+      + `${Math.floor(R2_MIN_FREE_UPLOAD_BYTES / 1024 / 1024)}MBでアップロードを停止）`);
+    // 実際の使用量は数えるのに時間がかかるので、起動を待たせずに裏で数える
+    recountBucketUsage().catch(() => {});
   }
   // メモリ上限の検出を誤ると、断りすぎ（機能が使えない）か断らなすぎ（OOMで全部屋切断）の
   // どちらかになる。実際に効いている値を必ずログに出す（memory-budget.js参照）。

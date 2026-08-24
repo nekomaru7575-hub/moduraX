@@ -1,11 +1,11 @@
 ---
 source: js/net-transport.js
-lines: 83
+lines: 85
 exports: 3
 imported_by: 1
 api_sha: 5a6cff8a3b51
 prose_sha: 5a6cff8a3b51
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 
@@ -26,8 +26,8 @@ _(未記入)_
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 31 | const | CLOSE_CODES | `CLOSE_CODES` | 切断の理由。 |
-| 46 | fn | isHostMode | `isHostMode()` | この画面がホスト役として動くか。 |
-| 62 | fn | createTransport | `createTransport(handlers)` | このページで使うトランスポートを1本作る。 |
+| 48 | fn | isHostMode | `isHostMode()` | この画面がホスト役として動くか。 |
+| 64 | fn | createTransport | `createTransport(handlers)` | このページで使うトランスポートを1本作る。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -36,8 +36,8 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 46 | isHostMode | `isHostMode()` | 4 | ✓ |
-| 62 | createTransport | `createTransport(handlers)` | 21 | ✓ |
+| 48 | isHostMode | `isHostMode()` | 4 | ✓ |
+| 64 | createTransport | `createTransport(handlers)` | 21 | ✓ |
 
 ## 依存
 

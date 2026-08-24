@@ -1,11 +1,11 @@
 ---
 source: js/floating-panel.js
-lines: 254
+lines: 291
 exports: 1
 imported_by: 5
 api_sha: 9e114663bedc
 prose_sha: 9e114663bedc
-generated: 2026-08-21
+generated: 2026-08-24
 tags: [codemap]
 ---
 
@@ -25,19 +25,21 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 67 | fn | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | title: string, storageKey: string, defaultRect?: {x:number, y:number, w:number, h:number}, defaultVisible?: … |
+| 95 | fn | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | title: string, storageKey: string, defaultRect?: {x:number, y:number, w:number, h:number}, defaultVisible?: … |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 21 | loadRect | `loadRect(storageKey)` | 9 |  |
-| 31 | saveRect | `saveRect(storageKey, rect)` | 7 |  |
-| 41 | clampRect | `clampRect(rect)` | 11 |  |
-| 67 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 187 | ✓ |
+| 27 | restack | `restack()` | 7 |  |
+| 36 | bringToFront | `bringToFront(panel)` | 8 |  |
+| 49 | loadRect | `loadRect(storageKey)` | 9 |  |
+| 59 | saveRect | `saveRect(storageKey, rect)` | 7 |  |
+| 69 | clampRect | `clampRect(rect)` | 11 |  |
+| 95 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 196 | ✓ |
 
 ## 依存
 

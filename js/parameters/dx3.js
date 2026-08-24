@@ -54,6 +54,8 @@ export function buildDX3Parameters(){
     return buildParameters("DX3",DX3_PARAMETERS,{locked : true});
 }
 
+export const DX3_BCDICE_SYSTEM = `DoubleCross`;
+
 // クリティカル値の下限を持てるのはクリティカル修正(AcB)への修正/バフだけ。
 // クリティカル値は 10＋AcB で決まるため、下限も「AcBの下限」ではなく
 // 「10＋AcBの下限」＝クリティカル値そのものの下限として扱う
@@ -761,5 +763,6 @@ export const DX3_PLUGIN = {
     render: renderDX3BuffFields,
     parseExtra: parseDX3BuffExtra,
     describe: describeDX3BuffMeta
-  }
+  },
+  bcdiceSystem: DX3_BCDICE_SYSTEM
 };

@@ -9,7 +9,7 @@
 // その状況を一覧の上に出す（renderServerStatus）。断る条件はサーバー側と同じものを
 // 応答（joinable / canCreate）で受け取っているだけで、ここでの判定は案内にすぎない。
 
-import { listPlugins } from './parameters/registry.js';
+import { listPlugins, getPluginBcdiceSystem } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
@@ -376,6 +376,30 @@ function mountCreatePanel() {
   bcdiceGroup.appendChild(bcdiceLabel);
   bcdiceGroup.appendChild(bcdiceSelect);
   selectRow.appendChild(bcdiceGroup);
+
+  // プラグインを選んだら、そのシステムが宣言しているダイスボットへ合わせる。
+  // 部屋の中の「ルーム設定」では既にこう動いており（js/main.jsのプラグイン選択）、
+  // 作成フォームだけ動いていなかったため、「システムを選んだのにダイスが別システムの
+  // まま部屋ができる」状態になっていた。
+  // 宣言の無いプラグイン・プラグインなしのときは、今の選択のままにする。この後で手で
+  // 選び直すこともできる（プラグインを選び直すまで、その選択は残る）。
+  pluginSelect.addEventListener('change', () => {
+    const system = getPluginBcdiceSystem(pluginSelect.value || null);
+    if (!system || bcdiceSelect.value === system) return;
+
+    // 一覧の取得に失敗した等で選択肢に無いときは、そのIDの選択肢を足してから選ぶ。
+    // 選べないまま素通りさせると、宣言と違うシステムのまま部屋が作られてしまう。
+    if (![...bcdiceSelect.options].some((option) => option.value === system)) {
+      const option = document.createElement('option');
+      option.value = system;
+      option.textContent = system;
+      bcdiceSelect.appendChild(option);
+    }
+    bcdiceSelect.value = system;
+    // 手で選んだときと同じ後処理（システム情報の先読み。fillBcdiceSelect参照）を通す。
+    // 値の代入ではchangeが飛ばないので、ここで自分で起こす。
+    bcdiceSelect.dispatchEvent(new Event('change'));
+  });
 
   form.appendChild(selectRow);
 

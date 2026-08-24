@@ -1070,12 +1070,6 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: '部屋一覧に戻る',
         onSelect: () => { window.location.href = '/'; }
-      },
-      // 利用規約・プライバシー・問い合わせ先。部屋の中からも辿れるようにしておく
-      // （部屋一覧の下にも同じものを置いてある）。
-      {
-        label: 'このサービスについて',
-        onSelect: () => { window.open('/about.html', '_blank', 'noopener'); }
       }
     );
 

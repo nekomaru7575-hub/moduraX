@@ -1237,9 +1237,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       return;
     }
 
-    const spaceIndex = splitForSpace(rawInput);
-    const command = spaceIndex[0];
-    const comment = spaceIndex.slice(1).join(" ");
+    const [command, comment = ""] = splitForSpace(rawInput);
     // ダイスコマンドかどうかは、そのシステムのcommand_pattern（BCDiceが公開している
     // 「このシステムがコマンドとして受け付ける文字列」の正規表現）で判定する。
     // システム情報を取得できなかった場合のみ、従来の「使われる文字種だけで足切り」へ戻す。
@@ -1258,7 +1256,9 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       return;
     }
 
-    const toCommand = isStartsChoice ? `${command} ${comment}` : command;
+    // choiceは選択肢を空白で区切って渡す書き方（choice 赤 青 緑）があり、BCDiceは
+    // 半角スペースしか区切りと見なさない。ここへ渡す分だけ全角スペースを半角へそろえる。
+    const toCommand = isStartsChoice ? `${command} ${comment.replaceAll("\u3000", " ")}` : command;
 
     const { success, unsupported, resultText, diceValues } = await rollBCDice(system, toCommand);
     if (!success) {
@@ -2392,8 +2392,17 @@ EventBus.subscribe('IDENTITY_CHANGED', () => {
   ensureActiveTabVisible(store.state);
 });
 
+// ダイスコマンドとコメントの切り分け。「1D10 命中判定」の空白から後ろがコメント。
+// 日本語入力のまま打つと全角スペースになりやすいので、全角スペースでも区切れるようにする。
+// 区切るのは最初の空白1つだけで、コメント側はそのまま残す（コメントの中の空白は
+// 打った人が書いたとおりに表示したい）。
 function splitForSpace(string) {
-  return string.trim().replaceAll(" ", " ").split(" ");
+  const trimmed = string.trim();
+  // \u3000は全角スペース。半角と見分けが付かないので、文字そのままではなくエスケープで書く。
+  const separatorIndex = trimmed.search(/[ \u3000]/);
+  if (separatorIndex < 0) return [trimmed];
+
+  return [trimmed.slice(0, separatorIndex), trimmed.slice(separatorIndex + 1).trim()];
 }
 
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。

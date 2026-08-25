@@ -63,6 +63,11 @@
   --text-bright: #eee;
   --text-emphasis: #fff;        /* 強調・見出し */
   --text-on-light: #2a2a2a;     /* 明るい面（ヘルプタブの黄など）に乗る文字 */
+  /* リンクの文字。無彩色ばかりの地から色で浮かせる唯一の文字色なので、青を持たせる。
+     about.html と release-notes.html が同じ値を各自直書きしていたのでここへ上げた。
+     この文字が乗る地はページ地(#1a1a1a)と.noteの面(--surface-base)で、
+     暗い方で6.9:1、明るい方で5.7:1あり、どちらも本文として読める。 */
+  --text-link: #6aa9e0;
 
   /* --- 反転した面。明るい地に暗い文字を置くとき --- */
   --surface-invert: #fff;

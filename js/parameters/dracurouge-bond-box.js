@@ -36,6 +36,11 @@ const BOND_LIST_SAFETY_MAX = 100;
 // リストに無い値（旧リストの値）は、その枠の選択肢として一時的に追加される
 // （buildSlotSelect参照。dx3-lois-box.jsの感情表（仮）と同じ手当て）。
 // ------------------------------------------------------------------
+// ルージュ／ノワールの絆。BCDice（https://github.com/bcdice/BCDice、BSD-3-Clause）の
+// i18n/Dracurouge/ja_jp.yml にある絆内容決定表（BT）から取っている。1D6の出目順で、
+// 同じ出目のルージュ側とノワール側が対になる（憐↔侮、友↔妬、…）ので、
+// 2つの配列は必ず同じ並び・同じ長さに保つこと。
+// 著作権表示は NOTICE に置いてある（BSD-3-Clauseは表示の保持を条件にしている）。
 export const BOND_ROUGE_OPTIONS = ['憐', '友', '信', '恋', '敬', '主'];
 export const BOND_NOIR_OPTIONS = ['侮', '妬', '欲', '怒', '殺', '仇'];
 

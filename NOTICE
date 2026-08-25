@@ -116,21 +116,78 @@ dotenv
 
 
 ===============================================================================
-5. ゲームシステム由来のデータ（MITの対象外）
+5. ゲームシステム由来の表データ（BCDice由来。MITの対象外）
 ===============================================================================
 
-js/parameters/ 配下のプラグインには、各作品のルールに由来する語句が含まれます。
+js/parameters/ のプラグインには、各作品のルールに由来する表データが含まれます。
+これらは自分で書き起こしたものではなく、BCDice から取っています。
 
-  ダブルクロス The 3rd Edition … ロイスの感情表ほか
-  シノビガミ                   … 特技表、感情表ほか
-  銀剣のステラナイツ           … スキル種別ほか
-  アリアンロッド2E             … 能力値ボーナス表、一般技能ほか
-  ドラクルージュ               … 「道」、絆ほか
-  グランクレスト                … （最小の見本のみ）
+  BCDice — https://github.com/bcdice/BCDice
 
-これらの権利は各出版社・著作者に帰属します。もじゅらXのMITライセンスは及びません。
-利用・改変・再配布にあたっては、各作品の二次利用ガイドラインに従ってください。
+  BSD 3-Clause License
+  Copyright (c) 2011, Faceless and たいたい竹流
+  All rights reserved.
 
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice, this
+     list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  3. Neither the name of the copyright holder nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+どのファイルが BCDice のどの表に対応するか:
+
+  js/parameters/shinobigami-skills.js
+    特技表      ← i18n/ShinobiGami/ja_jp.yml  ランダム指定特技表（RTT）  6分野66件
+    感情表      ← 同上                         感情表（ET）              プラス6／マイナス6
+  js/parameters/dx3-lois-box.js
+    感情表      ← i18n/DoubleCross/ja_jp.yml   感情表（ET）              ポジ20／ネガ20
+  js/parameters/dracurouge.js
+    道の一覧    ← i18n/Dracurouge/ja_jp.yml    道ごとの表名から
+  js/parameters/dracurouge-bond-box.js
+    絆の一覧    ← 同上                         絆内容決定表（BT）        1D6の6件
+
+このアプリはダイスを振るときも BCDice の公開APIを呼んでいるので（下記6）、
+卓上で振った結果と画面に並ぶ選択肢が同じ出所になります。
+
+なお js/parameters/ には、上記の表とは別に、パラメータ名や判定名（HP・侵蝕率・
+生命力・AdB など）も書かれています。これらは表の複製ではなく用語の使用です。
+
+【元になった作品の権利について】
+表そのものの著作権は、BCDice でも本リポジトリでもなく、各作品の著作者・出版元に
+あります。もじゅらXのMITライセンスはこれらに及びません。利用・改変・再配布に
+あたっては、各作品の二次創作ガイドラインに従ってください。
+
+  ダブルクロス The 3rd Edition   著：矢野俊策／F.E.A.R.        KADOKAWA
+  忍術バトルRPG シノビガミ        著：河嶋陶一朗／冒険企画局    新紀元社
+  常夜国騎士譚RPG ドラクルージュ  著：神谷涼／インコグ・ラボ    KADOKAWA
+  アリアンロッドRPG２E            著：菊池たけし／F.E.A.R       KADOKAWA
+
+上記4作品は、アークライト・KADOKAWA・グループSNE・新紀元社・ファーイースト・
+アミューズメント・リサーチ・冒険支援の6社が合同で定めた「二次創作活動のガイドライン」
+の対象です。もじゅらXはこれに従います。
+  https://www.arclight.co.jp/trpg-rights/
+
+銀剣のステラナイツ・グランクレストは上記ガイドラインの対象製品リストに載っていない
+ため、それぞれの権利元の方針に従います。
 
 ===============================================================================
 6. 外部サービス（同梱していないもの）

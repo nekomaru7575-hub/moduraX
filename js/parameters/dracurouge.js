@@ -101,7 +101,11 @@ const PC_PARAMETERS = [
 // 種別を切り替えたときにsyncTypeVisibilityが出す。
 const NPC_PARAMETERS = [];
 
-// 道の選択肢（仮）。ここに無い値（旧リストの値）も、保存されていればその行の選択肢として
+// 道の選択肢。BCDice（https://github.com/bcdice/BCDice、BSD-3-Clause）の
+// i18n/Dracurouge/ja_jp.yml に、道ごとの表が道の名前で並んでいるので、それに揃えてある
+// （異端だけは表名が「異端の反応表」なので、そこから採っている）。
+// 著作権表示は NOTICE に置いてある（BSD-3-Clauseは表示の保持を条件にしている）。
+// ここに無い値（旧リストの値）も、保存されていればその行の選択肢として
 // 一時的に追加される（buildPathSelect）。
 const PATH_OPTIONS = ['夜獣', '狩人', '遍歴', '近衛', '領主', '賢者',`将軍`,`僧正`,`空駆`,`船長`,`異端`,`星読`,`後見`];
 

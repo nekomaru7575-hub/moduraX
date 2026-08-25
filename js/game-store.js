@@ -1898,9 +1898,7 @@ export class ImmutableStore {
         return;
       }
 
-      // --- ラウンド進行（Core機能）。詳細はcreateInitialRoundState()のコメント・
-      // 実装プラン（C:\Users\necom\.claude\plans\swirling-foraging-lemon.md、
-      // 手番モデルの作り替えはC:\Users\necom\.claude\plans\floofy-forging-cupcake.md）参照。
+      // --- ラウンド進行（Core機能）。詳細はcreateInitialRoundState()のコメント参照。
       // 進行操作（開始/進行/終了/参加者変更/行動済みの回復/割り込み）はGM限定
       // （js/room-authority.js・server/index.jsのGM_ONLY_ACTIONS）。点呼(confirmation)は
       // PL各自の意思表示なのでソフトな可視化のみで、進行操作自体をブロックしない。 ---

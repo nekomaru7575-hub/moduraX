@@ -1,0 +1,142 @@
+もじゅらX（trpg-app）が使っている第三者の成果物と、その著作権表示。
+
+MITもBSDも「著作権表示を複製物に含めること」を条件にしているので、このファイルは
+飾りではなく配布の条件そのものです。依存を足したらここにも足してください。
+
+===============================================================================
+1. 同梱しているライブラリ（vendor/）
+===============================================================================
+
+@3d-dice/dice-box-threejs v0.0.12
+  3Dダイスの描画と物理。vendor/dice-box-threejs/ に dist と public をそのまま置いています。
+  ライセンス全文は vendor/dice-box-threejs/LICENSE。
+
+    MIT License
+    Copyright (c) 2022 3D Dice
+
+  このライブラリはビルド済みで、次の2つを内部に含んでいます。
+
+  three.js 0.143
+    MIT License
+    Copyright (c) 2010-2022 three.js authors
+    （vendor/dice-box-threejs/dice-box-threejs.es.js の冒頭にライセンスバナーがあります）
+
+  cannon-es 0.20.0
+    MIT License
+    Copyright (c) 2015 cannon.js Authors
+    （バンドルの過程で著作権表示が失われているため、ここに明記します）
+
+  ダイスのテクスチャ38点・効果音75点（vendor/dice-box-threejs/assets/）
+    上記 @3d-dice/dice-box-threejs の配布物に含まれるもので、同じMITライセンスの下にあります。
+    上流のREADMEによれば、Major's 3D Dice（https://majorvictory.github.io/3DDiceRoller/）を
+    基にしており、そちらはさらに Teall Dice を基にしています。
+
+
+===============================================================================
+2. npmの依存（package.json）
+===============================================================================
+
+ws
+  MIT License
+  Copyright (c) 2011 Einar Otto Stangvik
+  Copyright (c) 2013 Arnout Kazemier and contributors
+  Copyright (c) 2016 Luigi Pinca and contributors
+
+@upstash/redis
+  MIT License
+  Copyright (c) 2021 Upstash, Inc.
+
+aws4fetch
+  MIT License
+  Copyright (c) 2018 Michael Hart
+
+uncrypto（@upstash/redis の依存）
+  MIT License
+  Copyright (c) Pooya Parsa
+
+dotenv
+  BSD 2-Clause "Simplified" License
+  Copyright (c) 2015, Scott Motte
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+
+
+===============================================================================
+3. アイコン（js/icons.js, offline.html）
+===============================================================================
+
+画面のアイコン1式は Lucide のアイコンを基にしています。
+
+  Lucide — https://lucide.dev
+  ISC License
+  Copyright (c) 2020, Lucide Contributors
+
+  Lucide自体が Feather Icons から派生しています。
+  Feather — https://feathericons.com
+  MIT License
+  Copyright (c) 2013-2023 Cole Bemis
+
+
+===============================================================================
+4. ロゴ（MITの対象外）
+===============================================================================
+
+  image/iconDediDevi.ico
+  image/iconDediDevi.png
+  image/icon-192.png
+  image/icon-512.png
+  image/icon-maskable-512.png
+  image/apple-touch-icon-180.png
+
+著作権は原作者に帰属します。もじゅらXは使用許諾を得て使っているだけで、
+第三者への再配布・改変を許諾できる立場にありません。
+フォークして別のサービスとして公開する場合は、別の画像に差し替えてください。
+
+  作者: （TODO: クレジット表記を記入してください）
+
+
+===============================================================================
+5. ゲームシステム由来のデータ（MITの対象外）
+===============================================================================
+
+js/parameters/ 配下のプラグインには、各作品のルールに由来する語句が含まれます。
+
+  ダブルクロス The 3rd Edition … ロイスの感情表ほか
+  シノビガミ                   … 特技表、感情表ほか
+  銀剣のステラナイツ           … スキル種別ほか
+  アリアンロッド2E             … 能力値ボーナス表、一般技能ほか
+  ドラクルージュ               … 「道」、絆ほか
+  グランクレスト                … （最小の見本のみ）
+
+これらの権利は各出版社・著作者に帰属します。もじゅらXのMITライセンスは及びません。
+利用・改変・再配布にあたっては、各作品の二次利用ガイドラインに従ってください。
+
+
+===============================================================================
+6. 外部サービス（同梱していないもの）
+===============================================================================
+
+BCDice
+  ダイスの判定は BCDice の公開API（https://bcdice.onlinesession.app）を呼んでいます。
+  BCDice本体のコードはこのリポジトリに含まれていません。
+  自前で運用する場合は、BCDice-API を別途立ててください。

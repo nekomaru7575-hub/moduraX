@@ -1,7 +1,11 @@
 {
   "name": "trpg-app-server",
   "private": true,
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/dev-local.js"

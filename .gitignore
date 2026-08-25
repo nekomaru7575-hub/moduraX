@@ -1,23 +1,36 @@
-旧ファイル/board.html
-旧ファイル/index.html
-旧ファイル/board-drag.js
-image/sample/DediDevi.png
-.gitignore
-image/sample/face.PNG
-image/sample/download20250804204224.png
-node_modules/
-server/state.json
+# --- 秘密 ---
+# .env* とワイルドカードにしてあるのは、将来 .env.production のような別名を作ったときに
+# 取りこぼさないため（以前は .env だけを書いていた）。
+.env*
+!.env.example
+
+# --- 実データ（手元でだけ育つもの） ---
+# 部屋の中身。npm run dev で動かすとここに平文JSONが溜まる。
 server/rooms/
+server/state.json
+# 部屋データ・キャラクターJSONのサンプル置き場
 JSON/
+# 作者の設計メモ・草稿
 txt/
-.claude/
-.env
-旧ファイル/room.js
+# 動作確認用のコマ画像
+image/sample/
+
+# --- 現行構成より前のプロトタイプ ---
+旧ファイル/
 js/room.js
-.loop/runs/
-docs/user-registration-draft.md
-# 外部から入れた開発支援スキル（このアプリの動作には関係しない）。
-# 末尾に / を付けてディレクトリだけを指す。js/parameters/skill-*.js のような
-# アプリ側の「特技」のファイルまで巻き込まないため。
+
+# --- 開発の道具（このアプリの動作には関係しない） ---
+node_modules/
+# Claude Code の設定・スキル・スラッシュコマンド
+.claude/
+# 外部から入れた開発支援スキル。末尾に / を付けてディレクトリだけを指す
+# （js/parameters/skill-*.js のようなアプリ側の「特技」のファイルまで巻き込まないため）
 .agents/
 skills-lock.json
+# ローカルLLMを使った開発ループ一式。作者の作業道具で、アプリのビルドにも実行にも要らない
+.loop/
+# コード解析ツールのプロジェクト設定
+.serena/
+
+# --- 公開しない下書き ---
+docs/user-registration-draft.md

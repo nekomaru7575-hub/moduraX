@@ -93,6 +93,14 @@
     text-decoration: underline;
   }
 
+  /* 権利表示。義務なので出すが、部屋を探しに来た人の邪魔をしない大きさに留める。 */
+  .footer-rights {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: #999;
+  }
+
   /* --- 混雑状況（js/room-index.jsが中身を作る） --- */
   .server-status {
     background-color: #242424;
@@ -373,9 +381,17 @@
     <div id="roomCreate" class="panel"></div>
 
     <!-- 利用規約・プライバシーポリシー・免責事項・問い合わせ先。
-         公開するサービスとして、画面から辿れる場所に置いておく必要がある。 -->
+         公開するサービスとして、画面から辿れる場所に置いておく必要がある。
+         2行目は二次創作活動のガイドラインが求める権利表示への導線。ガイドラインは
+         「ウェブページならトップページやタイトルページに」と場所を指定しているので、
+         about.htmlの中に埋めるだけにせず、ここから名指しで辿れるようにしてある。 -->
     <footer class="site-footer">
       <a href="/about.html">このサービスについて（利用規約・プライバシー・問い合わせ）</a>
+      <p class="footer-rights">
+        もじゅらXは『ダブルクロス The 3rd Edition』『忍術バトルRPG シノビガミ』
+        『常夜国騎士譚RPG ドラクルージュ』『アリアンロッドRPG２E』ほかの二次創作物です
+        （公式・公認ではありません）。<a href="/about.html#rights">権利表示</a>
+      </p>
     </footer>
   </div>
 

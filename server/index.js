@@ -2464,9 +2464,10 @@ async function handleSetEntryPassword(req, res, roomId) {
 // 1件ずつ取りに来ている」と読める状態にしておく意味は大きい。）
 //
 // 添えるURLは**辿れるものだけにすること**。連絡先のつもりが404になるのは、何も名乗らない
-// より悪い（リポジトリは非公開なので載せていない）。公開しているアプリのURLができたら、
-// 差し替えるか併記する。
-const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://x.com/nekomaru7575)';
+// より悪い（リポジトリは非公開なので載せていない）。以前は作者個人のXを載せていたが、
+// 公開URLができたのでアプリ本体へ差し替えた。相手の運営者から見て「何が叩いてきたのか」が
+// 一目で分かり、連絡先（about.html の @moduraxx）もそこから辿れる。
+const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://modurax.onrender.com/)';
 
 // --- BCDiceのシステム一覧・システム情報の中継（キャッシュ付き） ---
 // 一覧（約29KB）とシステム情報（command_pattern / help_message）はBCDice側が更新される

@@ -6,6 +6,24 @@
      insetは常に0を返し、ノッチやホームバーを避ける指定が黙って無視される。 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>もじゅらX - 部屋一覧</title>
+
+<!-- SNSに貼られたときのカード（OGP / Twitter Card）。
+     クローラは相対パスを解決しないので、og:imageとog:urlは絶対URLで書くこと。
+     画像はimage/配下に置く。docs/配下はserver/index.jsのPUBLIC_DIRSに無く、
+     ブラウザでは見えても配信されず404になる（READMEのスクショを直に指すと事故る）。
+     カードの実寸は横500px前後まで縮む。全画面のスクショを貼ると文字が潰れるため、
+     image/ogp.pngは盤面の一部をほぼ等倍で切り出したものにしてある。 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="もじゅらX">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="もじゅらX">
+<meta property="og:description" content="ブラウザで開くだけのオンラインセッションツール。登録もインストールも要りません。部屋を作って、盤面・チャット・ダイスを参加者みんなで共有できます。">
+<meta property="og:url" content="https://modurax.onrender.com/">
+<meta property="og:image" content="https://modurax.onrender.com/image/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="もじゅらXの盤面。コマとキャラクター一覧、秘匿つきHOのパネル、スタンプが並んでいる。">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
 <!-- 書体と色のトークン。このページの色はまだ直書きだが、書体だけは共通のものを使う -->
 <link rel="stylesheet" href="/css/tokens.css">

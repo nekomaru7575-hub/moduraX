@@ -1,6 +1,6 @@
 ---
 source: js/help/help-content.js
-lines: 1144
+lines: 1145
 exports: 6
 imported_by: 1
 api_sha: 9dbeddd8b6f7
@@ -26,11 +26,11 @@ _(未記入)_
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 31 | const | GREETINGS | `GREETINGS` | あいさつ。 |
-| 607 | const | CORE_HELP | `CORE_HELP` |  |
-| 630 | const | PLUGIN_HELP | `PLUGIN_HELP` | --- プラグイン（ゲームシステム固有）--- キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
-| 1104 | const | whoIsDediDevi | `whoIsDediDevi` | 会話用の選択肢たち |
-| 1115 | const | howToEraceYou | `howToEraceYou` |  |
-| 1134 | fn | buildHelpRoot | `buildHelpRoot(activePlugin)` | この部屋で出すヘルプのルート層を組む。 |
+| 608 | const | CORE_HELP | `CORE_HELP` |  |
+| 631 | const | PLUGIN_HELP | `PLUGIN_HELP` | --- プラグイン（ゲームシステム固有）--- キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
+| 1105 | const | whoIsDediDevi | `whoIsDediDevi` | 会話用の選択肢たち |
+| 1116 | const | howToEraceYou | `howToEraceYou` |  |
+| 1135 | fn | buildHelpRoot | `buildHelpRoot(activePlugin)` | この部屋で出すヘルプのルート層を組む。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -39,7 +39,7 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 1134 | buildHelpRoot | `buildHelpRoot(activePlugin)` | 10 | ✓ |
+| 1135 | buildHelpRoot | `buildHelpRoot(activePlugin)` | 10 | ✓ |
 
 ## 依存
 

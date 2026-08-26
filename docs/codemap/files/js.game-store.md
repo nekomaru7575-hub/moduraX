@@ -1,6 +1,6 @@
 ---
 source: js/game-store.js
-lines: 4007
+lines: 4018
 exports: 49
 imported_by: 15
 api_sha: b95c7e8ee860
@@ -26,54 +26,54 @@ tags: [codemap]
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 66 | const | DEFAULT_TOKEN_COLOR | `DEFAULT_TOKEN_COLOR` |  |
-| 70 | fn | generateTokenId | `generateTokenId()` |  |
-| 77 | fn | generatePanelId | `generatePanelId()` |  |
-| 84 | fn | generateCardId | `generateCardId()` |  |
-| 91 | fn | generateDeckId | `generateDeckId()` |  |
-| 99 | fn | generateDeckTemplateId | `generateDeckTemplateId()` | デッキの定義（room.deckTemplates）のid。 |
-| 106 | fn | generateBuffId | `generateBuffId()` |  |
-| 117 | fn | generatePlotSlotId | `generatePlotSlotId()` | 1つのコマに増やしたプロット選択（round.plotExtras）のid。 |
-| 124 | fn | generateInfoEntryId | `generateInfoEntryId()` |  |
-| 131 | fn | generateInfoSectionId | `generateInfoSectionId()` |  |
-| 137 | const | BUFF_PHASE_LABELS | `BUFF_PHASE_LABELS` | バフ/デバフの終了条件（フェーズ）のラベル。 |
-| 141 | const | PHASE_HIERARCHY | `PHASE_HIERARCHY` | 終了フェーズの入れ子構造（外側→内側）。 |
-| 145 | fn | getPhaseChain | `getPhaseChain(phase)` | 指定フェーズ自身と、その内側の全フェーズを外側から順に返す。 |
-| 153 | fn | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | このコマがそのフェーズ終了で失うバフ/デバフの名前一覧（入れ子の内側も含む）。 |
-| 163 | fn | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 上の一覧を、判定結果などのログ本文へ足す1行にする。 |
-| 334 | fn | usesInitiativeProcess | `usesInitiativeProcess(state)` | 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。 |
-| 341 | fn | showsEntryMessages | `showsEntryMessages(state)` | 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。 |
-| 351 | fn | snapsToGrid | `snapsToGrid(state)` | 盤面のオブジェクト（コマ・パネル・カード・デッキ）を、離した位置からマス目へ吸着させるか （ルーム単位・全員共通）。 |
-| 407 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
-| 423 | const | MAIN_CHAT_TAB_ID | `MAIN_CHAT_TAB_ID` | 既定のチャットタブ。 |
-| 433 | const | SYSTEM_CHAT_TAB_ID | `SYSTEM_CHAT_TAB_ID` | システム発言のうち「読み流してよい事務連絡」を集める固定タブ（withSystemTabLog参照）。 |
-| 434 | const | SYSTEM_CHAT_TAB_NAME | `SYSTEM_CHAT_TAB_NAME` |  |
-| 438 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
-| 441 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
-| 446 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
-| 599 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
-| 615 | const | CARD_COLS | `CARD_COLS` | カードの大きさ（マス数）。 |
-| 616 | const | CARD_ROWS | `CARD_ROWS` |  |
-| 620 | const | DEFAULT_CARD_STACK_ORDER | `DEFAULT_CARD_STACK_ORDER` | カード・デッキの既定の重なり順。 |
-| 932 | const | MAX_INFO_MASKS_PER_SECTION | `MAX_INFO_MASKS_PER_SECTION` | 情報（infoEntries）の「伏せた語」(masks)の上限。 |
-| 933 | const | MAX_INFO_MASK_TEXT_LENGTH | `MAX_INFO_MASK_TEXT_LENGTH` |  |
-| 935 | const | MAX_INFO_MASK_CHAR_LENGTH | `MAX_INFO_MASK_CHAR_LENGTH` | 伏せ字。 |
-| 936 | const | DEFAULT_INFO_MASK_CHAR | `DEFAULT_INFO_MASK_CHAR` |  |
-| 958 | fn | listMaskMarkers | `listMaskMarkers(body)` | 本文中の伏せ字の目印 {{n}} を頭から拾い、[{ id, start, end }] を出現順に返す。 |
-| 1022 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
-| 1141 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
-| 1164 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
-| 1172 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
-| 1249 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
-| 1265 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
-| 1294 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
-| 1306 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
-| 1327 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
-| 1337 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
-| 1349 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 1452 | class | ImmutableStore | `ImmutableStore` |  |
-| 3885 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 3889 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 4006 | const | store | `store` |  |
+| 80 | fn | generateTokenId | `generateTokenId()` |  |
+| 87 | fn | generatePanelId | `generatePanelId()` |  |
+| 94 | fn | generateCardId | `generateCardId()` |  |
+| 101 | fn | generateDeckId | `generateDeckId()` |  |
+| 109 | fn | generateDeckTemplateId | `generateDeckTemplateId()` | デッキの定義（room.deckTemplates）のid。 |
+| 116 | fn | generateBuffId | `generateBuffId()` |  |
+| 127 | fn | generatePlotSlotId | `generatePlotSlotId()` | 1つのコマに増やしたプロット選択（round.plotExtras）のid。 |
+| 134 | fn | generateInfoEntryId | `generateInfoEntryId()` |  |
+| 141 | fn | generateInfoSectionId | `generateInfoSectionId()` |  |
+| 147 | const | BUFF_PHASE_LABELS | `BUFF_PHASE_LABELS` | バフ/デバフの終了条件（フェーズ）のラベル。 |
+| 151 | const | PHASE_HIERARCHY | `PHASE_HIERARCHY` | 終了フェーズの入れ子構造（外側→内側）。 |
+| 155 | fn | getPhaseChain | `getPhaseChain(phase)` | 指定フェーズ自身と、その内側の全フェーズを外側から順に返す。 |
+| 163 | fn | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | このコマがそのフェーズ終了で失うバフ/デバフの名前一覧（入れ子の内側も含む）。 |
+| 173 | fn | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 上の一覧を、判定結果などのログ本文へ足す1行にする。 |
+| 344 | fn | usesInitiativeProcess | `usesInitiativeProcess(state)` | 「キャラクターの手番の前にイニシアチブプロセスを挟む」設定（ルーム単位・全員共通）。 |
+| 351 | fn | showsEntryMessages | `showsEntryMessages(state)` | 入室したとき、既定のチャットタブへ「〈名前〉が入室しました。」を出すか（ルーム単位・全員共通）。 |
+| 361 | fn | snapsToGrid | `snapsToGrid(state)` | 盤面のオブジェクト（コマ・パネル・カード・デッキ）を、離した位置からマス目へ吸着させるか （ルーム単位・全員共通）。 |
+| 417 | fn | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 指定パラメータの実効値（基礎値＋アクティブなバフ/デバフの合計）を返す。 |
+| 433 | const | MAIN_CHAT_TAB_ID | `MAIN_CHAT_TAB_ID` | 既定のチャットタブ。 |
+| 443 | const | SYSTEM_CHAT_TAB_ID | `SYSTEM_CHAT_TAB_ID` | システム発言のうち「読み流してよい事務連絡」を集める固定タブ（withSystemTabLog参照）。 |
+| 444 | const | SYSTEM_CHAT_TAB_NAME | `SYSTEM_CHAT_TAB_NAME` |  |
+| 448 | const | AUDIO_CHANNELS | `AUDIO_CHANNELS` | 音楽のチャンネル。 |
+| 451 | const | AUDIO_CHANNEL_LABELS | `AUDIO_CHANNEL_LABELS` | チャンネルの表示名（音楽ダイアログの見出し・チャットへの再生ログで共通に使う）。 |
+| 456 | const | SCENE_BGM_STOP | `SCENE_BGM_STOP` | シーンのbgmTrackIdに入れると「遷移時にBGMを止める」を意味する特別な値。 |
+| 609 | fn | normalizeStackOrder | `normalizeStackOrder(value)` | パネルの重なり順（stackOrder）を0以上の整数にそろえる。 |
+| 625 | const | CARD_COLS | `CARD_COLS` | カードの大きさ（マス数）。 |
+| 626 | const | CARD_ROWS | `CARD_ROWS` |  |
+| 630 | const | DEFAULT_CARD_STACK_ORDER | `DEFAULT_CARD_STACK_ORDER` | カード・デッキの既定の重なり順。 |
+| 942 | const | MAX_INFO_MASKS_PER_SECTION | `MAX_INFO_MASKS_PER_SECTION` | 情報（infoEntries）の「伏せた語」(masks)の上限。 |
+| 943 | const | MAX_INFO_MASK_TEXT_LENGTH | `MAX_INFO_MASK_TEXT_LENGTH` |  |
+| 945 | const | MAX_INFO_MASK_CHAR_LENGTH | `MAX_INFO_MASK_CHAR_LENGTH` | 伏せ字。 |
+| 946 | const | DEFAULT_INFO_MASK_CHAR | `DEFAULT_INFO_MASK_CHAR` |  |
+| 968 | fn | listMaskMarkers | `listMaskMarkers(body)` | 本文中の伏せ字の目印 {{n}} を頭から拾い、[{ id, start, end }] を出現順に返す。 |
+| 1032 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
+| 1151 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
+| 1174 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
+| 1182 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
+| 1259 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
+| 1275 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
+| 1304 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
+| 1316 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
+| 1337 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
+| 1347 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
+| 1359 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 1462 | class | ImmutableStore | `ImmutableStore` |  |
+| 3895 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 3899 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 4017 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（88）
 
@@ -84,92 +84,92 @@ tags: [codemap]
 |---:|---|---|---:|:-:|
 | 31 | withCoreRoomParameters | `withCoreRoomParameters(parameters, round)` | 9 |  |
 | 53 | withDerivedRoomParameters | `withDerivedRoomParameters(room, stampCounts, round)` | 10 |  |
-| 70 | generateTokenId | `generateTokenId()` | 4 | ✓ |
-| 77 | generatePanelId | `generatePanelId()` | 4 | ✓ |
-| 84 | generateCardId | `generateCardId()` | 4 | ✓ |
-| 91 | generateDeckId | `generateDeckId()` | 4 | ✓ |
-| 99 | generateDeckTemplateId | `generateDeckTemplateId()` | 4 | ✓ |
-| 106 | generateBuffId | `generateBuffId()` | 4 | ✓ |
-| 117 | generatePlotSlotId | `generatePlotSlotId()` | 4 | ✓ |
-| 124 | generateInfoEntryId | `generateInfoEntryId()` | 4 | ✓ |
-| 131 | generateInfoSectionId | `generateInfoSectionId()` | 4 | ✓ |
-| 145 | getPhaseChain | `getPhaseChain(phase)` | 4 | ✓ |
-| 153 | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | 6 | ✓ |
-| 163 | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 4 | ✓ |
-| 172 | createInitialRoundState | `createInitialRoundState()` | 37 |  |
-| 213 | normalizeRoundState | `normalizeRoundState(round)` | 36 |  |
-| 259 | buildDerivedContext | `buildDerivedContext(round, tokenId)` | 19 |  |
-| 287 | recomputeDerivedForRound | `recomputeDerivedForRound(tokensState, activePlugin, round)` | 12 |  |
-| 313 | applyRoundPhaseStart | `applyRoundPhaseStart(tokensState, activePlugin, phase, round)` | 18 |  |
-| 334 | usesInitiativeProcess | `usesInitiativeProcess(state)` | 3 | ✓ |
-| 341 | showsEntryMessages | `showsEntryMessages(state)` | 3 | ✓ |
-| 351 | snapsToGrid | `snapsToGrid(state)` | 3 | ✓ |
-| 360 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |  |
-| 388 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |  |
-| 407 | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 14 | ✓ |
-| 454 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |  |
-| 459 | withMapEntry | `withMapEntry(map, key, value)` | 3 |  |
-| 464 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |  |
-| 472 | freezePanelMap | `freezePanelMap(panels)` | 5 |  |
-| 484 | withFixedChatTabs | `withFixedChatTabs(chatTabs, chatLogs)` | 23 |  |
-| 514 | withBgmLog | `withBgmLog(chatLogs, tracks, nextTrackId, time)` | 6 |  |
-| 531 | withChatEntry | `withChatEntry(chatLogs, tabId, entry, time)` | 5 |  |
-| 541 | withSystemLogIn | `withSystemLogIn(chatLogs, tabId, text, time)` | 3 |  |
-| 547 | withSystemLog | `withSystemLog(chatLogs, text, time)` | 3 |  |
-| 553 | withSystemTabLog | `withSystemTabLog(chatLogs, text, time)` | 3 |  |
-| 559 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |  |
-| 567 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |  |
-| 576 | withoutParam | `withoutParam(params, paramId, label)` | 9 |  |
-| 589 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
-| 599 | normalizeStackOrder | `normalizeStackOrder(value)` | 3 | ✓ |
-| 661 | clampCardText | `clampCardText(value, max)` | 3 |  |
-| 666 | normalizeCardImage | `normalizeCardImage(image)` | 4 |  |
-| 676 | normalizeCardFace | `normalizeCardFace(face)` | 9 |  |
-| 687 | normalizeCardBack | `normalizeCardBack(back)` | 7 |  |
-| 695 | normalizeSeenBy | `normalizeSeenBy(seenBy)` | 5 |  |
-| 703 | buildCard | `buildCard({ id, face, back, x = 0, y = 0, faceUp = false, stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = [], stockerId = null, stockerSeq = 0 })` | 26 |  |
-| 731 | normalizeDeckCards | `normalizeDeckCards(cards)` | 16 |  |
-| 748 | buildDeck | `buildDeck({ id, name = '', x = 0, y = 0, back = null, cards = [], stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false })` | 17 |  |
-| 771 | isNamedObjectEntry | `isNamedObjectEntry([id, value])` | 3 |  |
-| 775 | normalizeCardMap | `normalizeCardMap(cards)` | 8 |  |
-| 786 | withoutLostStockerCards | `withoutLostStockerCards(cards, panels)` | 11 |  |
-| 798 | normalizeDeckMap | `normalizeDeckMap(decks)` | 8 |  |
-| 813 | buildDeckTemplateCard | `buildDeckTemplateCard(card, index)` | 11 |  |
-| 825 | buildDeckTemplate | `buildDeckTemplate({ id, name = '', back = null, cards = [] })` | 9 |  |
-| 835 | normalizeDeckTemplateMap | `normalizeDeckTemplateMap(templates)` | 8 |  |
-| 847 | findFreeCardSpot | `findFreeCardSpot(cards, x, y, gridSize)` | 12 |  |
-| 873 | stockerAllowsUser | `stockerAllowsUser(panel, participantId, localUserId)` | 6 |  |
-| 881 | nextStockerSeq | `nextStockerSeq(cards)` | 3 |  |
-| 886 | listStockerCards | `listStockerCards(cards, panelId)` | 5 |  |
-| 901 | releaseStockerCards | `releaseStockerCards(cards, panel, gridSize)` | 18 |  |
-| 922 | definedFields | `definedFields(patch)` | 3 |  |
-| 941 | clampMaskChar | `clampMaskChar(value)` | 11 |  |
-| 958 | listMaskMarkers | `listMaskMarkers(body)` | 10 | ✓ |
-| 973 | normalizeInfoMasks | `normalizeInfoMasks(masks, body)` | 29 |  |
-| 1007 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null, masks = null })` | 10 |  |
-| 1022 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
-| 1059 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
-| 1068 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
-| 1083 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
-| 1111 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
-| 1125 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
-| 1141 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
-| 1164 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
-| 1172 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
-| 1180 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
-| 1199 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
-| 1239 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
-| 1249 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
-| 1265 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
-| 1294 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
-| 1306 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
-| 1327 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
-| 1337 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
-| 1349 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
-| 1358 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
-| 1363 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
-| 1376 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
-| 3889 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 116 | ✓ |
+| 80 | generateTokenId | `generateTokenId()` | 4 | ✓ |
+| 87 | generatePanelId | `generatePanelId()` | 4 | ✓ |
+| 94 | generateCardId | `generateCardId()` | 4 | ✓ |
+| 101 | generateDeckId | `generateDeckId()` | 4 | ✓ |
+| 109 | generateDeckTemplateId | `generateDeckTemplateId()` | 4 | ✓ |
+| 116 | generateBuffId | `generateBuffId()` | 4 | ✓ |
+| 127 | generatePlotSlotId | `generatePlotSlotId()` | 4 | ✓ |
+| 134 | generateInfoEntryId | `generateInfoEntryId()` | 4 | ✓ |
+| 141 | generateInfoSectionId | `generateInfoSectionId()` | 4 | ✓ |
+| 155 | getPhaseChain | `getPhaseChain(phase)` | 4 | ✓ |
+| 163 | listExpiringBuffNames | `listExpiringBuffNames(token, phase)` | 6 | ✓ |
+| 173 | formatExpiredBuffsNote | `formatExpiredBuffsNote(names, phase)` | 4 | ✓ |
+| 182 | createInitialRoundState | `createInitialRoundState()` | 37 |  |
+| 223 | normalizeRoundState | `normalizeRoundState(round)` | 36 |  |
+| 269 | buildDerivedContext | `buildDerivedContext(round, tokenId)` | 19 |  |
+| 297 | recomputeDerivedForRound | `recomputeDerivedForRound(tokensState, activePlugin, round)` | 12 |  |
+| 323 | applyRoundPhaseStart | `applyRoundPhaseStart(tokensState, activePlugin, phase, round)` | 18 |  |
+| 344 | usesInitiativeProcess | `usesInitiativeProcess(state)` | 3 | ✓ |
+| 351 | showsEntryMessages | `showsEntryMessages(state)` | 3 | ✓ |
+| 361 | snapsToGrid | `snapsToGrid(state)` | 3 | ✓ |
+| 370 | removeExpiredBuffs | `removeExpiredBuffs(tokensState, phase, onlyTokenId = null)` | 22 |  |
+| 398 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 |  |
+| 417 | getEffectiveParameterValue | `getEffectiveParameterValue(token, paramId)` | 14 | ✓ |
+| 464 | patchCharacter | `patchCharacter(tokensState, id, fields)` | 3 |  |
+| 469 | withMapEntry | `withMapEntry(map, key, value)` | 3 |  |
+| 474 | withoutMapEntry | `withoutMapEntry(map, key)` | 5 |  |
+| 482 | freezePanelMap | `freezePanelMap(panels)` | 5 |  |
+| 494 | withFixedChatTabs | `withFixedChatTabs(chatTabs, chatLogs)` | 23 |  |
+| 524 | withBgmLog | `withBgmLog(chatLogs, tracks, nextTrackId, time)` | 6 |  |
+| 541 | withChatEntry | `withChatEntry(chatLogs, tabId, entry, time)` | 5 |  |
+| 551 | withSystemLogIn | `withSystemLogIn(chatLogs, tabId, text, time)` | 3 |  |
+| 557 | withSystemLog | `withSystemLog(chatLogs, text, time)` | 3 |  |
+| 563 | withSystemTabLog | `withSystemTabLog(chatLogs, text, time)` | 3 |  |
+| 569 | withParamFields | `withParamFields(params, paramId, fields)` | 5 |  |
+| 577 | withEditableParamFields | `withEditableParamFields(params, paramId, fields, label)` | 7 |  |
+| 586 | withoutParam | `withoutParam(params, paramId, label)` | 9 |  |
+| 599 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
+| 609 | normalizeStackOrder | `normalizeStackOrder(value)` | 3 | ✓ |
+| 671 | clampCardText | `clampCardText(value, max)` | 3 |  |
+| 676 | normalizeCardImage | `normalizeCardImage(image)` | 4 |  |
+| 686 | normalizeCardFace | `normalizeCardFace(face)` | 9 |  |
+| 697 | normalizeCardBack | `normalizeCardBack(back)` | 7 |  |
+| 705 | normalizeSeenBy | `normalizeSeenBy(seenBy)` | 5 |  |
+| 713 | buildCard | `buildCard({ id, face, back, x = 0, y = 0, faceUp = false, stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = [], stockerId = null, stockerSeq = 0 })` | 26 |  |
+| 741 | normalizeDeckCards | `normalizeDeckCards(cards)` | 16 |  |
+| 758 | buildDeck | `buildDeck({ id, name = '', x = 0, y = 0, back = null, cards = [], stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false })` | 17 |  |
+| 781 | isNamedObjectEntry | `isNamedObjectEntry([id, value])` | 3 |  |
+| 785 | normalizeCardMap | `normalizeCardMap(cards)` | 8 |  |
+| 796 | withoutLostStockerCards | `withoutLostStockerCards(cards, panels)` | 11 |  |
+| 808 | normalizeDeckMap | `normalizeDeckMap(decks)` | 8 |  |
+| 823 | buildDeckTemplateCard | `buildDeckTemplateCard(card, index)` | 11 |  |
+| 835 | buildDeckTemplate | `buildDeckTemplate({ id, name = '', back = null, cards = [] })` | 9 |  |
+| 845 | normalizeDeckTemplateMap | `normalizeDeckTemplateMap(templates)` | 8 |  |
+| 857 | findFreeCardSpot | `findFreeCardSpot(cards, x, y, gridSize)` | 12 |  |
+| 883 | stockerAllowsUser | `stockerAllowsUser(panel, participantId, localUserId)` | 6 |  |
+| 891 | nextStockerSeq | `nextStockerSeq(cards)` | 3 |  |
+| 896 | listStockerCards | `listStockerCards(cards, panelId)` | 5 |  |
+| 911 | releaseStockerCards | `releaseStockerCards(cards, panel, gridSize)` | 18 |  |
+| 932 | definedFields | `definedFields(patch)` | 3 |  |
+| 951 | clampMaskChar | `clampMaskChar(value)` | 11 |  |
+| 968 | listMaskMarkers | `listMaskMarkers(body)` | 10 | ✓ |
+| 983 | normalizeInfoMasks | `normalizeInfoMasks(masks, body)` | 29 |  |
+| 1017 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null, masks = null })` | 10 |  |
+| 1032 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
+| 1069 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
+| 1078 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
+| 1093 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
+| 1121 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
+| 1135 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
+| 1151 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
+| 1174 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
+| 1182 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
+| 1190 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
+| 1209 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
+| 1249 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
+| 1259 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
+| 1275 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
+| 1304 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
+| 1316 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
+| 1337 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
+| 1347 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
+| 1359 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
+| 1368 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
+| 1373 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
+| 1386 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
+| 3899 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 117 | ✓ |
 
 ## 依存
 

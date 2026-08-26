@@ -65,6 +65,16 @@ export { listPlugins };
 
 export const DEFAULT_TOKEN_COLOR = 'transparent';
 
+// 新しい部屋の盤面サイズ（マス数）。背景設定ダイアログ（js/background-dialog.js）の
+// 「盤面サイズを自動にする」は boardWidth/boardHeight が null かどうかで決まるので、
+// ここへ値を入れることが「既定では自動にしない」と同じ意味になる。
+// 既に保存されている部屋はhydrateで触らないため、nullのまま＝自動のままになる。
+const DEFAULT_BOARD_COLS = 40;
+const DEFAULT_BOARD_ROWS = 30;
+// マス1つのピクセル数。描画側の定数（js/board-data-driven.jsのGRID_SIZE）と同じ値で、
+// 状態はマス数ではなくピクセルで持つ約束のためここでも要る。片方だけ変えないこと。
+const BOARD_GRID_SIZE = 25;
+
 let tokenIdCounter = 0;
 
 export function generateTokenId() {
@@ -3903,9 +3913,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
       // データURLではnull。音源のtrack.keyと同じ役割。
       backgroundImageKey: null,
-      // null = 自動（ビューポートをマス単位に切り上げたサイズ。resolveBoardPixelSize参照）
-      boardWidth: null,
-      boardHeight: null,
+      // null = 自動（ビューポートをマス単位に切り上げたサイズ。resolveBoardPixelSize参照）。
+      // 新しい部屋は自動にせず、決まった広さから始める（DEFAULT_BOARD_COLS/ROWS参照）。
+      boardWidth: DEFAULT_BOARD_COLS * BOARD_GRID_SIZE,
+      boardHeight: DEFAULT_BOARD_ROWS * BOARD_GRID_SIZE,
       showGrid: true,        // マス目（グリッド線）を敷くか。地図画像をそのまま見せたい時に外す
       // 盤面のオブジェクトをマス目へ吸着させるか（SET_GRID_SNAP・snapsToGrid）。
       // 外すと離した位置にそのまま置けるようになり、マス目の線も描かれなくなる。

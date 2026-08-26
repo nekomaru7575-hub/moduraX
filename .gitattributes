@@ -1,0 +1,38 @@
+# 改行コードの扱いを明示する。
+#
+# 【なぜ要るか】
+# このリポジトリは本番がLinux、開発がWindowsで、さらに docs/codemap/ を機械生成する
+# ツール（tools/codemap.mjs）がNodeの既定＝LFで書く。core.autocrlf の設定は人ごとに
+# 違うので、宣言しないと「中身は同じなのにgit statusが113ファイル変更ありと言う」
+# ような、判断を鈍らせる差分が出る。実際にそうなっていた。
+#
+# 【方針】リポジトリも作業ツリーもLFで統一する。
+# ビルド工程が無くJSがそのままブラウザへ配信されるWebプロジェクトなので、
+# CRLFにする理由がどこにも無い。
+#
+# この宣言を足した時点で、作業ツリーにCRLFで置かれていたファイルはLFへ寄る。
+# リポジトリ側は元からLFなので、保存されている中身は変わらない。
+
+* text=auto eol=lf
+
+# --- バイナリ。改行の変換を絶対にさせない ---
+# 変換されると画像や音が壊れる。text=auto の自動判定に任せず明示する。
+*.png   binary
+*.webp  binary
+*.ico   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.mp3   binary
+*.wav   binary
+*.ogg   binary
+*.m4a   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.pdf   binary
+
+# --- 差分の見え方 ---
+# 生成物なので、レビューで開いても意味が薄い。差分を畳んでおく。
+docs/codemap/** linguist-generated=true

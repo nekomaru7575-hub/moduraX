@@ -4,7 +4,7 @@ lines: 347
 exports: 3
 imported_by: 1
 api_sha: e12f1a14154e
-prose_sha: 1585fdf1fe8e
+prose_sha: e12f1a14154e
 generated: 2026-08-26
 tags: [codemap]
 ---
@@ -12,13 +12,15 @@ tags: [codemap]
 # js/deck-dialog.js
 
 <!-- prose:summary -->
-カードとデッキのダイアログ3種：デッキを盤面に置くとき、「何枚引くか」を決めるとき、 裏向きのカードを自分だけ確認するとき（カードを見る）。
+盤面のカードを操作する小さなダイアログ3種：裏向きのカードを自分だけ確認する／何枚どこへ引くか／ストッカーのカードを送る。
 <!-- /prose:summary -->
 
 ## 役割
 
 <!-- prose:role -->
-盤面のカードを操作する小さなダイアログ2種（裏向きのカードを自分だけ確認する「カードを見る」と、何枚引くかの入力）。[[js.panel-dialog]]と同じ構えで、<dialog>を1枚だけ作って使い回す。デッキの作成・一覧・配置は[[js.deck-list-dialog]]と[[js.deck-editor-dialog]]が持つ。
+盤面のカードを操作する小さなダイアログ3種を持つ。裏向きのカードを自分だけ確認する`showCardPeekDialog`、何枚をどのストッカーへ引くかを決める `showDrawCountDialog`、ストッカー内のカードを別のストッカーか出身デッキへまとめて送る `showStockerSendDialog`。いずれも[[js.panel-dialog]]と同じ構えで、`<dialog>`を1枚だけ作って使い回し、結果は`onConfirm`で返す。
+
+**デッキそのものは扱わない。** 作成・一覧・盤面への配置は[[js.deck-list-dialog]]と[[js.deck-editor-dialog]]が持ち（ルームメニューの「デッキ一覧」から開く）、ここを開く導線は[[js.board-data-driven]]の右クリックメニューだけ。
 <!-- /prose:role -->
 
 ## export（3）

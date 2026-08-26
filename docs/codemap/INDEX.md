@@ -20,7 +20,7 @@ generated: 2026-08-26
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 112 | 474 | 1018 | 30 | 4 |
+| 112 | 474 | 1018 | 30 | 0 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -47,7 +47,7 @@ generated: 2026-08-26
 | [[js.chat-palette\|js/chat-palette.js]] | チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、選ぶだけで送れるようにする機能。 | 6 | 1 |
 | [[js.chat-tab-dialog\|js/chat-tab-dialog.js]] | チャットタブの追加・公開先の変更・削除確認ダイアログ。 | 1 | 1 |
 | [[js.context-menu\|js/context-menu.js]] | 汎用の右クリックコンテキストメニュー。 | 1 | 6 |
-| [[js.deck-dialog\|js/deck-dialog.js]] | カードとデッキのダイアログ3種：デッキを盤面に置くとき、「何枚引くか」を決めるとき、 裏向きのカードを自分だけ確認するとき（カードを見る）。 | 3 | 1 |
+| [[js.deck-dialog\|js/deck-dialog.js]] | 盤面のカードを操作する小さなダイアログ3種：裏向きのカードを自分だけ確認する／何枚どこへ引くか／ストッカーのカードを送る。 | 3 | 1 |
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
@@ -155,12 +155,3 @@ generated: 2026-08-26
 | [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
 | [[js.visibility\|js/visibility.js]] | 9 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
-
-## 散文が要更新
-
-export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
-
-- [[js.board-data-driven\|js/board-data-driven.js]]
-- [[js.deck-dialog\|js/deck-dialog.js]]
-- [[js.parameters.dx3\|js/parameters/dx3.js]]
-- [[server.memory-budget\|server/memory-budget.js]]

@@ -4,7 +4,7 @@ lines: 197
 exports: 7
 imported_by: 1
 api_sha: a34d66a11c02
-prose_sha: 8626f4e566de
+prose_sha: a34d66a11c02
 generated: 2026-08-26
 tags: [codemap]
 ---
@@ -22,6 +22,9 @@ tags: [codemap]
 メモリ上限（環境変数かcgroupから検出）、今の使用量（`process.memoryUsage()`）、種別ごとの
 ピーク倍率（ボディ1バイトあたり何バイト使うかの実測値）。あわせて、重い操作が同時に
 何本走ってよいかの枠（既定1本）と、その順番待ちの列もここが持つ。
+
+同じ数値は部屋一覧の混み具合の表示にも使う。`loadSnapshot()` が生の値を返すだけで、
+「空いている／混んでいる」の言い換えや見せ方には関わらない。
 
 **HTTPもWebSocketも知らない。** 断り方（503・Retry-After・文面）とどの経路に掛けるかは
 [[server.index]] の `withHeavySlot` 側の役目で、ここは「取れた／取れなかった」しか返さない。

@@ -11,6 +11,11 @@
 // 裏だけが見えない。鍵マークも自分に見えるsectionからしか立てないので、
 // 「見えない裏がある」ことも相手には伝わらない。
 //
+// 公開先とは別の軸で、区画の本文の一部の語だけを伏せられる（section.masks）。フタリソウサの
+// 「知ってたカード」のように、本文は見せたまま1語ずつ開いていく遊び方のためのもの。伏せている
+// 間は文字数が分からないよう伏せ字1文字だけを描き、開くと語がその場に現れる。ここは区画と違って
+// 「伏せた語がある」こと自体は隠さない（伏せ字が見えている＝そこに何かある、が出発点なので）。
+//
 // 編集・削除できるのは作成者(ownerId)とGM。ただしこれは画面側だけの制限で、サーバーは
 // 強制しない（js/room-authority.jsのGM限定アクションには入れていない。誰でも作成・開示
 // できる機能なので）。同じくjs/visibility.jsの但し書きのとおり、限定公開は「うっかり
@@ -20,7 +25,7 @@
 // net-sync.js/round-panel.jsと同様にinitInfoPanel()をexportし、main.jsの初期化から1回だけ呼ぶ。
 
 import { store, setInfoPanelController } from './board-data-driven.js';
-import { generateInfoEntryId, generateInfoSectionId } from './game-store.js';
+import { generateInfoEntryId, generateInfoSectionId, listMaskMarkers } from './game-store.js';
 import { EventBus } from './EventBus.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { showInfoEntryDialog } from './info-entry-dialog.js';
@@ -31,6 +36,9 @@ import { getCurrentParticipantId } from './local-identity.js';
 import { setIconText } from './icons.js';
 
 const EDIT_DENIED_REASON = '作成者とGMだけが編集できます。';
+// 編集画面には伏せた語がそのまま並ぶので、見透かせない人には開かせない。削除・公開先は
+// 中身が見えないので、こちらの制限は掛けない（下のcanRevealMasksの但し書き参照）。
+const PEEK_DENIED_REASON = '伏せた語があるため、作成者とGMだけが編集できます。';
 
 // 「どのタブを見ているか」は各クライアントのローカル状態にする（共有状態に入れると
 // 全員のタブが同時に切り替わってしまう。チャットタブのactiveTabIdと同じ扱い）。
@@ -64,6 +72,70 @@ function canEditEntry(entry, myId, amGm) {
   if (!entry) return false;
   if (!entry.ownerId) return true;
   return amGm || entry.ownerId === myId;
+}
+
+// 伏せた語の中身を画面で見てよいか。canEditEntryの「持ち主がいなければ誰でも」という逃げ道は
+// 作らない。あれは「直せる人がいなくなる」のを避けるためのものだが、見透かしで同じことをすると
+// 持ち主のいない情報（取り込んだ部屋データなど）の伏せ字が全員に見えてしまう。見えてしまった
+// 驚きは取り消せないので、迷ったら見せない側へ倒す。
+function canRevealMasks(entry, myId, amGm) {
+  if (!entry || !myId) return false; // ゲスト（表示名未設定）は見透かせない
+  return amGm || entry.ownerId === myId;
+}
+
+function hasMaskedWords(entry, myId) {
+  if (!entry) return false;
+  return visibleSections(entry, myId).some(section => section.masks.length > 0);
+}
+
+// 伏せ字1つぶんの節点を作る。触れる人だけbuttonにして、触れない人にはtitleもcursorも
+// 付けない（「何かある」以上の手掛かりを渡さない）。
+function buildMaskNode(mask, canReveal, onToggle) {
+  const el = document.createElement(canReveal ? 'button' : 'span');
+  if (canReveal) el.type = 'button';
+  el.className = 'info-mask'
+    + (mask.revealed ? ' is-revealed' : '')
+    + (!mask.revealed && canReveal ? ' is-peek' : '');
+
+  if (mask.revealed || canReveal) {
+    el.textContent = mask.text;
+    // 公開済みの語は全員に地の文として見える。押せない人には、伏せ字だったことも言わない
+    if (canReveal) {
+      el.title = mask.revealed ? '公開済みの語（押すと伏せ直せます）' : '伏せている語（あなたにだけ見えています）';
+    }
+  } else {
+    // 常に伏せ字1つぶん。mask.textの長さには触れない（文字数から語を当てられないように）
+    el.textContent = mask.mask;
+    el.setAttribute('aria-label', '伏せられた語');
+  }
+
+  if (canReveal) el.addEventListener('click', onToggle);
+  return el;
+}
+
+// 本文を、伏せ字のところで切りながら組み立てる。他クライアントから同期されてくるユーザー入力
+// なので、ここでもinnerHTMLは使わない（テキストは必ずtextContent、改行はCSSのpre-wrap）。
+function renderSectionBody(bodyEl, section, canReveal, onToggle) {
+  const byId = new Map(section.masks.map(mask => [mask.id, mask]));
+  const nodes = [];
+  let cut = 0;
+
+  listMaskMarkers(section.body).forEach(marker => {
+    const mask = byId.get(marker.id);
+    // 対応する伏せ語が無い目印はcutを進めない＝次の切れ端に入り、ただの文字として出る
+    // （本文は自由入力欄なので、利用者が手で打った {{1}} を黙って消さない）
+    if (!mask) return;
+    nodes.push(document.createTextNode(section.body.slice(cut, marker.start)));
+    nodes.push(buildMaskNode(mask, canReveal, (event) => onToggle(event, section, mask)));
+    cut = marker.end;
+  });
+
+  if (nodes.length === 0) {
+    bodyEl.textContent = section.body; // 伏せ字なし＝従来どおり
+    return;
+  }
+  nodes.push(document.createTextNode(section.body.slice(cut)));
+  bodyEl.replaceChildren(...nodes);
 }
 
 export function initInfoPanel() {
@@ -214,23 +286,52 @@ export function initInfoPanel() {
 
       const bodyEl = document.createElement('div');
       bodyEl.className = 'info-panel-section-body';
-      // 他クライアントから同期されてくるユーザー入力なので、必ずtextContentで入れる
-      // （改行はCSSのwhite-space:pre-wrapで見せる）
-      bodyEl.textContent = section.body;
+      // 本文は他クライアントから同期されてくるユーザー入力。renderSectionBodyが
+      // textContentだけで組み立てる（改行はCSSのwhite-space:pre-wrapで見せる）
+      renderSectionBody(
+        bodyEl,
+        section,
+        canRevealMasks(entry, myId, isGm(state.participants, myId)),
+        (event, targetSection, mask) => openMaskMenu(event, entry, targetSection, mask)
+      );
       sectionEl.appendChild(bodyEl);
 
       sectionsEl.appendChild(sectionEl);
     });
   }
 
+  // 伏せた語を1つ公開する／伏せ直す。取り消しづらい操作（読まれた事実は戻らない）なので、
+  // 押しただけでは変えず、公開先ボタンと同じくshowContextMenuで一段挟む。
+  function openMaskMenu(event, entry, section, mask) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 4, [{
+      label: mask.revealed ? 'この語を伏せ直す' : 'この語を公開する',
+      icon: mask.revealed ? 'lock' : 'unlock',
+      iconLabel: mask.revealed ? '伏せる' : '公開する',
+      onSelect: () => {
+        store.dispatch('SET_INFO_MASK_REVEALED', {
+          id: entry.id,
+          sectionId: section.id,
+          maskId: mask.id,
+          revealed: !mask.revealed
+        });
+      }
+    }]);
+  }
+
   function renderFooter(state, myId) {
     const entry = activeEntry(state, myId);
     const editable = canEditEntry(entry, myId, isGm(state.participants, myId));
+    // 編集画面は伏せた語がそのまま読める覗き窓になるので、伏せ字を持つ情報だけは
+    // 見透かせる人にしか開かせない。削除・公開先は中身が見えないので editable のまま
+    // （ここまで縛ると、持ち主のいない伏せ字入りの情報が誰にも消せない置き土産になる）。
+    const peekable = !hasMaskedWords(entry, myId) || canRevealMasks(entry, myId, isGm(state.participants, myId));
 
     // 押せない理由が分かるよう、消さずに無効化して理由をツールチップに出す
     [editBtn, audienceBtn, removeBtn].forEach(btn => {
-      btn.disabled = !entry || !editable;
-      btn.title = !entry ? '' : (editable ? '' : EDIT_DENIED_REASON);
+      const allowed = editable && (btn !== editBtn || peekable);
+      btn.disabled = !entry || !allowed;
+      btn.title = !entry ? '' : (allowed ? '' : (editable ? PEEK_DENIED_REASON : EDIT_DENIED_REASON));
     });
   }
 
@@ -257,16 +358,23 @@ export function initInfoPanel() {
     // 引き取ると状態が変わり、その通知で描き直されるので、ここでは描かずに譲る
     if (claimRestoredEntries(state, myId)) return;
     ensureActiveEntryVisible(state, myId);
+    // 本文は毎回作り直すので、そのままだと語を1つ公開するたびに先頭までスクロールが戻る。
+    // 伏せ字は本文の途中を何度も操作するため、位置を持ち越す。
+    const scrollTop = sectionsEl.scrollTop;
     renderTabs(state, myId);
     renderSections(state, myId);
     renderFooter(state, myId);
+    sectionsEl.scrollTop = scrollTop;
   }
 
   editBtn.addEventListener('click', () => {
     const myId = getCurrentParticipantId();
     const entry = activeEntry(store.state, myId);
     if (!entry) return;
-    if (!canEditEntry(entry, myId, isGm(store.state.participants, myId))) return;
+    const amGm = isGm(store.state.participants, myId);
+    if (!canEditEntry(entry, myId, amGm)) return;
+    // renderFooterと同じ判定。伏せた語は編集画面にそのまま並ぶので、見透かせない人には開かない
+    if (hasMaskedWords(entry, myId) && !canRevealMasks(entry, myId, amGm)) return;
 
     // 自分に見える区画だけを渡す。見えない区画（自分が対象外の裏など）は編集画面に
     // 出てこないので、知らないうちに書き換えたり消したりすることがない。

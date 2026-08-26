@@ -1,6 +1,6 @@
 ---
 source: js/stamp-layer.js
-lines: 179
+lines: 190
 exports: 2
 imported_by: 2
 api_sha: 592ee42af932
@@ -25,8 +25,8 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 151 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
-| 173 | fn | initStampLayer | `initStampLayer()` |  |
+| 162 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
+| 184 | fn | initStampLayer | `initStampLayer()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（9）
 
@@ -39,11 +39,11 @@ tags: [codemap]
 | 44 | claimColumn | `claimColumn(participantId)` | 18 |  |
 | 66 | refreshColumnNames | `refreshColumnNames(column)` | 6 |  |
 | 74 | removeItem | `removeItem(participantId, item)` | 11 |  |
-| 88 | buildStampElement | `buildStampElement(stamp, name)` | 26 |  |
-| 116 | showStamp | `showStamp({ stampId, participantId, name })` | 22 |  |
-| 151 | requestStamp | `requestStamp(stampId)` | 4 | ✓ |
-| 162 | countStamp | `countStamp(stampId)` | 10 |  |
-| 173 | initStampLayer | `initStampLayer()` | 6 | ✓ |
+| 88 | buildStampElement | `buildStampElement(stamp, name)` | 37 |  |
+| 127 | showStamp | `showStamp({ stampId, participantId, name })` | 22 |  |
+| 162 | requestStamp | `requestStamp(stampId)` | 4 | ✓ |
+| 173 | countStamp | `countStamp(stampId)` | 10 |  |
+| 184 | initStampLayer | `initStampLayer()` | 6 | ✓ |
 
 ## 依存
 

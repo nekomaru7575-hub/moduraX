@@ -1,6 +1,6 @@
 ---
 source: js/stamp-registry.js
-lines: 112
+lines: 134
 exports: 5
 imported_by: 5
 api_sha: e8f7d415d1a8
@@ -25,11 +25,11 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 57 | fn | listStamps | `listStamps(pluginId)` | その部屋で使えるスタンプの一覧（Coreの分＋適用中プラグインの分）。 |
-| 75 | fn | findStamp | `findStamp(stampId, pluginId)` | IDからスタンプを引く。 |
-| 81 | fn | isKnownStampId | `isKnownStampId(stampId, pluginId)` | サーバーが受け取ったIDを検証するための判定。 |
-| 91 | fn | findStampByName | `findStampByName(rawName, pluginId)` | チャットコマンド「スタンプ(拍手)」の引数からスタンプを引く。 |
-| 109 | fn | listStampLabels | `listStampLabels(pluginId)` | 「使えるスタンプ: OK／No／…」の案内文に使う。 |
+| 77 | fn | listStamps | `listStamps(pluginId)` | その部屋で使えるスタンプの一覧（Coreの分＋適用中プラグインの分）。 |
+| 97 | fn | findStamp | `findStamp(stampId, pluginId)` | IDからスタンプを引く。 |
+| 103 | fn | isKnownStampId | `isKnownStampId(stampId, pluginId)` | サーバーが受け取ったIDを検証するための判定。 |
+| 113 | fn | findStampByName | `findStampByName(rawName, pluginId)` | チャットコマンド「スタンプ(拍手)」の引数からスタンプを引く。 |
+| 131 | fn | listStampLabels | `listStampLabels(pluginId)` | 「使えるスタンプ: OK／No／…」の案内文に使う。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（7）
 
@@ -38,17 +38,17 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 29 | isPlainPathSegment | `isPlainPathSegment(name)` | 4 |  |
-| 35 | normalizeStamp | `normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {})` | 11 |  |
-| 57 | listStamps | `listStamps(pluginId)` | 16 | ✓ |
-| 75 | findStamp | `findStamp(stampId, pluginId)` | 4 | ✓ |
-| 81 | isKnownStampId | `isKnownStampId(stampId, pluginId)` | 3 | ✓ |
-| 91 | findStampByName | `findStampByName(rawName, pluginId)` | 16 | ✓ |
-| 109 | listStampLabels | `listStampLabels(pluginId)` | 3 | ✓ |
+| 33 | isPlainPathSegment | `isPlainPathSegment(name)` | 4 |  |
+| 52 | normalizeStamp | `normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {})` | 14 |  |
+| 77 | listStamps | `listStamps(pluginId)` | 18 | ✓ |
+| 97 | findStamp | `findStamp(stampId, pluginId)` | 4 | ✓ |
+| 103 | isKnownStampId | `isKnownStampId(stampId, pluginId)` | 3 | ✓ |
+| 113 | findStampByName | `findStampByName(rawName, pluginId)` | 16 | ✓ |
+| 131 | listStampLabels | `listStampLabels(pluginId)` | 3 | ✓ |
 
 ## 依存
 
-- import → [[js.parameters.registry]], [[js.stamp-catalog]]
+- import → [[js.asset-base]], [[js.parameters.registry]], [[js.stamp-catalog]]
 - imported by → [[js.game-store]], [[js.main]], [[js.stamp-layer]], [[js.stamp-panel]], [[server.index]]
 
 ## 注意

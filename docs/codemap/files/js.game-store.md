@@ -1,10 +1,10 @@
 ---
 source: js/game-store.js
-lines: 3870
-exports: 44
-imported_by: 14
-api_sha: acb7e7d3e1a6
-prose_sha: acb7e7d3e1a6
+lines: 4007
+exports: 49
+imported_by: 15
+api_sha: b95c7e8ee860
+prose_sha: b95c7e8ee860
 generated: 2026-08-26
 tags: [codemap]
 ---
@@ -21,7 +21,7 @@ tags: [codemap]
 部屋の状態（コマ・パネル・カード／デッキ・チャット・情報・シーン・音楽・ラウンド進行）を1つのイミュータブルな木として持ち、dispatch されたアクションから次の状態を作る唯一の場所。DOM も window も触らないので、ブラウザとサーバー（[[server.index]]）が同じコードで同じ遷移を行える。バフの実効値計算、フェーズ終了の入れ子、ラウンドの手番順もここが持つ。プロットは「1コマ＝1つの数字」ではなく枠（スロット）の並びで、1体が複数のプロットに出ている状態（分身の術など）を表せる。枠を読むのは listPlotSlots ／ resolvedPlotSlot ／ listPlotSlotRows の3つが入口で、round.plots と round.plotExtras を呼び出し側で足し合わせてはいけない。チャットタブのうち Main と「システム」の2つは常に存在する固定タブで、その保証（withFixedChatTabs）と、事務連絡をシステムタブへ流す口（withSystemTabLog / withBgmLog）もここ。システム固有の解釈は一切せず、パラメータの自動計算やコンポーネントのリセットは [[js.parameters.registry]] 越しにプラグインへ委ねる。
 <!-- /prose:role -->
 
-## export（44）
+## export（49）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -54,23 +54,28 @@ tags: [codemap]
 | 615 | const | CARD_COLS | `CARD_COLS` | カードの大きさ（マス数）。 |
 | 616 | const | CARD_ROWS | `CARD_ROWS` |  |
 | 620 | const | DEFAULT_CARD_STACK_ORDER | `DEFAULT_CARD_STACK_ORDER` | カード・デッキの既定の重なり順。 |
-| 941 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
-| 1060 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
-| 1083 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
-| 1091 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
-| 1168 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
-| 1184 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
-| 1213 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
-| 1225 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
-| 1246 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
-| 1256 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
-| 1268 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 1371 | class | ImmutableStore | `ImmutableStore` |  |
-| 3751 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 3755 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 3869 | const | store | `store` |  |
+| 932 | const | MAX_INFO_MASKS_PER_SECTION | `MAX_INFO_MASKS_PER_SECTION` | 情報（infoEntries）の「伏せた語」(masks)の上限。 |
+| 933 | const | MAX_INFO_MASK_TEXT_LENGTH | `MAX_INFO_MASK_TEXT_LENGTH` |  |
+| 935 | const | MAX_INFO_MASK_CHAR_LENGTH | `MAX_INFO_MASK_CHAR_LENGTH` | 伏せ字。 |
+| 936 | const | DEFAULT_INFO_MASK_CHAR | `DEFAULT_INFO_MASK_CHAR` |  |
+| 958 | fn | listMaskMarkers | `listMaskMarkers(body)` | 本文中の伏せ字の目印 {{n}} を頭から拾い、[{ id, start, end }] を出現順に返す。 |
+| 1022 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
+| 1141 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
+| 1164 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
+| 1172 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
+| 1249 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
+| 1265 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
+| 1294 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
+| 1306 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
+| 1327 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
+| 1337 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
+| 1349 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 1452 | class | ImmutableStore | `ImmutableStore` |  |
+| 3885 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 3889 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 4006 | const | store | `store` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（85）
+## トップレベル関数（LOCAL TASKS 候補）（88）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -138,35 +143,38 @@ tags: [codemap]
 | 886 | listStockerCards | `listStockerCards(cards, panelId)` | 5 |  |
 | 901 | releaseStockerCards | `releaseStockerCards(cards, panel, gridSize)` | 18 |  |
 | 922 | definedFields | `definedFields(patch)` | 3 |  |
-| 928 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 8 |  |
-| 941 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
-| 978 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
-| 987 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
-| 1002 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
-| 1030 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
-| 1044 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
-| 1060 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
-| 1083 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
-| 1091 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
-| 1099 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
-| 1118 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
-| 1158 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
-| 1168 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
-| 1184 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
-| 1213 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
-| 1225 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
-| 1246 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
-| 1256 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
-| 1268 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
-| 1277 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
-| 1282 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
-| 1295 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
-| 3755 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 113 | ✓ |
+| 941 | clampMaskChar | `clampMaskChar(value)` | 11 |  |
+| 958 | listMaskMarkers | `listMaskMarkers(body)` | 10 | ✓ |
+| 973 | normalizeInfoMasks | `normalizeInfoMasks(masks, body)` | 29 |  |
+| 1007 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null, masks = null })` | 10 |  |
+| 1022 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
+| 1059 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
+| 1068 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
+| 1083 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
+| 1111 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
+| 1125 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
+| 1141 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
+| 1164 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
+| 1172 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
+| 1180 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
+| 1199 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
+| 1239 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
+| 1249 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
+| 1265 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
+| 1294 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
+| 1306 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
+| 1327 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
+| 1337 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
+| 1349 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
+| 1358 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
+| 1363 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
+| 1376 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
+| 3889 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 116 | ✓ |
 
 ## 依存
 
 - import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.stamp-registry]]
-- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
+- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
 
 ## 注意
 
@@ -178,4 +186,6 @@ tags: [codemap]
 reducer の中で乱数・時刻を使わないこと。同じアクションを各クライアントが再実行するため、結果が画面ごとにずれる。シャッフルの並び（SHUFFLE_DECK の order）も ID の採番も、発火側が作って payload に載せる約束になっている（プロットの枠 ID も同じで、generatePlotSlotId は [[js.round-panel]] 側から呼ぶ）。受け取った並びが「今デッキにある札の並べ替えか」は reducer 側で必ず検証する。
 
 プロットまわりのアクション（ROUND_SET_PLOT・ROUND_ADD_PLOT_SLOT・ROUND_REMOVE_PLOT_SLOT・ROUND_SET_PLOT_SLOT_LABEL・ROUND_SET_PLOT_CHOICE）はどれもチャットログを足さない。伏せた値が漏れるのを防ぐためと、卓の邪魔をしないため。値がログに出るのは ROUND_ADVANCE_PHASE の一斉公開だけ。
+
+情報（infoEntries）の区画は body と masks（伏せた語）を対で持ち、本文の目印 `{{n}}` と mask.id が対応する。buildInfoSection が両方を一緒に受け取って刈るので、片方だけを渡す更新を書かないこと（公開先だけを変えたつもりで伏せ字が全部消える）。伏せた語の中身は他の限定公開と同じく全クライアントへ配られていて、隠しているのは描画だけ（[[js.visibility]] の但し書きと同じ立場）。
 <!-- /prose:notes -->

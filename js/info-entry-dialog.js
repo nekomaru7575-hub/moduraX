@@ -10,8 +10,26 @@
 // 見えない区画はそもそもここへ渡ってこない（呼び出し側が自分に見えるものだけを渡す）。
 // 結果に出てくるのも渡された区画だけなので、GMが「裏が見えないまま表を直す」ことはできても、
 // 見えない裏を消してしまうことはない。
+//
+// 区画にはもう1つ「一部のワードだけ伏せる」というオプションがある（section.masks）。本文で
+// 語を範囲選択して「伏せる」と、その場所が目印 {{n}} に置き換わり、伏せ語の一覧へ移る。
+// 目印は本文にそのまま見えている——利用者が手で消したり動かしたりできるのが狙いで、
+// 対応の付かなくなった伏せ語はstore側（normalizeInfoMasks）で捨てられる。
+// 伏せた語そのものはここで直接は書き換えさせない。本文と食い違うと直しようがなくなるので、
+// 直したいときは「解除」して選び直してもらう。
+// 公開/非公開の状態(revealed)はここでは持たず、送りもしない：編集している間に誰かが語を
+// 開いているかもしれず、こちらの古い値で上書きすると開示が巻き戻る（UPDATE_INFO_ENTRY側で
+// 引き継ぐ）。
 
 import { buildAudiencePicker } from './audience-picker.js';
+import {
+  listMaskMarkers, MAX_INFO_MASKS_PER_SECTION, MAX_INFO_MASK_TEXT_LENGTH,
+  MAX_INFO_MASK_CHAR_LENGTH, DEFAULT_INFO_MASK_CHAR
+} from './game-store.js';
+
+// 表示名を設定していない（ゲスト）と作成者IDが付かず、canRevealMasks（js/info-panel.js）で
+// 誰も——GMでさえも——中身を見透かせない情報になってしまう。作らせない側で止める。
+const MASK_GUEST_REASON = '表示名を設定すると使えます（伏せた語を開ける人がいなくなるため）。';
 
 let dialogEl = null;
 
@@ -27,17 +45,22 @@ function ensureDialog() {
  * @param {{
  *   mode?: 'create'|'edit',
  *   title?: string,
- *   sections?: Array<{id: string, label: string, body: string, audience: string[]|null}>,
+ *   sections?: Array<{id: string, label: string, body: string, audience: string[]|null,
+ *                     masks: Array<{id:number, text:string, mask:string, revealed:boolean}>}>,
  *   participants: Record<string, {id:string, nickname:string, isGm:boolean}>,
  *   myParticipantId: string|null,
  *   onConfirm: (result: {
  *     title: string,
- *     sections: Array<{id: string|null, label: string, body: string, audience: string[]|null}>,
+ *     sections: Array<{id: string|null, label: string, body: string, audience: string[]|null,
+ *                      masks: Array<{id:number, text:string, mask:string}>}>,
  *     removedSectionIds: string[]
  *   }) => void
  * }} options
  *   結果のsectionのidは、既存の区画ならそのid、新しく足した区画ならnull（採番は呼び出し側）。
  *   removedSectionIdsは、渡されたのに結果に残らなかった区画のid。
+ *   masksのidは区画の中だけで一意な正の整数で、本文の目印 {{id}} と対になっている。
+ *   bodyとmasksは必ず対で扱うこと（片方だけ渡すと伏せ語が消えるか目印が取り残される）。
+ *   revealedは返さない（開示の巻き戻しを避けるため。冒頭のコメント参照）。
  */
 export function showInfoEntryDialog({
   mode = 'create', title = '', sections = [],
@@ -53,7 +76,11 @@ export function showInfoEntryDialog({
       id: section.id ?? null,
       label: section.label || '',
       body: section.body || '',
-      audience: section.audience ?? null
+      audience: section.audience ?? null,
+      // revealedは持ち回らない（冒頭のコメント参照）
+      masks: (section.masks || []).map(({ id, text, mask }) => ({ id, text, mask })),
+      // オプションのON/OFFはこの画面だけの状態。伏せ語が1つでもあれば最初からON。
+      masksEnabled: (section.masks || []).length > 0
     }));
   const originalIds = rows.map(row => row.id).filter(id => id !== null);
 
@@ -102,7 +129,199 @@ export function showInfoEntryDialog({
       rows[index].label = inputs.labelInput.value;
       rows[index].body = inputs.bodyInput.value;
       rows[index].audience = inputs.picker.getAudience();
+      inputs.syncMasks();
     });
+  }
+
+  // 1区画ぶんの「一部のワードだけ伏せる」欄。本文(bodyInput)と伏せ語一覧(row.masks)は
+  // 対で動かすので、両方に触れるこの中だけで完結させる。
+  // 戻り値のsyncMasksは、伏せ字の入力欄の値をrow.masksへ書き戻す（syncRowsFromDomから呼ぶ）。
+  function buildMaskEditor(row, bodyInput) {
+    const wrap = document.createElement('div');
+    wrap.className = 'info-mask-editor';
+
+    const toggleRow = document.createElement('label');
+    toggleRow.className = 'dialog-check-row';
+    const toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.checked = row.masksEnabled;
+    toggle.disabled = !myParticipantId;
+    if (!myParticipantId) toggleRow.title = MASK_GUEST_REASON;
+    toggleRow.appendChild(toggle);
+    toggleRow.appendChild(document.createTextNode('一部のワードだけ伏せる'));
+    wrap.appendChild(toggleRow);
+
+    const panel = document.createElement('div');
+    panel.className = 'info-mask-editor-panel';
+    panel.hidden = !row.masksEnabled;
+    wrap.appendChild(panel);
+
+    const hideBtn = document.createElement('button');
+    hideBtn.type = 'button';
+    hideBtn.className = 'dialog-add-row-btn';
+    hideBtn.textContent = '選択した語を伏せる';
+    panel.appendChild(hideBtn);
+
+    const listEl = document.createElement('div');
+    listEl.className = 'info-mask-editor-list';
+    panel.appendChild(listEl);
+
+    // 断った理由はここに出す。卓の最中にalertで手を止めさせない
+    const noteEl = document.createElement('p');
+    noteEl.className = 'dialog-form-note';
+    panel.appendChild(noteEl);
+    const note = (text) => { noteEl.textContent = text; };
+
+    let charInputs = [];
+    function syncMasks() {
+      charInputs.forEach(({ id, input }) => {
+        const mask = row.masks.find(m => m.id === id);
+        if (mask) mask.mask = input.value;
+      });
+    }
+
+    // 本文に出てくる順に並べる（伏せ字を見ながら探せるように）。目印を失った伏せ語は
+    // store側で捨てられるので、ここでも末尾へ回して目立たせない。
+    function orderedMasks() {
+      const order = new Map();
+      listMaskMarkers(bodyInput.value).forEach((marker, index) => {
+        if (!order.has(marker.id)) order.set(marker.id, index);
+      });
+      return [...row.masks].sort((a, b) => (
+        (order.has(a.id) ? order.get(a.id) : Infinity) - (order.has(b.id) ? order.get(b.id) : Infinity)
+      ));
+    }
+
+    // 目印を本文から取り除き、元の語へ戻す。対応の無い目印はそのまま残す
+    // （利用者が手で打った文字を消さないため）。
+    function unmask(maskIds) {
+      const byId = new Map(row.masks.filter(m => maskIds.has(m.id)).map(m => [m.id, m.text]));
+      bodyInput.value = bodyInput.value.replace(/\{\{(\d+)\}\}/g, (all, digits) => {
+        const text = byId.get(Number(digits));
+        return text === undefined ? all : text;
+      });
+      row.masks = row.masks.filter(m => !maskIds.has(m.id));
+    }
+
+    function renderMaskList() {
+      listEl.replaceChildren();
+      charInputs = [];
+
+      orderedMasks().forEach(mask => {
+        const item = document.createElement('div');
+        item.className = 'info-mask-editor-row';
+
+        const marker = document.createElement('span');
+        marker.className = 'info-mask-editor-marker';
+        marker.textContent = `{{${mask.id}}}`;
+        item.appendChild(marker);
+
+        const word = document.createElement('span');
+        word.className = 'info-mask-editor-word';
+        word.textContent = mask.text;
+        item.appendChild(word);
+
+        const charInput = document.createElement('input');
+        charInput.type = 'text';
+        charInput.className = 'info-mask-editor-char';
+        charInput.value = mask.mask;
+        charInput.maxLength = MAX_INFO_MASK_CHAR_LENGTH;
+        charInput.placeholder = DEFAULT_INFO_MASK_CHAR;
+        charInput.title = `伏せ字（例: ${DEFAULT_INFO_MASK_CHAR} ①）。空にすると ${DEFAULT_INFO_MASK_CHAR} になります`;
+        item.appendChild(charInput);
+        charInputs.push({ id: mask.id, input: charInput });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'dialog-remove-row';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'この語の伏せ字を解除して本文へ戻す';
+        removeBtn.addEventListener('click', () => {
+          syncMasks();
+          unmask(new Set([mask.id]));
+          note('');
+          renderMaskList();
+        });
+        item.appendChild(removeBtn);
+
+        listEl.appendChild(item);
+      });
+    }
+
+    toggle.addEventListener('change', () => {
+      if (!toggle.checked && row.masks.length > 0) {
+        if (!confirm('伏せている語をすべて本文へ戻します。よろしいですか？')) {
+          toggle.checked = true;
+          return;
+        }
+        syncMasks();
+        unmask(new Set(row.masks.map(m => m.id)));
+        renderMaskList();
+      }
+      row.masksEnabled = toggle.checked;
+      panel.hidden = !toggle.checked;
+      note('');
+    });
+
+    hideBtn.addEventListener('click', () => {
+      const body = bodyInput.value;
+      const start = bodyInput.selectionStart;
+      const end = bodyInput.selectionEnd;
+
+      if (start === end) {
+        note('本文で伏せたい語を選んでから押してください。');
+        return;
+      }
+      // 目印を部分的に飲み込むと {{1 のような壊れた形になり、元へ戻せなくなる
+      if (listMaskMarkers(body).some(marker => start < marker.end && marker.start < end)) {
+        note('すでに伏せている場所（{{1}} などの目印）をまたぐ範囲は伏せられません。');
+        return;
+      }
+
+      // 範囲選択は前後の空白まで掴みやすいので、落としてから伏せる
+      const raw = body.slice(start, end);
+      const from = start + (raw.length - raw.trimStart().length);
+      const to = end - (raw.length - raw.trimEnd().length);
+      const text = body.slice(from, to);
+      if (text === '') {
+        note('本文で伏せたい語を選んでから押してください。');
+        return;
+      }
+      if (row.masks.length >= MAX_INFO_MASKS_PER_SECTION) {
+        note(`1つの区画で伏せられるのは${MAX_INFO_MASKS_PER_SECTION}語までです。`);
+        return;
+      }
+      // 切って通すと本文と伏せ語が食い違うので、切らずに断る
+      if (text.length > MAX_INFO_MASK_TEXT_LENGTH) {
+        note(`一度に伏せられるのは${MAX_INFO_MASK_TEXT_LENGTH}文字までです。`);
+        return;
+      }
+
+      syncMasks();
+      // 採番はここで行う（reducerの中で採ってはいけない）。本文の目印も見るのは、
+      // 利用者が手で {{99}} と打っていた場合に番号がぶつからないようにするため。
+      const used = [...row.masks.map(m => m.id), ...listMaskMarkers(body).map(m => m.id)];
+      const nextId = Math.max(0, ...used) + 1;
+      const marker = `{{${nextId}}}`;
+
+      bodyInput.value = body.slice(0, from) + marker + body.slice(to);
+      row.masks.push({ id: nextId, text, mask: DEFAULT_INFO_MASK_CHAR });
+      note('');
+      renderMaskList();
+
+      // カーソルを目印の直後へ戻す。区画ごと描き直さないのは、書きかけの他の欄と
+      // スクロール位置を飛ばさないため。
+      bodyInput.focus();
+      bodyInput.setSelectionRange(from + marker.length, from + marker.length);
+    });
+
+    if (!myParticipantId) {
+      hideBtn.disabled = true;
+      hideBtn.title = MASK_GUEST_REASON;
+    }
+
+    renderMaskList();
+    return { element: wrap, syncMasks };
   }
 
   function renderRows() {
@@ -146,6 +365,9 @@ export function showInfoEntryDialog({
       bodyInput.placeholder = 'この区画に表示する本文';
       card.appendChild(bodyInput);
 
+      const maskEditor = buildMaskEditor(row, bodyInput);
+      card.appendChild(maskEditor.element);
+
       // 注意書きは同じ文言なので先頭の区画にだけ出す
       const picker = buildAudiencePicker({
         audience: row.audience,
@@ -156,7 +378,7 @@ export function showInfoEntryDialog({
       card.appendChild(picker.element);
 
       listEl.appendChild(card);
-      rowInputs.push({ labelInput, bodyInput, picker });
+      rowInputs.push({ labelInput, bodyInput, picker, syncMasks: maskEditor.syncMasks });
     });
   }
 
@@ -176,7 +398,9 @@ export function showInfoEntryDialog({
       body: '',
       // 区画を分ける目的はたいてい公開先を変えることなので、既定は限定公開（まず自分だけ）に
       // しておく。広げる方向へ倒さないのはnormalizeAudienceと同じ考え方。
-      audience: myParticipantId ? [myParticipantId] : null
+      audience: myParticipantId ? [myParticipantId] : null,
+      masks: [],
+      masksEnabled: false
     });
     renderRows();
   });
@@ -213,7 +437,14 @@ export function showInfoEntryDialog({
     dialog.close();
     onConfirm({
       title: trimmedTitle,
-      sections: rows.map(({ id, label, body, audience }) => ({ id, label, body, audience })),
+      // bodyとmasksは必ず対で渡す（片方だけだと伏せ語が消えるか、目印が本文に取り残される）
+      sections: rows.map(row => ({
+        id: row.id,
+        label: row.label,
+        body: row.body,
+        audience: row.audience,
+        masks: row.masks.map(mask => ({ id: mask.id, text: mask.text, mask: mask.mask }))
+      })),
       removedSectionIds: originalIds.filter(id => !keptIds.has(id))
     });
   });

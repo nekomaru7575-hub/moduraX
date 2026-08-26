@@ -923,14 +923,95 @@ function definedFields(patch) {
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
 }
 
+// 情報（infoEntries）の「伏せた語」(masks)の上限。カードと同じ趣旨の歯止めで、
+// 状態は全員へ配られRedisへも書き戻るため、payloadを信用せずここで切る。
+// 本文(body)とエントリ数には今も上限が無いが、そちらを今から切ると既に長い本文を
+// 持つ部屋が削れるので（MAX_ROOM_DECKSの但し書きと同じ事故）、masks側だけに置く。
+// 編集画面（js/info-entry-dialog.js）も同じ数で断るためexportする。切って通すと本文と
+// 伏せ語が食い違うので、あちらは「切る」のではなく「断る」側で使う。
+export const MAX_INFO_MASKS_PER_SECTION = 30;
+export const MAX_INFO_MASK_TEXT_LENGTH = 100;
+// 伏せ字。絵文字1つが入る長さにしてある。
+export const MAX_INFO_MASK_CHAR_LENGTH = 2;
+export const DEFAULT_INFO_MASK_CHAR = '■';
+
+// 伏せ字を「人が1文字と見る単位」で切る。clampCardTextのsliceを使わないのは、1〜2文字の欄で
+// sliceするとサロゲートペアや絵文字の合字を割って、壊れた文字が状態に載るため。
+// 空になったら既定の伏せ字へ落とす（伏せ字が無いと語が丸見えになる）。
+function clampMaskChar(value) {
+  if (typeof value !== 'string') return DEFAULT_INFO_MASK_CHAR;
+  const trimmed = value.trim();
+  // Intl.Segmenterはブラウザ・Nodeとも入っているが、無い環境ではコードポイント単位へ落ちる
+  // （合字が切れることはあっても、壊れた文字にはならない）。
+  const units = (typeof Intl !== 'undefined' && Intl.Segmenter)
+    ? [...new Intl.Segmenter().segment(trimmed)].map(segment => segment.segment)
+    : Array.from(trimmed);
+  const clamped = units.slice(0, MAX_INFO_MASK_CHAR_LENGTH).join('');
+  return clamped === '' ? DEFAULT_INFO_MASK_CHAR : clamped;
+}
+
+// 本文中の伏せ字の目印 {{n}} を頭から拾い、[{ id, start, end }] を出現順に返す。
+// 描画（js/info-panel.js）・選択範囲との重なり判定（js/info-entry-dialog.js）・
+// 下のnormalizeInfoMasksの刈り込みが同じ走査を要るので、正規表現の写しを3つ作らず
+// ここへ寄せる。正規表現を関数の中で作るのは、/g付きをモジュール定数にすると
+// lastIndexが呼び出し間で共有され、2回目の走査が途中から始まってしまうため。
+export function listMaskMarkers(body) {
+  if (typeof body !== 'string' || body === '') return [];
+  const pattern = /\{\{(\d+)\}\}/g;
+  const markers = [];
+  let match;
+  while ((match = pattern.exec(body)) !== null) {
+    markers.push({ id: Number(match[1]), start: match.index, end: match.index + match[0].length });
+  }
+  return markers;
+}
+
+// 伏せた語の一覧を整える。不変条件は片側だけ持たせる：「maskには対応する目印が本文にある」。
+// 逆（目印だけあってmaskが無い）は許して、描画側でただの文字として出す。本文は自由入力欄
+// なので、利用者が手で打った {{1}} を黙って消さないため。
+// 同じidの目印が本文に2つあれば伏せ字も2つ出て、公開すると両方同時に開く（同じ語なので）。
+function normalizeInfoMasks(masks, body) {
+  if (!Array.isArray(masks)) return Object.freeze([]);
+
+  const marked = new Set(listMaskMarkers(body).map(marker => marker.id));
+  const seen = new Set();
+  const normalized = [];
+
+  masks.forEach(mask => {
+    if (normalized.length >= MAX_INFO_MASKS_PER_SECTION) return;
+    if (!mask || typeof mask !== 'object') return;
+    if (!Number.isInteger(mask.id) || mask.id < 1) return;
+    if (seen.has(mask.id)) return;
+    // 目印を手で消された伏せ語は、もう本文のどこも指していないので捨てる
+    if (!marked.has(mask.id)) return;
+    if (typeof mask.text !== 'string') return;
+
+    seen.add(mask.id);
+    normalized.push(Object.freeze({
+      id: mask.id,
+      text: mask.text.slice(0, MAX_INFO_MASK_TEXT_LENGTH),
+      mask: clampMaskChar(mask.mask),
+      // truthy判定にしない。取り込んだJSONの "yes" や 1 で公開が広がらないようにする
+      // （normalizeAudienceと同じ「広げる方向へ倒さない」流儀）。
+      revealed: mask.revealed === true
+    }));
+  });
+
+  return Object.freeze(normalized);
+}
+
 // 情報（infoEntries）のsection1件を作る／整える。audienceの正規化をここへ集約し、
 // 追加・更新のどちらの経路を通っても同じ形になるようにする。
-function buildInfoSection({ id, label = '', body = '', audience = null }) {
+// masksは本文と対にして刈るので、bodyとmasksは必ず一緒に渡すこと（片方だけ渡すと
+// 伏せ語が消えるか、目印が本文に取り残される）。
+function buildInfoSection({ id, label = '', body = '', audience = null, masks = null }) {
+  const nextBody = body || '';
   return Object.freeze({
     id,
     label: label || '',
-    body: body || '',
-    audience: normalizeAudience(audience)
+    body: nextBody,
+    audience: normalizeAudience(audience),
+    masks: normalizeInfoMasks(masks, nextBody)
   });
 }
 
@@ -3635,7 +3716,19 @@ export class ImmutableStore {
             }
             // 渡されたキーだけを当てる。undefinedを混ぜないのが肝で、混ざると
             // buildInfoSectionの既定値が効いてaudienceが「全員に公開」へ広がってしまう。
-            nextSections[index] = buildInfoSection({ ...nextSections[index], ...definedFields(patch) });
+            const fields = definedFields(patch);
+            // 伏せた語の公開状態(revealed)は、編集画面が開かれてから誰かが動かしている
+            // かもしれない。本文を直しただけで開示を巻き戻さないよう、編集画面は
+            // revealedを送らず、ここで同じidの旧maskから引き継ぐ。
+            // （hydrate・取り込みはファイル側のrevealedを読む必要があるので、この
+            // 引き継ぎはbuildInfoSectionではなくこの場所に置いてある。）
+            if (Array.isArray(fields.masks)) {
+              const prevRevealed = new Map(nextSections[index].masks.map(m => [m.id, m.revealed]));
+              fields.masks = fields.masks.map(m => (
+                (m && typeof m === 'object') ? { ...m, revealed: prevRevealed.get(m.id) === true } : m
+              ));
+            }
+            nextSections[index] = buildInfoSection({ ...nextSections[index], ...fields });
           });
 
           nextSections = Object.freeze(nextSections);
@@ -3668,6 +3761,47 @@ export class ImmutableStore {
                   ...entry,
                   sections: Object.freeze(entry.sections.map(s => (
                     s.id === sectionId ? buildInfoSection({ ...s, audience }) : s
+                  )))
+                })
+              : entry
+          ))
+        });
+        return;
+      }
+
+      // 伏せた語1つの公開/非公開を決める（フタリソウサの「知ってたカード」のように、
+      // 本文は見せたまま一部の語だけを伏せておき、1語ずつ開いていく遊び方のため）。
+      // TOGGLEにしないのは、このreducerがクライアントの楽観適用と権威側の両方で走り、
+      // RESYNC後にも当て直されるため。SETなら何度当てても同じ状態に落ち着く。
+      case 'SET_INFO_MASK_REVEALED': {
+        const { id, sectionId, maskId, revealed } = payload;
+        const target = prevState.infoEntries.find(entry => entry.id === id);
+        if (!target) return;
+        const section = target.sections.find(s => s.id === sectionId);
+        if (!section) return;
+        // 目印を消した編集と、その語を開く操作がすれ違うと、もう無いmaskが指される。
+        // idは「今ある一番大きい番号＋1」で採るので取り直しも起こりうるが、当たっても
+        // 「1語が開く／閉じる」だけなので、ここで黙って捨てるだけにしておく。
+        const mask = section.masks.find(m => m.id === maskId);
+        if (!mask) return;
+
+        const nextRevealed = revealed === true;
+        // 値が変わらないなら何も配らない。commitすると新しいinfoEntriesができて、
+        // js/info-panel.jsの参照等価チェックが空振りし、毎回全再描画になってしまう。
+        if (mask.revealed === nextRevealed) return;
+
+        this.#commit(prevState, {
+          infoEntries: prevState.infoEntries.map(entry => (
+            entry.id === id
+              ? Object.freeze({
+                  ...entry,
+                  sections: Object.freeze(entry.sections.map(s => (
+                    s.id === sectionId
+                      ? buildInfoSection({
+                          ...s,
+                          masks: s.masks.map(m => (m.id === maskId ? { ...m, revealed: nextRevealed } : m))
+                        })
+                      : s
                   )))
                 })
               : entry
@@ -3837,9 +3971,12 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
     chatLogs: { [MAIN_CHAT_TAB_ID]: [], [SYSTEM_CHAT_TAB_ID]: [] },
 
     // 情報（js/info-panel.js）。タイトル＋内容の組を浮動パネルのタブとして並べる共有メモ。
-    // { id, title, ownerId, sections: [{ id, label, body, audience }] } の配列。
+    // { id, title, ownerId, sections: [{ id, label, body, audience, masks }] } の配列。
     // ownerIdは作成者の参加者ID（null＝表示名未設定の人が作った＝誰でも編集できる）。
     // sectionsは1エントリ内の区画で、公開先(audience)をエントリではなくsectionが持つ。
+    // masksは「本文の一部の語だけを伏せる」ためのもので、公開先とは別の軸。区画が見える
+    // 相手に対して、語ごとに公開/非公開を切り替える（フタリソウサの「知ってたカード」）。
+    // 本文中の目印 {{n}} と対で、伏せている間は文字数が分からないよう伏せ字1文字だけを描く。
     // 将来のダブルハンドアウト（表の使命／裏の使命）で「表＝audience:null、裏＝限定公開」を
     // 1エントリに同居させるための構造で、現状のUIは必ず1件だけ作る。
     // 部屋データの読み込みで復元されたエントリだけは、GMが引き取るまでの間だけ

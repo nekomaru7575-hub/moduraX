@@ -1356,6 +1356,65 @@
   cursor: not-allowed;
 }
 
+/* 「一部のワードだけ伏せる」（js/info-entry-dialog.jsのbuildMaskEditor）。
+   本文のすぐ下に置き、公開先の欄より手前に出す——公開先は区画ごと、こちらは語ごとの
+   別の軸なので、本文との近さで見分けてもらう */
+.info-mask-editor {
+  margin-top: 6px;
+}
+
+.info-mask-editor-panel {
+  margin-top: 6px;
+}
+
+/* この中の .dialog-add-row-btn（選択した語を伏せる）は一覧のすぐ上に来るので、
+   既定の下余白を詰める */
+.info-mask-editor-panel .dialog-add-row-btn {
+  margin-bottom: 6px;
+}
+
+.info-mask-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-mask-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 本文のどの目印に対応するか。本文と見比べるための番号なので等幅で出す */
+.info-mask-editor-marker {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+/* 伏せている語そのもの。長い語でも行を折らず、はみ出しは省略する */
+.info-mask-editor-word {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-body-strong);
+}
+
+/* 伏せ字。1〜2文字しか入らないので幅を詰め、中央寄せで見た目を伏せ字らしくする */
+.info-mask-editor-char {
+  flex: 0 0 auto;
+  width: 3em;
+  text-align: center;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
+  padding: 4px;
+  border-radius: 4px;
+}
+
 .dialog-add-row-btn {
   background: none;
   border: 1px dashed var(--border-default);

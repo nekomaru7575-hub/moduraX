@@ -17,6 +17,14 @@
 //                  届いた時点でGMのものとして引き取られる（CLAIM_RESTORED_INFO・js/info-panel.js）。
 //                  安全側に倒しているのは、公開先を復元しようがない以上「うっかり全員に見える」
 //                  よりは「GMが配り直す」方が事故が小さいため。
+//                  伏せた語(masks)の公開状態も同じ天秤で、開いてあったものを全部伏せ直す。
+//                  こちらは参加者IDに依存しないのでそのまま復元「できる」が、間違いの向きが
+//                  非対称：開き直すのはクリック1回で済むのに対し、読まれてしまった事実は
+//                  戻せない。取り込みの典型は「シナリオのファイルを別の卓で開く」で、そこで
+//                  開示済みの語が出ると答えが見えた状態で卓が始まり、しかもGMは自分の画面が
+//                  自然に見えるので気づけない。伏せ字を持つエントリにも印を付けるのは、
+//                  ownerIdがnullのままだと誰も（GMさえも）中身を見透かせなくなるため
+//                  （js/info-panel.jsのcanRevealMasks）。
 //   cards        … 「カードを見る」の記録(seenBy)は他の部屋の参加者IDなので、空にする。
 //                  残しても誰の名前にも解決できず（「不明な参加者」が並ぶだけ）、
 //                  取り込んだ先の別人の記録に見えてしまう。
@@ -39,21 +47,25 @@
 
 import { normalizeInfoEntries } from './game-store.js';
 
-// 1エントリぶんの引き取り準備。公開先が設定された区画が1つも無ければ、そのまま全員に見える
-// 状態で復元できるので印は付けない（GMの引き取りを待たせる必要がない）。
+// 1エントリぶんの引き取り準備。公開先が設定された区画も伏せた語も無ければ、そのまま全員に
+// 見える状態で復元できるので印は付けない（GMの引き取りを待たせる必要がない）。
 function adoptInfoEntry(entry) {
   const { restoredFromImport, ...rest } = entry;
   // 旧IDのownerIdは誰とも一致しない。null＝誰でも編集できる扱いにしておく（canEditEntry参照）
   const base = { ...rest, ownerId: null };
 
-  if (!entry.sections.some(section => Array.isArray(section.audience))) return base;
+  const hasRestricted = entry.sections.some(section => Array.isArray(section.audience));
+  const hasMasks = entry.sections.some(section => section.masks.length > 0);
+  if (!hasRestricted && !hasMasks) return base;
 
   return {
     ...base,
     restoredFromImport: true,
-    sections: entry.sections.map(section => (
-      Array.isArray(section.audience) ? { ...section, audience: [] } : section
-    ))
+    sections: entry.sections.map(section => ({
+      ...section,
+      audience: Array.isArray(section.audience) ? [] : section.audience,
+      masks: section.masks.map(mask => ({ ...mask, revealed: false }))
+    }))
   };
 }
 

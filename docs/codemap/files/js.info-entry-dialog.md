@@ -1,6 +1,6 @@
 ---
 source: js/info-entry-dialog.js
-lines: 226
+lines: 457
 exports: 1
 imported_by: 1
 api_sha: 6039d4f17db4
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 42 | fn | showInfoEntryDialog | `showInfoEntryDialog({ mode = 'create', title = '', sections = [], participants, myParticipantId, onConfirm })` | mode?: 'create'\|'edit', title?: string, sections?: Array<{id: string, label: string, body: string, audience:… |
+| 65 | fn | showInfoEntryDialog | `showInfoEntryDialog({ mode = 'create', title = '', sections = [], participants, myParticipantId, onConfirm })` | mode?: 'create'\|'edit', title?: string, sections?: Array<{id: string, label: string, body: string, audience:… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,12 +34,12 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 18 | ensureDialog | `ensureDialog()` | 7 |  |
-| 42 | showInfoEntryDialog | `showInfoEntryDialog({ mode = 'create', title = '', sections = [], participants, myParticipantId, onConfirm })` | 184 | ✓ |
+| 36 | ensureDialog | `ensureDialog()` | 7 |  |
+| 65 | showInfoEntryDialog | `showInfoEntryDialog({ mode = 'create', title = '', sections = [], participants, myParticipantId, onConfirm })` | **392** | ✓ |
 
 ## 依存
 
-- import → [[js.audience-picker]]
+- import → [[js.audience-picker]], [[js.game-store]]
 - imported by → [[js.info-panel]]
 
 ## 注意

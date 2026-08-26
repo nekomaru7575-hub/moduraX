@@ -1,6 +1,6 @@
 ---
 source: server/index.js
-lines: 3579
+lines: 3594
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -62,81 +62,81 @@ _(未記入)_
 | 438 | entryPasswordFromHeaders | `entryPasswordFromHeaders(req)` | 9 |  |
 | 449 | clearLegacyGmFlags | `clearLegacyGmFlags(roomId, store)` | 10 |  |
 | 463 | canOperateAsGm | `canOperateAsGm(state, participantId)` | 3 |  |
-| 513 | isPublicPath | `isPublicPath(filePath)` | 12 |  |
-| 584 | cacheControlFor | `cacheControlFor(relativePath)` | 8 |  |
-| 595 | serveStaticFile | `async serveStaticFile(req, res)` | 35 |  |
-| 631 | sendJson | `sendJson(res, statusCode, body, extraHeaders = null)` | 9 |  |
-| 646 | readJsonBody | `readJsonBody(req, maxBytes)` | 37 |  |
-| 686 | sendJsonBodyError | `sendJsonBodyError(req, res, error)` | 8 |  |
-| 698 | readBinaryBody | `readBinaryBody(req, maxBytes)` | 22 |  |
-| 736 | isDeletingRoom | `isDeletingRoom(roomId)` | 3 |  |
-| 745 | isValidRoomId | `isValidRoomId(id)` | 4 |  |
-| 757 | generateRoomId | `generateRoomId()` | 3 |  |
-| 774 | isRoomActive | `isRoomActive(entry)` | 5 |  |
-| 782 | activeRoomCount | `activeRoomCount()` | 5 |  |
-| 790 | canActivateRoom | `canActivateRoom(entry)` | 3 |  |
-| 795 | markRoomEntered | `markRoomEntered(entry)` | 7 |  |
-| 810 | scheduleRoomUnload | `scheduleRoomUnload(roomId, entry)` | 30 |  |
-| 841 | unloadRoom | `unloadRoom(roomId, entry)` | 8 |  |
-| 850 | roomFilePath | `roomFilePath(roomId)` | 3 |  |
-| 859 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 108 |  |
-| 975 | stateForPersist | `stateForPersist(state)` | 15 |  |
-| 992 | persistRoomNow | `async persistRoomNow(roomId, entry)` | 19 |  |
-| 1020 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 20 |  |
-| 1042 | flushPendingSave | `flushPendingSave(roomId, entry)` | 8 |  |
-| 1054 | flushAllPendingSaves | `flushAllPendingSaves()` | 8 |  |
-| 1063 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |  |
-| 1074 | typingUsersList | `typingUsersList(entry)` | 3 |  |
-| 1089 | allowStamp | `allowStamp(ws)` | 11 |  |
-| 1102 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |  |
-| 1108 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |  |
-| 1114 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |  |
-| 1134 | roomStorageBytes | `async roomStorageBytes(roomId)` | 8 |  |
-| 1144 | addRoomStorageBytes | `addRoomStorageBytes(roomId, delta)` | 4 |  |
-| 1149 | forgetRoomStorage | `forgetRoomStorage(roomId)` | 3 |  |
-| 1158 | refuseIfRoomStorageFull | `async refuseIfRoomStorageFull(roomId, bytes)` | 16 |  |
-| 1198 | recountBucketUsage | `async recountBucketUsage()` | 14 |  |
-| 1214 | refreshBucketUsageInBackground | `refreshBucketUsageInBackground()` | 5 |  |
-| 1221 | addBucketBytes | `addBucketBytes(delta)` | 3 |  |
-| 1228 | invalidateBucketUsage | `invalidateBucketUsage()` | 3 |  |
-| 1236 | bucketSpace | `bucketSpace()` | 8 |  |
-| 1251 | refuseIfBucketFull | `refuseIfBucketFull(kind)` | 17 |  |
-| 1281 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 36 |  |
-| 1333 | deleteRoomData | `async deleteRoomData(roomId)` | 40 |  |
-| 1391 | sweepExpiredRooms | `async sweepExpiredRooms()` | 50 |  |
-| 1444 | sweepExpiredRoomsInBackground | `sweepExpiredRoomsInBackground()` | 6 |  |
-| 1454 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |  |
-| 1523 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 113 |  |
-| 1638 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |  |
-| 1668 | decodeDataUrl | `decodeDataUrl(dataUrl, extensions)` | 12 |  |
-| 1692 | adoptMediaUrl | `async adoptMediaUrl(roomId, url, { extensions, maxBytes, label })` | 43 |  |
-| 1745 | adoptStateMedia | `async adoptStateMedia(roomId, state)` | 96 |  |
-| 1843 | droppedMediaMessage | `droppedMediaMessage(dropped)` | 8 |  |
-| 1856 | withImportNotice | `withImportNotice(state, text)` | 9 |  |
-| 1881 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
-| 1910 | handleImageCopy | `async handleImageCopy(req, res)` | 70 |  |
-| 1991 | handleListRooms | `async handleListRooms(req, res, url)` | 24 |  |
-| 2018 | createBlockedReason | `createBlockedReason()` | 11 |  |
-| 2038 | serverLoadSnapshot | `serverLoadSnapshot()` | 40 |  |
-| 2087 | summarizeRoom | `summarizeRoom(summary)` | 11 |  |
-| 2104 | handleCreateRoom | `async handleCreateRoom(req, res)` | 144 |  |
-| 2280 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
-| 2326 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
-| 2400 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
-| 2492 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
-| 2502 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 56 |  |
-| 2560 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
-| 2576 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
-| 2610 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2633 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
-| 2709 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 2719 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 2737 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 2754 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 2782 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 2797 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 2806 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 3520 | shutdown | `shutdown(signal)` | 23 |  |
+| 521 | isPublicPath | `isPublicPath(filePath)` | 12 |  |
+| 592 | cacheControlFor | `cacheControlFor(relativePath)` | 8 |  |
+| 603 | serveStaticFile | `async serveStaticFile(req, res)` | 35 |  |
+| 639 | sendJson | `sendJson(res, statusCode, body, extraHeaders = null)` | 9 |  |
+| 654 | readJsonBody | `readJsonBody(req, maxBytes)` | 37 |  |
+| 694 | sendJsonBodyError | `sendJsonBodyError(req, res, error)` | 8 |  |
+| 706 | readBinaryBody | `readBinaryBody(req, maxBytes)` | 22 |  |
+| 744 | isDeletingRoom | `isDeletingRoom(roomId)` | 3 |  |
+| 753 | isValidRoomId | `isValidRoomId(id)` | 4 |  |
+| 765 | generateRoomId | `generateRoomId()` | 3 |  |
+| 782 | isRoomActive | `isRoomActive(entry)` | 5 |  |
+| 790 | activeRoomCount | `activeRoomCount()` | 5 |  |
+| 798 | canActivateRoom | `canActivateRoom(entry)` | 3 |  |
+| 803 | markRoomEntered | `markRoomEntered(entry)` | 7 |  |
+| 818 | scheduleRoomUnload | `scheduleRoomUnload(roomId, entry)` | 30 |  |
+| 849 | unloadRoom | `unloadRoom(roomId, entry)` | 8 |  |
+| 858 | roomFilePath | `roomFilePath(roomId)` | 3 |  |
+| 867 | getOrLoadRoom | `async getOrLoadRoom(roomId)` | 108 |  |
+| 983 | stateForPersist | `stateForPersist(state)` | 15 |  |
+| 1000 | persistRoomNow | `async persistRoomNow(roomId, entry)` | 19 |  |
+| 1028 | schedulePersistForRoom | `schedulePersistForRoom(roomId, entry)` | 20 |  |
+| 1050 | flushPendingSave | `flushPendingSave(roomId, entry)` | 8 |  |
+| 1062 | flushAllPendingSaves | `flushAllPendingSaves()` | 8 |  |
+| 1071 | broadcastToRoom | `broadcastToRoom(entry, sender, message)` | 8 |  |
+| 1082 | typingUsersList | `typingUsersList(entry)` | 3 |  |
+| 1097 | allowStamp | `allowStamp(ws)` | 11 |  |
+| 1110 | pickOwnedAudioKey | `pickOwnedAudioKey(track)` | 3 |  |
+| 1116 | roomObjectPrefix | `roomObjectPrefix(roomId)` | 3 |  |
+| 1122 | isOwnKeyOfRoom | `isOwnKeyOfRoom(roomId, key)` | 3 |  |
+| 1142 | roomStorageBytes | `async roomStorageBytes(roomId)` | 8 |  |
+| 1152 | addRoomStorageBytes | `addRoomStorageBytes(roomId, delta)` | 4 |  |
+| 1157 | forgetRoomStorage | `forgetRoomStorage(roomId)` | 3 |  |
+| 1166 | refuseIfRoomStorageFull | `async refuseIfRoomStorageFull(roomId, bytes)` | 16 |  |
+| 1206 | recountBucketUsage | `async recountBucketUsage()` | 14 |  |
+| 1222 | refreshBucketUsageInBackground | `refreshBucketUsageInBackground()` | 5 |  |
+| 1229 | addBucketBytes | `addBucketBytes(delta)` | 3 |  |
+| 1236 | invalidateBucketUsage | `invalidateBucketUsage()` | 3 |  |
+| 1244 | bucketSpace | `bucketSpace()` | 8 |  |
+| 1259 | refuseIfBucketFull | `refuseIfBucketFull(kind)` | 17 |  |
+| 1289 | startRoomDeletion | `startRoomDeletion(roomId, entry)` | 36 |  |
+| 1341 | deleteRoomData | `async deleteRoomData(roomId)` | 40 |  |
+| 1399 | sweepExpiredRooms | `async sweepExpiredRooms()` | 50 |  |
+| 1452 | sweepExpiredRoomsInBackground | `sweepExpiredRoomsInBackground()` | 6 |  |
+| 1462 | migrateLegacyStateIfNeeded | `async migrateLegacyStateIfNeeded()` | 26 |  |
+| 1531 | handleMediaUpload | `async handleMediaUpload(req, res, { typePrefix, extensions, fallbackExtension = null, maxBytes, requireGm = true, forbiddenMessage, unavailableMessage, wrongTypeMessage, label })` | 113 |  |
+| 1646 | handleAudioUpload | `handleAudioUpload(req, res)` | 14 |  |
+| 1676 | decodeDataUrl | `decodeDataUrl(dataUrl, extensions)` | 12 |  |
+| 1700 | adoptMediaUrl | `async adoptMediaUrl(roomId, url, { extensions, maxBytes, label })` | 43 |  |
+| 1753 | adoptStateMedia | `async adoptStateMedia(roomId, state)` | 96 |  |
+| 1851 | droppedMediaMessage | `droppedMediaMessage(dropped)` | 8 |  |
+| 1864 | withImportNotice | `withImportNotice(state, text)` | 9 |  |
+| 1889 | handleImageUpload | `handleImageUpload(req, res)` | 20 |  |
+| 1918 | handleImageCopy | `async handleImageCopy(req, res)` | 70 |  |
+| 1999 | handleListRooms | `async handleListRooms(req, res, url)` | 24 |  |
+| 2026 | createBlockedReason | `createBlockedReason()` | 11 |  |
+| 2046 | serverLoadSnapshot | `serverLoadSnapshot()` | 40 |  |
+| 2095 | summarizeRoom | `summarizeRoom(summary)` | 11 |  |
+| 2112 | handleCreateRoom | `async handleCreateRoom(req, res)` | 144 |  |
+| 2288 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
+| 2334 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
+| 2408 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
+| 2500 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
+| 2510 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 56 |  |
+| 2568 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
+| 2584 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
+| 2618 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
+| 2641 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
+| 2717 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 2727 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 2745 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 2762 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 2790 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 2805 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 2814 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 3535 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

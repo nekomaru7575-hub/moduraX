@@ -20,7 +20,7 @@ generated: 2026-08-26
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 112 | 474 | 1018 | 30 | 0 |
+| 113 | 483 | 1030 | 31 | 1 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -28,6 +28,7 @@ generated: 2026-08-26
 
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
+| [[js.asset-base\|js/asset-base.js]] | 「このアプリが画面に出す絵のうち、リポジトリに置いていないもの」の置き場所を1か所で持つ。 | 4 | 3 |
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 6 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
 | [[js.audio-phrase\|js/audio-phrase.js]] | 音源に設定した「再生フレーズ」と発言の照合。 | 1 | 1 |
@@ -58,7 +59,7 @@ generated: 2026-08-26
 | [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 13 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 7 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 44 | 14 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 49 | 15 |
 | [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 6 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
@@ -145,7 +146,7 @@ generated: 2026-08-26
 
 | ファイル | 被import |
 |---|---:|
-| [[js.game-store\|js/game-store.js]] | 14 |
+| [[js.game-store\|js/game-store.js]] | 15 |
 | [[js.local-identity\|js/local-identity.js]] | 14 |
 | [[js.EventBus\|js/EventBus.js]] | 13 |
 | [[js.icons\|js/icons.js]] | 12 |
@@ -155,3 +156,9 @@ generated: 2026-08-26
 | [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
 | [[js.visibility\|js/visibility.js]] | 9 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
+
+## 散文が要更新
+
+export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
+
+- [[js.card-catalog\|js/card-catalog.js]]

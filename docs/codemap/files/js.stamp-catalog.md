@@ -1,6 +1,6 @@
 ---
 source: js/stamp-catalog.js
-lines: 39
+lines: 41
 exports: 3
 imported_by: 2
 api_sha: 874d7c25ac62
@@ -25,9 +25,9 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 21 | const | STAMP_IMAGE_DIR | `STAMP_IMAGE_DIR` | js/stamp-catalog.js Core（どのゲームシステムでも使える）スタンプの一覧。 |
-| 23 | const | STAMPS | `STAMPS` |  |
-| 38 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
+| 23 | const | STAMP_IMAGE_DIR | `STAMP_IMAGE_DIR` | プラグインが宣言する絵を置く、外部の置き場（js/asset-base.js）の中の階層名。 |
+| 25 | const | STAMPS | `STAMPS` |  |
+| 40 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 

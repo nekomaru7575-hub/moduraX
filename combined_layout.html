@@ -1900,6 +1900,51 @@
       word-break: break-word;
     }
 
+    /* 伏せた語（js/info-panel.jsのbuildMaskNode）。地の文の流れに乗せたいので、
+       操作できる人にだけ付くbutton側のUAスタイル（書体・背景・枠・white-space）を潰す。
+       white-space:inheritは親の pre-wrap を効かせるために要る */
+    .info-mask {
+      display: inline;
+      font: inherit;
+      color: inherit;
+      background: none;
+      border: 0;
+      padding: 0 2px;
+      white-space: inherit;
+      border-radius: 3px;
+    }
+
+    /* 未公開・見透かせない人。伏せ字1つぶんだけを出す（語の文字数は出さない）。
+       min-widthは狭幅（スマホ）で指が乗る大きさを確保するため */
+    .info-mask:not(.is-revealed):not(.is-peek) {
+      display: inline-block;
+      min-width: 1.1em;
+      text-align: center;
+      color: var(--text-secondary);
+      background-color: var(--surface-control);
+    }
+
+    /* 未公開だが自分には見えている（作成者・GM）。まだ相手に渡っていないことを破線で示す */
+    .info-mask.is-peek {
+      border-bottom: 1px dashed var(--border-bright);
+      background-color: var(--surface-base-2);
+      cursor: pointer;
+    }
+
+    /* 公開済み。地の文と区別が付く程度に留める */
+    .info-mask.is-revealed {
+      background-color: var(--surface-base);
+    }
+
+    /* buttonなのは公開/伏せ直しができる人だけ（他の人はspanで、手掛かりを何も出さない） */
+    button.info-mask {
+      cursor: pointer;
+    }
+
+    button.info-mask:hover {
+      background-color: var(--surface-hover);
+    }
+
     .info-panel-empty {
       color: var(--text-faint);
       font-size: 0.8rem;

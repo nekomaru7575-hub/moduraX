@@ -1,6 +1,6 @@
 ---
 source: js/info-panel.js
-lines: 370
+lines: 478
 exports: 1
 imported_by: 1
 api_sha: 345c82bc610b
@@ -25,20 +25,24 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 69 | fn | initInfoPanel | `initInfoPanel()` |  |
+| 141 | fn | initInfoPanel | `initInfoPanel()` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（5）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 47 | entryLabel | `entryLabel(entry)` | 3 |  |
-| 53 | visibleSections | `visibleSections(entry, myId)` | 3 |  |
-| 57 | visibleEntries | `visibleEntries(state, myId)` | 3 |  |
-| 63 | canEditEntry | `canEditEntry(entry, myId, amGm)` | 5 |  |
-| 69 | initInfoPanel | `initInfoPanel()` | **301** | ✓ |
+| 55 | entryLabel | `entryLabel(entry)` | 3 |  |
+| 61 | visibleSections | `visibleSections(entry, myId)` | 3 |  |
+| 65 | visibleEntries | `visibleEntries(state, myId)` | 3 |  |
+| 71 | canEditEntry | `canEditEntry(entry, myId, amGm)` | 5 |  |
+| 81 | canRevealMasks | `canRevealMasks(entry, myId, amGm)` | 4 |  |
+| 86 | hasMaskedWords | `hasMaskedWords(entry, myId)` | 4 |  |
+| 93 | buildMaskNode | `buildMaskNode(mask, canReveal, onToggle)` | 22 |  |
+| 118 | renderSectionBody | `renderSectionBody(bodyEl, section, canReveal, onToggle)` | 22 |  |
+| 141 | initInfoPanel | `initInfoPanel()` | **337** | ✓ |
 
 ## 依存
 

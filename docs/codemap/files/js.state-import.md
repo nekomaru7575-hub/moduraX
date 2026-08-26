@@ -1,6 +1,6 @@
 ---
 source: js/state-import.js
-lines: 128
+lines: 140
 exports: 1
 imported_by: 2
 api_sha: 455e229c5397
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 113 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
+| 125 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,10 +34,10 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 44 | adoptInfoEntry | `adoptInfoEntry(entry)` | 15 |  |
-| 67 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
-| 89 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
-| 113 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 15 | ✓ |
+| 52 | adoptInfoEntry | `adoptInfoEntry(entry)` | 19 |  |
+| 79 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
+| 101 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
+| 125 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 15 | ✓ |
 
 ## 依存
 

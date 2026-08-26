@@ -1,9 +1,9 @@
 ---
 source: js/card-catalog.js
-lines: 142
+lines: 154
 exports: 7
 imported_by: 2
-api_sha: 4aee9a6ab821
+api_sha: 9ea68ff87dc2
 prose_sha: 4aee9a6ab821
 generated: 2026-08-26
 tags: [codemap]
@@ -25,32 +25,33 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 21 | const | CARD_IMAGE_DIR | `CARD_IMAGE_DIR` | トランプ画像の置き場。 |
-| 42 | const | TRUMP_BACK | `TRUMP_BACK` | デッキの既定の裏面（差し替えはデッキ配置ダイアログから）。 |
-| 62 | fn | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 簡易トランプ1組。 |
-| 83 | const | DECK_TEMPLATES | `DECK_TEMPLATES` | 組み込みのデッキ（この部屋で何も作らなくても置けるもの）。 |
-| 94 | fn | findDeckTemplate | `findDeckTemplate(id)` |  |
-| 110 | fn | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | ユーザーが作ったデッキの定義（room.deckTemplates の1件）を、実際の札の並びへ展開する。 |
-| 136 | fn | countDeckTemplateCards | `countDeckTemplateCards(template)` | 定義から作られる札の合計枚数（展開せずに数えるだけ）。 |
+| 25 | const | CARD_IMAGE_DIR | `CARD_IMAGE_DIR` | トランプ画像の置き場。 |
+| 50 | fn | trumpBack | `trumpBack()` | デッキの既定の裏面（差し替えはデッキ配置ダイアログから）。 |
+| 72 | fn | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 簡易トランプ1組。 |
+| 93 | const | DECK_TEMPLATES | `DECK_TEMPLATES` | 組み込みのデッキ（この部屋で何も作らなくても置けるもの）。 |
+| 106 | fn | findDeckTemplate | `findDeckTemplate(id)` |  |
+| 122 | fn | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | ユーザーが作ったデッキの定義（room.deckTemplates の1件）を、実際の札の並びへ展開する。 |
+| 148 | fn | countDeckTemplateCards | `countDeckTemplateCards(template)` | 定義から作られる札の合計枚数（展開せずに数えるだけ）。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 37 | cardImageUrl | `cardImageUrl(fileName)` | 3 |  |
-| 44 | trumpFace | `trumpFace(suit, rank)` | 8 |  |
-| 53 | jokerFace | `jokerFace()` | 3 |  |
-| 62 | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 15 | ✓ |
-| 94 | findDeckTemplate | `findDeckTemplate(id)` | 3 | ✓ |
-| 110 | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | 21 | ✓ |
-| 136 | countDeckTemplateCards | `countDeckTemplateCards(template)` | 6 | ✓ |
+| 43 | cardImageUrl | `cardImageUrl(fileName)` | 3 |  |
+| 50 | trumpBack | `trumpBack()` | 3 | ✓ |
+| 54 | trumpFace | `trumpFace(suit, rank)` | 8 |  |
+| 63 | jokerFace | `jokerFace()` | 3 |  |
+| 72 | buildSimpleTrumpDeck | `buildSimpleTrumpDeck({ jokers = 1 } = {})` | 15 | ✓ |
+| 106 | findDeckTemplate | `findDeckTemplate(id)` | 3 | ✓ |
+| 122 | expandDeckTemplate | `expandDeckTemplate(template, generateId, max = 200)` | 21 | ✓ |
+| 148 | countDeckTemplateCards | `countDeckTemplateCards(template)` | 6 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.asset-base]]
 - imported by → [[js.deck-editor-dialog]], [[js.main]]
 
 ## 注意

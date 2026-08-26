@@ -87,8 +87,9 @@ export const GM_ONLY_ACTIONS = new Set([
   // GM限定アクション：ここが空いていると、誰でも「読み込んだ限定公開の情報」を丸ごと
   // 自分宛てにして読めてしまう。
   'CLAIM_RESTORED_INFO'
-  // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCEは、
-  // GM以外も作成・開示できる機能なので入れない。「編集・削除できるのは作成者とGM」は
+  // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCE・
+  // 伏せた語を開く SET_INFO_MASK_REVEALED は、GM以外も作成・開示できる機能なので入れない
+  // （入れると、GMのいない部屋でPLが自分で作った情報を開示できなくなる）。「編集・削除できるのは作成者とGM」は
   // 画面側（js/info-panel.jsのcanEditEntry）だけの制限で、権威側は強制しない。
   // これはコマの所有者チェック（board-data-driven.jsのcanOperateToken）と同じ姿勢。
   // 発言の編集（EDIT_CHAT_MESSAGE）も同じ扱い：「直せるのは発言者本人とGMだけ」は画面側

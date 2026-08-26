@@ -1,12 +1,12 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-24
+generated: 2026-08-26
 ---
 
 # trpg-app コードマップ
 
 エージェントが**ソースを読まずに**構造を把握するためのインデックス。
-`node .loop/codemap.mjs` で生成される。表の内容を手で直しても次回の生成で消える。
+`node tools/codemap.mjs` で生成される。表の内容を手で直しても次回の生成で消える。
 
 ## 使い方
 
@@ -20,9 +20,9 @@ generated: 2026-08-24
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 110 | 469 | 1010 | 28 | 3 |
+| 112 | 474 | 1018 | 30 | 4 |
 
-エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `server/dev-local.js`, `server/index.js`
+エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
 ## ファイル一覧
 
@@ -46,7 +46,7 @@ generated: 2026-08-24
 | [[js.character-snapshot\|js/character-snapshot.js]] | コマ丸ごとの保存/復元（バックアップ用途）に使うJSON形式のマーカー・組み立て・ ファイルI/Oをまとめた共有モジュール。 | 5 | 4 |
 | [[js.chat-palette\|js/chat-palette.js]] | チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、選ぶだけで送れるようにする機能。 | 6 | 1 |
 | [[js.chat-tab-dialog\|js/chat-tab-dialog.js]] | チャットタブの追加・公開先の変更・削除確認ダイアログ。 | 1 | 1 |
-| [[js.context-menu\|js/context-menu.js]] | 汎用の右クリックコンテキストメニュー。 | 1 | 5 |
+| [[js.context-menu\|js/context-menu.js]] | 汎用の右クリックコンテキストメニュー。 | 1 | 6 |
 | [[js.deck-dialog\|js/deck-dialog.js]] | カードとデッキのダイアログ3種：デッキを盤面に置くとき、「何枚引くか」を決めるとき、 裏向きのカードを自分だけ確認するとき（カードを見る）。 | 3 | 1 |
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
@@ -62,6 +62,7 @@ generated: 2026-08-24
 | [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 6 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
+| [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 3 |
 | [[js.image-upload\|js/image-upload.js]] | 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。 | 5 | 6 |
@@ -97,7 +98,7 @@ generated: 2026-08-24
 | [[js.parameters.dx3-ability-box\|js/parameters/dx3-ability-box.js]] | DX3の能力値・技能値をまとめて表示する「ボックス」。 | 1 | 1 |
 | [[js.parameters.dx3-combo-box\|js/parameters/dx3-combo-box.js]] | DX3の「コンボ」一覧・編集を行うボックス。 | 7 | 1 |
 | [[js.parameters.dx3-lois-box\|js/parameters/dx3-lois-box.js]] | DX3の「ロイス」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 10 | 1 |
-| [[js.parameters.dx3\|js/parameters/dx3.js]] | DX3（ダブルクロス3rd）のプラグイン記述子。パラメータ定義と各ボックスの束ね役。 | 6 | 1 |
+| [[js.parameters.dx3\|js/parameters/dx3.js]] | DX3（ダブルクロス3rd）のプラグイン記述子。パラメータ定義と各ボックスの束ね役。 | 7 | 1 |
 | [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレストのプラグイン記述子（プラグインの書き方の見本）。 | 3 | 0 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 7 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 10 |
@@ -126,6 +127,7 @@ generated: 2026-08-24
 | [[js.round-setup-dialog\|js/round-setup-dialog.js]] | ラウンド進行の参加者選択ダイアログ。 | 1 | 1 |
 | [[js.scene-dialog\|js/scene-dialog.js]] | シーンの作成・編集ダイアログ（一覧はscene-list-dialog.js）。 | 1 | 1 |
 | [[js.scene-list-dialog\|js/scene-list-dialog.js]] | 登録済みのシーン（room.scenes）の一覧ダイアログ。 | 1 | 1 |
+| [[js.site-nav\|js/site-nav.js]] | 部屋の外にある3ページ（部屋入口・コマ作成ツール・このサービスについて）の行き来。 | 0 | 0 |
 | [[js.stamp-catalog\|js/stamp-catalog.js]] | Core（どのゲームシステムでも使える）スタンプの一覧。 | 3 | 2 |
 | [[js.stamp-layer\|js/stamp-layer.js]] | スタンプの表示レイヤー。 | 2 | 2 |
 | [[js.stamp-panel\|js/stamp-panel.js]] | 「スタンプ送信」：使えるスタンプを画像で並べ、押すとその場で送る浮動パネル。 | 1 | 1 |
@@ -146,13 +148,13 @@ generated: 2026-08-24
 | [[js.game-store\|js/game-store.js]] | 14 |
 | [[js.local-identity\|js/local-identity.js]] | 14 |
 | [[js.EventBus\|js/EventBus.js]] | 13 |
+| [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 10 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 10 |
 | [[js.read-only-form\|js/read-only-form.js]] | 9 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
 | [[js.visibility\|js/visibility.js]] | 9 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
-| [[js.file-uploader\|js/file-uploader.js]] | 7 |
 
 ## 散文が要更新
 
@@ -160,4 +162,5 @@ export の顔ぶれかシグネチャが変わったのに `## 役割` が書き
 
 - [[js.board-data-driven\|js/board-data-driven.js]]
 - [[js.deck-dialog\|js/deck-dialog.js]]
+- [[js.parameters.dx3\|js/parameters/dx3.js]]
 - [[server.memory-budget\|server/memory-budget.js]]

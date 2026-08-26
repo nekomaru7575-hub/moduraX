@@ -1,11 +1,11 @@
 ---
 source: js/game-store.js
-lines: 3840
+lines: 3870
 exports: 44
 imported_by: 14
 api_sha: acb7e7d3e1a6
 prose_sha: acb7e7d3e1a6
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -54,21 +54,21 @@ tags: [codemap]
 | 615 | const | CARD_COLS | `CARD_COLS` | カードの大きさ（マス数）。 |
 | 616 | const | CARD_ROWS | `CARD_ROWS` |  |
 | 620 | const | DEFAULT_CARD_STACK_ORDER | `DEFAULT_CARD_STACK_ORDER` | カード・デッキの既定の重なり順。 |
-| 920 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
-| 1039 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
-| 1062 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
-| 1070 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
-| 1147 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
-| 1163 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
-| 1192 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
-| 1204 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
-| 1225 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
-| 1235 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
-| 1247 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 1350 | class | ImmutableStore | `ImmutableStore` |  |
-| 3721 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 3725 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 3839 | const | store | `store` |  |
+| 941 | fn | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 保存済み・読み込まれた情報（infoEntries）の形を整える。 |
+| 1060 | fn | listPlotSlots | `listPlotSlots(round, tokenId)` | このコマのプロット枠の一覧。 |
+| 1083 | fn | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | このコマが「結局どのプロットで動くか」。 |
+| 1091 | fn | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | プロットを増やしていて、まだどれで動くか選ばれていないか。 |
+| 1168 | fn | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 枠の表示名。 |
+| 1184 | fn | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 手番順のコマ並びを、画面とログに出す「プロット枠1つ＝1行」へ展開する。 |
+| 1213 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
+| 1225 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
+| 1246 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
+| 1256 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
+| 1268 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 1371 | class | ImmutableStore | `ImmutableStore` |  |
+| 3751 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 3755 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 3869 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（85）
 
@@ -117,51 +117,51 @@ tags: [codemap]
 | 576 | withoutParam | `withoutParam(params, paramId, label)` | 9 |  |
 | 589 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
 | 599 | normalizeStackOrder | `normalizeStackOrder(value)` | 3 | ✓ |
-| 646 | clampCardText | `clampCardText(value, max)` | 3 |  |
-| 651 | normalizeCardImage | `normalizeCardImage(image)` | 4 |  |
-| 661 | normalizeCardFace | `normalizeCardFace(face)` | 9 |  |
-| 672 | normalizeCardBack | `normalizeCardBack(back)` | 7 |  |
-| 680 | normalizeSeenBy | `normalizeSeenBy(seenBy)` | 5 |  |
-| 688 | buildCard | `buildCard({ id, face, back, x = 0, y = 0, faceUp = false, stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = [], stockerId = null, stockerSeq = 0 })` | 26 |  |
-| 716 | normalizeDeckCards | `normalizeDeckCards(cards)` | 16 |  |
-| 733 | buildDeck | `buildDeck({ id, name = '', x = 0, y = 0, back = null, cards = [], stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false })` | 17 |  |
-| 753 | isNamedObjectEntry | `isNamedObjectEntry([id, value])` | 3 |  |
-| 757 | normalizeCardMap | `normalizeCardMap(cards)` | 7 |  |
-| 767 | withoutLostStockerCards | `withoutLostStockerCards(cards, panels)` | 11 |  |
-| 779 | normalizeDeckMap | `normalizeDeckMap(decks)` | 7 |  |
-| 793 | buildDeckTemplateCard | `buildDeckTemplateCard(card, index)` | 11 |  |
-| 805 | buildDeckTemplate | `buildDeckTemplate({ id, name = '', back = null, cards = [] })` | 9 |  |
-| 815 | normalizeDeckTemplateMap | `normalizeDeckTemplateMap(templates)` | 7 |  |
-| 826 | findFreeCardSpot | `findFreeCardSpot(cards, x, y, gridSize)` | 12 |  |
-| 852 | stockerAllowsUser | `stockerAllowsUser(panel, participantId, localUserId)` | 6 |  |
-| 860 | nextStockerSeq | `nextStockerSeq(cards)` | 3 |  |
-| 865 | listStockerCards | `listStockerCards(cards, panelId)` | 5 |  |
-| 880 | releaseStockerCards | `releaseStockerCards(cards, panel, gridSize)` | 18 |  |
-| 901 | definedFields | `definedFields(patch)` | 3 |  |
-| 907 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 8 |  |
-| 920 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
-| 957 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
-| 966 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
-| 981 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
-| 1009 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
-| 1023 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
-| 1039 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
-| 1062 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
-| 1070 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
-| 1078 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
-| 1097 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
-| 1137 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
-| 1147 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
-| 1163 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
-| 1192 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
-| 1204 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
-| 1225 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
-| 1235 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
-| 1247 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
-| 1256 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
-| 1261 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
-| 1274 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
-| 3725 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 113 | ✓ |
+| 661 | clampCardText | `clampCardText(value, max)` | 3 |  |
+| 666 | normalizeCardImage | `normalizeCardImage(image)` | 4 |  |
+| 676 | normalizeCardFace | `normalizeCardFace(face)` | 9 |  |
+| 687 | normalizeCardBack | `normalizeCardBack(back)` | 7 |  |
+| 695 | normalizeSeenBy | `normalizeSeenBy(seenBy)` | 5 |  |
+| 703 | buildCard | `buildCard({ id, face, back, x = 0, y = 0, faceUp = false, stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false, deckId = null, seenBy = [], stockerId = null, stockerSeq = 0 })` | 26 |  |
+| 731 | normalizeDeckCards | `normalizeDeckCards(cards)` | 16 |  |
+| 748 | buildDeck | `buildDeck({ id, name = '', x = 0, y = 0, back = null, cards = [], stackOrder = DEFAULT_CARD_STACK_ORDER, locked = false })` | 17 |  |
+| 771 | isNamedObjectEntry | `isNamedObjectEntry([id, value])` | 3 |  |
+| 775 | normalizeCardMap | `normalizeCardMap(cards)` | 8 |  |
+| 786 | withoutLostStockerCards | `withoutLostStockerCards(cards, panels)` | 11 |  |
+| 798 | normalizeDeckMap | `normalizeDeckMap(decks)` | 8 |  |
+| 813 | buildDeckTemplateCard | `buildDeckTemplateCard(card, index)` | 11 |  |
+| 825 | buildDeckTemplate | `buildDeckTemplate({ id, name = '', back = null, cards = [] })` | 9 |  |
+| 835 | normalizeDeckTemplateMap | `normalizeDeckTemplateMap(templates)` | 8 |  |
+| 847 | findFreeCardSpot | `findFreeCardSpot(cards, x, y, gridSize)` | 12 |  |
+| 873 | stockerAllowsUser | `stockerAllowsUser(panel, participantId, localUserId)` | 6 |  |
+| 881 | nextStockerSeq | `nextStockerSeq(cards)` | 3 |  |
+| 886 | listStockerCards | `listStockerCards(cards, panelId)` | 5 |  |
+| 901 | releaseStockerCards | `releaseStockerCards(cards, panel, gridSize)` | 18 |  |
+| 922 | definedFields | `definedFields(patch)` | 3 |  |
+| 928 | buildInfoSection | `buildInfoSection({ id, label = '', body = '', audience = null })` | 8 |  |
+| 941 | normalizeInfoEntries | `normalizeInfoEntries(infoEntries)` | 34 | ✓ |
+| 978 | buildUserParam | `buildUserParam({ key, label, value, visible, audience })` | 7 |  |
+| 987 | withNewUserParam | `withNewUserParam(params, def)` | 5 |  |
+| 1002 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 |  |
+| 1030 | sortByInitiative | `sortByInitiative(tokensState, participantIds)` | 9 |  |
+| 1044 | turnOrderSourceOf | `turnOrderSourceOf(round)` | 4 |  |
+| 1060 | listPlotSlots | `listPlotSlots(round, tokenId)` | 15 | ✓ |
+| 1083 | resolvedPlotSlot | `resolvedPlotSlot(round, tokenId)` | 6 | ✓ |
+| 1091 | hasUnchosenPlot | `hasUnchosenPlot(round, tokenId)` | 3 | ✓ |
+| 1099 | plotValueOf | `plotValueOf(round, tokenId)` | 7 |  |
+| 1118 | sortForTurnOrder | `sortForTurnOrder(tokensState, round, participantIds)` | 35 |  |
+| 1158 | normalizePlotSlotLabel | `normalizePlotSlotLabel(label)` | 4 |  |
+| 1168 | describePlotSlotName | `describePlotSlotName(tokenName, slot, slotIndex)` | 4 | ✓ |
+| 1184 | listPlotSlotRows | `listPlotSlotRows(tokensState, round, tokenIds)` | 27 | ✓ |
+| 1213 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
+| 1225 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
+| 1246 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
+| 1256 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
+| 1268 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
+| 1277 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 |  |
+| 1282 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 |  |
+| 1295 | fieldPatchFor | `fieldPatchFor(table, action)` | 3 |  |
+| 3755 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 113 | ✓ |
 
 ## 依存
 

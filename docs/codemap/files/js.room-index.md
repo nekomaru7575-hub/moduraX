@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 561
+lines: 588
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -32,23 +32,23 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 33 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
-| 65 | formatUptime | `formatUptime(sec)` | 8 |  |
-| 74 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
-| 86 | renderServerStatus | `renderServerStatus(load)` | 61 |  |
-| 155 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
-| 179 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
-| 239 | visibleRooms | `visibleRooms()` | 5 |  |
-| 245 | fillRoomSelect | `fillRoomSelect()` | 30 |  |
-| 277 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
-| 327 | mountCreatePanel | `mountCreatePanel()` | 154 |  |
-| 483 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
-| 497 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
-| 510 | loadRooms | `async loadRooms()` | 44 |  |
+| 34 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
+| 66 | formatUptime | `formatUptime(sec)` | 8 |  |
+| 75 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
+| 87 | renderServerStatus | `renderServerStatus(load)` | 61 |  |
+| 156 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
+| 180 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
+| 240 | visibleRooms | `visibleRooms()` | 5 |  |
+| 246 | fillRoomSelect | `fillRoomSelect()` | 32 |  |
+| 280 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
+| 330 | mountCreatePanel | `mountCreatePanel()` | 178 |  |
+| 510 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 524 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 537 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 
-- import → [[js.bcdice-catalog]], [[js.parameters.registry]], [[js.pwa]], [[js.room-entry]], [[js.untrusted-json]]
+- import → [[js.bcdice-catalog]], [[js.icons]], [[js.parameters.registry]], [[js.pwa]], [[js.room-entry]], [[js.untrusted-json]]
 - imported by → なし（エントリポイント）
 
 ## 注意

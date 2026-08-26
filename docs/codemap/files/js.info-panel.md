@@ -1,11 +1,11 @@
 ---
 source: js/info-panel.js
-lines: 360
+lines: 370
 exports: 1
 imported_by: 1
 api_sha: 345c82bc610b
 prose_sha: 345c82bc610b
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 68 | fn | initInfoPanel | `initInfoPanel()` |  |
+| 69 | fn | initInfoPanel | `initInfoPanel()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（5）
 
@@ -34,15 +34,15 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 46 | entryLabel | `entryLabel(entry)` | 3 |  |
-| 52 | visibleSections | `visibleSections(entry, myId)` | 3 |  |
-| 56 | visibleEntries | `visibleEntries(state, myId)` | 3 |  |
-| 62 | canEditEntry | `canEditEntry(entry, myId, amGm)` | 5 |  |
-| 68 | initInfoPanel | `initInfoPanel()` | **292** | ✓ |
+| 47 | entryLabel | `entryLabel(entry)` | 3 |  |
+| 53 | visibleSections | `visibleSections(entry, myId)` | 3 |  |
+| 57 | visibleEntries | `visibleEntries(state, myId)` | 3 |  |
+| 63 | canEditEntry | `canEditEntry(entry, myId, amGm)` | 5 |  |
+| 69 | initInfoPanel | `initInfoPanel()` | **301** | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.audience-picker]], [[js.board-data-driven]], [[js.context-menu]], [[js.floating-panel]], [[js.game-store]], [[js.info-entry-dialog]], [[js.local-identity]], [[js.visibility]]
+- import → [[js.EventBus]], [[js.audience-picker]], [[js.board-data-driven]], [[js.context-menu]], [[js.floating-panel]], [[js.game-store]], [[js.icons]], [[js.info-entry-dialog]], [[js.local-identity]], [[js.visibility]]
 - imported by → [[js.main]]
 
 ## 注意

@@ -1,11 +1,11 @@
 ---
 source: js/context-menu.js
-lines: 78
+lines: 87
 exports: 1
-imported_by: 5
+imported_by: 6
 api_sha: 9aac9452f08f
 prose_sha: 9aac9452f08f
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 34 | fn | showContextMenu | `showContextMenu(x, y, items)` | disabled: 押せない項目として出す（項目ごと消すと「なぜ出ないのか」が分からないため、 権限が無くてできない操作はtitleに理由を入れてこちらで示す）。 |
+| 39 | fn | showContextMenu | `showContextMenu(x, y, items)` | title?: string, icon?: string, iconLabel?: string}[]} items disabled: 押せない項目として出す（項目ごと消すと「なぜ出ないのか」が分からないため、 … |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,15 +34,15 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 8 | closeContextMenu | `closeContextMenu()` | 8 |  |
-| 17 | onOutsideClick | `onOutsideClick(event)` | 5 |  |
-| 23 | onEscape | `onEscape(event)` | 3 |  |
-| 34 | showContextMenu | `showContextMenu(x, y, items)` | 45 | ✓ |
+| 10 | closeContextMenu | `closeContextMenu()` | 8 |  |
+| 19 | onOutsideClick | `onOutsideClick(event)` | 5 |  |
+| 25 | onEscape | `onEscape(event)` | 3 |  |
+| 39 | showContextMenu | `showContextMenu(x, y, items)` | 49 | ✓ |
 
 ## 依存
 
-- import → なし
-- imported by → [[js.board-data-driven]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.round-panel]]
+- import → [[js.icons]]
+- imported by → [[js.board-data-driven]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.round-panel]], [[js.site-nav]]
 
 ## 注意
 

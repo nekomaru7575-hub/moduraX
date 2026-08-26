@@ -1,11 +1,11 @@
 ---
 source: js/audio-dialog.js
-lines: 499
+lines: 504
 exports: 1
 imported_by: 1
 api_sha: d08a5809b47e
 prose_sha: d08a5809b47e
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 195 | fn | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | 追加・再生・削除は即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
+| 196 | fn | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | 追加・再生・削除は即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（9）
 
@@ -34,19 +34,19 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 37 | formatBytes | `formatBytes(bytes)` | 5 |  |
-| 44 | stripExtension | `stripExtension(filename)` | 3 |  |
-| 50 | ensureDialog | `ensureDialog()` | 7 |  |
-| 59 | currentRoomId | `currentRoomId()` | 3 |  |
-| 70 | currentMaxBytes | `currentMaxBytes()` | 3 |  |
-| 74 | fetchUploadCapability | `fetchUploadCapability(onResolved)` | 13 |  |
-| 94 | uploadAudioFile | `async uploadAudioFile(file)` | 21 |  |
-| 119 | buildAddRow | `buildAddRow(defaultName, onSubmit)` | 56 |  |
-| 195 | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | **304** | ✓ |
+| 38 | formatBytes | `formatBytes(bytes)` | 5 |  |
+| 45 | stripExtension | `stripExtension(filename)` | 3 |  |
+| 51 | ensureDialog | `ensureDialog()` | 7 |  |
+| 60 | currentRoomId | `currentRoomId()` | 3 |  |
+| 71 | currentMaxBytes | `currentMaxBytes()` | 3 |  |
+| 75 | fetchUploadCapability | `fetchUploadCapability(onResolved)` | 13 |  |
+| 95 | uploadAudioFile | `async uploadAudioFile(file)` | 21 |  |
+| 120 | buildAddRow | `buildAddRow(defaultName, onSubmit)` | 56 |  |
+| 196 | showAudioDialog | `showAudioDialog({ tracks, playback, canAddTrack = true, canStop = true, onAdd, onPlay, onStop, onRemove, onPhraseChange })` | **308** | ✓ |
 
 ## 依存
 
-- import → [[js.audio-player]], [[js.file-uploader]], [[js.game-store]], [[js.local-identity]], [[js.room-entry]]
+- import → [[js.audio-player]], [[js.file-uploader]], [[js.game-store]], [[js.icons]], [[js.local-identity]], [[js.room-entry]]
 - imported by → [[js.main]]
 
 ## 注意

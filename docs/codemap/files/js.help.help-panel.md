@@ -1,11 +1,11 @@
 ---
 source: js/help/help-panel.js
-lines: 188
+lines: 194
 exports: 1
 imported_by: 1
 api_sha: 0089ce42a2a4
 prose_sha: 0089ce42a2a4
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 51 | fn | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | ヘルプの対話パネルを1つ作る。 |
+| 52 | fn | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | ヘルプの対話パネルを1つ作る。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（3）
 
@@ -34,13 +34,13 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 22 | pickGreeting | `pickGreeting()` | 9 |  |
-| 33 | fillBubble | `fillBubble(bubble, body)` | 9 |  |
-| 51 | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | 137 | ✓ |
+| 23 | pickGreeting | `pickGreeting()` | 9 |  |
+| 34 | fillBubble | `fillBubble(bubble, body)` | 9 |  |
+| 52 | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | 142 | ✓ |
 
 ## 依存
 
-- import → [[js.help.help-content]]
+- import → [[js.help.help-content]], [[js.icons]]
 - imported by → [[js.main]]
 
 ## 注意

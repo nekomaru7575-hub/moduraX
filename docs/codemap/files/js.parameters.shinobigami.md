@@ -1,11 +1,11 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 1359
+lines: 1360
 exports: 9
 imported_by: 1
 api_sha: 9f11e7eabafd
 prose_sha: 9f11e7eabafd
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 

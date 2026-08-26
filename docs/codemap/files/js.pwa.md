@@ -1,11 +1,11 @@
 ---
 source: js/pwa.js
-lines: 159
+lines: 160
 exports: 2
 imported_by: 3
 api_sha: fa7c8e7768d3
 prose_sha: fa7c8e7768d3
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -36,8 +36,8 @@ PWA（ホーム画面・デスクトップへインストールして全画面�
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 51 | fn | registerServiceWorker | `registerServiceWorker()` | --- Service Workerの登録 --- 失敗しても画面は普通に動く（sw.jsはコードをキャッシュしないので、居ても居なくても 表示は同じ）。 |
-| 133 | fn | mountInstallPrompt | `mountInstallPrompt(container)` | 部屋一覧（index.html）から呼ぶ。 |
+| 53 | fn | registerServiceWorker | `registerServiceWorker()` | --- Service Workerの登録 --- 失敗しても画面は普通に動く（sw.jsはコードをキャッシュしないので、居ても居なくても 表示は同じ）。 |
+| 134 | fn | mountInstallPrompt | `mountInstallPrompt(container)` | 部屋一覧（index.html）から呼ぶ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（8）
 
@@ -46,18 +46,18 @@ PWA（ホーム画面・デスクトップへインストールして全画面�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 17 | isInstalled | `isInstalled()` | 5 |  |
-| 25 | isIos | `isIos()` | 5 |  |
-| 31 | hintDismissed | `hintDismissed()` | 8 |  |
-| 40 | dismissHint | `dismissHint()` | 7 |  |
-| 51 | registerServiceWorker | `registerServiceWorker()` | 14 | ✓ |
-| 81 | createInstallButton | `createInstallButton(container)` | 23 |  |
-| 105 | createIosHint | `createIosHint(container)` | 26 |  |
-| 133 | mountInstallPrompt | `mountInstallPrompt(container)` | 26 | ✓ |
+| 19 | isInstalled | `isInstalled()` | 5 |  |
+| 27 | isIos | `isIos()` | 5 |  |
+| 33 | hintDismissed | `hintDismissed()` | 8 |  |
+| 42 | dismissHint | `dismissHint()` | 7 |  |
+| 53 | registerServiceWorker | `registerServiceWorker()` | 14 | ✓ |
+| 83 | createInstallButton | `createInstallButton(container)` | 22 |  |
+| 106 | createIosHint | `createIosHint(container)` | 26 |  |
+| 134 | mountInstallPrompt | `mountInstallPrompt(container)` | 26 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.icons]]
 - imported by → [[js.character-builder]], [[js.main]], [[js.room-index]]
 
 ## 注意

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dx3-lois-box.js
-lines: 420
+lines: 430
 exports: 10
 imported_by: 1
 api_sha: 2421ee490206
 prose_sha: 2421ee490206
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -28,13 +28,13 @@ DX3 のロイス（人間関係）の一覧・編集ボックス。関係と感�
 | 19 | const | LOIS_COMPONENT_KEY | `LOIS_COMPONENT_KEY` | components にロイス一覧を保存するときのキー。 |
 | 22 | const | LOIS_MAX | `LOIS_MAX` | ロイスは最大7個まで持てる（キャラクターシート側のスロット数とも一致）。 |
 | 26 | const | LOIS_RELATIONS | `LOIS_RELATIONS` | ロイスの種類。 |
-| 42 | const | LOIS_POSITIVE_EMOTIONS | `LOIS_POSITIVE_EMOTIONS` | ------------------------------------------------------------------ 感情表（仮）。 |
-| 48 | const | LOIS_NEGATIVE_EMOTIONS | `LOIS_NEGATIVE_EMOTIONS` |  |
-| 57 | fn | createEmptyLois | `createEmptyLois()` | 空のロイス1件。 |
-| 72 | fn | normalizeLois | `normalizeLois(raw)` | 保存済み・読み込み済みのロイス1件を、欠けたフィールドを補って正規化する。 |
-| 94 | fn | normalizeLoisList | `normalizeLoisList(rawList)` |  |
-| 105 | fn | countActiveLois | `countActiveLois(lois)` | パラメータ「ロイス」の値。 |
-| 163 | fn | showLoisBox | `showLoisBox({ lois = [], readOnly = false, onSave })` | lois: Array<object>, readOnly?: boolean 他人のコマを表示だけしている時。 |
+| 51 | const | LOIS_POSITIVE_EMOTIONS | `LOIS_POSITIVE_EMOTIONS` | ------------------------------------------------------------------ 感情表。 |
+| 57 | const | LOIS_NEGATIVE_EMOTIONS | `LOIS_NEGATIVE_EMOTIONS` |  |
+| 67 | fn | createEmptyLois | `createEmptyLois()` | 空のロイス1件。 |
+| 82 | fn | normalizeLois | `normalizeLois(raw)` | 保存済み・読み込み済みのロイス1件を、欠けたフィールドを補って正規化する。 |
+| 104 | fn | normalizeLoisList | `normalizeLoisList(rawList)` |  |
+| 115 | fn | countActiveLois | `countActiveLois(lois)` | パラメータ「ロイス」の値。 |
+| 173 | fn | showLoisBox | `showLoisBox({ lois = [], readOnly = false, onSave })` | lois: Array<object>, readOnly?: boolean 他人のコマを表示だけしている時。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（8）
 
@@ -43,14 +43,14 @@ DX3 のロイス（人間関係）の一覧・編集ボックス。関係と感�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 57 | createEmptyLois | `createEmptyLois()` | 10 | ✓ |
-| 72 | normalizeLois | `normalizeLois(raw)` | 21 | ✓ |
-| 94 | normalizeLoisList | `normalizeLoisList(rawList)` | 4 | ✓ |
-| 105 | countActiveLois | `countActiveLois(lois)` | 7 | ✓ |
-| 114 | countTitus | `countTitus(lois)` | 4 |  |
-| 121 | ensureDialog | `ensureDialog()` | 7 |  |
-| 131 | buildEmotionSelect | `buildEmotionSelect(options, currentValue)` | 23 |  |
-| 163 | showLoisBox | `showLoisBox({ lois = [], readOnly = false, onSave })` | **257** | ✓ |
+| 67 | createEmptyLois | `createEmptyLois()` | 10 | ✓ |
+| 82 | normalizeLois | `normalizeLois(raw)` | 21 | ✓ |
+| 104 | normalizeLoisList | `normalizeLoisList(rawList)` | 4 | ✓ |
+| 115 | countActiveLois | `countActiveLois(lois)` | 7 | ✓ |
+| 124 | countTitus | `countTitus(lois)` | 4 |  |
+| 131 | ensureDialog | `ensureDialog()` | 7 |  |
+| 141 | buildEmotionSelect | `buildEmotionSelect(options, currentValue)` | 23 |  |
+| 173 | showLoisBox | `showLoisBox({ lois = [], readOnly = false, onSave })` | **257** | ✓ |
 
 ## 依存
 

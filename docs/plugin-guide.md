@@ -1204,7 +1204,7 @@ npm run dev
 **既存コマへのパラメータ補完** は、システムを切り替え直したときに走る。
 `locked: true` を付け忘れていると補完されないので、ここで気付ける。
 
-コードマップ（`docs/codemap/`）は `node .loop/codemap.mjs --sync-vault` で再生成できる。
+コードマップ（`docs/codemap/`）は `node tools/codemap.mjs` で再生成できる。
 ファイル構成を把握したいときはソースより先に `docs/codemap/INDEX.md` を読むと早い。
 
 ---

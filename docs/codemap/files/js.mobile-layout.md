@@ -1,11 +1,11 @@
 ---
 source: js/mobile-layout.js
-lines: 283
+lines: 286
 exports: 1
 imported_by: 1
 api_sha: 927a067b39ff
 prose_sha: 927a067b39ff
-generated: 2026-08-24
+generated: 2026-08-26
 tags: [codemap]
 ---
 
@@ -37,7 +37,7 @@ _(未記入)_
 | 41 | countLogEntries | `countLogEntries(state)` | 3 |  |
 | 45 | loadActiveViewId | `loadActiveViewId()` | 7 |  |
 | 53 | saveActiveViewId | `saveActiveViewId(viewId)` | 7 |  |
-| 66 | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | **217** | ✓ |
+| 66 | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | **220** | ✓ |
 
 ## 依存
 

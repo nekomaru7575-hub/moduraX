@@ -89,20 +89,31 @@ function buildStampElement(stamp, name) {
   const item = document.createElement('div');
   item.className = 'stamp-item';
 
-  const image = document.createElement('img');
-  image.className = 'stamp-item-image';
-  image.alt = stamp.label;
-  image.src = stamp.url;
   // 画像がまだ置かれていない場合でも「誰が何を出したか」は伝わるようにする。
   // 画像を用意する前から動作を確かめられるようにするための逃げ道でもある。
-  image.addEventListener('error', () => {
-    image.remove();
+  // 絵の置き場が無い環境では url が最初から null になる（js/asset-base.js）。
+  // その場合はimgを作らずに名前だけ出す。src=nullは "null" という宛先を取りに行って
+  // 404を出すので、分かっているなら投げない。
+  const nameOnly = () => {
     const fallback = document.createElement('div');
     fallback.className = 'stamp-item-fallback';
     fallback.textContent = stamp.label;
     item.prepend(fallback);
-  });
-  item.appendChild(image);
+  };
+
+  if (stamp.url) {
+    const image = document.createElement('img');
+    image.className = 'stamp-item-image';
+    image.alt = stamp.label;
+    image.src = stamp.url;
+    image.addEventListener('error', () => {
+      image.remove();
+      nameOnly();
+    });
+    item.appendChild(image);
+  } else {
+    nameOnly();
+  }
 
   const nameEl = document.createElement('div');
   nameEl.className = 'stamp-item-name';

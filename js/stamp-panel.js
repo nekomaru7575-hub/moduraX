@@ -119,7 +119,11 @@ export function initStampPanel() {
   function renderGrid(pluginId) {
     renderedPluginId = pluginId;
     grid.innerHTML = '';
-    buttons = listStamps(pluginId).map(stamp => {
+    // 絵の置き場が無い環境では、プラグインのスタンプは url が null になる
+    // （js/asset-base.js）。押しても絵が出せないので、ボタン自体を出さない。
+    // 一覧から落とすのはここだけ。IDが実在するかの判定（js/stamp-registry.jsの
+    // isKnownStampId）まで落とすと、送っても捨てられる側になってしまう。
+    buttons = listStamps(pluginId).filter(stamp => stamp.url).map(stamp => {
       const button = buildButton(stamp);
       grid.appendChild(button);
       return button;

@@ -41,9 +41,14 @@ function isPlainPathSegment(name) {
 // Coreのスタンプ（dirSegmentなし）は作者の自作でリポジトリに入っているので、
 // これまでどおり image/stamps/ から配る。
 // プラグインが宣言する絵（dirSegmentあり）はファンキットやフリー素材のことがあり、
-// リポジトリに入れると再配布になってしまうので外部の置き場から配る
-// （js/asset-base.js）。置き場が未設定なら null を返し、一覧から落とす。
-// 素材の許諾を持たない環境に出ないのが正しいので、これは欠落ではなく仕様。
+// リポジトリに入れると再配布になってしまうので外部の置き場から配る（js/asset-base.js）。
+//
+// 【身元と見た目は別物】url が null になっても、そのスタンプを一覧から落としてはいけない。
+// 「そのIDが実在するか」はプラグインが決める事実で、「絵がどこにあるか」は環境の話。
+// この2つを混ぜると、サーバー（setAssetBaseUrlを呼ばない＝常にnull）が
+// isKnownStampIdでプラグインのスタンプを全部knownでないと判定し、送っても黙って
+// 捨てられるようになる。実際にそれを一度やってブーケが送れなくなった。
+// 絵を出せるかどうかは、出す側（js/stamp-panel.js・js/stamp-layer.js）が url を見て決める。
 function normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {}) {
   if (!stamp || !stamp.id || !isPlainPathSegment(stamp.file)) return null;
   if (dirSegment && !isPlainPathSegment(dirSegment)) return null;
@@ -51,12 +56,11 @@ function normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {}) {
   const url = dirSegment
     ? assetUrl(`${STAMP_IMAGE_DIR}/${dirSegment}/${stamp.file}`)
     : `${LOCAL_STAMP_DIR}/${stamp.file}`;
-  if (!url) return null;
 
   return {
     id: `${idPrefix}${stamp.id}`,
     label: String(stamp.label ?? stamp.id),
-    url
+    url: url || null
   };
 }
 

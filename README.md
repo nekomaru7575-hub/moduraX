@@ -145,6 +145,9 @@ WebSocketで送り、サーバーが同じreducerを適用して保存し、全�
   画像が出ない、という事故が起きます
 - [docs/codemap/](docs/codemap/) はソースを読まずに構造を把握するためのインデックスです。
   自動生成なので、表を手で直しても次回の生成で消えます
+- **[docs/change-checklist.md](docs/change-checklist.md)** に、直したり機能を足したりした
+  ときに一緒に直す場所をまとめてあります。プラグインを足すと権利表示が3か所必要、
+  環境変数を足すと `dev-local.js` にも要る、といった忘れやすいものです
 
 自動テストはありません。確かめ方は [docs/plugin-guide.md](docs/plugin-guide.md) の
 「動作確認のしかた」にあります。

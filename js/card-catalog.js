@@ -17,8 +17,12 @@
 // DECK_TEMPLATESへ1件足す。将来「デッキを新規作成するUI」を入れるときも、
 // build()が返すのと同じ形（{ face } の配列）を作って渡せばそのまま載る。
 
+import { assetUrl } from './asset-base.js';
+
 // トランプ画像の置き場。フォルダ名は本番（Linux）で大文字小文字が区別される。
-export const CARD_IMAGE_DIR = 'image/trump';
+// リポジトリには画像を置いていない（フリー素材の再配布を避けるため。js/asset-base.js）ので、
+// この名前は外部の置き場の中の階層として使う。
+export const CARD_IMAGE_DIR = 'trump';
 
 // スート。idはそのまま画像ファイル名の一部になるので、平易な語だけにする。
 const SUITS = [
@@ -34,12 +38,18 @@ const RANK_LABELS = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
 const JOKER_COLOR = '#7b4ea8';
 
 // 画像ファイル名の規則： card_<スート>_<2桁の数字>.png / card_joker.png / card_back.png
+// 置き場が設定されていなければ null を返す。カードは画像が無ければスートと数字の
+// 文字で描かれる（js/board-data-driven.js の applyCardAppearance）ので、それで成立する。
 function cardImageUrl(fileName) {
-  return `${CARD_IMAGE_DIR}/${fileName}`;
+  return assetUrl(`${CARD_IMAGE_DIR}/${fileName}`);
 }
 
 // デッキの既定の裏面（差し替えはデッキ配置ダイアログから）。
-export const TRUMP_BACK = Object.freeze({ image: cardImageUrl('card_back.png'), color: null });
+// 定数ではなく関数なのは、置き場所が起動時に決まるため。モジュール読み込みの時点で
+// URLを確定させてしまうと、設定が届く前の値（null）で固まる。
+export function trumpBack() {
+  return Object.freeze({ image: cardImageUrl('card_back.png'), color: null });
+}
 
 function trumpFace(suit, rank) {
   const label = RANK_LABELS[rank] || String(rank);
@@ -86,7 +96,9 @@ export const DECK_TEMPLATES = [
     label: '簡易トランプ',
     defaultName: 'トランプ',
     jokerOption: true,
-    back: TRUMP_BACK,
+    // getterなのは、置き場所が起動時に決まるため（trumpBack()と同じ理由）。
+    // 読む側は template.back のまま触れる。
+    get back() { return trumpBack(); },
     build: buildSimpleTrumpDeck
   }
 ];

@@ -32,5 +32,12 @@ skills-lock.json
 # コード解析ツールのプロジェクト設定
 .serena/
 
+# --- リポジトリに置かない絵 ---
+# フリー素材・ファンキットのように「自分のサイトで使うのはよいが素材としての再配布は駄目」
+# というもの。配信は外部の置き場から行う（ASSET_BASE_URL。js/asset-base.js）。
+# 手元に置いて試すことはあるので、うっかり追跡しないよう先に塞いでおく。
+image/trump/*.png
+image/stamps/*/
+
 # --- 公開しない下書き ---
 docs/user-registration-draft.md

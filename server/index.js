@@ -487,6 +487,14 @@ const MIME_TYPES = {
   '.m4a': 'audio/mp4'
 };
 
+// --- リポジトリに置いていない絵の置き場 ---
+// スタンプやトランプの絵には、フリー素材やファンキットのように「自分のサイトで使うのは
+// よいが素材として再配布するのは駄目」というものがある。リポジトリに入れるとcloneした人
+// 全員へ配ることになるので、配信だけ外部（R2など）から行う。
+// 未設定なら、それらの絵は無いものとして動く（スタンプは一覧に出ず、カードは文字で描かれる）。
+// ブラウザへは GET /api/config で渡す。詳しくは js/asset-base.js。
+const ASSET_BASE_URL = (process.env.ASSET_BASE_URL || '').trim().replace(/\/+$/, '');
+
 // --- 公開してよいファイルの範囲 ---
 // リポジトリのルートには、配ってはいけないものがブラウザ向けのファイルと同居している
 // （.env・server/・.git/・.loop/・.claude/・txt/・旧ファイル/）。「ROOT_DIRの中なら
@@ -2837,6 +2845,13 @@ await migrateLegacySummariesIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  // ブラウザ側が起動時に一度だけ読む設定。今は絵の置き場だけ。
+  // 秘密は載せない（誰でも叩けるので）。増やすときもその線を守ること。
+  if (url.pathname === '/api/config' && req.method === 'GET') {
+    sendJson(res, 200, { assetBaseUrl: ASSET_BASE_URL || null });
+    return;
+  }
 
   if (url.pathname === '/api/rooms' && req.method === 'GET') {
     await handleListRooms(req, res, url);

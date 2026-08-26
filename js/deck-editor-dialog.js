@@ -17,7 +17,7 @@
 
 import { pickFiles } from './file-uploader.js';
 import { uploadImageFile, isImageUploadAvailable, pickAndUploadImage } from './image-upload.js';
-import { TRUMP_BACK } from './card-catalog.js';
+import { trumpBack } from './card-catalog.js';
 
 // 展開後の合計がこれを超えると、配置のときに切られる（js/game-store.jsのMAX_DECK_CARDS）。
 // ここで先に知らせて、切られてから気づくのを防ぐ。
@@ -85,7 +85,7 @@ export function showDeckEditorDialog({ template = null, onConfirm, onCancel = nu
   }));
   if (rows.length === 0) rows.push({ id: nextRowId(), name: '', count: 1, text: '', image: null });
 
-  let currentBack = template ? (template.back?.image ?? null) : TRUMP_BACK.image;
+  let currentBack = template ? (template.back?.image ?? null) : trumpBack().image;
 
   let settled = false;
   function closeWithCancel() {
@@ -170,7 +170,7 @@ export function showDeckEditorDialog({ template = null, onConfirm, onCancel = nu
   backDefaultBtn.textContent = '既定に戻す';
   backDefaultBtn.className = 'dialog-remove-row';
   backDefaultBtn.addEventListener('click', () => {
-    currentBack = TRUMP_BACK.image;
+    currentBack = trumpBack().image;
     backPreview.src = currentBack;
     backPreview.style.display = 'block';
   });

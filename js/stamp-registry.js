@@ -20,6 +20,10 @@
 // - 使えるのは、その部屋に適用中のプラグインのスタンプだけ。
 
 import { STAMPS, STAMP_IMAGE_DIR } from './stamp-catalog.js';
+import { assetUrl, assetBaseVersion } from './asset-base.js';
+
+// Coreのスタンプ（自作・リポジトリ同梱）を配るパス。プラグインの絵は外部（assetUrl）。
+const LOCAL_STAMP_DIR = 'image/stamps';
 import { listPluginStamps } from './parameters/registry.js';
 
 // 画像URLの組み立てに使うので、名前に階層を混ぜさせない。ファイル名（記述子のfile）と
@@ -32,15 +36,27 @@ function isPlainPathSegment(name) {
 }
 
 // 表の1件を { id, label, url } に均す。idはそのまま公開IDになる。
+//
+// 【Coreの絵とプラグインの絵で置き場が違う】
+// Coreのスタンプ（dirSegmentなし）は作者の自作でリポジトリに入っているので、
+// これまでどおり image/stamps/ から配る。
+// プラグインが宣言する絵（dirSegmentあり）はファンキットやフリー素材のことがあり、
+// リポジトリに入れると再配布になってしまうので外部の置き場から配る
+// （js/asset-base.js）。置き場が未設定なら null を返し、一覧から落とす。
+// 素材の許諾を持たない環境に出ないのが正しいので、これは欠落ではなく仕様。
 function normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {}) {
   if (!stamp || !stamp.id || !isPlainPathSegment(stamp.file)) return null;
   if (dirSegment && !isPlainPathSegment(dirSegment)) return null;
 
-  const dir = dirSegment ? `${STAMP_IMAGE_DIR}/${dirSegment}` : STAMP_IMAGE_DIR;
+  const url = dirSegment
+    ? assetUrl(`${STAMP_IMAGE_DIR}/${dirSegment}/${stamp.file}`)
+    : `${LOCAL_STAMP_DIR}/${stamp.file}`;
+  if (!url) return null;
+
   return {
     id: `${idPrefix}${stamp.id}`,
     label: String(stamp.label ?? stamp.id),
-    url: `${dir}/${stamp.file}`
+    url
   };
 }
 
@@ -55,7 +71,9 @@ const cache = new Map();
  * @returns {{id:string, label:string, url:string}[]}
  */
 export function listStamps(pluginId) {
-  const key = pluginId || '';
+  // 置き場所の版をキーに混ぜる。設定が届く前に一度でも呼ばれていると、
+  // プラグインの絵を落とした一覧を掴んだままになるため。
+  const key = `${assetBaseVersion()}:${pluginId || ''}`;
   const cached = cache.get(key);
   if (cached) return cached;
 

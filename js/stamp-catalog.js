@@ -18,7 +18,9 @@
 // 種類・名前・枚数を変えたいときはこの配列を書き換えるだけでよく、他のファイルは触らない。
 // 推奨は正方形・128px前後・背景透過（表示は64px程度）。
 
-export const STAMP_IMAGE_DIR = 'image/stamps';
+// プラグインが宣言する絵を置く、外部の置き場（js/asset-base.js）の中の階層名。
+// Coreの自作スタンプはリポジトリ同梱で、そちらのパスは js/stamp-registry.js が持つ。
+export const STAMP_IMAGE_DIR = 'stamps';
 
 export const STAMPS = [
   { id: 'ok', label: 'OK', file: 'ok.png' },

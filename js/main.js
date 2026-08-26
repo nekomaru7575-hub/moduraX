@@ -17,7 +17,7 @@ import {
 import { showDeckListDialog } from './deck-list-dialog.js';
 import { showDeckEditorDialog } from './deck-editor-dialog.js';
 import {
-  DECK_TEMPLATES, findDeckTemplate, expandDeckTemplate, countDeckTemplateCards, TRUMP_BACK
+  DECK_TEMPLATES, findDeckTemplate, expandDeckTemplate, countDeckTemplateCards, trumpBack
 } from './card-catalog.js';
 import { buildDeckFile, readDeckFile, deckFileName } from './deck-file.js';
 import { pickFileAsText } from './file-uploader.js';
@@ -55,6 +55,7 @@ import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
 import { showLogClearConfirmDialog } from './log-clear-dialog.js';
 import { registerServiceWorker } from './pwa.js';
+import { setAssetBaseUrl } from './asset-base.js';
 import { showLogEditDialog } from './log-edit-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
@@ -959,7 +960,7 @@ function openDeckListDialog() {
       const builtIn = findDeckTemplate(id);
       if (!builtIn) return;
       const cards = builtIn.build({ jokers: 0 }).map(card => ({ id: generateCardId(), face: card.face }));
-      placeDeckOnBoard(builtIn.defaultName, builtIn.back || TRUMP_BACK, cards);
+      placeDeckOnBoard(builtIn.defaultName, builtIn.back || trumpBack(), cards);
     },
     onCopyBuiltIn: (id) => {
       const builtIn = findDeckTemplate(id);
@@ -2476,9 +2477,20 @@ function applyLog(entry, tabId = activeTabId) {
 }
 
 // 初期化処理
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   // 盤面が自前でズームを持っているので、ブラウザのページズームとは競合させない
   initNoBrowserZoom();
+
+  // リポジトリに置いていない絵（プラグインのスタンプ・トランプ）の置き場を先に受け取る。
+  // スタンプの一覧もデッキの裏面も、最初に読まれた時点のURLで固まるので、
+  // 盤面を組み立てる前でなければ間に合わない（js/asset-base.js）。
+  // 取れなくても止めない。その場合それらの絵は「無い」ものとして動く。
+  try {
+    const config = await fetch('/api/config').then(r => r.json());
+    setAssetBaseUrl(config?.assetBaseUrl);
+  } catch {
+    setAssetBaseUrl(null);
+  }
 
   initNetSync();
   initRoundPanel();

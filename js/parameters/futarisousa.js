@@ -424,6 +424,17 @@ function sheetChecked(value) {
   return text !== '' && text !== '0';
 }
 
+// シートの数値欄を読む。読めなければnull（空欄と「なし」を区別せず、呼び出し側が既定値を決める）。
+// NFKCを通すのは、コストや余裕が自由記述の欄で「２」のように全角で書かれることがあるため
+// （Number('２')はNaNになる）。NFKCは全角英数を半角へ畳む標準の正規化。
+// 負の数はどのみち0へ落ちる（コストも余裕も0未満にはしない）ので、符号の全角は気にしない。
+function sheetNumber(value) {
+  const text = sheetText(value).normalize('NFKC');
+  if (text === '') return null;
+  const number = Number(text);
+  return Number.isFinite(number) ? Math.trunc(number) : null;
+}
+
 // 技能表の中身。シートは「取得したか」を1/空のマス目でしか持たないので、マスと技能名の
 // 対応をこちらが持っていないと文字に直せない。並びはシートの表そのままで、rowが分野、
 // cellがその分野の6つ（js/parameters/futarisousa-skill-box.jsのSKILL_CATEGORIESと同じ順）。
@@ -452,14 +463,14 @@ function importSkillsFromSheet(json) {
 
 // 心労はシート側が0〜3の数値1つで持っている。こちらはチェック3つなので、頭から埋める。
 function importStressFromSheet(json) {
-  const level = Math.max(0, Math.min(STRESS_MAX, Math.trunc(Number(sheetText(json?.anxiety?.level)) || 0)));
+  const level = Math.max(0, Math.min(STRESS_MAX, sheetNumber(json?.anxiety?.level) ?? 0));
   return Array.from({ length: STRESS_MAX }, (unused, index) => index < level);
 }
 
 // コストは「なし」や空でも来る自由記述の欄。数として読めないものは0（＝コストなし）にする。
 function sheetCost(value) {
-  const cost = Math.trunc(Number(sheetText(value)));
-  return Number.isFinite(cost) && cost > 0 ? cost : 0;
+  const cost = sheetNumber(value);
+  return cost !== null && cost > 0 ? cost : 0;
 }
 
 function importActionsFromSheet(json) {
@@ -514,10 +525,10 @@ function importEmotionsFromSheet(json) {
 // キャラクター一覧が正しく並ぶようにするため（更新画面を開くまで待たせない）。
 function importFutariSousaParameters(json, charType) {
   const shown = visibleParamIdsFor(charType);
-  const margin = Math.trunc(Number(sheetText(json?.mental?.margin)));
+  const margin = sheetNumber(json?.mental?.margin);
   const fromSheet = {
     partner: sheetText(json?.partner?.name),
-    margin: Number.isFinite(margin) ? Math.max(0, margin) : 0,
+    margin: margin === null ? 0 : Math.max(0, margin),
     stress: 0 // 実際の値はcomponentsからcomputeDerivedParametersが入れ直す
   };
 

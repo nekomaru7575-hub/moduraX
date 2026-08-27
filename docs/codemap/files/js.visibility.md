@@ -2,7 +2,7 @@
 source: js/visibility.js
 lines: 59
 exports: 5
-imported_by: 9
+imported_by: 10
 api_sha: beb5c210042e
 prose_sha: beb5c210042e
 generated: 2026-08-26
@@ -46,7 +46,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.info-panel]], [[js.main]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.room-authority]]
+- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.info-panel]], [[js.main]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.room-authority]]
 
 ## 注意
 

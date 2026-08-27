@@ -1760,6 +1760,12 @@ function triggerAudioPhrase(text) {
 // 該当コマンドでなければfalseを返し、通常のダイスロール等に委ねる。
 // 実処理（判定/ダメージのロール・バフ付与）は各プラグイン側で完結させ、成否のalertや
 // チャットへのログ追記もプラグイン側（DX3ならdx3-combo-box.jsのrunCombo*）が行う。
+// 他のコマを名前で引く。チャットパレットの一致判定・キャラクター更新画面
+// （js/board-data-driven.js）と同じ規則にそろえる（完全一致・同名なら先頭）。
+function findTokenByName(name) {
+  return Object.values(store.state.tokens).find(t => t.name === name) ?? null;
+}
+
 function tryHandlePluginChatCommand(rawInput, character) {
   const activePluginId = store.state.room?.activePlugin ?? null;
 
@@ -1770,6 +1776,10 @@ function tryHandlePluginChatCommand(rawInput, character) {
       getEffectiveParameterValue,
       generateBuffId,
       rollBCDice,
+      // 他のコマを名前で引く口。コマンドが自分以外のコマへ働きかけるプラグイン
+      // （フタリソウサのアクションコストが、パートナーの「余裕」を減らす）が使う。
+      // キャラクター更新画面（js/character-dialog.js）には前から渡してある。
+      findTokenByName,
       // 部屋が持つ値（Coreの「現在のラウンド」、プラグインのブーケ合計）。コマ1体では
       // 決まらない値をコマンドの中で読めるようにするために渡す（ステラナイツの
       // 個数を書かないcharge）。Coreは中身を解釈せず、そのまま渡すだけ。
@@ -1918,7 +1928,7 @@ const chatPalettePanel = createFloatingPanel({
 
 const chatPalette = renderChatPalette({
   container: chatPalettePanel.body,
-  findTokenByName: (name) => Object.values(store.state.tokens).find(t => t.name === name) ?? null,
+  findTokenByName,
   onSend: ({ text, name, onSent }) => submitFromPalette({ text, name, onSent })
 });
 

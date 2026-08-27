@@ -2,7 +2,7 @@
 source: js/parameters/skill/skill-use.js
 lines: 255
 exports: 4
-imported_by: 6
+imported_by: 7
 api_sha: ff0a6905208a
 prose_sha: ff0a6905208a
 generated: 2026-08-26
@@ -47,7 +47,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.parameters.skill.skill-model]]
-- imported by → [[js.parameters.arianrhod-action-set-box]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3]], [[js.parameters.shinobigami]]
+- imported by → [[js.parameters.arianrhod-action-set-box]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]]
 
 ## 注意
 

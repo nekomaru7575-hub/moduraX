@@ -2,7 +2,7 @@
 source: js/parameters/skill/skill-box.js
 lines: 982
 exports: 1
-imported_by: 5
+imported_by: 6
 api_sha: 160c4976d6de
 prose_sha: 160c4976d6de
 generated: 2026-08-26
@@ -48,7 +48,7 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 ## 依存
 
 - import → [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-formula]], [[js.parameters.skill.skill-model]], [[js.read-only-form]]
-- imported by → [[js.parameters.arianrhod]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
+- imported by → [[js.parameters.arianrhod]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
 
 ## 注意
 

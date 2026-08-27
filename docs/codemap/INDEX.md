@@ -20,7 +20,7 @@ generated: 2026-08-26
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 113 | 483 | 1030 | 31 | 1 |
+| 115 | 490 | 1053 | 31 | 1 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -100,8 +100,10 @@ generated: 2026-08-26
 | [[js.parameters.dx3-combo-box\|js/parameters/dx3-combo-box.js]] | DX3の「コンボ」一覧・編集を行うボックス。 | 7 | 1 |
 | [[js.parameters.dx3-lois-box\|js/parameters/dx3-lois-box.js]] | DX3の「ロイス」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 10 | 1 |
 | [[js.parameters.dx3\|js/parameters/dx3.js]] | DX3（ダブルクロス3rd）のプラグイン記述子。パラメータ定義と各ボックスの束ね役。 | 7 | 1 |
+| [[js.parameters.futarisousa-skill-box\|js/parameters/futarisousa-skill-box.js]] | フタリソウサの「技能」を表示・編集するボックス。 | 5 | 1 |
+| [[js.parameters.futarisousa\|js/parameters/futarisousa.js]] | バディサスペンスTRPG フタリソウサ のプラグイン記述子。 | 2 | 1 |
 | [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレストのプラグイン記述子（プラグインの書き方の見本）。 | 3 | 0 |
-| [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 7 |
+| [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 10 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 1 | 1 |
@@ -110,13 +112,13 @@ generated: 2026-08-26
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 4 | 1 |
 | [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 9 | 1 |
 | [[js.parameters.skill.item-use\|js/parameters/skill/item-use.js]] | アイテム（createItemSpecで宣言した、個数を持つ持ち物）の使用と増減。 | 5 | 3 |
-| [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 5 |
+| [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 6 |
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 10 |
-| [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 6 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 11 |
+| [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 7 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
-| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 9 |
+| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 11 |
 | [[js.room-authority-rules\|js/room-authority-rules.js]] | 「部屋そのものを左右する操作をしてよいのは誰か」の規則そのもの。 | 2 | 3 |
 | [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 5 |
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
@@ -135,7 +137,7 @@ generated: 2026-08-26
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 5 |
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
-| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 9 |
+| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 10 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
 | [[server.memory-budget\|server/memory-budget.js]] | 重い操作（部屋の取り込み・書き出し・ファイルのアップロード）が使うメモリを、実際に 読み込む前に見積もって予約する。 | 7 | 1 |
@@ -150,12 +152,12 @@ generated: 2026-08-26
 | [[js.local-identity\|js/local-identity.js]] | 14 |
 | [[js.EventBus\|js/EventBus.js]] | 13 |
 | [[js.icons\|js/icons.js]] | 12 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 11 |
+| [[js.read-only-form\|js/read-only-form.js]] | 11 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 10 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 10 |
-| [[js.read-only-form\|js/read-only-form.js]] | 9 |
+| [[js.visibility\|js/visibility.js]] | 10 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
-| [[js.visibility\|js/visibility.js]] | 9 |
-| [[js.board-data-driven\|js/board-data-driven.js]] | 7 |
+| [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | 8 |
 
 ## 散文が要更新
 

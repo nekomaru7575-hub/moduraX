@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 2534
+lines: 2544
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -25,7 +25,7 @@ _(未記入)_
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（67）
+## トップレベル関数（LOCAL TASKS 候補）（68）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -83,22 +83,23 @@ _(未記入)_
 | 1676 | tryHandleStampCommand | `tryHandleStampCommand(rawInput)` | 23 |  |
 | 1700 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
 | 1741 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 17 |  |
-| 1763 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 47 |  |
-| 1815 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
-| 1854 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
-| 1896 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
-| 1974 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
-| 1980 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
-| 2030 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
-| 2107 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 2234 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 2242 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 2291 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 2295 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 2312 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2419 | splitForSpace | `splitForSpace(string)` | 8 |  |
-| 2440 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
-| 2475 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 1765 | findTokenByName | `findTokenByName(name)` | 3 |  |
+| 1769 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 51 |  |
+| 1825 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
+| 1864 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
+| 1906 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
+| 1984 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
+| 1990 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
+| 2040 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
+| 2117 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 2244 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 2252 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 2301 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 2305 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 2322 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 2429 | splitForSpace | `splitForSpace(string)` | 8 |  |
+| 2450 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 31 |  |
+| 2485 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

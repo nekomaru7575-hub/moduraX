@@ -2,7 +2,7 @@
 source: js/parameters/skill/skill-model.js
 lines: 636
 exports: 18
-imported_by: 10
+imported_by: 11
 api_sha: 4be371c9a6c9
 prose_sha: 4be371c9a6c9
 generated: 2026-08-26
@@ -81,7 +81,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.parameters.skill.skill-formula]]
-- imported by → [[js.dice-draft-panel]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
+- imported by → [[js.dice-draft-panel]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
 
 ## 注意
 

@@ -1781,9 +1781,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const dropX = (cx - panX) / scale;
     const dropY = (cy - panY) / scale;
 
-    // クリックした位置をコマの中心にする（盤面の外でもそのまま置ける）
-    const newTokenX = Math.round(dropX - GRID_SIZE / 2);
-    const newTokenY = Math.round(dropY - GRID_SIZE / 2);
+    // クリックした位置をコマの中心にする（盤面の外でもそのまま置ける）。
+    // 丸めはsettlePositionに任せる：マス目に合わせる設定なら押したマスへ吸着する。
+    const newTokenX = settlePosition(dropX - GRID_SIZE / 2);
+    const newTokenY = settlePosition(dropY - GRID_SIZE / 2);
 
     const t = buildPanelToggleItems();
     showContextMenu(event.clientX, event.clientY, [
@@ -1862,8 +1863,8 @@ window.addEventListener('DOMContentLoaded', () => {
     store.dispatch('ADD_CHARACTER', {
       id: newId,
       name: (isSnapshot ? json.name : importResult.name) || '新規キャラクター',
-      x: Math.round(dropX - GRID_SIZE / 2),
-      y: Math.round(dropY - GRID_SIZE / 2),
+      x: settlePosition(dropX - GRID_SIZE / 2),
+      y: settlePosition(dropY - GRID_SIZE / 2),
       ownerId: getCurrentParticipantId() // 読み込んだ人のコマにする（作成時と同じ扱い）
     });
 

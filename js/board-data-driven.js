@@ -394,177 +394,195 @@ function bindTokenDrag(element) {
   function openTokenMenu(event) {
     event.preventDefault();
     event.stopPropagation();
-
-    const tokenId = element.id;
-    const token = store.state.tokens[tokenId];
-    if (!token) return;
-
-    const myParticipantId = getCurrentParticipantId();
-    const amGm = isGm(store.state.participants, myParticipantId);
-    const canOperate = canOperateToken(token);
-    // 権限が無い項目は消さずに押せない状態で出し、理由をツールチップで示す
-    // （「キャラクター更新」だけは開けて、同じ理由をダイアログの見出し下に出す）
-    const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（表示のみ。編集できるのは持ち主とGMです）`;
-
-    showContextMenu(event.clientX, event.clientY, [
-      {
-        label: `所有者: ${ownerNameOf(token)}`,
-        disabled: true,
-        onSelect: () => {}
-      },
-      {
-        // 見るだけなら誰でもできる。編集できるかはcanEditとしてダイアログへ渡し、
-        // 中身は同じまま入力だけを封じる（js/character-dialog.js参照）
-        label: canOperate ? 'キャラクター更新' : 'キャラクターを表示',
-        onSelect: () => {
-          const current = store.state.tokens[tokenId];
-          if (!current) return;
-
-          showCharacterEditDialog({
-            character: current,
-            canEdit: canOperate,
-            readOnlyReason: denyReason,
-            activePluginId: store.state.room?.activePlugin ?? null,
-            participants: store.state.participants ?? {},
-            onComponentChange: (componentKey, value) => {
-              store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
-            },
-            // ダイアログを開いたまま複数回エフェクト等を編集しても、常に最新の
-            // components（他クライアントの同期・直前の保存を含む）を読めるようにする。
-            // 開いた時点のスナップショットを握り続けると、再編集で古い内容に巻き戻る。
-            getComponents: () => store.state.tokens[tokenId]?.components ?? {},
-            // DX3のコンボ機能（発動/判定/ダメージ）が必要とするstore操作・ダイスロール一式。
-            // getTokenも同様に、開いた時点のスナップショットではなく都度最新を返す。
-            tokenId,
-            dispatch: store.dispatch.bind(store),
-            getToken: () => store.state.tokens[tokenId],
-            // 他のコマを名前で引く口。プラグインからstoreは読めない（循環import）ので、
-            // 参加者一覧と同じくCoreから渡す。探し方はチャットの
-            // 「バフ>対象コマ名(...)」（js/main.js）と同じ完全一致に揃えてある。
-            findTokenByName: (name) => (
-              Object.values(store.state.tokens).find(token => token.name === name) ?? null
-            ),
-            getEffectiveParameterValue,
-            generateBuffId,
-            rollBCDice,
-            onConfirm: (result) => applyCharacterEditResult(store, tokenId, result)
-          });
-        }
-      },
-      {
-        label: 'コマをJSONで保存',
-        onSelect: () => {
-          const current = store.state.tokens[tokenId];
-          if (!current) return;
-
-          downloadJSON(`${current.name || 'character'}.json`, buildTokenSnapshot(current));
-        }
-      },
-      {
-        label: 'JSONを読み込む',
-        disabled: !canOperate,
-        title: denyReason,
-        onSelect: async () => {
-          const picked = await pickFileAsText({ accept: 'application/json' });
-          if (!picked) return;
-
-          const json = parseJsonText(picked.text);
-          if (!json) return;
-
-          if (isTokenSnapshot(json)) {
-            store.dispatch('RESTORE_CHARACTER_SNAPSHOT', {
-              id: tokenId, snapshot: await adoptSnapshotImage(json)
-            });
-            return;
-          }
-
-          const importResult = resolveCharacterImport(json);
-          if (!importResult) {
-            alert('このJSONを読み込めませんでした。');
-            return;
-          }
-
-          dispatchCharacterImport(tokenId, importResult);
-        }
-      },
-      // シートのURLから直接取り込む。宣言を持つシステムの部屋でだけ出す
-      // （どのサービスを受け付けるかはプラグインの宣言が全て。js/character-sheet-import.js）
-      ...sheetImportMenuItems(tokenId, canOperate, denyReason),
-      {
-        label: 'バフ/デバフを付与',
-        onSelect: () => {
-          const current = store.state.tokens[tokenId];
-          if (!current) return;
-
-          showAddBuffDialog({
-            parameters: current.parameters,
-            // プラグイン独自の追加入力欄（DX3ならクリティカル値の下限）を出すために渡す
-            activePluginId: store.state.room?.activePlugin ?? null,
-            onConfirm: ({ name, paramId, delta, expirePhase, meta }) => {
-              store.dispatch('ADD_BUFF', {
-                tokenId, id: generateBuffId(), name, paramId, delta, expirePhase, meta
-              });
-            }
-          });
-        }
-      },
-      {
-        label: 'バフ/デバフ一覧',
-        onSelect: () => {
-          if (!store.state.tokens[tokenId]) return;
-
-          showBuffListDialog({
-            // 一覧を開いたまま削除操作をしても常に最新を読めるよう、スナップショットではなく
-            // ゲッターを渡す（エフェクトボックスで一度踏んだ「開いた時点の値を握り続けて
-            // 巻き戻る」問題と同じ轍を踏まないため）。
-            getBuffs: () => store.state.tokens[tokenId]?.buffs ?? [],
-            getParameters: () => store.state.tokens[tokenId]?.parameters ?? {},
-            activePluginId: store.state.room?.activePlugin ?? null,
-            onRemove: (buffId) => {
-              store.dispatch('REMOVE_BUFF', { tokenId, id: buffId });
-            }
-          });
-        }
-      },
-      // 所有権の獲得・放棄。所有者がいないコマは誰でも自分のものにでき、
-      // 自分のコマ（GMなら他人のコマも）は手放して所有者なしに戻せる。
-      ...(!token.ownerId && myParticipantId ? [{
-        label: '自分のコマにする',
-        onSelect: () => {
-          store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: myParticipantId });
-        }
-      }] : []),
-      ...(token.ownerId && (token.ownerId === myParticipantId || amGm) ? [{
-        label: token.ownerId === myParticipantId ? 'コマを手放す' : `${ownerNameOf(token)}から取り上げる`,
-        onSelect: () => {
-          store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: null });
-        }
-      }] : []),
-      {
-        label: 'バックヤードにしまう',
-        disabled: !canOperate,
-        title: denyReason,
-        onSelect: () => {
-          // しまうと同時に自分のコマになる（表示名未設定のゲストは所有者なしのまま、
-          // 従来どおりブラウザ単位の棚に入る）
-          store.dispatch('MOVE_TO_BACKYARD', {
-            id: tokenId, participantId: myParticipantId, localUserId: getLocalUserId()
-          });
-        }
-      },
-      {
-        label: '削除',
-        danger: true,
-        disabled: !canOperate,
-        title: denyReason,
-        onSelect: () => {
-          store.dispatch('REMOVE_CHARACTER', { id: tokenId });
-        }
-      }
-    ]);
+    openTokenContextMenu(element.id, event.clientX, event.clientY);
   }
 
   element.addEventListener('contextmenu', openTokenMenu);
+}
+
+/**
+ * コマの右クリックメニューを、渡した画面座標へ開く。
+ *
+ * 盤面のコマ本体（bindTokenDrag）と、キャラクター一覧のアバター
+ * （js/character-panel.js）の両方から同じメニューを出すので、DOM要素ではなくidで受ける。
+ * 一覧のバックヤードタブからも来るため、盤面にいることが前提の項目は状態を見て出し分ける。
+ */
+export function openTokenContextMenu(tokenId, clientX, clientY) {
+  const token = store.state.tokens[tokenId];
+  if (!token) return;
+
+  const myParticipantId = getCurrentParticipantId();
+  const amGm = isGm(store.state.participants, myParticipantId);
+  const canOperate = canOperateToken(token);
+  // 権限が無い項目は消さずに押せない状態で出し、理由をツールチップで示す
+  // （「キャラクター更新」だけは開けて、同じ理由をダイアログの見出し下に出す）
+  const denyReason = canOperate ? undefined : `${ownerNameOf(token)}のコマです（表示のみ。編集できるのは持ち主とGMです）`;
+
+  showContextMenu(clientX, clientY, [
+    {
+      label: `所有者: ${ownerNameOf(token)}`,
+      disabled: true,
+      onSelect: () => {}
+    },
+    {
+      // 見るだけなら誰でもできる。編集できるかはcanEditとしてダイアログへ渡し、
+      // 中身は同じまま入力だけを封じる（js/character-dialog.js参照）
+      label: canOperate ? 'キャラクター更新' : 'キャラクターを表示',
+      onSelect: () => {
+        const current = store.state.tokens[tokenId];
+        if (!current) return;
+
+        showCharacterEditDialog({
+          character: current,
+          canEdit: canOperate,
+          readOnlyReason: denyReason,
+          activePluginId: store.state.room?.activePlugin ?? null,
+          participants: store.state.participants ?? {},
+          onComponentChange: (componentKey, value) => {
+            store.dispatch('SET_COMPONENT', { id: tokenId, componentKey, value });
+          },
+          // ダイアログを開いたまま複数回エフェクト等を編集しても、常に最新の
+          // components（他クライアントの同期・直前の保存を含む）を読めるようにする。
+          // 開いた時点のスナップショットを握り続けると、再編集で古い内容に巻き戻る。
+          getComponents: () => store.state.tokens[tokenId]?.components ?? {},
+          // DX3のコンボ機能（発動/判定/ダメージ）が必要とするstore操作・ダイスロール一式。
+          // getTokenも同様に、開いた時点のスナップショットではなく都度最新を返す。
+          tokenId,
+          dispatch: store.dispatch.bind(store),
+          getToken: () => store.state.tokens[tokenId],
+          // 他のコマを名前で引く口。プラグインからstoreは読めない（循環import）ので、
+          // 参加者一覧と同じくCoreから渡す。探し方はチャットの
+          // 「バフ>対象コマ名(...)」（js/main.js）と同じ完全一致に揃えてある。
+          findTokenByName: (name) => (
+            Object.values(store.state.tokens).find(token => token.name === name) ?? null
+          ),
+          getEffectiveParameterValue,
+          generateBuffId,
+          rollBCDice,
+          onConfirm: (result) => applyCharacterEditResult(store, tokenId, result)
+        });
+      }
+    },
+    {
+      label: 'コマをJSONで保存',
+      onSelect: () => {
+        const current = store.state.tokens[tokenId];
+        if (!current) return;
+
+        downloadJSON(`${current.name || 'character'}.json`, buildTokenSnapshot(current));
+      }
+    },
+    {
+      label: 'JSONを読み込む',
+      disabled: !canOperate,
+      title: denyReason,
+      onSelect: async () => {
+        const picked = await pickFileAsText({ accept: 'application/json' });
+        if (!picked) return;
+
+        const json = parseJsonText(picked.text);
+        if (!json) return;
+
+        if (isTokenSnapshot(json)) {
+          store.dispatch('RESTORE_CHARACTER_SNAPSHOT', {
+            id: tokenId, snapshot: await adoptSnapshotImage(json)
+          });
+          return;
+        }
+
+        const importResult = resolveCharacterImport(json);
+        if (!importResult) {
+          alert('このJSONを読み込めませんでした。');
+          return;
+        }
+
+        dispatchCharacterImport(tokenId, importResult);
+      }
+    },
+    // シートのURLから直接取り込む。宣言を持つシステムの部屋でだけ出す
+    // （どのサービスを受け付けるかはプラグインの宣言が全て。js/character-sheet-import.js）
+    ...sheetImportMenuItems(tokenId, canOperate, denyReason),
+    {
+      label: 'バフ/デバフを付与',
+      onSelect: () => {
+        const current = store.state.tokens[tokenId];
+        if (!current) return;
+
+        showAddBuffDialog({
+          parameters: current.parameters,
+          // プラグイン独自の追加入力欄（DX3ならクリティカル値の下限）を出すために渡す
+          activePluginId: store.state.room?.activePlugin ?? null,
+          onConfirm: ({ name, paramId, delta, expirePhase, meta }) => {
+            store.dispatch('ADD_BUFF', {
+              tokenId, id: generateBuffId(), name, paramId, delta, expirePhase, meta
+            });
+          }
+        });
+      }
+    },
+    {
+      label: 'バフ/デバフ一覧',
+      onSelect: () => {
+        if (!store.state.tokens[tokenId]) return;
+
+        showBuffListDialog({
+          // 一覧を開いたまま削除操作をしても常に最新を読めるよう、スナップショットではなく
+          // ゲッターを渡す（エフェクトボックスで一度踏んだ「開いた時点の値を握り続けて
+          // 巻き戻る」問題と同じ轍を踏まないため）。
+          getBuffs: () => store.state.tokens[tokenId]?.buffs ?? [],
+          getParameters: () => store.state.tokens[tokenId]?.parameters ?? {},
+          activePluginId: store.state.room?.activePlugin ?? null,
+          onRemove: (buffId) => {
+            store.dispatch('REMOVE_BUFF', { tokenId, id: buffId });
+          }
+        });
+      }
+    },
+    // 所有権の獲得・放棄。所有者がいないコマは誰でも自分のものにでき、
+    // 自分のコマ（GMなら他人のコマも）は手放して所有者なしに戻せる。
+    ...(!token.ownerId && myParticipantId ? [{
+      label: '自分のコマにする',
+      onSelect: () => {
+        store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: myParticipantId });
+      }
+    }] : []),
+    ...(token.ownerId && (token.ownerId === myParticipantId || amGm) ? [{
+      label: token.ownerId === myParticipantId ? 'コマを手放す' : `${ownerNameOf(token)}から取り上げる`,
+      onSelect: () => {
+        store.dispatch('SET_CHARACTER_OWNER', { id: tokenId, ownerId: null });
+      }
+    }] : []),
+    // 出し入れは今いる側と逆の1つだけ出す。キャラクター一覧のバックヤードタブから
+    // 開いたときに「しまう」が並ぶと意味を成さないため。
+    ...(token.inBackyard ? [{
+      label: '盤面に戻す',
+      disabled: !canOperate,
+      title: denyReason,
+      onSelect: () => {
+        store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenId });
+      }
+    }] : [{
+      label: 'バックヤードにしまう',
+      disabled: !canOperate,
+      title: denyReason,
+      onSelect: () => {
+        // しまうと同時に自分のコマになる（表示名未設定のゲストは所有者なしのまま、
+        // 従来どおりブラウザ単位の棚に入る）
+        store.dispatch('MOVE_TO_BACKYARD', {
+          id: tokenId, participantId: myParticipantId, localUserId: getLocalUserId()
+        });
+      }
+    }]),
+    {
+      label: '削除',
+      danger: true,
+      disabled: !canOperate,
+      title: denyReason,
+      onSelect: () => {
+        store.dispatch('REMOVE_CHARACTER', { id: tokenId });
+      }
+    }
+  ]);
 }
 
 // コマの見た目（色・画像・トリミング・大きさ）をStateに合わせて反映する。

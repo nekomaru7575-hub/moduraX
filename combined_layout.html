@@ -2295,6 +2295,9 @@
     }
 
     .character-avatar {
+      /* 右クリック（スマホは長押し）でコマのメニューが出る。押せる場所だと分かるように
+         カーソルを変える（js/character-panel.jsのbindTokenMenu） */
+      cursor: context-menu;
       position: relative;
       width: 36px;
       height: 36px;

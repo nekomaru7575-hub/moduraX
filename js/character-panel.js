@@ -11,9 +11,11 @@
 // main.jsの初期化から1回だけ呼ぶ。
 
 import {
-  store, setCharacterPanelController, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue
+  store, setCharacterPanelController, DEFAULT_TOKEN_COLOR, getEffectiveParameterValue,
+  openTokenContextMenu
 } from './board-data-driven.js';
 import { EventBus } from './EventBus.js';
+import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { canView, HIDDEN_VALUE_MASK } from './visibility.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
@@ -79,9 +81,31 @@ function buildAvatarColumn(tokenData, { withInitiative }) {
     nameSpan.style.color = tokenData.textColor;
   }
 
+  bindTokenMenu(avatar, tokenData.id);
+
   avatarColumn.appendChild(avatar);
   avatarColumn.appendChild(nameSpan);
   return avatarColumn;
+}
+
+// アバターを右クリック（スマホは長押し）で、盤面のコマと同じメニューを開く。
+// 小さくて狙いにくい盤面のコマや、そもそも盤面にいないバックヤードのコマにも、
+// 一覧から同じ操作（キャラクター更新・バフ付与・削除など）で届くようにするため。
+//
+// ここでは動かす操作が無いのでLONG_PRESS_ONLYを返し、長押しの見張りだけを頼む。
+// pointerdownを握らないので、一覧を指でスクロールする動きはそのまま通る
+// （js/drag-gesture.js参照）。
+function bindTokenMenu(element, tokenId) {
+  element.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openTokenContextMenu(tokenId, event.clientX, event.clientY);
+  });
+
+  bindDragGesture(element, {
+    onStart: () => LONG_PRESS_ONLY,
+    onLongPress: (event) => openTokenContextMenu(tokenId, event.clientX, event.clientY)
+  });
 }
 
 function buildBoardRow(tokenData, myId) {

@@ -398,6 +398,174 @@ function handleFutariSousaChatCommand(rawInput, context) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Webキャラクターシートの取り込み
+// URLを組み立てるのはサーバー側（server/index.jsのhandleCharacterSheet）。ここは
+// 「どこの・どんな形のURLを受け付けるか」を宣言するだけ（シノビガミ・ドラクルージュと同じ形）。
+// ---------------------------------------------------------------------------
+
+const FUTARISOUSA_SHEET_SOURCE = {
+  label: 'Webキャラクターシート（フタリソウサ）',
+  origin: 'https://character-sheets.appspot.com',
+  pathPrefix: '/2s/',
+  keyParam: 'key',
+  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
+  fetchPath: (key) => `/2s/display?ajax=1&key=${encodeURIComponent(key)}`,
+  hint: 'character-sheets.appspot.com/2s/edit.html?key=... の形のURL'
+};
+
+function sheetText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+// シートのチェック欄は、付いていれば '1'、外れていれば空。
+function sheetChecked(value) {
+  const text = sheetText(value);
+  return text !== '' && text !== '0';
+}
+
+// 技能表の中身。シートは「取得したか」を1/空のマス目でしか持たないので、マスと技能名の
+// 対応をこちらが持っていないと文字に直せない。並びはシートの表そのままで、rowが分野、
+// cellがその分野の6つ（js/parameters/futarisousa-skill-box.jsのSKILL_CATEGORIESと同じ順）。
+//
+// 【出所】BCDice（i18n/FutariSousa）には技能の一覧表が無いため、そこからは取れなかった。
+// ここに並べてあるのは、取り込み元であるWebキャラクターシート
+// （character-sheets.appspot.com/2s/）の技能表に印刷されている見出しそのもので、
+// マス目を読むためだけに使う（判定にもランダム決定にも使わない）。
+const SHEET_SKILL_ROWS = [
+  { key: 'insight', row: 'row0', names: ['嘘', '変化', '外見', '物理', '現場', '天気'] },
+  { key: 'forensics', row: 'row1', names: ['交通', '情報', '指紋', '科学', '法医学', '生物'] },
+  { key: 'human', row: 'row2', names: ['社交', '家事', '噂話', '説得', '流行', 'ビジネス'] },
+  { key: 'physical', row: 'row3', names: ['捕縛', '防御', '根性', '体力', '突破', '追跡'] }
+];
+
+// 分野ごとに、取得している技能を読点で連ねる（「嘘、外見」）。1つも無い分野は空文字。
+function importSkillsFromSheet(json) {
+  const skills = json?.skills;
+  const imported = {};
+  SHEET_SKILL_ROWS.forEach(({ key, row, names }) => {
+    const cells = skills?.[row];
+    imported[key] = names.filter((unused, index) => sheetChecked(cells?.[`cell${index}`])).join('、');
+  });
+  return imported;
+}
+
+// 心労はシート側が0〜3の数値1つで持っている。こちらはチェック3つなので、頭から埋める。
+function importStressFromSheet(json) {
+  const level = Math.max(0, Math.min(STRESS_MAX, Math.trunc(Number(sheetText(json?.anxiety?.level)) || 0)));
+  return Array.from({ length: STRESS_MAX }, (unused, index) => index < level);
+}
+
+// コストは「なし」や空でも来る自由記述の欄。数として読めないものは0（＝コストなし）にする。
+function sheetCost(value) {
+  const cost = Math.trunc(Number(sheetText(value)));
+  return Number.isFinite(cost) && cost > 0 ? cost : 0;
+}
+
+function importActionsFromSheet(json) {
+  const list = Array.isArray(json?.actions) ? json.actions : [];
+  return list
+    .map(action => ({
+      name: sheetText(action?.name),
+      note: sheetText(action?.effect),
+      fields: {
+        kind: sheetText(action?.type) === '常駐' ? '常駐' : '補助',
+        cost: sheetCost(action?.cost)
+      }
+    }))
+    .filter(action => action.name !== '');
+}
+
+function importGuestsFromSheet(json) {
+  const list = Array.isArray(json?.guests) ? json.guests : [];
+  return list
+    .map(guest => ({
+      name: sheetText(guest?.name),
+      fields: {
+        skill: sheetText(guest?.skill),
+        relation: sheetText(guest?.relationship),
+        memo: sheetText(guest?.memo)
+      }
+    }))
+    .filter(guest => guest.name !== '');
+}
+
+// 感情は、シートでは「気に入ったところ」「気に入らないところ」の複数行の欄1つずつ。
+// こちらは1件1行の一覧なので、行で割って1行＝1件にする（内容の欄は1行の入力欄なので、
+// 改行を含んだまま入れると読めなくなる）。強い感情はシートに欄が無いので、常に付けない。
+function importEmotionsFromSheet(json) {
+  const thought = json?.partnerthought ?? {};
+  const emotions = [];
+
+  [['like', thought.like], ['dislike', thought.dislike]].forEach(([polarity, raw]) => {
+    sheetText(raw).split(/\r?\n/).forEach(line => {
+      const text = line.trim();
+      if (text === '') return;
+      emotions.push({ name: text, fields: { polarity, strong: false } });
+    });
+  });
+
+  return emotions;
+}
+
+// 属性・パートナー・余裕・心労を、取り込んだ属性に合った見え方で作り直す。
+// valueOverridesは数値しか通さない（js/game-store.jsのIMPORT_CHARACTER_DATA）ので、
+// 文字列のパートナーもここを通す。visibleまで決めておくのは、取り込んだ直後から
+// キャラクター一覧が正しく並ぶようにするため（更新画面を開くまで待たせない）。
+function importFutariSousaParameters(json, charType) {
+  const shown = visibleParamIdsFor(charType);
+  const margin = Math.trunc(Number(sheetText(json?.mental?.margin)));
+  const fromSheet = {
+    partner: sheetText(json?.partner?.name),
+    margin: Number.isFinite(margin) ? Math.max(0, margin) : 0,
+    stress: 0 // 実際の値はcomponentsからcomputeDerivedParametersが入れ直す
+  };
+
+  return buildParameters(PLUGIN_ID, [
+    { ...CHAR_TYPE_PARAMETER, value: charType },
+    ...[...SHARED_PARAMETERS, ...ASSISTANT_PARAMETERS].map(definition => ({
+      ...definition,
+      value: fromSheet[definition.key] ?? definition.value,
+      visible: shown.includes(paramIdOf(definition))
+    }))
+  ]);
+}
+
+/**
+ * Webキャラクターシート（フタリソウサ）のJSONを取り込む。
+ * @param {any} json
+ * @returns {{name?:string, valueOverrides:object, labelOverrides:object,
+ *            newParameters:object, components:object} | null}
+ */
+function importFutariSousaCharacterJson(json) {
+  if (!json || typeof json !== 'object') return null;
+
+  // フタリソウサのシートらしさの確認。他システムのシートを黙って空のコマとして
+  // 取り込んでしまわないよう、このシステム特有のキーが1つも無ければ断る。
+  // base・skillsは他システムのシートにもあるので、判定には使わない。
+  const looksLikeSheet = ['partnerthought', 'anxiety', 'mental', 'guests']
+    .some(key => json[key] !== undefined);
+  if (!looksLikeSheet) return null;
+
+  // シートの役割は探偵か助手の2つだけ。NPCはシートからは来ない。
+  const charType = normalizeCharType(sheetText(json?.base?.role));
+  const name = sheetText(json?.base?.name);
+
+  return {
+    name: name === '' ? undefined : name,
+    valueOverrides: {},
+    labelOverrides: {},
+    newParameters: importFutariSousaParameters(json, charType),
+    components: {
+      [SKILL_COMPONENT_KEY]: importSkillsFromSheet(json),
+      [ACTION_COMPONENT_KEY]: importActionsFromSheet(json),
+      [EMOTION_COMPONENT_KEY]: importEmotionsFromSheet(json),
+      [GUEST_COMPONENT_KEY]: importGuestsFromSheet(json),
+      [STRESS_COMPONENT_KEY]: importStressFromSheet(json)
+    }
+  };
+}
+
 function buildTypeSelect(charType) {
   const select = document.createElement('select');
   [CHAR_TYPE_DETECTIVE, CHAR_TYPE_ASSISTANT, CHAR_TYPE_NPC].forEach(value => {
@@ -705,6 +873,8 @@ export const FUTARISOUSA_PLUGIN = {
   buildCharacterParameters: buildFutariSousaCharacterParameters,
   computeDerivedParameters: computeFutariSousaDerivedParameters,
   renderCharacterPanel: renderFutariSousaCharacterPanel,
+  importCharacterJson: importFutariSousaCharacterJson,
+  characterSheetSource: FUTARISOUSA_SHEET_SOURCE,
   handleChatCommand: handleFutariSousaChatCommand,
   looksLikeOwnChatCommand: looksLikeFutariSousaChatCommand,
   bcdiceSystem: FUTARISOUSA_BCDICE_SYSTEM

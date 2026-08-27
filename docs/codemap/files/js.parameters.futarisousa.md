@@ -1,11 +1,11 @@
 ---
 source: js/parameters/futarisousa.js
-lines: 712
+lines: 882
 exports: 2
 imported_by: 1
 api_sha: a90379a6f246
 prose_sha: a90379a6f246
-generated: 2026-08-26
+generated: 2026-08-27
 tags: [codemap]
 ---
 
@@ -26,9 +26,9 @@ tags: [codemap]
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 57 | const | FUTARISOUSA_BCDICE_SYSTEM | `FUTARISOUSA_BCDICE_SYSTEM` | BCDice側のシステムID。 |
-| 702 | const | FUTARISOUSA_PLUGIN | `FUTARISOUSA_PLUGIN` |  |
+| 870 | const | FUTARISOUSA_PLUGIN | `FUTARISOUSA_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（18）
+## トップレベル関数（LOCAL TASKS 候補）（28）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -51,8 +51,18 @@ tags: [codemap]
 | 350 | runActionUseFromBox | `runActionUseFromBox({ skill, context })` | 19 |  |
 | 370 | looksLikeFutariSousaChatCommand | `looksLikeFutariSousaChatCommand(rawInput)` | 3 |  |
 | 374 | handleFutariSousaChatCommand | `handleFutariSousaChatCommand(rawInput, context)` | 26 |  |
-| 401 | buildTypeSelect | `buildTypeSelect(charType)` | 11 |  |
-| 413 | renderFutariSousaCharacterPanel | `renderFutariSousaCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, dispatch, getToken, generateBuffId, findTokenByName, tokenId })` | **288** |  |
+| 417 | sheetText | `sheetText(value)` | 3 |  |
+| 422 | sheetChecked | `sheetChecked(value)` | 4 |  |
+| 443 | importSkillsFromSheet | `importSkillsFromSheet(json)` | 9 |  |
+| 454 | importStressFromSheet | `importStressFromSheet(json)` | 4 |  |
+| 460 | sheetCost | `sheetCost(value)` | 4 |  |
+| 465 | importActionsFromSheet | `importActionsFromSheet(json)` | 13 |  |
+| 479 | importGuestsFromSheet | `importGuestsFromSheet(json)` | 13 |  |
+| 496 | importEmotionsFromSheet | `importEmotionsFromSheet(json)` | 14 |  |
+| 515 | importFutariSousaParameters | `importFutariSousaParameters(json, charType)` | 18 |  |
+| 540 | importFutariSousaCharacterJson | `importFutariSousaCharacterJson(json)` | 28 |  |
+| 569 | buildTypeSelect | `buildTypeSelect(charType)` | 11 |  |
+| 581 | renderFutariSousaCharacterPanel | `renderFutariSousaCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, dispatch, getToken, generateBuffId, findTokenByName, tokenId })` | **288** |  |
 
 ## 依存
 

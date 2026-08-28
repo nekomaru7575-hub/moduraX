@@ -48,6 +48,7 @@ import { runSkillUse } from './skill/skill-use.js';
 import {
   SKILL_COMPONENT_KEY, countFilledSkills, normalizeFutariSousaSkills, showFutariSousaSkillBox
 } from './futarisousa-skill-box.js';
+import { createAppspotSheetSource, sheetText } from './sheet-source.js';
 
 const PLUGIN_ID = 'FUTARISOUSA';
 
@@ -400,23 +401,13 @@ function handleFutariSousaChatCommand(rawInput, context) {
 
 // ---------------------------------------------------------------------------
 // Webキャラクターシートの取り込み
-// URLを組み立てるのはサーバー側（server/index.jsのhandleCharacterSheet）。ここは
-// 「どこの・どんな形のURLを受け付けるか」を宣言するだけ（シノビガミ・ドラクルージュと同じ形）。
 // ---------------------------------------------------------------------------
 
-const FUTARISOUSA_SHEET_SOURCE = {
-  label: 'Webキャラクターシート（フタリソウサ）',
-  origin: 'https://character-sheets.appspot.com',
-  pathPrefix: '/2s/',
-  keyParam: 'key',
-  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
-  fetchPath: (key) => `/2s/display?ajax=1&key=${encodeURIComponent(key)}`,
-  hint: 'character-sheets.appspot.com/2s/edit.html?key=... の形のURL'
-};
-
-function sheetText(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
+// URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
+const FUTARISOUSA_SHEET_SOURCE = createAppspotSheetSource({
+  label: 'フタリソウサ',
+  pathSegment: '2s'
+});
 
 // シートのチェック欄は、付いていれば '1'、外れていれば空。
 function sheetChecked(value) {

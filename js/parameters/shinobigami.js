@@ -27,6 +27,7 @@ import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/sk
 import {
   SHINOBIGAMI_COLUMNS, SHINOBIGAMI_ROWS, SHINOBIGAMI_SKILL_CELLS, SHINOBIGAMI_EMOTIONS
 } from './shinobigami-skills.js';
+import { createAppspotSheetSource, sheetText } from './sheet-source.js';
 
 // キャラクターの components に特技表を保存するときのキー。
 const SKILL_TABLE_COMPONENT_KEY = 'skillTable';
@@ -1114,25 +1115,13 @@ function handleShinobigamiChatCommand(rawInput, context) {
 
 // ---------------------------------------------------------------------------
 // Webキャラクターシートの取り込み
-//
-// character-sheets.appspot.com のシノビガミ用シート。edit.html / display.html は人が見る
-// ページなので、キーだけを取り出してJSONを返す口（display?ajax=1）へ付け替える
-// （ドラクルージュのDRACUROUGE_SHEET_SOURCEと同じ形。URLを組み立てるのはサーバー側）。
 // ---------------------------------------------------------------------------
 
-const SHINOBIGAMI_SHEET_SOURCE = {
-  label: 'Webキャラクターシート（シノビガミ）',
-  origin: 'https://character-sheets.appspot.com',
-  pathPrefix: '/shinobigami/',
-  keyParam: 'key',
-  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
-  fetchPath: (key) => `/shinobigami/display?ajax=1&key=${encodeURIComponent(key)}`,
-  hint: 'character-sheets.appspot.com/shinobigami/edit.html?key=... の形のURL'
-};
-
-function sheetText(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
+// URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
+const SHINOBIGAMI_SHEET_SOURCE = createAppspotSheetSource({
+  label: 'シノビガミ',
+  pathSegment: 'shinobigami'
+});
 
 // シートのチェック欄は付いていれば '1'、外れていれば null。
 function sheetChecked(value) {

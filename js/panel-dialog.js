@@ -7,7 +7,7 @@
 
 import { pickAndUploadImage } from './image-upload.js';
 import { loadImageDimensions } from './image-dimensions.js';
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 const ensureDialog = createDialogHost();
 
@@ -235,22 +235,10 @@ export function showPanelDialog({
   form.appendChild(stockerGroup);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '適用';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '適用',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

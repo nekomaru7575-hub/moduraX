@@ -17,7 +17,7 @@
 //   importするため、Node環境でも読み込める必要がある。docs/plugin-guide.mdの8.1）。
 
 import { lockFormControls } from '../read-only-form.js';
-import { createDialogHost } from '../dialog-host.js';
+import { createDialogHost, appendConfirmRow } from '../dialog-host.js';
 
 export const SKILL_COMPONENT_KEY = 'charSkills';
 
@@ -110,22 +110,10 @@ export function showFutariSousaSkillBox({ skills = {}, readOnly = false, onSave 
     list.appendChild(row);
   });
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'submit';
-  saveBtn.className = 'dialog-confirm-btn';
-  saveBtn.textContent = '保存';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(saveBtn);
-  form.appendChild(btnRow);
+  const { cancelBtn, confirmBtn: saveBtn } = appendConfirmRow(form, {
+    confirmLabel: '保存',
+    onCancel: () => dialog.close()
+  });
 
   if (readOnly) {
     saveBtn.style.display = 'none';

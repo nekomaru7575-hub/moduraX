@@ -4,7 +4,7 @@
 // dumbな部品：値の保存・storeへの反映はすべて呼び出し側のコールバックに任せる。
 
 import { isRoomIdentityAvailable } from './local-identity.js';
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 const ensureDialog = createDialogHost();
 
@@ -165,22 +165,10 @@ export function showIdentityDialog({
       form.appendChild(gmNote);
     }
 
-    const btnRow = document.createElement('div');
-    btnRow.className = 'dialog-button-row';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = 'キャンセル';
-    cancelBtn.addEventListener('click', () => dialog.close());
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'submit';
-    confirmBtn.className = 'dialog-confirm-btn';
-    confirmBtn.textContent = 'この名前で参加';
-
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(confirmBtn);
-    form.appendChild(btnRow);
+    appendConfirmRow(form, {
+      confirmLabel: 'この名前で参加',
+      onCancel: () => dialog.close()
+    });
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();

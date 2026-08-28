@@ -3,7 +3,7 @@
 // どちらからも同じダイアログを使う。dumbな部品：storeを直接触らず、結果をonConfirmで返すだけ
 // （呼び出し側がROUND_PROGRESSION_START/ROUND_SET_PARTICIPANTSのどちらをdispatchするか決める）。
 
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 const ensureDialog = createDialogHost();
 
@@ -60,22 +60,10 @@ export function showRoundSetupDialog({ title = '参加者を選択', tokens, cur
     checkboxes.push({ id: token.id, checkbox });
   });
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '決定';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '決定',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

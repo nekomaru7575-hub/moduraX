@@ -15,7 +15,7 @@
 
 import { runSkillUse } from './skill/skill-use.js';
 import { lockFormControls } from '../read-only-form.js';
-import { createDialogHost } from '../dialog-host.js';
+import { createDialogHost, appendConfirmRow } from '../dialog-host.js';
 
 // 行動セットの3つの枠。timingMatchはスキルのタイミング欄との**部分一致**に使う
 // （「メジャー」「メジャー／マイナー」「メジャーアクション」のどれも拾えるようにするため）。
@@ -421,22 +421,11 @@ export function showActionSetBox({
   addBtn.addEventListener('click', () => addRow(null));
   form.appendChild(addBtn);
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = '閉じる';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'submit';
-  saveBtn.textContent = '保存';
-  saveBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(saveBtn);
-  form.appendChild(btnRow);
+  const { cancelBtn, confirmBtn: saveBtn } = appendConfirmRow(form, {
+    confirmLabel: '保存',
+    cancelLabel: '閉じる',
+    onCancel: () => dialog.close()
+  });
 
   if (readOnly) {
     addBtn.style.display = 'none';

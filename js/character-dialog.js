@@ -11,7 +11,7 @@ import { canView, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
 import { lockFormControls } from './read-only-form.js';
 import { setIcon } from './icons.js';
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 // コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
 // これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
@@ -606,22 +606,10 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
   columns.appendChild(pluginPanel.element);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '登録';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  const { row: btnRow, cancelBtn, confirmBtn } = appendConfirmRow(form, {
+    confirmLabel: '登録',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault(); // ページ遷移させない
@@ -1011,22 +999,10 @@ export function showCharacterEditDialog({
   columns.appendChild(pluginPanel.element);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '更新';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  const { row: btnRow, cancelBtn, confirmBtn } = appendConfirmRow(form, {
+    confirmLabel: '更新',
+    onCancel: () => dialog.close()
+  });
 
   // 表示だけの人は、追加・付与・更新を消したうえで残りの入力を一括で無効化する。
   // 生成箇所ごとに分岐を撒くより、組み立て終わりに一度通すほうが封じ忘れが起きない。

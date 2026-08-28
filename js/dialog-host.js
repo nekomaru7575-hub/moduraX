@@ -42,3 +42,38 @@ export function createDialogHost(extraClass = '') {
 
   return ensureDialog;
 }
+
+/**
+ * ダイアログの一番下に置く「キャンセル／確定」の1行を作って足す。
+ *
+ * 確定ボタンは type="submit"（`.dialog-confirm-btn`）なので、押したときの処理は
+ * フォーム側の submit で受ける。ここではボタンを作って並べるだけで、何をするかは決めない。
+ *
+ * 「はい／いいえ」の確認ダイアログのように、確定側が危険な操作（.dialog-danger-btn）で
+ * 並び順も違うものはこれを使わない。同じに見えて意味が違うものを1つの引数で分けると、
+ * 呼び出し側から「どちらの見た目になるのか」が読めなくなるため。
+ *
+ * @param {HTMLElement} parent ボタン行を足す先（多くは form）
+ * @param {{ confirmLabel: string, cancelLabel?: string, onCancel: () => void }} options
+ * @returns {{ row: HTMLDivElement, cancelBtn: HTMLButtonElement, confirmBtn: HTMLButtonElement }}
+ */
+export function appendConfirmRow(parent, { confirmLabel, cancelLabel = 'キャンセル', onCancel }) {
+  const row = document.createElement('div');
+  row.className = 'dialog-button-row';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = cancelLabel;
+  cancelBtn.addEventListener('click', onCancel);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'submit';
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.className = 'dialog-confirm-btn';
+
+  row.appendChild(cancelBtn);
+  row.appendChild(confirmBtn);
+  parent.appendChild(row);
+
+  return { row, cancelBtn, confirmBtn };
+}

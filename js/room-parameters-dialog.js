@@ -6,7 +6,7 @@
 // Numberに、できなければ文字列のまま返す。空欄は0扱い（旧来のNumber(x)||0と同じ挙動）。
 // プラグイン由来のルーム変数（source!=='user'、例: 混沌レベル）は対象外（常に数値）。
 
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 function parseRoomParameterValue(raw) {
   const trimmed = String(raw).trim();
   if (trimmed === '') return 0;
@@ -136,22 +136,10 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
   form.appendChild(addBtn);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '適用';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '適用',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

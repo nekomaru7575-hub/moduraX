@@ -2,7 +2,7 @@
 // 「ログを保存」のタブ選択ダイアログ。どのチャットタブを書き出すかだけを決め、
 // HTMLの組み立て（log-export.js）とダウンロード（main.js）は呼び出し側に任せる。
 
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 const ensureDialog = createDialogHost();
 
@@ -49,22 +49,10 @@ export function showLogExportDialog({ tabs, onConfirm }) {
     return { tabId: tab.id, checkbox };
   });
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '保存';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '保存',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

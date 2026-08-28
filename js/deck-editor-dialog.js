@@ -18,7 +18,7 @@
 import { pickFiles } from './file-uploader.js';
 import { uploadImageFile, isImageUploadAvailable, pickAndUploadImage } from './image-upload.js';
 import { trumpBack } from './card-catalog.js';
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 // 展開後の合計がこれを超えると、配置のときに切られる（js/game-store.jsのMAX_DECK_CARDS）。
 // ここで先に知らせて、切られてから気づくのを防ぐ。
@@ -361,22 +361,10 @@ export function showDeckEditorDialog({ template = null, onConfirm, onCancel = nu
   form.appendChild(cardsGroup);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', closeWithCancel);
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '保存';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '保存',
+    onCancel: closeWithCancel
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

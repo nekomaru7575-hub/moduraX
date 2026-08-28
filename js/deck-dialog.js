@@ -8,7 +8,7 @@
 // デッキの作成・一覧・配置はこちらではなく js/deck-list-dialog.js と
 // js/deck-editor-dialog.js が持つ（ルームメニューの「デッキ一覧」から開く）。
 
-import { createDialogHost } from './dialog-host.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 const ensureDialog = createDialogHost();
 
@@ -173,22 +173,10 @@ export function showDrawCountDialog({ max, stockers, onConfirm }) {
     });
   });
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '引く';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  const { row: btnRow, cancelBtn, confirmBtn } = appendConfirmRow(form, {
+    confirmLabel: '引く',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -307,22 +295,10 @@ export function showStockerSendDialog({ cards, stockers, onConfirm }) {
   });
   stockerSelect.style.display = (stockerRadio.checked && stockers.length > 0) ? '' : 'none';
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '送る';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  const { row: btnRow, cancelBtn, confirmBtn } = appendConfirmRow(form, {
+    confirmLabel: '送る',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

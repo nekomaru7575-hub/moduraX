@@ -2,15 +2,9 @@
 // 部屋削除の確認ダイアログ。ルーム設定の「部屋を削除」から呼ばれる。
 // dumbな部品：削除の実処理（保存・削除リクエストの送信）はすべて呼び出し側のコールバックに任せる。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

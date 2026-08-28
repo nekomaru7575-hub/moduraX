@@ -12,15 +12,9 @@
 //
 // dumbな部品：storeを直接触らず、一覧の取得と各操作は呼び出し側から受け取る。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * 作成・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。

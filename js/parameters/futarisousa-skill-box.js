@@ -17,6 +17,7 @@
 //   importするため、Node環境でも読み込める必要がある。docs/plugin-guide.mdの8.1）。
 
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost } from '../dialog-host.js';
 
 export const SKILL_COMPONENT_KEY = 'charSkills';
 
@@ -51,15 +52,7 @@ export function countFilledSkills(raw) {
   return SKILL_CATEGORIES.filter(({ key }) => skills[key].trim() !== '').length;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 /**
  * @param {{

@@ -15,6 +15,7 @@
 
 import { runSkillUse } from './skill/skill-use.js';
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost } from '../dialog-host.js';
 
 // 行動セットの3つの枠。timingMatchはスキルのタイミング欄との**部分一致**に使う
 // （「メジャー」「メジャー／マイナー」「メジャーアクション」のどれも拾えるようにするため）。
@@ -24,15 +25,7 @@ export const ARIANRHOD_ACTION_SLOTS = Object.freeze([
   Object.freeze({ key: 'major', label: 'メジャー', timingMatch: 'メジャー' })
 ]);
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 function newActionSetId() {
   return `arianrhod-set-${Date.now()}-${Math.random().toString(36).slice(2)}`;

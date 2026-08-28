@@ -2,15 +2,9 @@
 // 「ログを保存」のタブ選択ダイアログ。どのチャットタブを書き出すかだけを決め、
 // HTMLの組み立て（log-export.js）とダウンロード（main.js）は呼び出し側に任せる。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

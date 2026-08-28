@@ -8,15 +8,9 @@
 // デッキの作成・一覧・配置はこちらではなく js/deck-list-dialog.js と
 // js/deck-editor-dialog.js が持つ（ルームメニューの「デッキ一覧」から開く）。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 function formGroup(labelText, title = '') {
   const group = document.createElement('div');

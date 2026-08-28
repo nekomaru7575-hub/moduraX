@@ -6,15 +6,9 @@
 // 直せるのは本文だけで、キャラ名・発言時刻・コマンド・出目内訳は編集の対象にしない
 // （js/game-store.jsのEDIT_CHAT_MESSAGE参照）。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{ resultText: string, onConfirm: (resultText: string) => void }} options

@@ -4,16 +4,9 @@
 // dumbな部品：値の保存・storeへの反映はすべて呼び出し側のコールバックに任せる。
 
 import { isRoomIdentityAvailable } from './local-identity.js';
+import { createDialogHost } from './dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 function buildFormGroup(labelText, input) {
   const group = document.createElement('div');

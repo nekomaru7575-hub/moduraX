@@ -18,6 +18,7 @@
 // （dx3-lois-box.js冒頭のコメントと同じ理由）。
 
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost } from '../dialog-host.js';
 
 // components に絆一覧を保存するときのキー。
 export const BOND_COMPONENT_KEY = 'bonds';
@@ -152,15 +153,7 @@ export function settleFilledBonds(bonds, { recycleEternal = true } = {}) {
   return { bonds: nextBonds, rougeSealed, noirSealed };
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog bond-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('bond-box-dialog');
 
 // 枠1つぶんのドロップダウン。表（仮）に無い値でも、現在の値であれば選択肢として足しておく
 // （表を差し替える前に保存した値が消えないようにするため）。

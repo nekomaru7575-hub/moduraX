@@ -6,15 +6,9 @@
 // このダイアログが出ている間、部屋の中身はまだ何も届いていない（サーバーがINITを
 // 送っていない）。キャンセルの行き先は部屋一覧しかないので、閉じるボタンは置かない。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{
@@ -88,5 +82,5 @@ export function showRoomEntryDialog({ password = '', error = false, onSubmit }) 
 }
 
 export function closeRoomEntryDialog() {
-  if (dialogEl?.open) dialogEl.close();
+  ensureDialog.closeIfOpen();
 }

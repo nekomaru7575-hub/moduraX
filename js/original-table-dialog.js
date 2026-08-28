@@ -6,6 +6,8 @@
 
 // テーブル欄のテキスト（1行1エントリ、"出目:結果"）を { 出目: 結果 } の辞書へ変換する。
 // 区切りは半角/全角コロンどちらも許可。コロンが無い行・空行は無視する。
+
+import { createDialogHost } from './dialog-host.js';
 function parseTableEntries(text) {
   const entries = {};
   String(text).split('\n').forEach(line => {
@@ -25,16 +27,8 @@ function formatTableEntries(entries) {
   return Object.entries(entries).map(([key, value]) => `${key}:${value}`).join('\n');
 }
 
-let dialogEl = null;
-let escHandler = null; // dialogElは使い回しなので、前回のEscハンドラを外すために保持する
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+let escHandler = null; // ダイアログ要素は使い回しなので、前回のEscハンドラを外すために保持する
+const ensureDialog = createDialogHost();
 
 /**
  * tableを渡すとその内容を初期表示した編集モードになる。表のキーはタイトルなので、
@@ -65,7 +59,7 @@ export function showOriginalTableDialog({ table = null, onConfirm, onCancel = nu
 
   // Escで閉じたときも一覧へ戻したい。<dialog>のcloseイベントは環境によって発火しない
   // （このアプリの動作環境でも発火しなかった）ため、keydownで自前に処理する。
-  // dialogElは使い回しのシングルトンなので、前回分を必ず外してから登録する。
+  // ダイアログ要素は使い回しのシングルトンなので、前回分を必ず外してから登録する。
   if (escHandler) dialog.removeEventListener('keydown', escHandler);
   escHandler = (event) => {
     if (event.key !== 'Escape') return;

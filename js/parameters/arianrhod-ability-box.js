@@ -15,15 +15,9 @@
 // トップレベルでDOMに触れないこと（server/index.jsがgame-store.js経由でプラグインを
 // importするため、Node環境でも読み込める必要がある。docs/plugin-guide.mdの8.1）。
 
-let dialogEl = null;
+import { createDialogHost } from '../dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 // チャットへ送れる画面か（部屋の中か）。コマ作成ツールには送信欄が無いので、
 // そこでは「実行」を出さずコピーだけにする（dx3-ability-box.jsと同じ判定）。

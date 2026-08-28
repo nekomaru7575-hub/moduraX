@@ -18,22 +18,15 @@
 import { pickFiles } from './file-uploader.js';
 import { uploadImageFile, isImageUploadAvailable, pickAndUploadImage } from './image-upload.js';
 import { trumpBack } from './card-catalog.js';
+import { createDialogHost } from './dialog-host.js';
 
 // 展開後の合計がこれを超えると、配置のときに切られる（js/game-store.jsのMAX_DECK_CARDS）。
 // ここで先に知らせて、切られてから気づくのを防ぐ。
 const MAX_TOTAL_CARDS = 200;
 const MAX_ROWS = 100;
 
-let dialogEl = null;
-let escHandler = null; // dialogElは使い回しなので、前回のEscハンドラを外すために保持する
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+let escHandler = null; // ダイアログ要素は使い回しなので、前回のEscハンドラを外すために保持する
+const ensureDialog = createDialogHost();
 
 let rowIdCounter = 0;
 function nextRowId() {

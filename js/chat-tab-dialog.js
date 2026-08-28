@@ -3,16 +3,9 @@
 // storeへの反映は呼び出し側に任せる。公開先の考え方はjs/visibility.js参照。
 
 import { buildAudiencePicker } from './audience-picker.js';
+import { createDialogHost } from './dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 // タブ削除の確認。js/log-clear-dialog.jsのshowLogClearConfirmDialogと同じ構え
 // （確認を取るだけで、実際の削除は呼び出し側=onDeleteが行う）。専用の<dialog>を別に持つのは、

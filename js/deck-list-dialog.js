@@ -8,15 +8,9 @@
 //                  どの部屋でも最初から置ける。編集すると部屋のデッキへ複製される。
 //   この部屋のデッキ … 作って保存したもの（room.deckTemplates）。部屋の全員で共有する。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 function sectionHeading(text) {
   const el = document.createElement('div');
@@ -37,7 +31,7 @@ function buildRow({ label, title, onPlace, actions }) {
   placeBtn.title = title || '盤面に配置します';
   // 配置したら閉じる。この一覧はモーダルなので、開いたままだと置いたデッキを触れない
   placeBtn.addEventListener('click', () => {
-    dialogEl?.close();
+    ensureDialog.closeIfOpen();
     onPlace();
   });
   row.appendChild(placeBtn);

@@ -14,6 +14,7 @@
 // 循環importになる（dx3-combo-box.js冒頭のコメントと同じ理由）。
 
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost } from '../dialog-host.js';
 
 // components にロイス一覧を保存するときのキー。
 export const LOIS_COMPONENT_KEY = 'lois';
@@ -126,15 +127,7 @@ function countTitus(lois) {
   return lois.filter(entry => normalizeLois(entry).state === 'titus').length;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog lois-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('lois-box-dialog');
 
 // 感情のドロップダウン。感情表（仮）に無い値でも、現在の値であれば選択肢として足しておく
 // （読み込んだシートの感情や、感情表を差し替える前に保存した値が消えないようにするため）。

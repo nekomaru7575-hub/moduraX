@@ -11,16 +11,9 @@
 
 import { pickAndUploadImage } from './image-upload.js';
 import { loadImageDimensions } from './image-dimensions.js';
+import { createDialogHost } from './dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

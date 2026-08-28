@@ -26,6 +26,7 @@ import { lockFormControls } from '../read-only-form.js';
 import { showAudienceDialog } from '../audience-picker.js';
 import { canView, isRestricted, describeAudience } from '../visibility.js';
 import { setIcon } from '../icons.js';
+import { createDialogHost } from '../dialog-host.js';
 
 // components に奥義一覧を保存するときのキー。
 export const OUGI_COMPONENT_KEY = 'ougi';
@@ -104,15 +105,7 @@ export function listVisibleOugi(rawList, myParticipantId) {
   return normalizeOugiList(rawList).filter(ougi => canView(ougi.audience, myParticipantId));
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog ougi-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('ougi-box-dialog');
 
 function createElement(tag, className, text) {
   const el = document.createElement(tag);

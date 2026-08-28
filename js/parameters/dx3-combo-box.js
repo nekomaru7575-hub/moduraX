@@ -28,16 +28,9 @@
 
 import { runSkillUse, sumSkillCosts, applySkillCosts } from './skill/skill-use.js';
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost } from '../dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 // 今このコマに効いている「クリティカル値の下限」。AcBへのバフが持つ下限（buff.meta.criticalFloor）
 // のうち一番低い（＝一番緩い）ものを適用する。下限を持つバフが無ければnull。

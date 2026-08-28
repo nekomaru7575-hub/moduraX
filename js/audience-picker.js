@@ -4,6 +4,7 @@
 // audienceの意味づけそのものはjs/visibility.jsを参照。
 
 import { isRestricted } from './visibility.js';
+import { createDialogHost } from './dialog-host.js';
 
 /**
  * 公開範囲（全員／選んだ人だけ）と、その宛先チェックリストを組み立てる。
@@ -117,15 +118,7 @@ export function buildAudiencePicker({
   };
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * 宛先だけを決める小さなダイアログ（パラメータ1件・パネルのテキスト等から使う）。

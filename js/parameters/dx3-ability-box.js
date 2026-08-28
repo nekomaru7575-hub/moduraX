@@ -7,6 +7,8 @@
 
 // 能力値ごとに、その能力値が持つ固定技能（2種）と、対応する可変スロット技能の
 // カテゴリ（技芸/知識/騎乗/情報）をまとめる。DX3の能力値-技能の対応関係そのもの。
+
+import { createDialogHost } from '../dialog-host.js';
 const DX3_ABILITY_SKILL_GROUPS = [
   { paramKey: 'sttTotalBody', label: '肉体', fixedSkills: ['skillMelee', 'skillDodge'], variablePrefix: 'skillRide', variableLabel: '運転' },
   { paramKey: 'sttTotalSense', label: '感覚', fixedSkills: ['skillRanged', 'skillPercept'], variablePrefix: 'skillArt', variableLabel: '芸術' },
@@ -89,15 +91,7 @@ function buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, 
   return `(${abilityValue}+${dbValue}+${adbValue})DX(${criticalValue})+${skillValue}+${anbValue} ${skillLabel}判定`;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog ability-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('ability-box-dialog');
 
 /**
  * @param {{ parameters: Record<string, {key:string,label:string,value:number,source?:string}>,

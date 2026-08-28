@@ -11,6 +11,7 @@ import { canView, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
 import { lockFormControls } from './read-only-form.js';
 import { setIcon } from './icons.js';
+import { createDialogHost } from './dialog-host.js';
 
 // コマ画像トリミングの既定値：ズームなし・中央。既存キャラ（imageCrop無し）も
 // これと同じ＝従来どおり「cover・中央」で表示されるため後方互換。
@@ -427,15 +428,7 @@ function parseCustomParameterValue(raw) {
   return Number.isFinite(num) ? num : trimmed;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

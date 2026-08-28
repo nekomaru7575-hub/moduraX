@@ -26,20 +26,13 @@ import {
   listMaskMarkers, MAX_INFO_MASKS_PER_SECTION, MAX_INFO_MASK_TEXT_LENGTH,
   MAX_INFO_MASK_CHAR_LENGTH, DEFAULT_INFO_MASK_CHAR
 } from './game-store.js';
+import { createDialogHost } from './dialog-host.js';
 
 // 表示名を設定していない（ゲスト）と作成者IDが付かず、canRevealMasks（js/info-panel.js）で
 // 誰も——GMでさえも——中身を見透かせない情報になってしまう。作らせない側で止める。
 const MASK_GUEST_REASON = '表示名を設定すると使えます（伏せた語を開ける人がいなくなるため）。';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

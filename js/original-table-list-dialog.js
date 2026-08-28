@@ -3,15 +3,9 @@
 // ルームメニューの「オリジナル表一覧」から開き、ここを起点に新規作成・編集・削除を行う。
 // 実際の入力画面はoriginal-table-dialog.jsが持つ（この画面はタイトルの一覧と導線だけ）。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。

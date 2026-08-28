@@ -3,15 +3,9 @@
 // どちらからも同じダイアログを使う。dumbな部品：storeを直接触らず、結果をonConfirmで返すだけ
 // （呼び出し側がROUND_PROGRESSION_START/ROUND_SET_PARTICIPANTSのどちらをdispatchするか決める）。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{

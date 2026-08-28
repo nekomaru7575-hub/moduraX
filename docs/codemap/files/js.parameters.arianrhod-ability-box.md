@@ -1,11 +1,11 @@
 ---
 source: js/parameters/arianrhod-ability-box.js
-lines: 321
+lines: 315
 exports: 3
 imported_by: 1
 api_sha: 115bfc28004f
 prose_sha: 115bfc28004f
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,28 +25,27 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 57 | fn | buildGeneralCheckCommand | `buildGeneralCheckCommand({ label, bonus, abilityLabel, diceModName, valueModName })` | 汎用判定1件のコマンド。 |
-| 66 | fn | normalizeGeneralChecks | `normalizeGeneralChecks(checks, raw)` | 保存済みの汎用判定の設定を正規形にする（{ [判定key]: {bonus, abilityParamId} }）。 |
-| 97 | fn | showArianrhodAbilityBox | `showArianrhodAbilityBox({ parameters = {}, rows = [], editable = false, onSave, checks = [], abilityChoices = [], checkSettings = {}, canEditChecks = false, onChecksChange, diceModName = 'AdB', valueModName = 'AnB' })` | parameters: Record<string, {label:string, value:number}>, rows: Array<{paramId:string, label:string}>, 表示する行… |
+| 51 | fn | buildGeneralCheckCommand | `buildGeneralCheckCommand({ label, bonus, abilityLabel, diceModName, valueModName })` | 汎用判定1件のコマンド。 |
+| 60 | fn | normalizeGeneralChecks | `normalizeGeneralChecks(checks, raw)` | 保存済みの汎用判定の設定を正規形にする（{ [判定key]: {bonus, abilityParamId} }）。 |
+| 91 | fn | showArianrhodAbilityBox | `showArianrhodAbilityBox({ parameters = {}, rows = [], editable = false, onSave, checks = [], abilityChoices = [], checkSettings = {}, canEditChecks = false, onChecksChange, diceModName = 'AdB', valueModName = 'AnB' })` | parameters: Record<string, {label:string, value:number}>, rows: Array<{paramId:string, label:string}>, 表示する行… |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 20 | ensureDialog | `ensureDialog()` | 7 |  |
-| 30 | canSendToChat | `canSendToChat()` | 3 |  |
-| 34 | sendToChat | `sendToChat(command)` | 10 |  |
-| 46 | signed | `signed(value)` | 4 |  |
-| 57 | buildGeneralCheckCommand | `buildGeneralCheckCommand({ label, bonus, abilityLabel, diceModName, valueModName })` | 4 | ✓ |
-| 66 | normalizeGeneralChecks | `normalizeGeneralChecks(checks, raw)` | 15 | ✓ |
-| 97 | showArianrhodAbilityBox | `showArianrhodAbilityBox({ parameters = {}, rows = [], editable = false, onSave, checks = [], abilityChoices = [], checkSettings = {}, canEditChecks = false, onChecksChange, diceModName = 'AdB', valueModName = 'AnB' })` | **224** | ✓ |
+| 24 | canSendToChat | `canSendToChat()` | 3 |  |
+| 28 | sendToChat | `sendToChat(command)` | 10 |  |
+| 40 | signed | `signed(value)` | 4 |  |
+| 51 | buildGeneralCheckCommand | `buildGeneralCheckCommand({ label, bonus, abilityLabel, diceModName, valueModName })` | 4 | ✓ |
+| 60 | normalizeGeneralChecks | `normalizeGeneralChecks(checks, raw)` | 15 | ✓ |
+| 91 | showArianrhodAbilityBox | `showArianrhodAbilityBox({ parameters = {}, rows = [], editable = false, onSave, checks = [], abilityChoices = [], checkSettings = {}, canEditChecks = false, onChecksChange, diceModName = 'AdB', valueModName = 'AnB' })` | **224** | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.parameters.arianrhod]]
 
 ## 注意

@@ -2,10 +2,10 @@
 source: js/parameters/core.js
 lines: 23
 exports: 4
-imported_by: 2
+imported_by: 4
 api_sha: 7e101fa59465
 prose_sha: 7e101fa59465
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -43,7 +43,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.parameters.paramFactory]]
-- imported by → [[js.character-dialog]], [[js.game-store]]
+- imported by → [[js.character-dialog]], [[js.game-store]], [[js.store.handlers.characters]], [[js.store.room]]
 
 ## 注意
 

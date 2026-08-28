@@ -1,11 +1,11 @@
 ---
 source: js/panel-dialog.js
-lines: 283
+lines: 264
 exports: 1
 imported_by: 1
 api_sha: f84aa96e3e18
 prose_sha: f84aa96e3e18
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,21 +25,20 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 37 | fn | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '', gridSize, onConfirm })` | title?: string, initialImage?: string \| null, initialText?: string, initialCols?: number, initialRows?: numb… |
+| 30 | fn | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '', gridSize, onConfirm })` | title?: string, initialImage?: string \| null, initialText?: string, initialCols?: number, initialRows?: numb… |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 13 | ensureDialog | `ensureDialog()` | 7 |  |
-| 37 | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '', gridSize, onConfirm })` | **246** | ✓ |
+| 30 | showPanelDialog | `showPanelDialog({ title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2, initialStackOrder = 0, initialKeepOnSceneChange = false, initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '', gridSize, onConfirm })` | **234** | ✓ |
 
 ## 依存
 
-- import → [[js.image-dimensions]], [[js.image-upload]]
+- import → [[js.dialog-host]], [[js.image-dimensions]], [[js.image-upload]]
 - imported by → [[js.board-data-driven]]
 
 ## 注意

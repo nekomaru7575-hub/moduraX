@@ -1,11 +1,11 @@
 ---
 source: js/log-edit-dialog.js
-lines: 88
+lines: 70
 exports: 1
 imported_by: 1
 api_sha: 71c378e412d7
 prose_sha: 71c378e412d7
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,21 +25,20 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 23 | fn | showLogEditDialog | `showLogEditDialog({ resultText = '', onConfirm })` | onConfirmは中身が実際に変わったときだけ呼ばれる。 |
+| 17 | fn | showLogEditDialog | `showLogEditDialog({ resultText = '', onConfirm })` | onConfirmは中身が実際に変わったときだけ呼ばれる。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 11 | ensureDialog | `ensureDialog()` | 7 |  |
-| 23 | showLogEditDialog | `showLogEditDialog({ resultText = '', onConfirm })` | 65 | ✓ |
+| 17 | showLogEditDialog | `showLogEditDialog({ resultText = '', onConfirm })` | 53 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.main]]
 
 ## 注意

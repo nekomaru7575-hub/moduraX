@@ -1,11 +1,11 @@
 ---
 source: js/buff-dialog.js
-lines: 261
+lines: 250
 exports: 2
 imported_by: 2
 api_sha: 8592ca5e68a7
 prose_sha: 8592ca5e68a7
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,8 +25,8 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 38 | fn | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | parameters: Record<string, {key:string,label:string,value:number}>, activePluginId?: string\|null, onConfirm:… |
-| 195 | fn | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | getBuffs: () => Array<{id:string,name:string,paramId:string\|null,delta:number,expirePhase:string\|null,meta:o… |
+| 39 | fn | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | parameters: Record<string, {key:string,label:string,value:number}>, activePluginId?: string\|null, onConfirm:… |
+| 184 | fn | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | getBuffs: () => Array<{id:string,name:string,paramId:string\|null,delta:number,expirePhase:string\|null,meta:o… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（5）
 
@@ -35,15 +35,15 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 23 | ensureAddDialog | `ensureAddDialog()` | 7 |  |
-| 38 | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | 124 | ✓ |
-| 165 | ensureListDialog | `ensureListDialog()` | 7 |  |
-| 173 | formatBuffLine | `formatBuffLine(buff, parameters, activePluginId)` | 11 |  |
-| 195 | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | 66 | ✓ |
+| 24 | ensureAddDialog | `ensureAddDialog()` | 7 |  |
+| 39 | showAddBuffDialog | `showAddBuffDialog({ parameters = {}, activePluginId = null, onConfirm })` | 112 | ✓ |
+| 154 | ensureListDialog | `ensureListDialog()` | 7 |  |
+| 162 | formatBuffLine | `formatBuffLine(buff, parameters, activePluginId)` | 11 |  |
+| 184 | showBuffListDialog | `showBuffListDialog({ getBuffs, getParameters, activePluginId = null, onRemove })` | 66 | ✓ |
 
 ## 依存
 
-- import → [[js.game-store]], [[js.parameters.registry]]
+- import → [[js.dialog-host]], [[js.game-store]], [[js.parameters.registry]]
 - imported by → [[js.board-data-driven]], [[js.character-dialog]]
 
 ## 注意

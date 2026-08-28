@@ -1,11 +1,11 @@
 ---
 source: js/background-dialog.js
-lines: 257
+lines: 238
 exports: 1
 imported_by: 1
 api_sha: 9bacf1b1ff3e
 prose_sha: 9bacf1b1ff3e
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,21 +25,20 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 44 | fn | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | initialImage?: string \| null, initialImageKey?: string \| null, initialCols?: number \| null, null＝自動（ビューポートに合… |
+| 37 | fn | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | initialImage?: string \| null, initialImageKey?: string \| null, initialCols?: number \| null, null＝自動（ビューポートに合… |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 17 | ensureDialog | `ensureDialog()` | 7 |  |
-| 44 | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | **213** | ✓ |
+| 37 | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, gridSize, onConfirm })` | **201** | ✓ |
 
 ## 依存
 
-- import → [[js.image-dimensions]], [[js.image-upload]]
+- import → [[js.dialog-host]], [[js.image-dimensions]], [[js.image-upload]]
 - imported by → [[js.board-data-driven]]
 
 ## 注意

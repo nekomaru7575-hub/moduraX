@@ -1,11 +1,11 @@
 ---
 source: js/parameters/saikoro-fiction/skill-table-box.js
-lines: 592
+lines: 585
 exports: 1
 imported_by: 1
 api_sha: b9f5e5502a0a
 prose_sha: b9f5e5502a0a
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,21 +25,20 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 46 | fn | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | spec: object, createSkillTableSpec() の戻り値 state: {acquired:string[], filledGaps:number[]}, normalizeSkillTab… |
+| 39 | fn | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | spec: object, createSkillTableSpec() の戻り値 state: {acquired:string[], filledGaps:number[]}, normalizeSkillTab… |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 19 | ensureDialog | `ensureDialog()` | 7 |  |
-| 46 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **546** | ✓ |
+| 39 | showSkillTableBox | `showSkillTableBox({ spec, state, title = '特技表', editable = true, onSave, onCheck, getToken = null, getEffectiveParameterValue = null, onParameterChange = null })` | **546** | ✓ |
 
 ## 依存
 
-- import → [[js.parameters.saikoro-fiction.skill-check]], [[js.parameters.saikoro-fiction.skill-table]]
+- import → [[js.dialog-host]], [[js.parameters.saikoro-fiction.skill-check]], [[js.parameters.saikoro-fiction.skill-table]]
 - imported by → [[js.parameters.shinobigami]]
 
 ## 注意

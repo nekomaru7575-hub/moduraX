@@ -1,11 +1,11 @@
 ---
 source: js/original-table-dialog.js
-lines: 164
+lines: 158
 exports: 1
 imported_by: 1
 api_sha: bf2e03ed6fe8
 prose_sha: bf2e03ed6fe8
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,23 +25,22 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 52 | fn | showOriginalTableDialog | `showOriginalTableDialog({ table = null, onConfirm, onCancel = null })` | tableを渡すとその内容を初期表示した編集モードになる。 |
+| 46 | fn | showOriginalTableDialog | `showOriginalTableDialog({ table = null, onConfirm, onCancel = null })` | tableを渡すとその内容を初期表示した編集モードになる。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 9 | parseTableEntries | `parseTableEntries(text)` | 13 |  |
-| 24 | formatTableEntries | `formatTableEntries(entries)` | 3 |  |
-| 31 | ensureDialog | `ensureDialog()` | 7 |  |
-| 52 | showOriginalTableDialog | `showOriginalTableDialog({ table = null, onConfirm, onCancel = null })` | 112 | ✓ |
+| 11 | parseTableEntries | `parseTableEntries(text)` | 13 |  |
+| 26 | formatTableEntries | `formatTableEntries(entries)` | 3 |  |
+| 46 | showOriginalTableDialog | `showOriginalTableDialog({ table = null, onConfirm, onCancel = null })` | 112 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.main]]
 
 ## 注意

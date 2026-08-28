@@ -1,11 +1,11 @@
 ---
 source: js/identity-dialog.js
-lines: 204
+lines: 185
 exports: 1
 imported_by: 1
 api_sha: 9282b795cb6f
 prose_sha: 9282b795cb6f
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,23 +25,22 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 98 | fn | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | participants: Record<string, {id:string, nickname:string, isGm:boolean}>, myParticipantId: string \| null, ni… |
+| 91 | fn | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | participants: Record<string, {id:string, nickname:string, isGm:boolean}>, myParticipantId: string \| null, ni… |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 10 | ensureDialog | `ensureDialog()` | 7 |  |
-| 18 | buildFormGroup | `buildFormGroup(labelText, input)` | 9 |  |
-| 30 | buildParticipantList | `buildParticipantList({ participants, myParticipantId, amGm, onSetGm, onRemove, rerender })` | 56 |  |
-| 98 | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | 106 | ✓ |
+| 11 | buildFormGroup | `buildFormGroup(labelText, input)` | 9 |  |
+| 23 | buildParticipantList | `buildParticipantList({ participants, myParticipantId, amGm, onSetGm, onRemove, rerender })` | 56 |  |
+| 91 | showIdentityDialog | `showIdentityDialog({ participants, myParticipantId, nickname, devPassphrase, onSubmit, onSetGm, onRemove })` | 94 | ✓ |
 
 ## 依存
 
-- import → [[js.local-identity]]
+- import → [[js.dialog-host]], [[js.local-identity]]
 - imported by → [[js.main]]
 
 ## 注意

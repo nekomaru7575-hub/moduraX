@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dx3-ability-box.js
-lines: 400
+lines: 394
 exports: 1
 imported_by: 1
 api_sha: fa249eead9c6
 prose_sha: fa249eead9c6
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,27 +25,26 @@ DX3 の能力値・技能値を一覧表示し、判定コマンドをコピー�
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 109 | fn | showAbilitySkillBox | `showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue, editable = false, onSave })` | token?: object, getEffectiveParameterValue?: (token:object, paramId:string) => number\|undefined, editable?: … |
+| 103 | fn | showAbilitySkillBox | `showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue, editable = false, onSave })` | token?: object, getEffectiveParameterValue?: (token:object, paramId:string) => number\|undefined, editable?: … |
 
-## トップレベル関数（LOCAL TASKS 候補）（8）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 25 | collectSkillParamEntries | `collectSkillParamEntries(parameters)` | 14 |  |
-| 41 | collectAbilityParamEntries | `collectAbilityParamEntries(parameters)` | 5 |  |
-| 52 | readEffectiveOrBaseValue | `readEffectiveOrBaseValue(paramId, { parameters, token, getEffectiveParameterValue })` | 7 |  |
-| 67 | canSendToChat | `canSendToChat()` | 3 |  |
-| 71 | sendDX3CheckCommand | `sendDX3CheckCommand(command)` | 11 |  |
-| 88 | buildDX3CheckCommand | `buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel })` | 3 |  |
-| 94 | ensureDialog | `ensureDialog()` | 7 |  |
-| 109 | showAbilitySkillBox | `showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue, editable = false, onSave })` | **291** | ✓ |
+| 27 | collectSkillParamEntries | `collectSkillParamEntries(parameters)` | 14 |  |
+| 43 | collectAbilityParamEntries | `collectAbilityParamEntries(parameters)` | 5 |  |
+| 54 | readEffectiveOrBaseValue | `readEffectiveOrBaseValue(paramId, { parameters, token, getEffectiveParameterValue })` | 7 |  |
+| 69 | canSendToChat | `canSendToChat()` | 3 |  |
+| 73 | sendDX3CheckCommand | `sendDX3CheckCommand(command)` | 11 |  |
+| 90 | buildDX3CheckCommand | `buildDX3CheckCommand({ abilityValue, dbValue, adbValue, criticalValue, skillValue, anbValue, skillLabel })` | 3 |  |
+| 103 | showAbilitySkillBox | `showAbilitySkillBox({ parameters, token = null, getEffectiveParameterValue, editable = false, onSave })` | **291** | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.parameters.dx3]]
 
 ## 注意

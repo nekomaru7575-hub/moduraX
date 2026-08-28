@@ -2,10 +2,10 @@
 source: js/parameters/registry.js
 lines: 493
 exports: 23
-imported_by: 10
+imported_by: 16
 api_sha: 76d7c77397c7
 prose_sha: 76d7c77397c7
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -85,7 +85,7 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュの記述子�
 ## 依存
 
 - import → [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-pool]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.stella-knights]]
-- imported by → [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.character-dialog]], [[js.dice-draft-panel]], [[js.game-store]], [[js.main]], [[js.room-index]], [[js.stamp-registry]], [[server.index]]
+- imported by → [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.character-dialog]], [[js.dice-draft-panel]], [[js.game-store]], [[js.main]], [[js.room-index]], [[js.stamp-registry]], [[js.store.buffs]], [[js.store.handlers.characters]], [[js.store.handlers.room]], [[js.store.handlers.round]], [[js.store.room]], [[js.store.round-state]], [[server.index]]
 
 ## 注意
 

@@ -1,11 +1,11 @@
 ---
 source: js/character-panel.js
-lines: 261
+lines: 285
 exports: 2
 imported_by: 1
 api_sha: 65b467f5f737
 prose_sha: 65b467f5f737
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,27 +25,28 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 43 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
-| 163 | fn | initCharacterPanel | `initCharacterPanel()` |  |
+| 45 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
+| 187 | fn | initCharacterPanel | `initCharacterPanel()` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 22 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
-| 29 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
-| 43 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
-| 56 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 30 |  |
-| 87 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
-| 146 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
-| 163 | initCharacterPanel | `initCharacterPanel()` | 98 | ✓ |
+| 24 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
+| 31 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
+| 45 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
+| 58 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 32 |  |
+| 98 | bindTokenMenu | `bindTokenMenu(element, tokenId)` | 12 |  |
+| 111 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
+| 170 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
+| 187 | initCharacterPanel | `initCharacterPanel()` | 98 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.board-data-driven]], [[js.floating-panel]], [[js.local-identity]], [[js.visibility]]
+- import → [[js.EventBus]], [[js.board-data-driven]], [[js.drag-gesture]], [[js.floating-panel]], [[js.local-identity]], [[js.visibility]]
 - imported by → [[js.main]]
 
 ## 注意

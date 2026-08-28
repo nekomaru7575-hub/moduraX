@@ -1,11 +1,11 @@
 ---
 source: js/original-table-list-dialog.js
-lines: 103
+lines: 97
 exports: 1
 imported_by: 1
 api_sha: 6f0d5fbdb2d8
 prose_sha: 6f0d5fbdb2d8
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,21 +25,20 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 27 | fn | showOriginalTableListDialog | `showOriginalTableListDialog({ tables, onAdd, onSelect, onRemove })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
+| 21 | fn | showOriginalTableListDialog | `showOriginalTableListDialog({ tables, onAdd, onSelect, onRemove })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（2）
+## トップレベル関数（LOCAL TASKS 候補）（1）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 8 | ensureDialog | `ensureDialog()` | 7 |  |
-| 27 | showOriginalTableListDialog | `showOriginalTableListDialog({ tables, onAdd, onSelect, onRemove })` | 76 | ✓ |
+| 21 | showOriginalTableListDialog | `showOriginalTableListDialog({ tables, onAdd, onSelect, onRemove })` | 76 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.main]]
 
 ## 注意

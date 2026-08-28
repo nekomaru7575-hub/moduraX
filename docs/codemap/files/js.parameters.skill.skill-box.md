@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 982
+lines: 975
 exports: 1
 imported_by: 6
 api_sha: 160c4976d6de
 prose_sha: 160c4976d6de
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,29 +25,28 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 215 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
+| 208 | fn | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | spec: object, createSkillSpecの戻り値 skills: Array<object>, 保存済みの一覧（旧形式でもよい。ここで正規化して表示する） parameters?: Record<s… |
 
-## トップレベル関数（LOCAL TASKS 候補）（10）
+## トップレベル関数（LOCAL TASKS 候補）（9）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 27 | wrapWithLabel | `wrapWithLabel(control, labelText, widthClass)` | 13 |  |
-| 43 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
-| 78 | buildToggleField | `buildToggleField(field, value)` | 33 |  |
-| 117 | readFieldValue | `readFieldValue(field, input)` | 5 |  |
-| 124 | readRowFieldValues | `readRowFieldValues(spec, fieldInputs)` | 5 |  |
-| 131 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
-| 151 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
-| 182 | ensureDialog | `ensureDialog()` | 7 |  |
-| 190 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 215 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **767** | ✓ |
+| 28 | wrapWithLabel | `wrapWithLabel(control, labelText, widthClass)` | 13 |  |
+| 44 | buildSelectField | `buildSelectField(field, value)` | 26 |  |
+| 79 | buildToggleField | `buildToggleField(field, value)` | 33 |  |
+| 118 | readFieldValue | `readFieldValue(field, input)` | 5 |  |
+| 125 | readRowFieldValues | `readRowFieldValues(spec, fieldInputs)` | 5 |  |
+| 132 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
+| 152 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
+| 183 | createElement | `createElement(tag, className, text)` | 6 |  |
+| 208 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **767** | ✓ |
 
 ## 依存
 
-- import → [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-formula]], [[js.parameters.skill.skill-model]], [[js.read-only-form]]
+- import → [[js.dialog-host]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-formula]], [[js.parameters.skill.skill-model]], [[js.read-only-form]]
 - imported by → [[js.parameters.arianrhod]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
 
 ## 注意

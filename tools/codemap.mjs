@@ -275,11 +275,16 @@ function lineOf(offsets, pos) {
 
 // ---------------------------------------------------------------- 依存グラフ
 
+// import に加えて、名指しの再export（export { x } from './y.js'）も依存として数える。
+// 数えないと、再exportでしか使われていないモジュールが「誰からもimportされない」＝
+// エントリポイントとして並んでしまい、地図を読む人に消してよいものだと誤解させる
+// （js/store/ids.js が実際にそう出た）。
 function extractImports(src, file) {
   const dir = path.posix.dirname(file);
   const out = new Set();
-  const re = /^import\s+(?:[^;'"]*?\s+from\s+)?['"]([^'"]+)['"]/gm;
-  for (const m of src.matchAll(re)) {
+  const re = /^(?:import|export)\s+(?:[^;'"]*?\s+from\s+)?['"]([^'"]+)['"]/gm;
+  const multiline = /^(?:import|export)\s*\{[^}]*\}\s*from\s*['"]([^'"]+)['"]/gms;
+  for (const m of [...src.matchAll(re), ...src.matchAll(multiline)]) {
     const spec = m[1];
     if (!spec.startsWith('.')) continue;
     out.add(path.posix.normalize(path.posix.join(dir, spec)));

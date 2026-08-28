@@ -35,6 +35,7 @@ import {
   resetSkillUsageOnPhaseEnd
 } from './skill/skill-model.js';
 import { showSkillBox } from './skill/skill-box.js';
+import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
 
 const PLUGIN_ID = 'DRACUROUGE';
 
@@ -553,33 +554,11 @@ function renameHpToExistence({ readParameters, dispatch, tokenId }) {
 // 経歴メモ）は取り込まない。パラメータ化していないものを隠しパラメータとして持たせても、
 // 画面のどこにも出ず、書き出したJSONだけが太るため。
 
-// URLから取り込むときの受け付け先。**データだけを宣言する**。
-// 画面（js/character-sheet-import.js）はこの宣言でURLを検査してキーだけを取り出し、
-// サーバー（server/index.js）が同じ宣言から取得先を組み立てる。宣言に無いURLは
-// どちらの側でも通らないので、「任意の宛先へ取りに行かせる」ことができない。
-//
-// edit.html / display.html はどちらも人が見るページなので、キーだけを取り出して
-// JSONを返す口（display?ajax=1）へ付け替える。利用者はブラウザのURLをそのまま貼れる。
-const DRACUROUGE_SHEET_SOURCE = {
-  label: 'Webキャラクターシート（ドラクルージュ）',
-  origin: 'https://character-sheets.appspot.com',
-  pathPrefix: '/dracurouge/',
-  keyParam: 'key',
-  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
-  fetchPath: (key) => `/dracurouge/display?ajax=1&key=${encodeURIComponent(key)}`,
-  hint: 'character-sheets.appspot.com/dracurouge/edit.html?key=... の形のURL'
-};
-
-function sheetText(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
-
-// シートの数値欄は文字列（"0"）で、未入力はnull。数値として読めた場合だけ上書きする。
-function assignSheetNumber(target, paramId, raw) {
-  if (raw === null || raw === undefined || raw === '') return;
-  const value = Number(raw);
-  if (Number.isFinite(value)) target[paramId] = Math.trunc(value);
-}
+// URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
+const DRACUROUGE_SHEET_SOURCE = createAppspotSheetSource({
+  label: 'ドラクルージュ',
+  pathSegment: 'dracurouge'
+});
 
 // 戦の行い（waractions）／常の行い（generalactions）を、種別だけ変えて同じ形に読む。
 // シートの列と行いの欄は素直に1対1で対応する（対象＝subject、効果＝組み込みのnote）。

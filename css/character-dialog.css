@@ -2043,3 +2043,31 @@
     height: min(160px, 45vw);
   }
 }
+
+/* --- ルーム設定のトグル行と区切り（元は combined_layout.html の style 属性） --- */
+
+/* チェックボックスと説明文を1行に並べるラベル。行全体を label にしてあるので、
+   文のどこを押しても切り替わる。 */
+.dialog-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* ダイアログの中の小見出し（「セッションデータ」など）。上に少し空きを取って、
+   直前の入力欄との切れ目を作る。 */
+.dialog-section-label {
+  margin-top: 8px;
+  display: block;
+}
+
+/* ボタン行の上の空き。区切り線を引かずに、まとまりの切れ目を空きだけで示す。
+   is-spaced-wide は「部屋を削除」のように、直前の並びと取り違えたくないもの向け。 */
+.dialog-button-row.is-spaced {
+  margin-top: 16px;
+}
+
+.dialog-button-row.is-spaced-wide {
+  margin-top: 24px;
+}

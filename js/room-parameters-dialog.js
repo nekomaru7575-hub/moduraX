@@ -5,6 +5,8 @@
 // ユーザーが自由に名前を付けて追加するルーム変数の入力値を、数値として解釈できれば
 // Numberに、できなければ文字列のまま返す。空欄は0扱い（旧来のNumber(x)||0と同じ挙動）。
 // プラグイン由来のルーム変数（source!=='user'、例: 混沌レベル）は対象外（常に数値）。
+
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 function parseRoomParameterValue(raw) {
   const trimmed = String(raw).trim();
   if (trimmed === '') return 0;
@@ -12,15 +14,7 @@ function parseRoomParameterValue(raw) {
   return Number.isFinite(num) ? num : trimmed;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * 「編集不可(editable:false)」な変数は値の変更を受け付けず、
@@ -142,22 +136,10 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
   form.appendChild(addBtn);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '適用';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '適用',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

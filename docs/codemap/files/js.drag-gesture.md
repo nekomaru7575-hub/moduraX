@@ -2,10 +2,10 @@
 source: js/drag-gesture.js
 lines: 231
 exports: 2
-imported_by: 3
+imported_by: 4
 api_sha: a9b5d3f67438
 prose_sha: a9b5d3f67438
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -40,7 +40,7 @@ Pointer Events を使ったドラッグと長押しの入口を1つにまとめ�
 ## 依存
 
 - import → なし
-- imported by → [[js.board-data-driven]], [[js.dice-draft-panel]], [[js.floating-panel]]
+- imported by → [[js.board-data-driven]], [[js.character-panel]], [[js.dice-draft-panel]], [[js.floating-panel]]
 
 ## 注意
 

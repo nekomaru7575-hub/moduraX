@@ -13,16 +13,9 @@ import {
 import {
   describeSkillCheck, buildCheckCommand, resolveCheckAdjustments
 } from './skill-check.js';
+import { createDialogHost } from '../../dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog sf-skill-table-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('sf-skill-table-dialog');
 
 /**
  * @param {{

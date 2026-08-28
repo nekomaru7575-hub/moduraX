@@ -1,11 +1,11 @@
 ---
 source: js/deck-list-dialog.js
-lines: 189
+lines: 183
 exports: 1
 imported_by: 1
 api_sha: 637983c73a2b
 prose_sha: 637983c73a2b
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,23 +25,22 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 76 | fn | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
+| 70 | fn | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（3）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 13 | ensureDialog | `ensureDialog()` | 7 |  |
-| 21 | sectionHeading | `sectionHeading(text)` | 6 |  |
-| 29 | buildRow | `buildRow({ label, title, onPlace, actions })` | 28 |  |
-| 76 | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 113 | ✓ |
+| 15 | sectionHeading | `sectionHeading(text)` | 6 |  |
+| 23 | buildRow | `buildRow({ label, title, onPlace, actions })` | 28 |  |
+| 70 | showDeckListDialog | `showDeckListDialog({ builtIns, templates, onPlaceBuiltIn, onCopyBuiltIn, onPlace, onEdit, onExport, onRemove, onCreate, onImport })` | 113 | ✓ |
 
 ## 依存
 
-- import → なし
+- import → [[js.dialog-host]]
 - imported by → [[js.main]]
 
 ## 注意

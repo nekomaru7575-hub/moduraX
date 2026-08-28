@@ -1,11 +1,11 @@
 ---
 source: js/parameters/shinobigami-ougi-box.js
-lines: 468
+lines: 461
 exports: 9
 imported_by: 1
 api_sha: 42e8293a87cc
 prose_sha: 42e8293a87cc
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,39 +25,38 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 31 | const | OUGI_COMPONENT_KEY | `OUGI_COMPONENT_KEY` | components に奥義一覧を保存するときのキー。 |
-| 35 | const | OUGI_MAX | `OUGI_MAX` | 1体が持てる奥義と、1つの奥義が持てる改造の上限。 |
-| 36 | const | CUSTOMIZATION_MAX | `CUSTOMIZATION_MAX` |  |
-| 39 | const | CUSTOMIZATION_SIDES | `CUSTOMIZATION_SIDES` | 奥義改造の側。 |
-| 46 | fn | customizationSideLabel | `customizationSideLabel(side)` |  |
-| 77 | fn | normalizeOugi | `normalizeOugi(raw)` | 保存済みの1件を、欠けた項目を補った正規形へ揃える。 |
-| 92 | fn | normalizeOugiList | `normalizeOugiList(rawList)` | components に保存された一覧を正規形の配列にする。 |
-| 103 | fn | listVisibleOugi | `listVisibleOugi(rawList, myParticipantId)` | 自分が見てよい奥義だけを返す。 |
-| 171 | fn | showOugiBox | `showOugiBox({ ougiList = [], skillChoices = [], participants = {}, myParticipantId = null, readOnly = false, onSave })` | 奥義一覧ボックス。 |
+| 32 | const | OUGI_COMPONENT_KEY | `OUGI_COMPONENT_KEY` | components に奥義一覧を保存するときのキー。 |
+| 36 | const | OUGI_MAX | `OUGI_MAX` | 1体が持てる奥義と、1つの奥義が持てる改造の上限。 |
+| 37 | const | CUSTOMIZATION_MAX | `CUSTOMIZATION_MAX` |  |
+| 40 | const | CUSTOMIZATION_SIDES | `CUSTOMIZATION_SIDES` | 奥義改造の側。 |
+| 47 | fn | customizationSideLabel | `customizationSideLabel(side)` |  |
+| 78 | fn | normalizeOugi | `normalizeOugi(raw)` | 保存済みの1件を、欠けた項目を補った正規形へ揃える。 |
+| 93 | fn | normalizeOugiList | `normalizeOugiList(rawList)` | components に保存された一覧を正規形の配列にする。 |
+| 104 | fn | listVisibleOugi | `listVisibleOugi(rawList, myParticipantId)` | 自分が見てよい奥義だけを返す。 |
+| 164 | fn | showOugiBox | `showOugiBox({ ougiList = [], skillChoices = [], participants = {}, myParticipantId = null, readOnly = false, onSave })` | 奥義一覧ボックス。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（12）
+## トップレベル関数（LOCAL TASKS 候補）（11）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 46 | customizationSideLabel | `customizationSideLabel(side)` | 3 | ✓ |
-| 51 | nextId | `nextId(prefix)` | 4 |  |
-| 56 | toText | `toText(value)` | 3 |  |
-| 62 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
-| 67 | normalizeCustomization | `normalizeCustomization(raw)` | 8 |  |
-| 77 | normalizeOugi | `normalizeOugi(raw)` | 13 | ✓ |
-| 92 | normalizeOugiList | `normalizeOugiList(rawList)` | 4 | ✓ |
-| 103 | listVisibleOugi | `listVisibleOugi(rawList, myParticipantId)` | 3 | ✓ |
-| 109 | ensureDialog | `ensureDialog()` | 7 |  |
-| 117 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 126 | buildSkillSelect | `buildSkillSelect(choices, value)` | 27 |  |
-| 171 | showOugiBox | `showOugiBox({ ougiList = [], skillChoices = [], participants = {}, myParticipantId = null, readOnly = false, onSave })` | **297** | ✓ |
+| 47 | customizationSideLabel | `customizationSideLabel(side)` | 3 | ✓ |
+| 52 | nextId | `nextId(prefix)` | 4 |  |
+| 57 | toText | `toText(value)` | 3 |  |
+| 63 | normalizeAudience | `normalizeAudience(audience)` | 4 |  |
+| 68 | normalizeCustomization | `normalizeCustomization(raw)` | 8 |  |
+| 78 | normalizeOugi | `normalizeOugi(raw)` | 13 | ✓ |
+| 93 | normalizeOugiList | `normalizeOugiList(rawList)` | 4 | ✓ |
+| 104 | listVisibleOugi | `listVisibleOugi(rawList, myParticipantId)` | 3 | ✓ |
+| 110 | createElement | `createElement(tag, className, text)` | 6 |  |
+| 119 | buildSkillSelect | `buildSkillSelect(choices, value)` | 27 |  |
+| 164 | showOugiBox | `showOugiBox({ ougiList = [], skillChoices = [], participants = {}, myParticipantId = null, readOnly = false, onSave })` | **297** | ✓ |
 
 ## 依存
 
-- import → [[js.audience-picker]], [[js.icons]], [[js.read-only-form]], [[js.visibility]]
+- import → [[js.audience-picker]], [[js.dialog-host]], [[js.icons]], [[js.read-only-form]], [[js.visibility]]
 - imported by → [[js.parameters.shinobigami]]
 
 ## 注意

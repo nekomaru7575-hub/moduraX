@@ -6,15 +6,9 @@
 // 直せるのは本文だけで、キャラ名・発言時刻・コマンド・出目内訳は編集の対象にしない
 // （js/game-store.jsのEDIT_CHAT_MESSAGE参照）。
 
-let dialogEl = null;
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{ resultText: string, onConfirm: (resultText: string) => void }} options
@@ -49,22 +43,10 @@ export function showLogEditDialog({ resultText = '', onConfirm }) {
   note.textContent = '部屋にいる全員のログが書き換わり、「(編集済み)」が付きます。';
   form.appendChild(note);
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.className = 'dialog-confirm-btn';
-  confirmBtn.textContent = '変更';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '変更',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

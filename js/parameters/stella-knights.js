@@ -4,6 +4,7 @@ import { showSkillBox } from './skill/skill-box.js';
 import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceChange } from './dice-draft/dice-draft-pool.js';
+import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 // charge(n) … n個振る。charge / charge() … 個数を書かない形で、チャットに
@@ -443,34 +444,11 @@ function handleStellaKnightsChatCommand(
 // パートナー、歪みの共鳴、勲章）は取り込まない。パラメータ化していないものを隠しパラメータ
 // として持たせても、画面のどこにも出ず、書き出したJSONだけが太るため。
 
-// URLから取り込むときの受け付け先。**データだけを宣言する**。
-// 画面（js/character-sheet-import.js）はこの宣言でURLを検査してキーだけを取り出し、
-// サーバー（server/index.js）が同じ宣言から取得先を組み立てる。宣言に無いURLは
-// どちらの側でも通らないので、「任意の宛先へ取りに行かせる」ことができない。
-//
-// edit.html / display.html はどちらも人が見るページなので、キーだけを取り出して
-// JSONを返す口（display?ajax=1）へ付け替える。利用者はブラウザのURLをそのまま貼れる。
-const STELLA_KNIGHTS_SHEET_SOURCE = {
-  label: 'Webキャラクターシート（銀剣のステラナイツ）',
-  origin: 'https://character-sheets.appspot.com',
-  // 同じサービスの他システム（/dracurouge/ 等）のシートを掴まないための絞り込み
-  pathPrefix: '/stellar/',
-  keyParam: 'key',
-  keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
-  fetchPath: (key) => `/stellar/display?ajax=1&key=${encodeURIComponent(key)}`,
-  hint: 'character-sheets.appspot.com/stellar/edit.html?key=... の形のURL'
-};
-
-function sheetText(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
-
-// シートの数値欄は文字列（"16"）で、未入力はnull。数値として読めた場合だけ上書きする。
-function assignSheetNumber(target, paramId, raw) {
-  if (raw === null || raw === undefined || raw === '') return;
-  const value = Number(raw);
-  if (Number.isFinite(value)) target[paramId] = Math.trunc(value);
-}
+// URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
+const STELLA_KNIGHTS_SHEET_SOURCE = createAppspotSheetSource({
+  label: '銀剣のステラナイツ',
+  pathSegment: 'stellar'
+});
 
 // スキル一覧。シートの列（名前・種別・タイミング・効果）はこのプラグインのスキルと
 // 素直に1対1で対応する。

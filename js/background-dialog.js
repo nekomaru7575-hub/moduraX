@@ -11,16 +11,9 @@
 
 import { pickAndUploadImage } from './image-upload.js';
 import { loadImageDimensions } from './image-dimensions.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{
@@ -217,22 +210,10 @@ export function showBackgroundDialog({
   form.appendChild(keepGroup);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '適用';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '適用',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

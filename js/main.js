@@ -336,6 +336,7 @@ function appendLogEntries(container, entries, fromIndex, itemClassName, buildOpt
     item.className = itemClassName;
     if (entries[i].id) item.dataset.entryId = entries[i].id;
     item.innerHTML = buildLogHtml(entries[i], buildOptions);
+    applyLogNameColor(item, entries[i].color);
     container.appendChild(item);
   }
   if (entries.length > fromIndex) {
@@ -354,7 +355,9 @@ function patchEditedLogEntries(container, entries) {
   for (let i = 0; i < rendered; i++) {
     if (lastRenderedLogEntries[i] === entries[i]) continue;
     const item = container.children[i];
-    if (item) item.innerHTML = buildLogHtml(entries[i]);
+    if (!item) continue;
+    item.innerHTML = buildLogHtml(entries[i]);
+    applyLogNameColor(item, entries[i].color);
   }
 }
 
@@ -419,6 +422,7 @@ function renderMainChatMirror(state) {
     const item = document.createElement('div');
     item.className = 'current-chat-log-item';
     item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true, hideTime: true });
+    applyLogNameColor(item, latestEntry.color);
     currentChatLog.appendChild(item);
 
     if ('characterId' in latestEntry) {
@@ -1984,7 +1988,7 @@ const MAX_COMMAND_INPUT_SUGGESTIONS = 8;
 function hideCommandInputSuggestions() {
   if (!commandInputSuggestions) return;
   commandInputSuggestions.innerHTML = '';
-  commandInputSuggestions.style.display = 'none';
+  commandInputSuggestions.hidden = true;
 }
 
 function updateCommandInputSuggestions() {
@@ -2029,7 +2033,7 @@ function updateCommandInputSuggestions() {
     });
     commandInputSuggestions.appendChild(row);
   });
-  commandInputSuggestions.style.display = '';
+  commandInputSuggestions.hidden = false;
 }
 
 // メイン入力欄の記入中通知（T-013）。空⇔非空に変わった瞬間だけサーバーへ送る（打鍵毎ではない）。
@@ -2441,42 +2445,56 @@ function splitForSpace(string) {
 // command: 実行されたコマンドそのもの。結果だけでは何を打った結果なのか分からないため、
 // 本文の1行目に小さく添える（ダイスロールはBCDiceの結果自体がコマンドを含むので指定しない）。
 //
-// ここへ来る値は、発言本文もキャラ名もコメントも色も、すべて部屋にいる誰かが決めたもの。
+// ここへ来る値は、発言本文もキャラ名もコメントも、すべて部屋にいる誰かが決めたもの。
 // 組み立てたHTMLはinnerHTMLで挿入され、しかもチャットログは部屋データとして保存されて
 // 後から入った人の画面でも再生されるため、素のまま埋めると一度の書き込みでその部屋を
 // 開いた全員にマークアップを流し込めてしまう。全部エスケープしてから埋める
 // （書き出し側のjs/log-export.jsは元からそうしていた。表示側もこれで揃う）。
-// 色はエスケープでは守れない文脈（style属性の中）なので、形そのもので絞る。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", color = null, time, editedAt = null }, { hideSystem = false, hideTime = false } = {}) {
-  const detail = diceDetail ? `<small style="color: #888;">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
-  const systemTag = (!hideSystem && system) ? `<strong style="color: #007acc;">[${escapeHtml(system)}]</strong>` : '';
-  const nameColor = safeCssColor(color, '#4caf50');
-  const characterTag = character ? `<span style="color: ${nameColor};">${escapeHtml(character)}</span>` : '';
-  const commentTag = comment ? `<span style="color: #aaa;">(${escapeHtml(comment)})</span>` : '';
+//
+// 色はここでは扱わない。固定色はCSSのクラス（css/board.css）に持たせ、発言者ごとに
+// 変わるキャラ名の色だけを、挿入した後に applyLogNameColor がCSSOMから当てる。
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null }, { hideSystem = false, hideTime = false } = {}) {
+  const detail = diceDetail ? `<small class="log-detail">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
+  const systemTag = (!hideSystem && system) ? `<strong class="log-system">[${escapeHtml(system)}]</strong>` : '';
+  const characterTag = character ? `<span class="log-name">${escapeHtml(character)}</span>` : '';
+  const commentTag = comment ? `<span class="log-comment">(${escapeHtml(comment)})</span>` : '';
   // 改行だけは<br>として通す（発言の見た目に必要）。それ以外はマークアップにしない。
   const resultHtml = escapeHtml(resultText).replace(/\n/g, '<br>');
   // コマンドは利用者の入力そのままなので、記号がマークアップとして解釈されないようにする
   // （+HP(1)<2 のような入力で以降の行が消えてしまうため）。
   const commandHtml = command
-    ? `<small class="log-command-text" style="color: #888;">（${escapeHtml(command)}）</small><br>`
+    ? `<small class="log-command-text">（${escapeHtml(command)}）</small><br>`
     : '';
 
   // ヘッダー（システム名・キャラ名・コメント）は存在する要素だけを半角スペースで連結する。
   // 全て空の場合（カレントチャット欄のキャラなし発言など）は行ごと省き、余計な空行を出さない。
   // タイムスタンプはヘッダー行の末尾（システム名・キャラ名・コメントの後）に置く。
   // hideTime: カレントチャット欄など、時刻の表示が不要な場所ではtrueにする（hideSystemと同じ流儀）。
-  const timestamp = (!hideTime && typeof time === 'number' && isFinite(time)) ? `<span class="log-time" style="color: #888;">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
+  const timestamp = (!hideTime && typeof time === 'number' && isFinite(time)) ? `<span class="log-time">${new Date(time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` : '';
   // 後から本文が書き換えられたことは隠さない（js/game-store.jsのEDIT_CHAT_MESSAGE）。
   // 時刻とは別の情報なので、時刻を出さないカレントチャット欄でもこの印だけは出す。
-  const editedMark = editedAt ? '<small class="log-edited" style="color: #888;">(編集済み)</small>' : '';
+  const editedMark = editedAt ? '<small class="log-edited">(編集済み)</small>' : '';
   const headerLine = [systemTag, characterTag, commentTag, timestamp, editedMark].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `
     ${headerHtml}
     ${commandHtml}
-    <span class="log-result-text" style="color: #fff;">${resultHtml}</span><br>
+    <span class="log-result-text">${resultHtml}</span><br>
     ${detail}`;
+}
+
+// 発言者ごとのキャラ名の色を、描いた後から当てる。
+//
+// この色は部屋にいる誰かが決めた値なので、HTMLへ組み込むと style 属性になり、
+// CSPの style-src に 'unsafe-inline' を開けておかないと効かない。挿入した後に
+// CSSOM（要素の .style）から当てれば、その必要がなくなる（CSSOMはCSPの対象外）。
+// 色として認められない形の値は当てず、CSS側の既定（--text-speaker）のままにする。
+function applyLogNameColor(item, color) {
+  const nameEl = item.querySelector('.log-name');
+  if (!nameEl) return;
+  const safe = safeCssColor(color, '');
+  if (safe) nameEl.style.color = safe;
 }
 
 // entryを指定タブ（省略時は現在表示中のタブ）のログへ追加する。

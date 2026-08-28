@@ -16,6 +16,7 @@ import {
   buildSkillUseCommand
 } from './skill-model.js';
 import { runItemUse, readItems } from './item-use.js';
+import { createDialogHost } from '../../dialog-host.js';
 
 /**
  * 入力欄に小さな見出しを付けて返す。見出し行に入力欄だけが並んでいると、
@@ -177,15 +178,7 @@ function refreshSelectOptions(field, select, fieldValues) {
     : (allowed[0]?.value ?? '');
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 function createElement(tag, className, text) {
   const el = document.createElement(tag);

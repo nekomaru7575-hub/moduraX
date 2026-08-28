@@ -1,11 +1,11 @@
 ---
 source: js/board-data-driven.js
-lines: 1972
-exports: 10
+lines: 1991
+exports: 11
 imported_by: 7
-api_sha: a5bcfae3438e
+api_sha: 0ce83fa16e98
 prose_sha: a5bcfae3438e
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -23,7 +23,7 @@ tags: [codemap]
 浮動パネル5種（チャットパレット・情報・キャラクター一覧・スタンプ送信・ダイスドラフト）は循環 import を避けるため、生成側から `setXxxController` で実体を注入してもらう構造になっている。盤外の右クリックメニューはこの5枚の表示/非表示を切り替える唯一の導線でもある（狭幅では[[js.mobile-layout]]がタブに持つので、その項目自体を出さない）。
 <!-- /prose:role -->
 
-## export（10）
+## export（11）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -33,12 +33,13 @@ tags: [codemap]
 | 64 | fn | setStampPanelController | `setStampPanelController(controller)` |  |
 | 71 | fn | setDiceDraftPanelController | `setDiceDraftPanelController(controller)` |  |
 | 94 | fn | buildPanelToggleItems | `buildPanelToggleItems()` | 5パネル分の表示/非表示項目を名前付きで返す。 |
-| 1447 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの盤面ローカル座標（マス目に合わせる設定ならそのマスの上）。 |
-| 1477 | fn | buildAddCharacterMenuItem | `buildAddCharacterMenuItem(x, y)` | 盤外メニュー（openBoardMenu）とヘッダーの「+」ボタン（js/main.js）の両方から呼ぶ 「キャラクターを追加」項目。 |
-| 1517 | fn | buildAddPanelMenuItem | `buildAddPanelMenuItem(dropX, dropY)` | 「パネルを追加」項目。 |
-| 1571 | fn | buildBackgroundSettingsMenuItem | `buildBackgroundSettingsMenuItem()` | 「背景設定」項目。 |
+| 410 | fn | openTokenContextMenu | `openTokenContextMenu(tokenId, clientX, clientY)` | コマの右クリックメニューを、渡した画面座標へ開く。 |
+| 1465 | fn | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 今見えている範囲の真ん中あたりの盤面ローカル座標（マス目に合わせる設定ならそのマスの上）。 |
+| 1495 | fn | buildAddCharacterMenuItem | `buildAddCharacterMenuItem(x, y)` | 盤外メニュー（openBoardMenu）とヘッダーの「+」ボタン（js/main.js）の両方から呼ぶ 「キャラクターを追加」項目。 |
+| 1535 | fn | buildAddPanelMenuItem | `buildAddPanelMenuItem(dropX, dropY)` | 「パネルを追加」項目。 |
+| 1589 | fn | buildBackgroundSettingsMenuItem | `buildBackgroundSettingsMenuItem()` | 「背景設定」項目。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（49）
+## トップレベル関数（LOCAL TASKS 候補）（50）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -63,37 +64,38 @@ tags: [codemap]
 | 242 | ensureBackgroundImageMeasured | `ensureBackgroundImageMeasured(board, room)` | 18 |  |
 | 270 | resolveBoardPixelSize | `resolveBoardPixelSize(board, room)` | 32 |  |
 | 306 | applyBoardBackground | `applyBoardBackground(board, room)` | 37 |  |
-| 346 | bindTokenDrag | `bindTokenDrag(element)` | **223** |  |
-| 574 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
-| 599 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
-| 626 | canUseStocker | `canUseStocker(panelData)` | 6 |  |
-| 634 | stockerOwnerName | `stockerOwnerName(panelData)` | 6 |  |
-| 644 | describeStockerForPicker | `describeStockerForPicker(panelData)` | 5 |  |
-| 651 | storedCardsOf | `storedCardsOf(panelId)` | 5 |  |
-| 660 | actingUserPayload | `actingUserPayload()` | 3 |  |
-| 664 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 49 |  |
-| 720 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null })` | 52 |  |
-| 773 | bindPanelDrag | `bindPanelDrag(element)` | 198 |  |
-| 974 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 16 |  |
-| 1005 | applyObjectImage | `applyObjectImage(img, url)` | 18 |  |
-| 1027 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
-| 1032 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 31 |  |
-| 1064 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 17 |  |
-| 1083 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
-| 1096 | seenByNames | `seenByNames(cardData)` | 3 |  |
-| 1104 | dropTargetAt | `dropTargetAt(clientX, clientY, draggedEl)` | 9 |  |
-| 1114 | clearDropHighlights | `clearDropHighlights()` | 3 |  |
-| 1119 | resolveCardDrop | `resolveCardDrop(targetEl, cardData)` | 20 |  |
-| 1140 | bindCardDrag | `bindCardDrag(element)` | 135 |  |
-| 1276 | createCardElement | `createCardElement(cardData, panelLayer)` | 27 |  |
-| 1304 | bindDeckDrag | `bindDeckDrag(element)` | 110 |  |
-| 1415 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
-| 1447 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 25 | ✓ |
-| 1477 | buildAddCharacterMenuItem | `buildAddCharacterMenuItem(x, y)` | 36 | ✓ |
-| 1517 | buildAddPanelMenuItem | `buildAddPanelMenuItem(dropX, dropY)` | 50 | ✓ |
-| 1571 | buildBackgroundSettingsMenuItem | `buildBackgroundSettingsMenuItem()` | 28 | ✓ |
-| 1600 | clampPan | `clampPan(viewport, board)` | 20 |  |
-| 1623 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
+| 346 | bindTokenDrag | `bindTokenDrag(element)` | 56 |  |
+| 410 | openTokenContextMenu | `openTokenContextMenu(tokenId, clientX, clientY)` | 177 | ✓ |
+| 592 | applyTokenAppearance | `applyTokenAppearance(el, tokenData)` | 24 |  |
+| 617 | createTokenElement | `createTokenElement(tokenData, board)` | 20 |  |
+| 644 | canUseStocker | `canUseStocker(panelData)` | 6 |  |
+| 652 | stockerOwnerName | `stockerOwnerName(panelData)` | 6 |  |
+| 662 | describeStockerForPicker | `describeStockerForPicker(panelData)` | 5 |  |
+| 669 | storedCardsOf | `storedCardsOf(panelId)` | 5 |  |
+| 678 | actingUserPayload | `actingUserPayload()` | 3 |  |
+| 682 | applyPanelAppearance | `applyPanelAppearance(el, panelData)` | 49 |  |
+| 738 | bindBoardObjectDrag | `bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null })` | 52 |  |
+| 791 | bindPanelDrag | `bindPanelDrag(element)` | 198 |  |
+| 992 | createPanelElement | `createPanelElement(panelData, panelLayer)` | 16 |  |
+| 1023 | applyObjectImage | `applyObjectImage(img, url)` | 18 |  |
+| 1045 | cardTextSizeClass | `cardTextSizeClass(text)` | 4 |  |
+| 1050 | applyCardAppearance | `applyCardAppearance(el, cardData)` | 31 |  |
+| 1082 | applyDeckAppearance | `applyDeckAppearance(el, deckData)` | 17 |  |
+| 1101 | nextTopStackOrder | `nextTopStackOrder()` | 10 |  |
+| 1114 | seenByNames | `seenByNames(cardData)` | 3 |  |
+| 1122 | dropTargetAt | `dropTargetAt(clientX, clientY, draggedEl)` | 9 |  |
+| 1132 | clearDropHighlights | `clearDropHighlights()` | 3 |  |
+| 1137 | resolveCardDrop | `resolveCardDrop(targetEl, cardData)` | 20 |  |
+| 1158 | bindCardDrag | `bindCardDrag(element)` | 135 |  |
+| 1294 | createCardElement | `createCardElement(cardData, panelLayer)` | 27 |  |
+| 1322 | bindDeckDrag | `bindDeckDrag(element)` | 110 |  |
+| 1433 | createDeckElement | `createDeckElement(deckData, panelLayer)` | 24 |  |
+| 1465 | getBoardDropSpot | `getBoardDropSpot({ cols = 0, rows = 0 } = {})` | 25 | ✓ |
+| 1495 | buildAddCharacterMenuItem | `buildAddCharacterMenuItem(x, y)` | 36 | ✓ |
+| 1535 | buildAddPanelMenuItem | `buildAddPanelMenuItem(dropX, dropY)` | 50 | ✓ |
+| 1589 | buildBackgroundSettingsMenuItem | `buildBackgroundSettingsMenuItem()` | 28 | ✓ |
+| 1618 | clampPan | `clampPan(viewport, board)` | 20 |  |
+| 1641 | ownerNameOf | `ownerNameOf(token)` | 4 |  |
 
 ## 依存
 

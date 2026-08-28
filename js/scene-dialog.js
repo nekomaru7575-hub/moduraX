@@ -7,17 +7,10 @@
 // dumbな部品：storeを直接触らず、結果をコールバックで返すだけ。
 
 import { SCENE_BGM_STOP } from './game-store.js';
+import { createDialogHost } from './dialog-host.js';
 
-let dialogEl = null;
-let escHandler = null; // dialogElは使い回しなので、前回のEscハンドラを外すために保持する
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+let escHandler = null; // ダイアログ要素は使い回しなので、前回のEscハンドラを外すために保持する
+const ensureDialog = createDialogHost();
 
 function buildFormGroup(labelText, input) {
   const group = document.createElement('div');
@@ -58,7 +51,7 @@ export function showSceneDialog({ scene = null, tracks = [], onConfirm, onOverwr
   }
 
   // Escで閉じたときも一覧へ戻したい。<dialog>のcloseイベントは環境によって発火しないため、
-  // keydownで自前に処理する。dialogElは使い回しなので前回分を必ず外してから登録する。
+  // keydownで自前に処理する。ダイアログ要素は使い回しなので前回分を必ず外してから登録する。
   if (escHandler) dialog.removeEventListener('keydown', escHandler);
   escHandler = (event) => {
     if (event.key !== 'Escape') return;

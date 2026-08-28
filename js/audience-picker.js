@@ -4,6 +4,7 @@
 // audienceの意味づけそのものはjs/visibility.jsを参照。
 
 import { isRestricted } from './visibility.js';
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
 /**
  * 公開範囲（全員／選んだ人だけ）と、その宛先チェックリストを組み立てる。
@@ -117,15 +118,7 @@ export function buildAudiencePicker({
   };
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * 宛先だけを決める小さなダイアログ（パラメータ1件・パネルのテキスト等から使う）。
@@ -160,22 +153,10 @@ export function showAudienceDialog({
   const picker = buildAudiencePicker({ audience, participants, myParticipantId });
   form.appendChild(picker.element);
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.className = 'dialog-confirm-btn';
-  confirmBtn.textContent = '決定';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '決定',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

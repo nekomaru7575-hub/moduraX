@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-27
+generated: 2026-08-28
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-08-27
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 115 | 490 | 1064 | 31 | 1 |
+| 138 | 583 | 1034 | 54 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -36,7 +36,7 @@ generated: 2026-08-27
 | [[js.background-dialog\|js/background-dialog.js]] | 盤面の「背景設定」ダイアログ。 | 1 | 1 |
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
 | [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 2 |
-| [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 10 | 7 |
+| [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 11 | 7 |
 | [[js.buff-dialog\|js/buff-dialog.js]] | コマ（トークン）へのバフ/デバフの付与・一覧表示ダイアログ。 | 2 | 2 |
 | [[js.card-catalog\|js/card-catalog.js]] | 「盤面に置けるカードの束（デッキ）」の既定の中身を持つ表。 | 7 | 2 |
 | [[js.character-builder\|js/character-builder.js]] | 部屋を作らずに、外部キャラクターシートツール（ゆとシート等）のJSON、または 本アプリのコマ丸ごとスナップショットJSONを読み込んで編集し、スナップショット JSONとして書き出す「コマ作成ツール」ページのロジック。 | 0 | 0 |
@@ -52,14 +52,15 @@ generated: 2026-08-27
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
+| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 33 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-draft-panel\|js/dice-draft-panel.js]] | 「ダイスドラフト」：振ってプールに溜めた目を1個ずつドラッグし、スキルの上に乗せて発動する 浮動パネル。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
-| [[js.drag-gesture\|js/drag-gesture.js]] | ドラッグと長押しの共通ヘルパー。 | 2 | 3 |
-| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 13 |
+| [[js.drag-gesture\|js/drag-gesture.js]] | ドラッグと長押しの共通ヘルパー。 | 2 | 4 |
+| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 16 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 7 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 49 | 15 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 15 |
 | [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 6 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
@@ -89,7 +90,7 @@ generated: 2026-08-27
 | [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 3 | 1 |
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
 | [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
-| [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 2 |
+| [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 4 |
 | [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 16 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |
@@ -104,10 +105,11 @@ generated: 2026-08-27
 | [[js.parameters.futarisousa\|js/parameters/futarisousa.js]] | バディサスペンスTRPG フタリソウサ のプラグイン記述子。 | 2 | 1 |
 | [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレストのプラグイン記述子（プラグインの書き方の見本）。 | 3 | 0 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
-| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 10 |
+| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 16 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 1 | 1 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 32 | 3 |
+| [[js.parameters.sheet-source\|js/parameters/sheet-source.js]] | 「キャラクターシートのURLから取り込む」ときの受け付け先の宣言と、シートの値を読む小道具。 | 3 | 4 |
 | [[js.parameters.shinobigami-ougi-box\|js/parameters/shinobigami-ougi-box.js]] | シノビガミの「奥義」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 9 | 1 |
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 4 | 1 |
 | [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 9 | 1 |
@@ -136,6 +138,27 @@ generated: 2026-08-27
 | [[js.stamp-panel\|js/stamp-panel.js]] | 「スタンプ送信」：使えるスタンプを画像で並べ、押すとその場で送る浮動パネル。 | 1 | 1 |
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 5 |
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
+| [[js.store.audio\|js/store/audio.js]] | 音楽（BGM・効果音）まわりの語彙。 | 3 | 4 |
+| [[js.store.buffs\|js/store/buffs.js]] | バフ/デバフの終了条件（フェーズ）と、フェーズ終了時の後始末。 | 8 | 4 |
+| [[js.store.cards\|js/store/cards.js]] | カード・デッキ・カードストッカーの形を整える処理と、その上限。 | 36 | 3 |
+| [[js.store.chat\|js/store/chat.js]] | チャットタブとログへの追記。 | 9 | 6 |
+| [[js.store.handlers.audio\|js/store/handlers/audio.js]] | 部屋の音楽（BGM・効果音）の登録と再生。 | 1 | 1 |
+| [[js.store.handlers.board\|js/store/handlers/board.js]] | 盤面に載るもののうち、コマ以外――パネル（マップタイル状のオブジェクト）と カード・デッキ・カードストッカー、そしてデッキの作り置き（deckTemplates）。 | 1 | 1 |
+| [[js.store.handlers.buffs\|js/store/handlers/buffs.js]] | バフ/デバフの付け外しと、フェーズ終了による消滅。 | 1 | 1 |
+| [[js.store.handlers.characters\|js/store/handlers/characters.js]] | コマそのものの作成・削除と、コマが持つパラメータの操作。 | 1 | 1 |
+| [[js.store.handlers.chat\|js/store/handlers/chat.js]] | チャットのタブとログ。 | 1 | 1 |
+| [[js.store.handlers.index\|js/store/handlers/index.js]] | アクション名 → ハンドラの一枚の表。 | 1 | 1 |
+| [[js.store.handlers.info\|js/store/handlers/info.js]] | 「情報」（タイトル＋区画の共有メモ）の作成・更新と、伏せ字の開示。 | 1 | 1 |
+| [[js.store.handlers.participants\|js/store/handlers/participants.js]] | 参加者一覧（表示名から導出した公開IDで識別する）と、スタンプの集計。 | 1 | 1 |
+| [[js.store.handlers.room\|js/store/handlers/room.js]] | 部屋そのものの設定（名前・システム・プラグイン・背景・盤面の振る舞い）と、 部屋に置いておくもの（ルーム変数・オリジナル表）。 | 1 | 1 |
+| [[js.store.handlers.round\|js/store/handlers/round.js]] | ラウンド進行（Core機能）。 | 1 | 1 |
+| [[js.store.handlers.scenes\|js/store/handlers/scenes.js]] | シーン（GMが場面ごとに盤面の見た目を保存し、1クリックで切り替えるための入れ物）。 | 1 | 1 |
+| [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 9 | 1 |
+| [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
+| [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
+| [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
+| [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 6 |
+| [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 5 | 10 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
@@ -148,19 +171,20 @@ generated: 2026-08-27
 
 | ファイル | 被import |
 |---|---:|
+| [[js.dialog-host\|js/dialog-host.js]] | 33 |
+| [[js.EventBus\|js/EventBus.js]] | 16 |
+| [[js.parameters.registry\|js/parameters/registry.js]] | 16 |
 | [[js.game-store\|js/game-store.js]] | 15 |
+| [[js.store.patch\|js/store/patch.js]] | 15 |
 | [[js.local-identity\|js/local-identity.js]] | 14 |
-| [[js.EventBus\|js/EventBus.js]] | 13 |
 | [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 11 |
 | [[js.read-only-form\|js/read-only-form.js]] | 11 |
-| [[js.parameters.registry\|js/parameters/registry.js]] | 10 |
 | [[js.visibility\|js/visibility.js]] | 10 |
-| [[js.untrusted-json\|js/untrusted-json.js]] | 9 |
-| [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | 8 |
 
 ## 散文が要更新
 
 export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
 
+- [[js.board-data-driven\|js/board-data-driven.js]]
 - [[js.card-catalog\|js/card-catalog.js]]

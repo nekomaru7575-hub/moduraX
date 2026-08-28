@@ -14,6 +14,7 @@
 // 循環importになる（dx3-combo-box.js冒頭のコメントと同じ理由）。
 
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost, appendConfirmRow } from '../dialog-host.js';
 
 // components にロイス一覧を保存するときのキー。
 export const LOIS_COMPONENT_KEY = 'lois';
@@ -126,15 +127,7 @@ function countTitus(lois) {
   return lois.filter(entry => normalizeLois(entry).state === 'titus').length;
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog lois-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('lois-box-dialog');
 
 // 感情のドロップダウン。感情表（仮）に無い値でも、現在の値であれば選択肢として足しておく
 // （読み込んだシートの感情や、感情表を差し替える前に保存した値が消えないようにするため）。
@@ -391,22 +384,10 @@ export function showLoisBox({ lois = [], readOnly = false, onSave }) {
   refreshSummary();
   refreshAddBtn();
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'submit';
-  saveBtn.textContent = '保存';
-  saveBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(saveBtn);
-  form.appendChild(btnRow);
+  const { cancelBtn, confirmBtn: saveBtn } = appendConfirmRow(form, {
+    confirmLabel: '保存',
+    onCancel: () => dialog.close()
+  });
 
   if (readOnly) {
     addBtn.style.display = 'none';

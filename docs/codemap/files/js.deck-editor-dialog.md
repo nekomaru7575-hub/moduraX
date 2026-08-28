@@ -1,11 +1,11 @@
 ---
 source: js/deck-editor-dialog.js
-lines: 421
+lines: 402
 exports: 1
 imported_by: 1
 api_sha: 89cec23fea42
 prose_sha: 89cec23fea42
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -25,24 +25,23 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 74 | fn | showDeckEditorDialog | `showDeckEditorDialog({ template = null, onConfirm, onCancel = null })` | templateを渡すと編集モード、省略すると新規作成。 |
+| 67 | fn | showDeckEditorDialog | `showDeckEditorDialog({ template = null, onConfirm, onCancel = null })` | templateを渡すと編集モード、省略すると新規作成。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（5）
+## トップレベル関数（LOCAL TASKS 候補）（4）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 30 | ensureDialog | `ensureDialog()` | 7 |  |
-| 39 | nextRowId | `nextRowId()` | 4 |  |
-| 45 | cardNameFromFile | `cardNameFromFile(file)` | 3 |  |
-| 50 | uploadCardImage | `async uploadCardImage(file)` | 10 |  |
-| 74 | showDeckEditorDialog | `showDeckEditorDialog({ template = null, onConfirm, onCancel = null })` | **347** | ✓ |
+| 32 | nextRowId | `nextRowId()` | 4 |  |
+| 38 | cardNameFromFile | `cardNameFromFile(file)` | 3 |  |
+| 43 | uploadCardImage | `async uploadCardImage(file)` | 10 |  |
+| 67 | showDeckEditorDialog | `showDeckEditorDialog({ template = null, onConfirm, onCancel = null })` | **335** | ✓ |
 
 ## 依存
 
-- import → [[js.card-catalog]], [[js.file-uploader]], [[js.image-upload]]
+- import → [[js.card-catalog]], [[js.dialog-host]], [[js.file-uploader]], [[js.image-upload]]
 - imported by → [[js.main]]
 
 ## 注意

@@ -1,0 +1,63 @@
+/* css/offline.css
+   オフライン時の代替ページ（offline.html）の見た目。
+
+   このファイルは Service Worker が先読みする（sw.js の PRECACHE_URLS）。
+   中身を変えたら sw.js の CACHE_VERSION を上げること。上げないと、
+   オフラインのときだけ古いスタイルが出続ける。 */
+
+body {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  /* このページはオフライン時の受け皿で、sw.jsのPRECACHE_URLSに入っている。
+     CSSファイルはプリキャッシュしていないので、css/tokens.cssを読みに行くと
+     肝心のオフライン時に無地になる。ここだけは書体を直接書く（中身は同じ）。 */
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+  margin: 0;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+           max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 0 0 12px;
+}
+
+/* 上と同じ事情で、js/icons.js も css/tokens.css も使えない（どちらもプリキャッシュ
+   していない＝オフラインでは取りに行けない）。このページのアイコンだけは中身を
+   直接書く。形を直すときは js/icons.js の wifi-off と揃えること。 */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.14em;
+  margin-right: 0.35em;
+}
+
+p {
+  color: #aaa;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  margin: 0 0 20px;
+  max-width: 30em;
+}
+
+.btn {
+  background-color: #007acc;
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 20px;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 1rem;
+}

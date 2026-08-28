@@ -396,12 +396,12 @@ function renderPlotSection(plotEl, state, round) {
     : [];
 
   if (!inPlotPhase && choiceTokenIds.length === 0) {
-    plotEl.style.display = 'none';
+    plotEl.hidden = true;
     plotEl.innerHTML = '';
     return;
   }
 
-  plotEl.style.display = '';
+  plotEl.hidden = false;
   plotEl.innerHTML = '';
 
   if (inPlotPhase) {
@@ -452,9 +452,9 @@ export function initRoundPanel() {
     const round = state.round;
 
     // 平常時（未進行）はバー・詳細ともに非表示にして邪魔にならないようにする
-    bar.style.display = round.active ? '' : 'none';
-    if (detailEl && !round.active) detailEl.style.display = 'none';
-    if (plotEl && !round.active) plotEl.style.display = 'none';
+    bar.hidden = !round.active;
+    if (detailEl && !round.active) detailEl.hidden = true;
+    if (plotEl && !round.active) plotEl.hidden = true;
     if (!round.active) return;
 
     // --- ステータス行 ---
@@ -536,7 +536,7 @@ export function initRoundPanel() {
 
     // --- 詳細（手番順）リスト ---
     if (detailEl) {
-      detailEl.style.display = detailExpanded ? '' : 'none';
+      detailEl.hidden = !detailExpanded;
       detailEl.innerHTML = '';
       if (detailExpanded) {
         if (round.participants.length === 0) {

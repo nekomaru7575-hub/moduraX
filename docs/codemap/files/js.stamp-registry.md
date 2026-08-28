@@ -5,7 +5,7 @@ exports: 5
 imported_by: 5
 api_sha: e8f7d415d1a8
 prose_sha: e8f7d415d1a8
-generated: 2026-08-27
+generated: 2026-08-28
 tags: [codemap]
 ---
 
@@ -49,7 +49,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.asset-base]], [[js.parameters.registry]], [[js.stamp-catalog]]
-- imported by → [[js.game-store]], [[js.main]], [[js.stamp-layer]], [[js.stamp-panel]], [[server.index]]
+- imported by → [[js.main]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.participants]], [[server.index]]
 
 ## 注意
 

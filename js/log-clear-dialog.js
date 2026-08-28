@@ -3,15 +3,9 @@
 // dumbな部品：実際の消去（dispatch）は呼び出し側のコールバックに任せる
 // （js/room-delete-dialog.jsと同じ作り）。
 
-let dialogEl = null;
+import { createDialogHost } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{ onConfirm: () => void }} options

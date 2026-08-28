@@ -11,6 +11,7 @@ import {
 } from './audio-player.js';
 import { AUDIO_CHANNEL_LABELS } from './game-store.js';
 import { setIconText } from './icons.js';
+import { createDialogHost } from './dialog-host.js';
 
 // サーバーが上限を教えてくれるまでの暫定値（server/index.jsのMAX_AUDIO_MBの既定と同じ）。
 // 実際の判定にはサーバーから取得した値を使う（下のcurrentMaxBytes参照）。
@@ -46,15 +47,7 @@ function stripExtension(filename) {
   return String(filename).replace(/\.[^.]+$/, '');
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 // 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
 function currentRoomId() {

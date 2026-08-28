@@ -6,6 +6,7 @@
 
 import { BUFF_PHASE_LABELS } from './game-store.js';
 import { renderPluginBuffFields, describePluginBuffMeta } from './parameters/registry.js';
+import { appendConfirmRow } from './dialog-host.js';
 
 // 入れ子の外側→内側の順に並べる（game-store.jsのPHASE_HIERARCHYと同じ順序）。
 // 内側を選んだバフは、外側のフェーズが終わったときにも消える。
@@ -120,22 +121,10 @@ export function showAddBuffDialog({ parameters = {}, activePluginId = null, onCo
   form.appendChild(expireGroup);
 
   // --- ボタン行 ---
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'submit';
-  confirmBtn.textContent = '付与';
-  confirmBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
-  form.appendChild(btnRow);
+  const { row: btnRow } = appendConfirmRow(form, {
+    confirmLabel: '付与',
+    onCancel: () => dialog.close()
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

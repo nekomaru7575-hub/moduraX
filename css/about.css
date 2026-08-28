@@ -1,0 +1,110 @@
+/* css/about.css
+   「このサービスについて」（about.html）の見た目。
+   release-notes.html とは共通の雛形から分かれたもので、見出しの強さが違う。
+   雛形の部分を直すときは css/release-notes.css も合わせること。 */
+
+body {
+  background-color: var(--surface-page);
+  color: var(--text-default);
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 24px 20px 64px;
+  line-height: 1.8;
+}
+
+.doc {
+  max-width: 46rem;   /* 1行が長くなりすぎると読み返しづらいので幅を切る */
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 40px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin: 24px 0 4px;
+  color: var(--text-body-strong);
+}
+
+p, li {
+  font-size: 0.9rem;
+}
+
+ul {
+  padding-left: 1.3em;
+}
+
+a {
+  color: var(--text-link);
+}
+
+.updated {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+/* 部屋入口・コマ作成ツールと同じヘッダー行。値もその2ページに合わせてある（部屋の
+   画面だけは align-items などが違うので、この3つは共通CSSにしていない）。 */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 2px solid var(--surface-control);
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.app-header span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.note {
+  background-color: var(--surface-base);
+  border-left: 3px solid var(--border-mid);
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  color: var(--text-body);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.85rem;
+}
+
+th, td {
+  border: 1px solid var(--border-subtle);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background-color: var(--surface-base);
+  color: var(--text-body-strong);
+  white-space: nowrap;
+}
+
+/* 表の見出しに添えるドメイン名。見出しそのものより弱く見せる。 */
+.th-note {
+  font-weight: normal;
+  color: var(--text-muted);
+}

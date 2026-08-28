@@ -6,15 +6,9 @@
 // このダイアログが出ている間、部屋の中身はまだ何も届いていない（サーバーがINITを
 // 送っていない）。キャンセルの行き先は部屋一覧しかないので、閉じるボタンは置かない。
 
-let dialogEl = null;
+import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost();
 
 /**
  * @param {{
@@ -57,22 +51,11 @@ export function showRoomEntryDialog({ password = '', error = false, onSubmit }) 
   group.appendChild(input);
   form.appendChild(group);
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const backBtn = document.createElement('button');
-  backBtn.type = 'button';
-  backBtn.textContent = '部屋一覧へ戻る';
-  backBtn.addEventListener('click', () => { window.location.href = '/'; });
-
-  const submitBtn = document.createElement('button');
-  submitBtn.type = 'submit';
-  submitBtn.className = 'dialog-confirm-btn';
-  submitBtn.textContent = '入室';
-
-  btnRow.appendChild(backBtn);
-  btnRow.appendChild(submitBtn);
-  form.appendChild(btnRow);
+  appendConfirmRow(form, {
+    confirmLabel: '入室',
+    cancelLabel: '部屋一覧へ戻る',
+    onCancel: () => { window.location.href = '/'; }
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -88,5 +71,5 @@ export function showRoomEntryDialog({ password = '', error = false, onSubmit }) 
 }
 
 export function closeRoomEntryDialog() {
-  if (dialogEl?.open) dialogEl.close();
+  ensureDialog.closeIfOpen();
 }

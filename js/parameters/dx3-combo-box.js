@@ -28,16 +28,9 @@
 
 import { runSkillUse, sumSkillCosts, applySkillCosts } from './skill/skill-use.js';
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost, appendConfirmRow } from '../dialog-host.js';
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog effect-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('effect-box-dialog');
 
 // 今このコマに効いている「クリティカル値の下限」。AcBへのバフが持つ下限（buff.meta.criticalFloor）
 // のうち一番低い（＝一番緩い）ものを適用する。下限を持つバフが無ければnull。
@@ -514,22 +507,11 @@ export function showComboBox({
   addBtn.addEventListener('click', () => addRow(null));
   form.appendChild(addBtn);
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = '閉じる';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'submit';
-  saveBtn.textContent = '保存';
-  saveBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(saveBtn);
-  form.appendChild(btnRow);
+  const { cancelBtn, confirmBtn: saveBtn } = appendConfirmRow(form, {
+    confirmLabel: '保存',
+    cancelLabel: '閉じる',
+    onCancel: () => dialog.close()
+  });
 
   if (readOnly) {
     addBtn.style.display = 'none';

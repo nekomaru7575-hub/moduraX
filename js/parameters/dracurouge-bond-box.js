@@ -18,6 +18,7 @@
 // （dx3-lois-box.js冒頭のコメントと同じ理由）。
 
 import { lockFormControls } from '../read-only-form.js';
+import { createDialogHost, appendConfirmRow } from '../dialog-host.js';
 
 // components に絆一覧を保存するときのキー。
 export const BOND_COMPONENT_KEY = 'bonds';
@@ -152,15 +153,7 @@ export function settleFilledBonds(bonds, { recycleEternal = true } = {}) {
   return { bonds: nextBonds, rougeSealed, noirSealed };
 }
 
-let dialogEl = null;
-
-function ensureDialog() {
-  if (dialogEl) return dialogEl;
-  dialogEl = document.createElement('dialog');
-  dialogEl.className = 'character-dialog bond-box-dialog';
-  document.body.appendChild(dialogEl);
-  return dialogEl;
-}
+const ensureDialog = createDialogHost('bond-box-dialog');
 
 // 枠1つぶんのドロップダウン。表（仮）に無い値でも、現在の値であれば選択肢として足しておく
 // （表を差し替える前に保存した値が消えないようにするため）。
@@ -387,22 +380,10 @@ export function showBondBox({ bonds = [], readOnly = false, onSave }) {
 
   refreshSummary();
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'dialog-button-row';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'キャンセル';
-  cancelBtn.addEventListener('click', () => dialog.close());
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'submit';
-  saveBtn.textContent = '保存';
-  saveBtn.className = 'dialog-confirm-btn';
-
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(saveBtn);
-  form.appendChild(btnRow);
+  const { cancelBtn, confirmBtn: saveBtn } = appendConfirmRow(form, {
+    confirmLabel: '保存',
+    onCancel: () => dialog.close()
+  });
 
   if (readOnly) {
     addBtn.style.display = 'none';

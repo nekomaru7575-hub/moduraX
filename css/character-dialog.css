@@ -1469,7 +1469,7 @@
 /* DX3拡張パネル：侵蝕率/DB/EBをコンパクトに横並び表示 */
 .dx3-compact-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-end;
   margin-bottom: 10px;
 }
@@ -1503,6 +1503,20 @@
   width: 36px;
   text-align: center;
   color: var(--text-emphasis);
+}
+
+/* 侵蝕率テーブルの切り替え（EA）。攻撃力〜ロイスを横一列に収めるため、
+   ラベルを小さめにしてチェックボックス幅ぶんまで枠を詰める
+   （.dx3-compact-field inputのwidth:44pxはチェックボックスには広すぎる）。 */
+.dx3-compact-field--check label {
+  font-size: 0.7rem;
+}
+
+.dx3-compact-field--check input[type="checkbox"] {
+  width: auto;
+  /* 行はflex-endで下端が揃うため、そのままだと隣の数値入力（高さ約30px）の
+     一番下に貼り付く。下マージンで押し上げて入力欄の高さの中央に合わせる。 */
+  margin: 0 auto 8px;
 }
 
 /* エフェクトによるバフを受け取る汎用レジスタ（AdB/AnB/AcB/DdB/DaB）の表示 */

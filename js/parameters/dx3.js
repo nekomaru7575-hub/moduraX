@@ -17,6 +17,14 @@ export const DX3_PARAMETERS =[
     {key : "corruption", label : "侵蝕率",value : 0},
     {key : "corDB", label : "DB",value : 0 , editable : false,visible : false},
     {key : "corEB", label : "EB",value : 0, editable : false,visible : false},
+    // 侵蝕率からDB/EBを引く表をどちらにするかの切り替え（1=EA / 0=EA以外）。
+    // 数値なのは、パラメータの値がバフ加算・ダイス計算の前提で数値に揃えてあるため。
+    // editable:trueにしているのは、キャラ更新ダイアログのチェックボックスが値を
+    // SET_PARAMETERで書き込むから（editable:falseだと弾かれる）。visible:falseなので
+    // キャラ一覧には出ず、切り替えはDX3専用パネルのチェックボックスからのみ行う。
+    // 既定は1（EA）。locked:true（DX3全体の既定）なので、この宣言より前に作られたコマにも
+    // registry.jsのwithMissingPluginParametersが1を補う。
+    {key : "ea", label : "EA",value : 1,editable:true,visible:false},
     {key : "attackPower", label : "攻撃力",value : 0,editable:true,visible:false},
     // エフェクトによるバフを受け取る汎用レジスタ（コンボに限らず判定/ダメージ全般で使う想定）。
     // エフェクト使用時・コンボ発動時は、そのエフェクトの「使用時の修正」をここへバフとして
@@ -123,27 +131,75 @@ export function readDX3Effects(components) {
   return normalizeSkillList(DX3_EFFECT_SPEC, components?.[DX3_EFFECT_SPEC.componentKey] ?? []);
 }
 
+// 侵蝕率からダイスボーナス(DB)・エフェクトボーナス(EB)を引く表。
+// { min, db, eb } を侵蝕率の昇順で並べ、「侵蝕率がmin以上」の最後の行を採用する。
+// 先頭は必ずmin:0にしておくこと（それ未満の侵蝕率＝負の値はすべて先頭行の扱いになる）。
+//
+// EA版（エフェクトアーカイブ）の表。以前はこれを閉じた式で近似していたが、
+// EA以外の表と差し替えられるようにデータへ起こした（数値は当時の式と0〜400で一致する）。
+const DX3_CORRUPTION_TABLE_EA = [
+  { min: 0,   db: 0, eb: 0 },
+  { min: 60,  db: 1, eb: 0 },
+  { min: 80,  db: 2, eb: 0 },
+  { min: 100, db: 3, eb: 1 },
+  { min: 130, db: 4, eb: 1 },
+  { min: 160, db: 4, eb: 2 },
+  { min: 190, db: 5, eb: 2 },
+  { min: 220, db: 5, eb: 3 },
+  { min: 260, db: 6, eb: 3 },
+  { min: 300, db: 7, eb: 3 }
+];
+
+// EA以外（基本ルールブック）の表。ここへEAと同じ形で行を書き足す。
+//   例: { min: 0, db: 0, eb: 0 },
+// 空のままなら侵蝕率に関わらずDB/EBは0になる（チェックを外した側の表がまだ無い、という
+// 状態がそのまま画面に出る。誤ってEA版の数字が出るより分かりやすいのでこうしている）。
+const DX3_CORRUPTION_TABLE_BASE = [
+  { min: 0,   db: 0, eb: 0 },
+  { min: 60,  db: 1, eb: 0 },
+  { min: 80,  db: 2, eb: 0 },
+  { min: 100, db: 3, eb: 1 },
+  { min: 130, db: 4, eb: 1 },
+  { min: 160, db: 5, eb: 2 },
+  { min: 200, db: 6, eb: 2 },
+  { min: 240, db: 7, eb: 2 },
+  { min: 300, db: 8, eb: 2 }
+];
+
+// 侵蝕率に対応する行を引く。表が空・侵蝕率が先頭行より小さい場合は0/0を返す。
+function lookupCorruptionBonus(table, corruption) {
+  let hit = null;
+  for (const row of table) {
+    if (corruption >= row.min) hit = row;
+    else break;
+  }
+  return { db: hit?.db ?? 0, eb: hit?.eb ?? 0 };
+}
+
 // パラメータ・componentsから自動計算される値をまとめて返す。
 // componentsを受け取るのは、ロイス数がボックスの中身（components.lois）から決まるため
 // （js/parameters/registry.jsのapplyPluginDerivedParameters経由で渡される）。
 export function computeDX3DerivedParameters(parameters, components = {}) {
     const corruptionVal = parameters['DX3:corruption']?.value ?? 0;
 
-    // 侵蝕率テーブルに基づく計算例
-    const db = 
-        Math.min(Math.floor((corruptionVal+70)/130),2) 
-        + Math.min(Math.floor((corruptionVal+100)/180),2) 
-        + Math.min(Math.floor((corruptionVal + 100)/200),2) 
-        + Math.min(Math.floor((corruptionVal + 1000)/ 1130),1);
-    
-    const eb = Math.min(Math.floor((corruptionVal+20)/120),2) 
-        + Math.min(Math.floor(corruptionVal / 130),1)
+    // どちらの侵蝕率テーブルを使うかはコマごとの設定（DX3:ea）で決まる。
+    const useEA = isEAEnabled(parameters);
+    const { db, eb } = lookupCorruptionBonus(
+      useEA ? DX3_CORRUPTION_TABLE_EA : DX3_CORRUPTION_TABLE_BASE,
+      corruptionVal
+    );
 
     return {
         'DX3:corDB': db,
         'DX3:corEB': eb,
         'DX3:lois': countActiveLois(components?.[LOIS_COMPONENT_KEY])
     };
+}
+
+// DX3:eaを持たない古いコマ（registry.jsの補完より前に読まれた場合）はEAとして扱う。
+// 既定がEAであることの表明でもあるので、判定はここ一箇所に閉じる。
+function isEAEnabled(parameters) {
+  return (parameters['DX3:ea']?.value ?? 1) !== 0;
 }
 
 // キャラ作成/更新ダイアログのプラグイン専用スペースに描画するDX3独自のUI。
@@ -162,6 +218,7 @@ function renderDX3CharacterPanel({
 
   const corruptionParam = parameters['DX3:corruption'];
   const attackParam = parameters['DX3:attackPower']
+  const eaParam = parameters['DX3:ea'];
   const corDBParam = parameters['DX3:corDB'];
   const corEBParam = parameters['DX3:corEB'];
 
@@ -169,20 +226,9 @@ function renderDX3CharacterPanel({
   // getComponentsが無い場合のみ、開いた時点のスナップショット(components)にフォールバックする。
   const readComponents = () => (getComponents ? getComponents() : components) ?? {};
 
-  // 侵蝕率・DB・EBを横並びのコンパクトな枠で表示（縦スペースを節約する）
+  // 攻撃力・侵蝕率・EA・DB・EB・ロイスを横並びのコンパクトな枠で表示（縦スペースを節約する）
   const compactRow = document.createElement('div');
   compactRow.className = 'dx3-compact-row';
-
-  const corruptionField = document.createElement('div');
-  corruptionField.className = 'dx3-compact-field';
-  const label = document.createElement('label');
-  label.textContent = corruptionParam?.label ?? '侵蝕率';
-  const input = document.createElement('input');
-  input.type = 'number';
-  input.value = corruptionParam?.value ?? 0;
-  corruptionField.appendChild(label);
-  corruptionField.appendChild(input);
-  compactRow.appendChild(corruptionField);
 
   const attackField = document.createElement(`div`);
   attackField.className = "dx3-compact-field";
@@ -195,12 +241,40 @@ function renderDX3CharacterPanel({
   attackField.appendChild(attackInput);
   compactRow.appendChild(attackField);
 
+  const corruptionField = document.createElement('div');
+  corruptionField.className = 'dx3-compact-field';
+  const label = document.createElement('label');
+  label.textContent = corruptionParam?.label ?? '侵蝕率';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = corruptionParam?.value ?? 0;
+  corruptionField.appendChild(label);
+  corruptionField.appendChild(input);
+  compactRow.appendChild(corruptionField);
+
+  // 侵蝕率テーブルの切り替え。チェック＝EA版、外す＝EA以外の表
+  // （computeDX3DerivedParametersのDX3_CORRUPTION_TABLE_*）。
+  const eaField = document.createElement('div');
+  eaField.className = 'dx3-compact-field dx3-compact-field--check';
+  const eaLabel = document.createElement('label');
+  eaLabel.textContent = eaParam?.label ?? 'EA';
+  const eaInput = document.createElement('input');
+  eaInput.type = 'checkbox';
+  eaInput.checked = (eaParam?.value ?? 1) !== 0;
+  eaField.appendChild(eaLabel);
+  eaField.appendChild(eaInput);
+  compactRow.appendChild(eaField);
+
+  // DB/EBは侵蝕率とEAから決まる読み取り専用の表示。ダイアログを閉じるまで
+  // parameters側は更新されないため、入力に合わせてここで引き直す（updateDerivedValues）。
+  const derivedValueEls = {};
   [corDBParam, corEBParam].forEach(param => {
     if (!param) return;
     const field = document.createElement('div');
     field.className = 'dx3-compact-field';
     // 値は取り込んだキャラクターシート由来（＝よそから来た文字列）でもありうるのでエスケープする
     field.innerHTML = `<label>${escapeHtml(param.label)}</label><span class="dx3-compact-value">${escapeHtml(param.value)}</span>`;
+    derivedValueEls[param.key] = field.querySelector('.dx3-compact-value');
     compactRow.appendChild(field);
   });
 
@@ -221,6 +295,19 @@ function renderDX3CharacterPanel({
     loisValue.textContent = countActiveLois(readComponents()[LOIS_COMPONENT_KEY]);
   };
   updateLoisCount();
+
+  // 侵蝕率・EAを触った時点でDB/EBを引き直して見せる。ダイアログを閉じるまで
+  // 保存されない＝parameters側は変わらないので、表示だけ同じ計算をここでもう一度通す。
+  const updateDerivedValues = () => {
+    const derived = computeDX3DerivedParameters({
+      'DX3:corruption': { value: Number(input.value) || 0 },
+      'DX3:ea': { value: eaInput.checked ? 1 : 0 }
+    });
+    if (derivedValueEls.corDB) derivedValueEls.corDB.textContent = derived['DX3:corDB'];
+    if (derivedValueEls.corEB) derivedValueEls.corEB.textContent = derived['DX3:corEB'];
+  };
+  input.addEventListener('input', updateDerivedValues);
+  eaInput.addEventListener('change', updateDerivedValues);
 
   container.appendChild(compactRow);
 
@@ -384,7 +471,8 @@ function renderDX3CharacterPanel({
   return {
     getValues: () => ({
       'DX3:corruption': Number(input.value) || 0,
-      'DX3:attackPower': Number(attackInput.value) || 0
+      'DX3:attackPower': Number(attackInput.value) || 0,
+      'DX3:ea': eaInput.checked ? 1 : 0
     })
   };
 }

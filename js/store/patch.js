@@ -59,7 +59,8 @@ export function definedFields(patch) {
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
 }
 
-// 下の各テーブルからアクション名で規則を引く。必ずここを通すこと。
+// アクション名で規則のテーブルを引く（js/game-store.js の *_FIELD_PATCHES 4種）。
+// 必ずここを通すこと。
 //
 // 素の TABLE[action] で引いてはいけない。テーブルはオブジェクトリテラルなので
 // Object.prototype 由来の名前まで拾ってしまう（SEND_STAMPのparticipantsと同じ罠。

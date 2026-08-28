@@ -55,7 +55,10 @@
 - ページ側に `<button id="siteMenuBtn" class="app-menu-btn">` と
   `<script type="module" src="/js/site-nav.js">`
 - `<link rel="stylesheet" href="/css/tokens.css">`
-- **インライン `<script>` は動かない**（CSP `script-src 'self'`）。`<style>` は可
+- **インラインの `<script>` も `<style>` も `style="…"` 属性も動かない**
+  （CSP `script-src 'self'` / `style-src 'self'`）。CSSは `css/<ページ名>.css` を作って
+  `<link>` で読む。要素ごとに違う色を当てたいときはJSから `el.style.color = …`
+  （CSSOM経由はCSPの対象外。`js/main.js` の `applyLogNameColor` が例）
 - `README.md` の「画面になるHTML」の表
 
 ---

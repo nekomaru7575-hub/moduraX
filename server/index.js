@@ -536,7 +536,13 @@ function isPublicPath(filePath) {
 // そこに書かれたスクリプトもインラインのonclick等も動かない（画面側のtextContent化と
 // 二重に守る）。この方針が成り立つのは、HTMLがどれも外部ファイルの<script>しか持たず、
 // vendorのdice-boxもeval・WebAssemblyを使っていないため。
-// - style-srcに'unsafe-inline'が要るのは、3つのHTMLがインラインの<style>を持つため。
+// - style-srcも'self'だけにしてある。以前は'unsafe-inline'を開けていたが、6つのHTMLの
+//   <style>とstyle属性をcss/配下へ出して要らなくした。**HTMLに style="…" を書かないこと。**
+//   書いた瞬間、そのページのその指定だけが黙って効かなくなる（画面は崩れるがエラーは出ない）。
+//   要素ごとに違う色を当てたいときは、JSから el.style.color = … と書く。CSSOM経由の
+//   書き込みはCSPの対象外なので通る（js/main.jsのapplyLogNameColorがその例）。
+//   例外はjs/log-export.jsで、あれはユーザーのディスクへ落とす自己完結HTMLなので
+//   こちらのCSPは掛からない。あちらのインラインstyleはそのままでよい。
 // - img-src/media-srcでhttps:を広く許すのは、外部URLの画像・音源を貼れる機能があるため
 //   （R2の公開ドメインもここに含まれる）。data:は、R2未設定時にデータURLへ退避する経路用。
 // - connect-srcの'self'には、同じホスト・同じポートへのWebSocketも含まれる。
@@ -551,7 +557,7 @@ const BCDICE_ORIGIN = 'https://bcdice.onlinesession.app';
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
   `connect-src 'self' ${BCDICE_ORIGIN}`,

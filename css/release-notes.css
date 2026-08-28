@@ -1,0 +1,114 @@
+/* css/release-notes.css
+   更新履歴（release-notes.html）の見た目。
+   雛形は css/about.css と同じ。あちらを直したらこちらも合わせること。 */
+
+/* 見た目は about.html と同じ雛形。あちらを直したらこちらも合わせること
+   （3ページとも各自コピーしていて、共通CSSにはしていない）。 */
+body {
+  background-color: var(--surface-page);
+  color: var(--text-default);
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 24px 20px 64px;
+  line-height: 1.8;
+}
+
+.doc {
+  max-width: 46rem;   /* 1行が長くなりすぎると読み返しづらいので幅を切る */
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 4px;
+}
+
+/* 版の見出し（日付）。1つの版のかたまりの頭にあることが分かるよう、
+   about.html の h2 より上の余白を広めに取る。
+   about.html より大きく・明るくしてあるのは、あちらの h2 が「番号付きで順に読む
+   節の頭」なのに対し、こちらの日付はページ唯一の索引だから。読み手はまず
+   「どの版か」を探しに来るので、下の分類ラベル(h3)より明確に強くないと
+   拾えない（1.1remのままだと h3 との差が2px程度しか無かった）。
+   1.5remまで上げるとヘッダーのアプリ名(1.4rem)を1px程度だけ上回る中途半端な
+   関係になるので、アプリ名の下に収める。段を作っているのは主に明るさの方で、
+   日付(--text-emphasis)とラベル(--text-muted)で大きく離してある。 */
+h2 {
+  font-size: 1.3rem;
+  color: var(--text-emphasis);
+  margin: 44px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* 「追加」「変更」「直した不具合」の見出し。
+   本文より暗くするのは、これが読む中身ではなく仕分けの札だから。日付(明)→
+   ラベル(暗)→本文(中)と明るさを変えて、3段が一目で分かれるようにする。 */
+h3 {
+  font-size: 0.95rem;
+  margin: 20px 0 4px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+p, li {
+  font-size: 0.9rem;
+}
+
+/* 項目と項目の間。line-height が1.8あるので、4pxでは「1項目の中の行間」と
+   「項目どうしの隙間」がほぼ同じになり、2行以上の項目が並ぶと1つの塊に見えていた。
+   1項目＝1つの変更、が読み取れる幅まで開ける。 */
+li {
+  margin-bottom: 12px;
+}
+
+ul {
+  padding-left: 1.3em;
+  margin: 4px 0;
+}
+
+a {
+  color: var(--text-link);
+}
+
+/* ページ冒頭の説明。本文より一段引いた色にして、版の中身と見分ける。 */
+.lead {
+  color: var(--text-body);
+  margin: 0 0 8px;
+}
+
+/* 版の要約（日付のすぐ下の1〜2行）。項目が多い版にだけ付ける。 */
+.summary {
+  color: var(--text-body-strong);
+  margin: 0 0 4px;
+}
+
+/* 部屋入口・コマ作成ツール・このサービスについてと同じヘッダー行。値もその3ページに
+   合わせてある（部屋の画面だけは align-items などが違うので共通CSSにしていない）。 */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 2px solid var(--surface-control);
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.app-header span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* 作ったものに影響する変更・お願いごとを囲む枠（about.html と同じ見た目）。 */
+.note {
+  background-color: var(--surface-base);
+  border-left: 3px solid var(--border-mid);
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  color: var(--text-body);
+}

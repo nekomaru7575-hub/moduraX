@@ -25,7 +25,7 @@
 //       .then(keys => Promise.all(keys.map(k => caches.delete(k))))));
 // だけに差し替えてデプロイすること（全員のSWが自分を消してキャッシュも捨てる）。
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const PRECACHE = `mojura-precache-${CACHE_VERSION}`;
 const VENDOR_CACHE = `mojura-vendor-${CACHE_VERSION}`;
 const CURRENT_CACHES = new Set([PRECACHE, VENDOR_CACHE]);
@@ -34,6 +34,10 @@ const CURRENT_CACHES = new Set([PRECACHE, VENDOR_CACHE]);
 // install全体が失敗するので、ここに重いもの・数の多いものを並べてはいけない。
 const PRECACHE_URLS = [
   '/offline.html',
+  // offline.html の見た目。オフラインで出すページなので、本体と一緒に先読みしておく
+  // （中身を変えたら上の CACHE_VERSION を上げること。上げないと、オフラインのときだけ
+  //   古いスタイルが出続ける）。
+  '/css/offline.css',
   '/image/icon-192.png',
   '/image/icon-512.png',
   '/image/icon-maskable-512.png',

@@ -1464,12 +1464,43 @@ h1 {
   padding: 8px 16px;
 }
 
-/* 記入中の参加者一覧（T-013）。チャット入力欄の右下に小さく出す。誰も記入中でなければ
-   hidden属性で領域ごと消し、空の枠を残さない。 */
+/* 記入中の参加者一覧（T-013）。チャット入力欄の右下に小さく出す。
+   以前は誰も記入中でなければhidden属性で領域ごと消していたが、それだと誰かが打ち始める
+   たびにチャット入力欄が1行ぶん（実測24px）せり上がり、文字を打っている最中に狙いが
+   ずれる。文字の有無に関わらず1行ぶんの高さを確保し、中身だけが入れ替わるようにする。
+   min-heightがemなのは、この要素自身のfont-size（0.75rem）が基準になるため、
+   line-heightと同じ値にすれば過不足なくちょうど1行になるから。 */
 .typing-indicator {
-  text-align: right;
+  /* 確保するのは1行ぶんだけなので、折り返して2行になったらまた入力欄が動いてしまう。
+     参加者名に長さの制限が無い（server/index.jsは空白を落とすだけ）以上、名前の数を
+     絞るだけでは足りず、折り返しを禁じたうえで溢れた分を削る必要がある。
+
+     このとき削られてほしいのは名前のほうで、「が入力中...」は残ってほしい。
+     1つのテキストにまとめてoverflow:hiddenを掛けると、text-align:rightにしても
+     溢れるのは行の右端＝末尾の「が入力中...」の側になる（text-alignは行が収まって
+     いる時しか効かない）。そのため名前と「が入力中...」を別のspanに分け、
+     縮むのは名前だけ、という形にしている（描くのはjs/main.js）。 */
+  display: flex;
+  justify-content: flex-end;
   font-size: 0.75rem;
+  line-height: 1.4;
+  min-height: 1.4em;
   color: var(--text-tertiary);
+}
+
+/* 溢れたら三点リーダで詰める側。min-width:0が無いとflexの既定（min-width:auto）で
+   中身の幅まで伸びてしまい、overflowが効かない。 */
+.typing-indicator .typing-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 「が入力中...」。ここは削られては意味が通らないので縮ませない。 */
+.typing-indicator .typing-suffix {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* 移動・拡縮できる浮動パネル（js/floating-panel.js）。枠と操作だけを持つ汎用スタイルで、

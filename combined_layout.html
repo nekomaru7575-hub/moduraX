@@ -215,8 +215,10 @@
             <div id="commandInputSuggestions" class="chat-input-suggestions" hidden></div>
             <button class="btn-send" id="sendBtn">送信</button>
           </div>
-          <!-- 他の参加者の記入中一覧（T-013）。js/main.jsがTYPING_USERS_CHANGEDを受けて描画する -->
-          <div id="typingIndicator" class="typing-indicator" hidden></div>
+          <!-- 他の参加者の記入中一覧（T-013）。js/main.jsがTYPING_USERS_CHANGEDを受けて描画する。
+               誰も記入中でなくても消さない（hiddenを付けない）。出入りで下の入力欄が動くため、
+               1行ぶんの高さはCSS側（.typing-indicator）で常に確保している。 -->
+          <div id="typingIndicator" class="typing-indicator"></div>
         </div>
       </div>
     </div>

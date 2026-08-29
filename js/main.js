@@ -2063,14 +2063,35 @@ EventBus.subscribe('TYPING_USERS_CHANGED', (users) => {
   const myId = getCurrentParticipantId();
   const others = (users || []).filter((u) => u.id !== myId);
 
+  // 中身を空にするだけで、要素は残す。hiddenで消すと出入りのたびに下のチャット入力欄が
+  // 1行ぶん動いてしまうため、高さはCSS（.typing-indicatorのmin-height）で常に確保している。
   if (others.length === 0) {
-    typingIndicatorEl.hidden = true;
-    typingIndicatorEl.textContent = '';
+    typingIndicatorEl.replaceChildren();
     return;
   }
-  typingIndicatorEl.hidden = false;
-  typingIndicatorEl.textContent = `${others.map((u) => u.name).join('、')} が入力中...`;
+
+  // 名前と「が入力中...」を分けるのは、1行に収まらないときに削るのを名前の側だけに
+  // するため（css/board.cssの.typing-names／.typing-suffix）。
+  const names = document.createElement('span');
+  names.className = 'typing-names';
+  names.textContent = describeTypingUsers(others);
+
+  const suffix = document.createElement('span');
+  suffix.className = 'typing-suffix';
+  suffix.textContent = ' が入力中...';
+
+  typingIndicatorEl.replaceChildren(names, suffix);
 });
+
+// 記入中の人が多いときに名前を並べきらない。全員ぶん並べると1行に収まらず、
+// 三点リーダで詰められて誰の名前かも読めなくなるため、先頭数人＋残りの人数にまとめる。
+const TYPING_NAMES_SHOWN = 3;
+
+function describeTypingUsers(others) {
+  const names = others.slice(0, TYPING_NAMES_SHOWN).map((u) => u.name).join('、');
+  const rest = others.length - TYPING_NAMES_SHOWN;
+  return rest > 0 ? `${names} ほか${rest}人` : names;
+}
 
 if (commandInput) {
   // 予測変換候補の更新（既存）と記入中通知（T-013）は、どちらもcommandInputの同じ'input'

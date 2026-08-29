@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-box.js
-lines: 975
+lines: 986
 exports: 1
-imported_by: 6
+imported_by: 7
 api_sha: 160c4976d6de
 prose_sha: 160c4976d6de
-generated: 2026-08-28
+generated: 2026-08-29
 tags: [codemap]
 ---
 
@@ -42,12 +42,12 @@ spec（[[js.parameters.skill.skill-model]] の `createSkillSpec` / `createListSp
 | 132 | buildCheckboxField | `buildCheckboxField(field, value)` | 13 |  |
 | 152 | refreshSelectOptions | `refreshSelectOptions(field, select, fieldValues)` | 28 |  |
 | 183 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 208 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **767** | ✓ |
+| 208 | showSkillBox | `showSkillBox({ spec, skills = [], parameters = {}, readOnly = false, onSave, getToken = null, dispatch = null, generateBuffId = null, findTokenByName = null })` | **778** | ✓ |
 
 ## 依存
 
 - import → [[js.dialog-host]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-formula]], [[js.parameters.skill.skill-model]], [[js.read-only-form]]
-- imported by → [[js.parameters.arianrhod]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
+- imported by → [[js.parameters.arianrhod]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.gcrest]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]]
 
 ## 注意
 

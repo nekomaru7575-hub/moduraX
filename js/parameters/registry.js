@@ -7,9 +7,9 @@ import { STELLA_KNIGHTS_PLUGIN } from './stella-knights.js';
 import { DRACUROUGE_PLUGIN } from './dracurouge.js';
 import { ARIANRHOD_PLUGIN } from './arianrhod.js';
 import { FUTARISOUSA_PLUGIN } from './futarisousa.js';
+import { GCREST_PLUGIN } from './gcrest.js';
 import { handleDiceDraftPoolCommand } from './dice-draft/dice-draft-pool.js';
 import { handleItemChatCommand } from './skill/item-use.js';
-// import { GCREST_PLUGIN } from './gcrest.js'; // 将来追加時はこの形で増やす
 
 const PLUGINS = {
   DX3: DX3_PLUGIN,
@@ -18,7 +18,7 @@ const PLUGINS = {
   DRACUROUGE: DRACUROUGE_PLUGIN,
   ARIANRHOD: ARIANRHOD_PLUGIN,
   FUTARISOUSA: FUTARISOUSA_PLUGIN,
-  // GCREST: GCREST_PLUGIN,
+  GCREST: GCREST_PLUGIN,
 };
 
 export function listPlugins() {

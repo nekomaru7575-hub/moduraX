@@ -74,10 +74,11 @@ WebSocket でサーバーへ送られ、サーバーが同じ遷移を行って�
 
 プラグインは **ただのオブジェクト**（プラグイン記述子）。クラスも継承も無い。
 
-`js/parameters/gcrest.js` が最小の見本になっている。
+最小の形は次のとおり（かつて `js/parameters/gcrest.js` がこの姿だったが、今はグランクレストの
+実装が入っているので、見本としてはこの引用を読んでほしい）。
 
 ```js
-// js/parameters/gcrest.js
+// js/parameters/mysystem.js
 import { buildParameters } from './paramFactory.js';
 
 export const GCREST_ROOM_PARAMETERS = [
@@ -954,6 +955,7 @@ const MY_SKILL_SPEC = createSkillSpec({
 | `allowNote: false` | メモ欄（`note`）を出さない。行数が多くて1行を低く保ちたい一覧（シノビガミの人物）向け。保存する形は変えない（`note` は空文字で残る） |
 | `logNote: true` | 使用ログに**効果（`note`）**を載せ、「修正値バフはありません」の断り書きを出さない。修正値をほとんど使わないシステム（ステラナイツのスキル、ドラクルージュの行い・逸話）向けで、卓が読みたいのは付かなかった修正よりその能力が何をするか。式が読めない等の `⚠` は消さない（あちらは入力の誤りの知らせなので） |
 | `defaultSkills: [{ name, fields }]` | まだ1件も登録が無いコマへ配る初期の一覧（ステラナイツの出目1〜6）。「枠が最初から決まっていて、利用者は中身を埋めるだけ」というシステム向け。**`name` は必ず入れること**：空名は一覧から落とされるうえ、ダイスドラフトはスキル名をキーに置き場を持つので名無しが複数あると区別できない |
+| `fixedRows: true` | 枠数を `defaultSkills` で決め打ちし、利用者に増やさせも減らさせもしない（グランクレストの誓いの3スロット）。ボックスは「＋追加」と「×」を出さず、読み出しでも件数を宣言どおりに揃えるので、手で書き換えたJSONを読ませても枠は増えない。**並びがそのまま枠**なので、名前を空にした行も落とさず位置を保ち、見出しだけ宣言の名前へ戻す。`defaultSkills` とセットで宣言すること（片方だけでは枠の数が決まらないので効かない） |
 
 #### 名前と内容だけの一覧（`createListSpec`）
 
@@ -1238,11 +1240,13 @@ npm run dev
 
 ## 参考: 読む順番
 
-1. `js/parameters/gcrest.js` — 最小の記述子（16 行）
+1. この文書の [2 章](#2-最小のプラグインと登録手順) — 最小の記述子
 2. `js/parameters/registry.js` — フックの一覧と、各フックの契約（JSDoc が正）
 3. `js/parameters/shinobigami.js` — 共通フレームワークを一通り使っている実例
 4. `js/parameters/dx3.js` — パラメータ定義が最も多い実例
-5. `docs/codemap/INDEX.md` — 全ファイルの役割一覧
+5. `js/parameters/gcrest.js` — スキル枠組みを4種類（特技・魔法・アイテム・一覧）並べ、
+   足りない分だけ専用ボックスを書いた実例
+6. `docs/codemap/INDEX.md` — 全ファイルの役割一覧
 
 **迷ったら `registry.js` の JSDoc が正**。この文書と食い違っていたら、そちらを信じて
 この文書のほうを直してほしい。

@@ -476,19 +476,23 @@ export function showSkillBox({
       headerRow.appendChild(wrap);
     }
 
-    const removeBtn = createElement('button', 'dialog-remove-row', '×');
-    removeBtn.type = 'button';
-    removeBtn.addEventListener('click', () => {
-      item.remove();
-      const index = rows.findIndex(row => row.item === item);
-      if (index !== -1) rows.splice(index, 1);
-      syncFooter();
-    });
-    // ×はその行全体を消すボタンなので、欄を段組みしたspecでも1段目の末尾に置く
-    // （最後の段に混ざると、その段の欄を消すボタンに見える）。
-    const firstBreak = headerRow.querySelector('.effect-box-row-break');
-    if (firstBreak) headerRow.insertBefore(removeBtn, firstBreak);
-    else headerRow.appendChild(removeBtn);
+    // 枠が宣言で決まる一覧（spec.fixedRows。グランクレストの誓い）には削除ボタンを出さない。
+    // 消せても読み出しで枠が戻るだけなので、押せる見た目にしないほうが正直になる。
+    if (!spec.fixedRows) {
+      const removeBtn = createElement('button', 'dialog-remove-row', '×');
+      removeBtn.type = 'button';
+      removeBtn.addEventListener('click', () => {
+        item.remove();
+        const index = rows.findIndex(row => row.item === item);
+        if (index !== -1) rows.splice(index, 1);
+        syncFooter();
+      });
+      // ×はその行全体を消すボタンなので、欄を段組みしたspecでも1段目の末尾に置く
+      // （最後の段に混ざると、その段の欄を消すボタンに見える）。
+      const firstBreak = headerRow.querySelector('.effect-box-row-break');
+      if (firstBreak) headerRow.insertBefore(removeBtn, firstBreak);
+      else headerRow.appendChild(removeBtn);
+    }
     item.appendChild(headerRow);
 
     // 式の検証に渡す「今この行に入力されているフィールド値」。{Lv}のように
@@ -821,10 +825,14 @@ export function showSkillBox({
 
   normalizeSkillList(spec, skills).forEach(addRow);
 
-  const addBtn = createElement('button', 'dialog-add-row-btn', `+ ${spec.noun}を追加`);
-  addBtn.type = 'button';
-  addBtn.addEventListener('click', () => { addRow(null); syncFooter(); });
-  form.appendChild(addBtn);
+  // 枠が宣言で決まる一覧（spec.fixedRows）は行を増やせない。ボタンごと出さない。
+  let addBtn = null;
+  if (!spec.fixedRows) {
+    addBtn = createElement('button', 'dialog-add-row-btn', `+ ${spec.noun}を追加`);
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', () => { addRow(null); syncFooter(); });
+    form.appendChild(addBtn);
+  }
 
   // 一覧の下の1行。何を出すかはspecが決め、ボックスは文字列と警告の有無を描くだけ
   // （アリアンロッドの「携帯重量／重量上限」。上限を超えたら赤字）。
@@ -884,7 +892,7 @@ export function showSkillBox({
   form.appendChild(btnRow);
 
   if (readOnly) {
-    addBtn.style.display = 'none';
+    if (addBtn) addBtn.style.display = 'none';
     saveBtn.style.display = 'none';
     cancelBtn.textContent = '閉じる';
     // コピーは状態を変えないので、他人の一覧を表示だけしている時も押せたままにする。
@@ -953,8 +961,11 @@ export function showSkillBox({
   // 画面の行を、componentsへ保存する配列にする。保存ボタン（submit）と、
   // 個数の増減・使用（アイテムのときだけ出るボタン）の即時保存の両方から呼ぶ。
   // 名前が空の行は落とす（旧UIも保存時に同じ条件で捨てていた）。
+  // ただし枠が宣言で決まる一覧（spec.fixedRows）では落とさない：並びがそのまま枠なので、
+  // 抜くと後ろが繰り上がり、読み出しの穴埋めで同じ名前の枠が二つ並んでしまう。
   function collectSkills() {
-    return rows.map(collectRow).filter(skill => skill.name !== '');
+    const collected = rows.map(collectRow);
+    return spec.fixedRows ? collected : collected.filter(skill => skill.name !== '');
   }
 
   // ダイアログを閉じずにその場で保存する。個数の増減と使用だけが通る道で、

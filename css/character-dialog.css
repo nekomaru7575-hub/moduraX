@@ -2133,23 +2133,14 @@
    どれが脇か」が読めない。4つの群に分け、群の見出しと、能力・技能だけの
    強い見た目で差を付ける。 */
 
+/* ボタンのまとまり。見出しは置かず、空きだけで切れ目を示す
+   （ダイアログの他の箇所と同じやり方。.dialog-button-row.is-spaced を参照）。 */
 .gcrest-group {
   margin-bottom: 14px;
 }
 
 .gcrest-group:last-child {
   margin-bottom: 0;
-}
-
-/* 群の見出し。行の見出し（.gcrest-row-label）と取り違えないよう、
-   淡い色・小さい字・字間・上の罫で「これは見出しだ」と示す。 */
-.gcrest-group-title {
-  margin-bottom: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-faint);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
 }
 
 /* ボックスを開くボタン。ラベルを左、件数や状態を右へ寄せる。
@@ -2213,8 +2204,45 @@
   min-width: 0;
 }
 
+/* 4つで1組の修正値（防御力の 武器/炎熱/衝撃/体内）は、格子ではなく横一列に流す。
+   「防御力」を4回繰り返さず、見出し1つ＋短い名前だけで読めるようにするため。
+   入り切らない幅では折り返す（2+2になる）。 */
+.gcrest-mod-row-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.gcrest-mod-row-flow .dialog-custom-row {
+  flex: 0 0 auto;
+}
+
+/* 見出しが行の名前を兼ねる群（攻撃力）。入力欄だけを置く。 */
+.gcrest-mod-grid .dialog-custom-row.is-unlabeled .dialog-param-label {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .gcrest-mod-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --- 能力・技能ボックス ---------------------------------------------
+   能力判定値6つを2列×3段に畳む。1列だと6段になって、下の戦闘・移動まで
+   スクロールしないと届かないため。 */
+.gcrest-ability-dialog {
+  max-width: 640px;
+}
+
+.gcrest-ability-dialog .ability-box-group-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .gcrest-ability-dialog .ability-box-group-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

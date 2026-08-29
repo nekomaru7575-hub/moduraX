@@ -1,6 +1,6 @@
 ---
 source: js/parameters/gcrest.js
-lines: 1055
+lines: 1056
 exports: 25
 imported_by: 1
 api_sha: da3b86b9d7c0
@@ -27,29 +27,29 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 39 | const | GCREST_CHAR_TYPES | `GCREST_CHAR_TYPES` |  |
 | 69 | const | GCREST_SKILL_GROUPS | `GCREST_SKILL_GROUPS` | 能力判定値ごとの技能。 |
-| 152 | const | GCREST_PARAMETERS | `GCREST_PARAMETERS` | 全パラメータをlocked:trueにしてある（＝利用者が消せず、既存のコマにも後から補完される）。 |
-| 180 | fn | buildGcrestCharacterParameters | `buildGcrestCharacterParameters()` |  |
-| 184 | const | GCREST_ROOM_PARAMETERS | `GCREST_ROOM_PARAMETERS` |  |
-| 188 | fn | buildGcrestRoomParameters | `buildGcrestRoomParameters()` |  |
-| 203 | fn | readGcrestCharType | `readGcrestCharType(parameters)` |  |
-| 256 | const | GCREST_ART_SPEC | `GCREST_ART_SPEC` | 特技。 |
-| 309 | fn | isGcrestSpell | `isGcrestSpell(skill)` | その1件が魔法か。 |
-| 320 | const | GCREST_UNIT_ART_SPEC | `GCREST_UNIT_ART_SPEC` | 部隊特技。 |
-| 341 | const | GCREST_ITEM_SPEC | `GCREST_ITEM_SPEC` | アイテム。 |
-| 363 | const | GCREST_BOND_SPEC | `GCREST_BOND_SPEC` | 因縁。 |
-| 377 | const | GCREST_OATH_SPEC | `GCREST_OATH_SPEC` | 誓い。 |
-| 400 | const | UNIT_COMPONENT_KEY | `UNIT_COMPONENT_KEY` | ------------------------------------------------------------------ 部隊 --------------------------------------… |
-| 407 | const | GCREST_UNIT_MOD_GROUPS | `GCREST_UNIT_MOD_GROUPS` | 修正値の入力欄。 |
-| 435 | fn | normalizeGcrestUnit | `normalizeGcrestUnit(raw)` | 保存済みの部隊データを正規形へ揃える（欠けたキー・不正な値は既定へ落とす）。 |
-| 450 | fn | readGcrestUnit | `readGcrestUnit(components)` |  |
-| 459 | fn | syncGcrestUnitBuffs | `syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId })` | 部隊の修正値を、自分へのバフとして貼り直す。 |
-| 519 | fn | readGcrestArts | `readGcrestArts(components)` | ------------------------------------------------------------------ componentsの読み出し -------------------------… |
-| 525 | fn | readGcrestUnitArts | `readGcrestUnitArts(components)` |  |
-| 529 | fn | readGcrestItems | `readGcrestItems(components)` |  |
-| 533 | fn | readGcrestBonds | `readGcrestBonds(components)` |  |
-| 537 | fn | readGcrestOaths | `readGcrestOaths(components)` |  |
-| 546 | fn | sumGcrestItemWeight | `sumGcrestItemWeight(items)` | 持ち物の重量の合計。 |
-| 1034 | const | GCREST_PLUGIN | `GCREST_PLUGIN` |  |
+| 155 | const | GCREST_PARAMETERS | `GCREST_PARAMETERS` | 全パラメータをlocked:trueにしてある（＝利用者が消せず、既存のコマにも後から補完される）。 |
+| 183 | fn | buildGcrestCharacterParameters | `buildGcrestCharacterParameters()` |  |
+| 187 | const | GCREST_ROOM_PARAMETERS | `GCREST_ROOM_PARAMETERS` |  |
+| 191 | fn | buildGcrestRoomParameters | `buildGcrestRoomParameters()` |  |
+| 206 | fn | readGcrestCharType | `readGcrestCharType(parameters)` |  |
+| 259 | const | GCREST_ART_SPEC | `GCREST_ART_SPEC` | 特技。 |
+| 312 | fn | isGcrestSpell | `isGcrestSpell(skill)` | その1件が魔法か。 |
+| 323 | const | GCREST_UNIT_ART_SPEC | `GCREST_UNIT_ART_SPEC` | 部隊特技。 |
+| 344 | const | GCREST_ITEM_SPEC | `GCREST_ITEM_SPEC` | アイテム。 |
+| 366 | const | GCREST_BOND_SPEC | `GCREST_BOND_SPEC` | 因縁。 |
+| 380 | const | GCREST_OATH_SPEC | `GCREST_OATH_SPEC` | 誓い。 |
+| 403 | const | UNIT_COMPONENT_KEY | `UNIT_COMPONENT_KEY` | ------------------------------------------------------------------ 部隊 --------------------------------------… |
+| 410 | const | GCREST_UNIT_MOD_GROUPS | `GCREST_UNIT_MOD_GROUPS` | 修正値の入力欄。 |
+| 445 | fn | normalizeGcrestUnit | `normalizeGcrestUnit(raw)` | 保存済みの部隊データを正規形へ揃える（欠けたキー・不正な値は既定へ落とす）。 |
+| 460 | fn | readGcrestUnit | `readGcrestUnit(components)` |  |
+| 469 | fn | syncGcrestUnitBuffs | `syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId })` | 部隊の修正値を、自分へのバフとして貼り直す。 |
+| 529 | fn | readGcrestArts | `readGcrestArts(components)` | ------------------------------------------------------------------ componentsの読み出し -------------------------… |
+| 535 | fn | readGcrestUnitArts | `readGcrestUnitArts(components)` |  |
+| 539 | fn | readGcrestItems | `readGcrestItems(components)` |  |
+| 543 | fn | readGcrestBonds | `readGcrestBonds(components)` |  |
+| 547 | fn | readGcrestOaths | `readGcrestOaths(components)` |  |
+| 556 | fn | sumGcrestItemWeight | `sumGcrestItemWeight(items)` | 持ち物の重量の合計。 |
+| 1035 | const | GCREST_PLUGIN | `GCREST_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（27）
 
@@ -58,33 +58,33 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 180 | buildGcrestCharacterParameters | `buildGcrestCharacterParameters()` | 3 | ✓ |
-| 188 | buildGcrestRoomParameters | `buildGcrestRoomParameters()` | 3 | ✓ |
-| 203 | readGcrestCharType | `readGcrestCharType(parameters)` | 4 | ✓ |
-| 309 | isGcrestSpell | `isGcrestSpell(skill)` | 3 | ✓ |
-| 314 | nounOf | `nounOf(skill)` | 3 |  |
-| 435 | normalizeGcrestUnit | `normalizeGcrestUnit(raw)` | 14 | ✓ |
-| 450 | readGcrestUnit | `readGcrestUnit(components)` | 3 | ✓ |
-| 459 | syncGcrestUnitBuffs | `syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId })` | 18 | ✓ |
-| 479 | syncMoraleVisibility | `syncMoraleVisibility({ parameters, unit, tokenId, dispatch })` | 6 |  |
-| 490 | describeMcBlock | `describeMcBlock(unit, skill)` | 9 |  |
-| 508 | readLegacySpells | `readLegacySpells(components)` | 10 |  |
-| 519 | readGcrestArts | `readGcrestArts(components)` | 5 | ✓ |
-| 525 | readGcrestUnitArts | `readGcrestUnitArts(components)` | 3 | ✓ |
-| 529 | readGcrestItems | `readGcrestItems(components)` | 3 | ✓ |
-| 533 | readGcrestBonds | `readGcrestBonds(components)` | 3 | ✓ |
-| 537 | readGcrestOaths | `readGcrestOaths(components)` | 3 | ✓ |
-| 546 | sumGcrestItemWeight | `sumGcrestItemWeight(items)` | 7 | ✓ |
-| 556 | computeGcrestDerivedParameters | `computeGcrestDerivedParameters(parameters, components = {})` | 5 |  |
-| 566 | readFreeSkills | `readFreeSkills(parameters, free)` | 7 |  |
-| 576 | buildAbilityGroups | `buildAbilityGroups(parameters)` | 18 |  |
-| 597 | buildCombatRows | `buildCombatRows(parameters)` | 8 |  |
-| 611 | buildFreeSkillParameter | `buildFreeSkillParameter(parameters, free, rawLabel)` | 20 |  |
-| 640 | renameInitiativeToAction | `renameInitiativeToAction({ readParameters, dispatch, tokenId })` | 8 |  |
-| 649 | renderGcrestCharacterPanel | `renderGcrestCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, generateBuffId, dispatch, tokenId, allowParameterEdit = false })` | **286** |  |
-| 946 | looksLikeGcrestChatCommand | `looksLikeGcrestChatCommand(rawInput)` | 4 |  |
-| 956 | handleGcrestChatCommand | `handleGcrestChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId })` | 64 |  |
-| 1023 | resetGcrestComponentsOnPhaseEnd | `resetGcrestComponentsOnPhaseEnd(components, phase)` | 10 |  |
+| 183 | buildGcrestCharacterParameters | `buildGcrestCharacterParameters()` | 3 | ✓ |
+| 191 | buildGcrestRoomParameters | `buildGcrestRoomParameters()` | 3 | ✓ |
+| 206 | readGcrestCharType | `readGcrestCharType(parameters)` | 4 | ✓ |
+| 312 | isGcrestSpell | `isGcrestSpell(skill)` | 3 | ✓ |
+| 317 | nounOf | `nounOf(skill)` | 3 |  |
+| 445 | normalizeGcrestUnit | `normalizeGcrestUnit(raw)` | 14 | ✓ |
+| 460 | readGcrestUnit | `readGcrestUnit(components)` | 3 | ✓ |
+| 469 | syncGcrestUnitBuffs | `syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId })` | 18 | ✓ |
+| 489 | syncMoraleVisibility | `syncMoraleVisibility({ parameters, unit, tokenId, dispatch })` | 6 |  |
+| 500 | describeMcBlock | `describeMcBlock(unit, skill)` | 9 |  |
+| 518 | readLegacySpells | `readLegacySpells(components)` | 10 |  |
+| 529 | readGcrestArts | `readGcrestArts(components)` | 5 | ✓ |
+| 535 | readGcrestUnitArts | `readGcrestUnitArts(components)` | 3 | ✓ |
+| 539 | readGcrestItems | `readGcrestItems(components)` | 3 | ✓ |
+| 543 | readGcrestBonds | `readGcrestBonds(components)` | 3 | ✓ |
+| 547 | readGcrestOaths | `readGcrestOaths(components)` | 3 | ✓ |
+| 556 | sumGcrestItemWeight | `sumGcrestItemWeight(items)` | 7 | ✓ |
+| 566 | computeGcrestDerivedParameters | `computeGcrestDerivedParameters(parameters, components = {})` | 5 |  |
+| 576 | readFreeSkills | `readFreeSkills(parameters, free)` | 7 |  |
+| 586 | buildAbilityGroups | `buildAbilityGroups(parameters)` | 18 |  |
+| 607 | buildCombatRows | `buildCombatRows(parameters)` | 8 |  |
+| 621 | buildFreeSkillParameter | `buildFreeSkillParameter(parameters, free, rawLabel)` | 20 |  |
+| 650 | renameInitiativeToAction | `renameInitiativeToAction({ readParameters, dispatch, tokenId })` | 8 |  |
+| 659 | renderGcrestCharacterPanel | `renderGcrestCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, generateBuffId, dispatch, tokenId, allowParameterEdit = false })` | **277** |  |
+| 947 | looksLikeGcrestChatCommand | `looksLikeGcrestChatCommand(rawInput)` | 4 |  |
+| 957 | handleGcrestChatCommand | `handleGcrestChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId })` | 64 |  |
+| 1024 | resetGcrestComponentsOnPhaseEnd | `resetGcrestComponentsOnPhaseEnd(components, phase)` | 10 |  |
 
 ## 依存
 

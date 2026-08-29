@@ -1,6 +1,6 @@
 ---
 source: js/parameters/gcrest-ability-box.js
-lines: 231
+lines: 233
 exports: 1
 imported_by: 1
 api_sha: b3946a518a90
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 47 | fn | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | readData: () => { groups: Array<{ abilityParamId: string, abilityLabel: string, abilityValue: number, skills… |
+| 49 | fn | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | readData: () => { groups: Array<{ abilityParamId: string, abilityLabel: string, abilityValue: number, skills… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,8 +34,8 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 20 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 47 | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | 184 | ✓ |
+| 22 | createElement | `createElement(tag, className, text)` | 6 |  |
+| 49 | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | 184 | ✓ |
 
 ## 依存
 

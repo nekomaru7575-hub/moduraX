@@ -65,8 +65,14 @@ function buildNumberInput(value) {
  * @param {{
  *   unit: {mc:boolean, position:'FW'|'CT', name:string, mods:Record<string, number>},
  *     正規化済みの部隊データ（gcrest.jsのnormalizeGcrestUnitを通したもの）。
- *   modGroups: Array<{label:string, rows:Array<{key:string, label:string}>}>,
+ *   modGroups: Array<{
+ *     label: string,
+ *     layout?: 'grid'|'flow',   既定grid（3列の格子）。'flow'は横一列に流す（防御力の4つ）
+ *     rows: Array<{key:string, label:string, short?:string, hideLabel?:boolean}>
+ *   }>,
  *     修正値の入力欄。大きい括りごとにまとめて描く。
+ *     shortを宣言した行はそちらを見出しに出す（既に群の見出しが「防御力」なので、
+ *     行では「武器」だけを出す）。hideLabelは群の見出しが行の名前を兼ねる場合（攻撃力）。
  *   morale: {label:string, value:number},   士気（パラメータの今の値）
  *   unitArts?: {noun:string, count:() => number, open:(onSaved:() => void) => void},
  *     部隊特技の一覧を開く口。一覧そのものは共通の枠組み（showSkillBox）が描くので、
@@ -158,18 +164,23 @@ export function showGcrestUnitBox({
     const groupEl = createElement('div', 'gcrest-mod-group');
     groupEl.appendChild(createElement('div', 'gcrest-mod-group-title', group.label));
 
-    const grid = createElement('div', 'gcrest-mod-grid');
+    const isFlow = group.layout === 'flow';
+    const body = createElement('div', isFlow ? 'gcrest-mod-row-flow' : 'gcrest-mod-grid');
+
     group.rows.forEach(row => {
-      const rowEl = createElement('div', 'dialog-custom-row');
-      rowEl.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', row.label));
+      const rowEl = createElement('div', `dialog-custom-row${row.hideLabel ? ' is-unlabeled' : ''}`);
+      // 群の見出しで足りる行（攻撃力）は入力欄だけにする。見出しを2回読ませない。
+      rowEl.appendChild(createElement(
+        'label', 'dialog-param-label gcrest-row-label', row.short ?? row.label
+      ));
 
       const input = buildNumberInput(unit.mods?.[row.key]);
       modInputs.set(row.key, input);
       rowEl.appendChild(input);
-      grid.appendChild(rowEl);
+      body.appendChild(rowEl);
     });
 
-    groupEl.appendChild(grid);
+    groupEl.appendChild(body);
     form.appendChild(groupEl);
   });
 

@@ -1,6 +1,6 @@
 ---
 source: js/parameters/gcrest-unit-box.js
-lines: 217
+lines: 228
 exports: 1
 imported_by: 1
 api_sha: 40692417b956
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 79 | fn | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | unit: {mc:boolean, position:'FW'\|'CT', name:string, mods:Record<string, number>}, 正規化済みの部隊データ（gcrest.jsのnorm… |
+| 85 | fn | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | unit: {mc:boolean, position:'FW'\|'CT', name:string, mods:Record<string, number>}, 正規化済みの部隊データ（gcrest.jsのnorm… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -37,7 +37,7 @@ tags: [codemap]
 | 21 | createElement | `createElement(tag, className, text)` | 6 |  |
 | 29 | buildToggle | `buildToggle(options, value, title)` | 25 |  |
 | 55 | buildNumberInput | `buildNumberInput(value)` | 8 |  |
-| 79 | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | 138 | ✓ |
+| 85 | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | 143 | ✓ |
 
 ## 依存
 

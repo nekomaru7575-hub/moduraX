@@ -127,11 +127,14 @@ export const GCREST_SKILL_GROUPS = [
 const FIXED_SKILLS = GCREST_SKILL_GROUPS.flatMap(group => group.skills);
 
 // 防御力4種。攻撃力と並んでダメージ計算の受け皿になる。
+// 防御力4種。攻撃力と並んでダメージ計算の受け皿になる。
+// shortLabelは、既に「防御力」の見出しが付いている場所で使う短い名前
+// （部隊の修正値。「防御力」を4回繰り返さないため）。
 const DEFENSES = [
-  { key: 'defWeapon', label: '防御力（武器）' },
-  { key: 'defHeat', label: '防御力（炎熱）' },
-  { key: 'defImpact', label: '防御力（衝撃）' },
-  { key: 'defInner', label: '防御力（体内）' }
+  { key: 'defWeapon', label: '防御力（武器）', shortLabel: '武器' },
+  { key: 'defHeat', label: '防御力（炎熱）', shortLabel: '炎熱' },
+  { key: 'defImpact', label: '防御力（衝撃）', shortLabel: '衝撃' },
+  { key: 'defInner', label: '防御力（体内）', shortLabel: '体内' }
 ];
 
 const MP_PARAM_ID = paramId('MP');
@@ -162,7 +165,7 @@ export const GCREST_PARAMETERS = [
   // 2. 他から決まる値・判定やダメージの受け皿。一覧には出さず、手入力もさせない
   //    （バフは効く。docs/plugin-guide.mdの4章「バフはeditableを見ない」）。
   { key: 'atk', label: '攻撃力', value: 0, editable: false, visible: false },
-  ...DEFENSES.map(def => ({ ...def, value: 0, editable: false, visible: false })),
+  ...DEFENSES.map(({ key, label }) => ({ key, label, value: 0, editable: false, visible: false })),
   ...ABILITIES.map(ability => ({ ...ability, value: 0, editable: false, visible: false })),
   ...FIXED_SKILLS.map(skill => ({
     ...skill, value: SKILL_BASE_VALUE, editable: false, visible: false
@@ -420,12 +423,19 @@ export const GCREST_UNIT_MOD_GROUPS = [
     ]
   },
   {
+    // 見出しが行の名前を兼ねる（「攻撃力」を縦に2回並べない）。
     label: '攻撃力',
-    rows: [{ key: 'atk', label: '攻撃力', paramId: ATTACK_PARAM_ID }]
+    rows: [{ key: 'atk', label: '攻撃力', paramId: ATTACK_PARAM_ID, hideLabel: true }]
   },
   {
+    // 4つで1組なので格子に散らさず横一列に流す。「防御力」を4回前置する代わりに、
+    // 見出し1つ＋短い名前（武器/炎熱/衝撃/体内）で読ませる。
+    // labelはバフ名（部隊修正（防御力（武器）））に使うので、短い名前とは別に残す。
     label: '防御力',
-    rows: DEFENSES.map(def => ({ key: def.key, label: def.label, paramId: paramId(def.key) }))
+    layout: 'flow',
+    rows: DEFENSES.map(def => ({
+      key: def.key, label: def.label, short: def.shortLabel, paramId: paramId(def.key)
+    }))
   }
 ];
 
@@ -740,10 +750,6 @@ function renderGcrestCharacterPanel({
   const canEditAbilityValues = allowParameterEdit && canWrite;
   const abilityGroup = document.createElement('div');
   abilityGroup.className = 'gcrest-group';
-  const abilityGroupTitle = document.createElement('div');
-  abilityGroupTitle.className = 'gcrest-group-title';
-  abilityGroupTitle.textContent = '能力値';
-  abilityGroup.appendChild(abilityGroupTitle);
 
   const abilityBtn = document.createElement('button');
   abilityBtn.type = 'button';
@@ -790,16 +796,11 @@ function renderGcrestCharacterPanel({
   // --- 各種一覧 ---
   // 既存のコマの更新時のみ開ける（新規作成時はまだcomponentsを持たないため対象外）。
   if (mode === 'edit' && onComponentChange) {
-    // ボタンの群。見出し1つとボタン数個で1まとまり。
-    // 8個を同じ見た目で縦に並べると「どれが本体でどれが脇か」が読めないので、
-    // 意味ごとに区切る（css/character-dialog.css の .gcrest-group）。
-    const addGroup = (title) => {
+    // ボタンのまとまり。同じ見た目で縦に並べ切ると「どれが本体でどれが脇か」が
+    // 読めないので、意味ごとに空きで区切る（見出しは置かない）。
+    const addGroup = () => {
       const group = document.createElement('div');
       group.className = 'gcrest-group';
-      const heading = document.createElement('div');
-      heading.className = 'gcrest-group-title';
-      heading.textContent = title;
-      group.appendChild(heading);
       container.appendChild(group);
       return group;
     };
@@ -862,7 +863,7 @@ function renderGcrestCharacterPanel({
       onClick: (sync) => openSkillBox(spec, readList, sync)
     });
 
-    const learnedGroup = addGroup('習得');
+    const learnedGroup = addGroup();
     addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
 
     addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
@@ -870,7 +871,7 @@ function renderGcrestCharacterPanel({
     // --- 部隊 ---
     // MCの状態はバッジで出す。件数と違って「今どちらか」で使える特技が変わるので、
     // ONのときだけ浮かせて、ボックスを開かなくても読めるようにしてある。
-    const unitGroup = addGroup('マスコンバット');
+    const unitGroup = addGroup();
     addBoxButton({
       parent: unitGroup,
       label: () => {
@@ -914,7 +915,7 @@ function renderGcrestCharacterPanel({
       }
     });
 
-    const bondGroup = addGroup('関係');
+    const bondGroup = addGroup();
     addListButton(bondGroup, GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
 
     // 誓いは枠が3つで固定なので件数は数えない（常に3）。

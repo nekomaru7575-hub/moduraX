@@ -15,7 +15,9 @@
 
 import { createDialogHost } from '../dialog-host.js';
 
-const ensureDialog = createDialogHost('ability-box-dialog');
+// DX3の能力値ボックスと同じ見た目の土台（.ability-box-*）を使いつつ、
+// 能力判定値を2列×3段に畳むぶんの幅だけ自前のクラスで持つ。
+const ensureDialog = createDialogHost('ability-box-dialog gcrest-ability-dialog');
 
 function createElement(tag, className, text) {
   const el = document.createElement(tag);

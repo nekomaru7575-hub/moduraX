@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-28
+generated: 2026-08-29
 ---
 
 # trpg-app コードマップ
@@ -20,9 +20,9 @@ generated: 2026-08-28
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 138 | 583 | 1034 | 54 | 2 |
+| 140 | 609 | 1068 | 54 | 2 |
 
-エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/parameters/gcrest.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
+エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
 ## ファイル一覧
 
@@ -52,7 +52,7 @@ generated: 2026-08-28
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
-| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 33 |
+| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 35 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-draft-panel\|js/dice-draft-panel.js]] | 「ダイスドラフト」：振ってプールに溜めた目を1個ずつドラッグし、スキルの上に乗せて発動する 浮動パネル。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
@@ -103,7 +103,9 @@ generated: 2026-08-28
 | [[js.parameters.dx3\|js/parameters/dx3.js]] | DX3（ダブルクロス3rd）のプラグイン記述子。パラメータ定義と各ボックスの束ね役。 | 7 | 1 |
 | [[js.parameters.futarisousa-skill-box\|js/parameters/futarisousa-skill-box.js]] | フタリソウサの「技能」を表示・編集するボックス。 | 5 | 1 |
 | [[js.parameters.futarisousa\|js/parameters/futarisousa.js]] | バディサスペンスTRPG フタリソウサ のプラグイン記述子。 | 2 | 1 |
-| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレストのプラグイン記述子（プラグインの書き方の見本）。 | 3 | 0 |
+| [[js.parameters.gcrest-ability-box\|js/parameters/gcrest-ability-box.js]] | グランクレストの能力判定値6種と技能をまとめて表示する「ボックス」。 | 1 | 1 |
+| [[js.parameters.gcrest-unit-box\|js/parameters/gcrest-unit-box.js]] | グランクレストの「部隊」（マスコンバット）を編集するボックス。 | 1 | 1 |
+| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 27 | 1 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 16 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
@@ -114,13 +116,13 @@ generated: 2026-08-28
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 4 | 1 |
 | [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 9 | 1 |
 | [[js.parameters.skill.item-use\|js/parameters/skill/item-use.js]] | アイテム（createItemSpecで宣言した、個数を持つ持ち物）の使用と増減。 | 5 | 3 |
-| [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 6 |
+| [[js.parameters.skill.skill-box\|js/parameters/skill/skill-box.js]] | スキル一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 1 | 7 |
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 11 |
-| [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 7 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
+| [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
-| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 11 |
+| [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |
 | [[js.room-authority-rules\|js/room-authority-rules.js]] | 「部屋そのものを左右する操作をしてよいのは誰か」の規則そのもの。 | 2 | 3 |
 | [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 5 |
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
@@ -171,15 +173,15 @@ generated: 2026-08-28
 
 | ファイル | 被import |
 |---|---:|
-| [[js.dialog-host\|js/dialog-host.js]] | 33 |
+| [[js.dialog-host\|js/dialog-host.js]] | 35 |
 | [[js.EventBus\|js/EventBus.js]] | 16 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 16 |
 | [[js.game-store\|js/game-store.js]] | 15 |
 | [[js.store.patch\|js/store/patch.js]] | 15 |
 | [[js.local-identity\|js/local-identity.js]] | 14 |
 | [[js.icons\|js/icons.js]] | 12 |
-| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 11 |
-| [[js.read-only-form\|js/read-only-form.js]] | 11 |
+| [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
+| [[js.read-only-form\|js/read-only-form.js]] | 12 |
 | [[js.visibility\|js/visibility.js]] | 10 |
 
 ## 散文が要更新

@@ -156,6 +156,15 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              **nameは必ず入れること**：空名は一覧から落とされるうえ、
  *                              ダイスドラフトはスキル名をキーに置き場を持つため、
  *                              名無しが複数あると区別できない。
+ *   fixedRows?: boolean,       既定false。trueにすると枠数がdefaultSkillsで決まり、
+ *                              利用者は行を増やせも減らせもしない（グランクレストの
+ *                              誓いの3スロット）。ボックスは「＋追加」と「×」を出さず、
+ *                              読み出しでも件数を宣言どおりに揃えるので、手で書き換えた
+ *                              JSONを読ませても枠は増えない。defaultSkillsとセットで宣言する
+ *                              （枠の数と初期の名前はそちらが持つ）。
+ *                              名前の欄は編集できるままにしてある：卓ごとに枠へ好きな
+ *                              見出しを付けられるほうが使いでがあり、空にしたときは
+ *                              読み出しで宣言の名前へ戻るだけで壊れないため。
  *   modTargets?: Array<{
  *     paramId: string, label: string,
  *     extra?: { key:string, label:string, metaKey:string, hint?:string }
@@ -195,6 +204,7 @@ export function createSkillSpec(definition) {
     allowConditions = true,
     logNote = false,
     defaultSkills = [],
+    fixedRows = false,
     quantity = null,
     allowNote = true,
     rowActions = [],
@@ -233,6 +243,9 @@ export function createSkillSpec(definition) {
     // 解釈せず、返ってきた文字列と警告の有無を描くだけ。
     footerNote,
     defaultSkills: Object.freeze(defaultSkills.map(skill => Object.freeze({ ...skill }))),
+    // 枠が宣言で決まる一覧（グランクレストの誓い）。defaultSkillsが空なら宣言しても
+    // 枠の数が決まらないので効かせない（行が1つも作れない一覧になってしまう）。
+    fixedRows: fixedRows && defaultSkills.length > 0,
     legacyModMap: Object.freeze({ ...legacyModMap }),
     // trueにすると一覧の下に「使用コマンドをコピー」ボタンが出る。宣言したプラグインが
     // buildSkillUseCommandPatternで「◯◯使用(名前)」を実際にチャットコマンドとして
@@ -488,12 +501,26 @@ export function normalizeSkill(spec, raw) {
  * 1件も残らなかった場合は spec.defaultSkills を配る（ステラナイツの出目1〜6のように、
  * 枠が最初から決まっているシステム）。保存前のコマにも最初から枠が並ぶ。
  * 全部消すと既定へ戻るが、それが「標準で備える」枠の意味なのでそのままにしてある。
+ *
+ * spec.fixedRows を宣言した一覧（グランクレストの誓い）は、件数を常に
+ * spec.defaultSkills の数へ揃える。多い分は捨て、足りない分は宣言の枠で埋めるので、
+ * 手で書き換えたJSONを読ませても枠が増えたり減ったりしない。
+ * **並び順がそのまま枠**なので、名前が空の要素も落とさずに位置を保つ（落とすと後ろが
+ * 繰り上がり、穴埋めで同じ名前の枠が二つ並んでしまう）。名前が空の枠は宣言の名前へ戻す。
  */
 export function normalizeSkillList(spec, rawList) {
-  const list = Array.isArray(rawList)
-    ? rawList.map(raw => normalizeSkill(spec, raw)).filter(skill => skill.name !== '')
-    : [];
+  const stored = Array.isArray(rawList) ? rawList : [];
 
+  if (spec.fixedRows) {
+    return spec.defaultSkills.map((definition, index) => {
+      const skill = normalizeSkill(spec, stored[index] ?? definition);
+      // 空名の行は一覧から落ちる決まりなので、枠の見出しだけは宣言の名前で埋め直す
+      if (skill.name === '') skill.name = String(definition.name ?? '');
+      return skill;
+    });
+  }
+
+  const list = stored.map(raw => normalizeSkill(spec, raw)).filter(skill => skill.name !== '');
   if (list.length > 0 || spec.defaultSkills.length === 0) return list;
   return spec.defaultSkills.map(raw => normalizeSkill(spec, raw));
 }

@@ -1,11 +1,11 @@
 ---
 source: js/main.js
-lines: 2562
+lines: 2583
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-28
+generated: 2026-08-29
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（69）
+## トップレベル関数（LOCAL TASKS 候補）（70）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -91,16 +91,17 @@ _(未記入)_
 | 1988 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
 | 1994 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
 | 2044 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
-| 2121 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 2248 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 2256 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 2305 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 2309 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 2326 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2433 | splitForSpace | `splitForSpace(string)` | 8 |  |
-| 2456 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 30 |  |
-| 2493 | applyLogNameColor | `applyLogNameColor(item, color)` | 6 |  |
-| 2503 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 2090 | describeTypingUsers | `describeTypingUsers(others)` | 5 |  |
+| 2142 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 2269 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 2277 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 2326 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 2330 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 2347 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 2454 | splitForSpace | `splitForSpace(string)` | 8 |  |
+| 2477 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null }, { hideSystem = false, hideTime = false } = {})` | 30 |  |
+| 2514 | applyLogNameColor | `applyLogNameColor(item, color)` | 6 |  |
+| 2524 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

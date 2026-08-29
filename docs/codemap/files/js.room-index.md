@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 588
+lines: 594
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-28
+generated: 2026-08-29
 tags: [codemap]
 ---
 
@@ -39,12 +39,12 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 | 156 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
 | 180 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
 | 240 | visibleRooms | `visibleRooms()` | 5 |  |
-| 246 | fillRoomSelect | `fillRoomSelect()` | 32 |  |
-| 280 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
-| 330 | mountCreatePanel | `mountCreatePanel()` | 178 |  |
-| 510 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
-| 524 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
-| 537 | loadRooms | `async loadRooms()` | 44 |  |
+| 246 | fillRoomSelect | `fillRoomSelect()` | 38 |  |
+| 286 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
+| 336 | mountCreatePanel | `mountCreatePanel()` | 178 |  |
+| 516 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 530 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 543 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 

@@ -128,6 +128,43 @@ export const CHAT_HANDLERS = {
     });
   },
 
+  // シークレットダイス（entry.secret）の出目を公開する／伏せ直す。
+  // 出目は最初から状態に載っていて、伏せているのは表示だけ（js/visibility.jsの
+  // visibleChatEntry）。なのでここで動かすのはrevealedの旗1つで足りる。
+  //
+  // 誰が公開してよいかはここでは見ない：画面側（js/room-authority.jsのcanEditChatEntry）が
+  // 本人とGMだけに絞る。EDIT_CHAT_MESSAGEと同じ姿勢で、GM_ONLY_ACTIONSにも入れていない
+  // （入れるとGMのいない部屋でPLが自分のシークレットダイスを公開できなくなる。
+  // 情報の伏せ字SET_INFO_MASK_REVEALEDと同じ理由）。
+  //
+  // secretでない発言は対象にしない。ここが空いていると、普通の発言にrevealedだけを
+  // 立てて回るような無意味な書き換えが通ってしまう。
+  SET_CHAT_SECRET_REVEALED({ prevState, payload, commit }) {
+    const { tabId, entryId, revealed } = payload;
+    if (!tabId || !entryId || typeof revealed !== 'boolean') return;
+
+    const entries = prevState.chatLogs[tabId];
+    if (!entries) return;
+
+    const index = entries.findIndex(entry => entry.id === entryId);
+    if (index < 0) return;
+    if (!entries[index].secret) return;
+    // 未公開はrevealedが無い状態（false相当）で流れてくるので、真偽値へ寄せてから比べる。
+    // 素の===だと「未公開の行を伏せ直す」が毎回状態を作り直してしまう。
+    if ((entries[index].revealed === true) === revealed) return;
+
+    // secretの旗は公開後も残す（「これはシークレットダイスだった」を消さない。
+    // 表示側が🔓の印を出すのに使う）。
+    const next = Object.freeze({ ...entries[index], revealed });
+
+    commit({
+      chatLogs: withMapEntry(
+        prevState.chatLogs, tabId,
+        Object.freeze(entries.map((entry, i) => (i === index ? next : entry)))
+      )
+    });
+  },
+
   // 3Dダイスを転がす合図（js/dice-animation.jsが購読）。状態は一切変えず、通知だけを行う。
   // 出目をチャットログのエントリに持たせなかったのは、部屋のJSONへ永続化されてしまい、
   // 再接続時のhydrateで過去のロールが一斉に転がり出すため。状態を変えないので

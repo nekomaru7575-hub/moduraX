@@ -6,6 +6,7 @@
 // 白背景・黒文字のテキストログに「キャラ名だけコマのチャット色を付ける」形式で組み立てる。
 
 import { escapeHtml, safeCssColor } from './html-escape.js';
+import { visibleChatEntry } from './visibility.js';
 
 // キャラ名の色が未設定のログ用の既定色。白背景でも読める濃さにしてある
 // （画面側の既定色#4caf50は白背景だと薄い）。
@@ -36,12 +37,14 @@ function buildEntryHtml({ character = '', comment = '', resultText = '', diceDet
   return `    <div class="log-line">${nameHtml}${bodyHtml}${commentHtml}${timeHtml}${editedHtml}</div>${detailHtml}`;
 }
 
-function buildTabHtml(tab, entries) {
+function buildTabHtml(tab, entries, participantId) {
   const heading = `    <h2>${escapeHtml(tab.name)}</h2>`;
   if (entries.length === 0) {
     return `${heading}\n    <div class="log-empty">（ログなし）</div>`;
   }
-  return `${heading}\n${entries.map(buildEntryHtml).join('\n')}`;
+  // 未公開のシークレットダイスは画面と同じ規則で伏せる（js/visibility.js）。書き出した人の
+  // 自分のぶんは出目入りで残り、他人の未公開分は伏せたまま出る。
+  return `${heading}\n${entries.map(entry => buildEntryHtml(visibleChatEntry(entry, participantId))).join('\n')}`;
 }
 
 /**
@@ -50,14 +53,15 @@ function buildTabHtml(tab, entries) {
  * @param {{
  *   roomName: string,
  *   tabs: {id: string, name: string}[],   // 書き出し対象のタブ（chatTabsの並び順のまま渡す）
- *   chatLogs: Record<string, object[]>
+ *   chatLogs: Record<string, object[]>,
+ *   participantId: string|null            // 書き出す人。未公開のシークレットダイスの出し分けに使う
  * }} options
  * @returns {string} <!DOCTYPE html>から始まる完結したHTML
  */
-export function buildLogExportHtml({ roomName, tabs, chatLogs }) {
+export function buildLogExportHtml({ roomName, tabs, chatLogs, participantId = null }) {
   const title = `${roomName || '部屋'} チャットログ`;
   const dateStr = new Date().toISOString().slice(0, 10);
-  const body = tabs.map(tab => buildTabHtml(tab, chatLogs[tab.id] || [])).join('\n\n');
+  const body = tabs.map(tab => buildTabHtml(tab, chatLogs[tab.id] || [], participantId)).join('\n\n');
 
   return `<!DOCTYPE html>
 <html lang="ja">

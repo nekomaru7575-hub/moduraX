@@ -1,6 +1,6 @@
 ---
 source: js/BCdice.js
-lines: 37
+lines: 41
 exports: 1
 imported_by: 2
 api_sha: 808f14485f64
@@ -34,7 +34,7 @@ BCDice の公開 API を叩いてダイス判定を実行する唯一の口。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 2 | rollBCDice | `async rollBCDice(system, command)` | 36 | ✓ |
+| 2 | rollBCDice | `async rollBCDice(system, command)` | 40 | ✓ |
 
 ## 依存
 

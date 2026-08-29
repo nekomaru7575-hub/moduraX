@@ -609,6 +609,50 @@ test('EDIT_CHAT_MESSAGE: 居ないタブ・居ないid・文字列でない本�
   assertNoop(store, 'EDIT_CHAT_MESSAGE', { tabId: MAIN_CHAT_TAB_ID, entryId: 'e1', resultText: 123 });
 });
 
+test('SET_CHAT_SECRET_REVEALED: revealed だけが動き、出目も secret も残る', () => {
+  const store = newStore();
+  store.dispatch('ADD_CHAT_MESSAGE', {
+    tabId: MAIN_CHAT_TAB_ID,
+    entry: { id: 'e1', character: 'アリス', resultText: '(1D100) ＞ 73', diceDetail: '73', secret: true },
+    time: T
+  });
+
+  store.dispatch('SET_CHAT_SECRET_REVEALED', {
+    tabId: MAIN_CHAT_TAB_ID, entryId: 'e1', revealed: true, time: T + 5
+  });
+
+  const [entry] = store.state.chatLogs[MAIN_CHAT_TAB_ID];
+  assert.equal(entry.revealed, true);
+  assert.equal(entry.secret, true, 'シークレットダイスだった印は公開後も残る');
+  assert.equal(entry.resultText, '(1D100) ＞ 73', '出目は最初から状態にある（伏せるのは表示側）');
+  assert.equal(entry.diceDetail, '73');
+  assert.equal(entry.time, T, '発言時刻は変わらない');
+  assert.equal(entry.editedAt, undefined, '公開は編集ではないので(編集済み)は付かない');
+
+  // 伏せ直せる（誤操作の取り消し）
+  store.dispatch('SET_CHAT_SECRET_REVEALED', { tabId: MAIN_CHAT_TAB_ID, entryId: 'e1', revealed: false });
+  assert.equal(store.state.chatLogs[MAIN_CHAT_TAB_ID][0].revealed, false);
+});
+
+test('SET_CHAT_SECRET_REVEALED: 居ないタブ・居ないid・secretでない発言・同じ値は何もしない', () => {
+  const store = newStore();
+  store.dispatch('ADD_CHAT_MESSAGE', {
+    tabId: MAIN_CHAT_TAB_ID, entry: { id: 'e1', resultText: 'ひみつ', secret: true }, time: T
+  });
+  store.dispatch('ADD_CHAT_MESSAGE', {
+    tabId: MAIN_CHAT_TAB_ID, entry: { id: 'e2', resultText: 'ふつうの発言' }, time: T
+  });
+
+  assertNoop(store, 'SET_CHAT_SECRET_REVEALED', { tabId: '無いタブ', entryId: 'e1', revealed: true });
+  assertNoop(store, 'SET_CHAT_SECRET_REVEALED', { tabId: MAIN_CHAT_TAB_ID, entryId: '無いid', revealed: true });
+  assertNoop(store, 'SET_CHAT_SECRET_REVEALED', { tabId: MAIN_CHAT_TAB_ID, entryId: 'e1', revealed: 'はい' },
+    'revealedが真偽値でなければ何もしない');
+  assertNoop(store, 'SET_CHAT_SECRET_REVEALED', { tabId: MAIN_CHAT_TAB_ID, entryId: 'e2', revealed: true },
+    'シークレットダイスでない発言は対象外');
+  assertNoop(store, 'SET_CHAT_SECRET_REVEALED', { tabId: MAIN_CHAT_TAB_ID, entryId: 'e1', revealed: false },
+    '既にその値なら作り直さない');
+});
+
 test('ROLL_DICE_ANIMATION: 状態は変えず DICE_ROLLED だけを出す', () => {
   const store = newStore();
   const before = store.state;

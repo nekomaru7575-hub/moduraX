@@ -40,7 +40,7 @@ import {
 import { entryPasswordHeaders, setStoredEntryPassword } from './room-entry.js';
 import { showIdentityDialog } from './identity-dialog.js';
 import { showChatTabDialog } from './chat-tab-dialog.js';
-import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK } from './visibility.js';
+import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK, visibleChatEntry, canViewSecretDice } from './visibility.js';
 import {
   handlePluginChatCommand, findPluginForChatCommand,
   parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem
@@ -326,6 +326,13 @@ if (helpTabBtn) {
   });
 }
 
+// 発言1件を、今の自分に見せてよい形にして返す（シークレットダイスの出目を伏せる）。
+// 描画の直前にだけ通すこと：伏せない行は同じ参照が返るので、行の書き換わりを参照の比較で
+// 見分けているpatchEditedLogEntries／renderMainChatMirrorの判定は生のentryのまま行う。
+function displayedLogEntry(entry) {
+  return visibleChatEntry(entry, getCurrentParticipantId());
+}
+
 // containerの末尾に、entries[fromIndex:]だけを追記する（既存分は再描画しない＝
 // メッセージが増えるたびに過去ログのfadeInアニメーションが再生される事態を防ぐ）。
 // data-entry-idは、右クリック／長押しで「どの発言を編集するか」を引くための印
@@ -335,7 +342,7 @@ function appendLogEntries(container, entries, fromIndex, itemClassName, buildOpt
     const item = document.createElement('div');
     item.className = itemClassName;
     if (entries[i].id) item.dataset.entryId = entries[i].id;
-    item.innerHTML = buildLogHtml(entries[i], buildOptions);
+    item.innerHTML = buildLogHtml(displayedLogEntry(entries[i]), buildOptions);
     applyLogNameColor(item, entries[i].color);
     container.appendChild(item);
   }
@@ -356,7 +363,7 @@ function patchEditedLogEntries(container, entries) {
     if (lastRenderedLogEntries[i] === entries[i]) continue;
     const item = container.children[i];
     if (!item) continue;
-    item.innerHTML = buildLogHtml(entries[i]);
+    item.innerHTML = buildLogHtml(displayedLogEntry(entries[i]));
     applyLogNameColor(item, entries[i].color);
   }
 }
@@ -421,7 +428,7 @@ function renderMainChatMirror(state) {
     currentChatLog.innerHTML = '';
     const item = document.createElement('div');
     item.className = 'current-chat-log-item';
-    item.innerHTML = buildLogHtml(latestEntry, { hideSystem: true, hideTime: true });
+    item.innerHTML = buildLogHtml(displayedLogEntry(latestEntry), { hideSystem: true, hideTime: true });
     applyLogNameColor(item, latestEntry.color);
     currentChatLog.appendChild(item);
 
@@ -490,8 +497,14 @@ function findLogEntryById(entryId) {
 }
 
 function openLogEntryMenu(clientX, clientY, entry) {
-  showContextMenu(clientX, clientY, [
-    {
+  const items = [];
+
+  // 本文が見えている人だけが編集できる。未公開のシークレットダイスをGMが編集できると、
+  // 編集ダイアログ（本文をtextareaへ流し込む）が出目の抜け道になってしまう。
+  const hidden = entry.secret && !entry.revealed && !canViewSecretDice(entry, getCurrentParticipantId());
+
+  if (!hidden) {
+    items.push({
       label: '発言を編集',
       onSelect: () => showLogEditDialog({
         resultText: entry.resultText || '',
@@ -501,8 +514,22 @@ function openLogEntryMenu(clientX, clientY, entry) {
           tabId: activeTabId, entryId: entry.id, resultText
         })
       })
-    }
-  ]);
+    });
+  }
+
+  // シークレットダイスの公開／伏せ直し。往復できるようにしてあるのは、情報の伏せ字
+  // （js/info-panel.js）と同じく誤操作を取り消せるようにするため。ここへ来られるのは
+  // 本人とGMだけ（editableEntryFromEventのcanEditChatEntry）。
+  if (entry.secret) {
+    items.push({
+      label: entry.revealed ? '出目を伏せ直す' : '出目を公開する',
+      onSelect: () => store.dispatch('SET_CHAT_SECRET_REVEALED', {
+        tabId: activeTabId, entryId: entry.id, revealed: !entry.revealed
+      })
+    });
+  }
+
+  if (items.length > 0) showContextMenu(clientX, clientY, items);
 }
 
 // 右クリックされた行が編集できるものなら、その発言を返す。
@@ -1166,7 +1193,9 @@ function openLogExportDialog() {
       const html = buildLogExportHtml({
         roomName: store.state.room.name,
         tabs: store.state.chatTabs.filter(tab => tabIds.includes(tab.id)),
-        chatLogs: store.state.chatLogs
+        chatLogs: store.state.chatLogs,
+        // 未公開のシークレットダイスは画面と同じ規則で伏せて書き出す（自分のぶんは残る）
+        participantId: getCurrentParticipantId()
       });
 
       // 部屋名がそのままファイル名に入るため、ファイル名に使えない文字は落とす
@@ -1278,7 +1307,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     // 半角スペースしか区切りと見なさない。ここへ渡す分だけ全角スペースを半角へそろえる。
     const toCommand = isStartsChoice ? `${command} ${comment.replaceAll("\u3000", " ")}` : command;
 
-    const { success, unsupported, resultText, diceValues } = await rollBCDice(system, toCommand);
+    const { success, unsupported, resultText, diceValues, secret } = await rollBCDice(system, toCommand);
     if (!success) {
       if (unsupported) {
         // 正規表現上はダイスコマンドに見えても、BCDice側がそのシステムの構文として
@@ -1292,14 +1321,30 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       throw new Error(resultText);
     }
 
+    // シークレットダイス（コマンドの頭にSを付けたもの。判定はBCDice側。js/BCdice.js）。
+    // 出目が見えるのは振った本人だけなので、その「本人」を指せない＝表示名を登録して
+    // いない人には振らせない。名乗っていない人の発言にはownerIdが付かず
+    // （js/net-sync.jsのwithStampedChatEntry）、伏せると本人にも二度と見えなくなる。
+    // 入力欄は消さない（onSentを呼ばない）ので、名乗ってからそのまま送り直せる。
+    if (secret && !getCurrentParticipantId()) {
+      alert('シークレットダイスを振るには、表示名の登録（名乗り）が必要です。\nヘッダーの「名乗る」から名前を登録してください。');
+      return;
+    }
+
     const diceDetail = diceValues && diceValues.length > 0 ?
       diceValues.map(d => d.value).join(', ') : "";
 
     // 3Dダイスを転がす合図。状態を変えないアクションなので、部屋の全員へ届くだけで
     // ログにも部屋のJSONにも残らない（js/game-store.jsのROLL_DICE_ANIMATION）。
     // Mainタブ以外を演出しない判定は受け取り側（js/dice-animation.js）が行う。
+    //
+    // シークレットダイスのときだけは配信せず、自分の画面のイベントバスへ直接流す。
+    // 転がるダイスは出目そのものの面で止まる（js/dice-animation.js）ので、配信すると
+    // ログを伏せた意味が無くなる。
     if (diceValues?.length) {
-      store.dispatch('ROLL_DICE_ANIMATION', { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) });
+      const animation = { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) };
+      if (secret) EventBus.emit('DICE_ROLLED', animation);
+      else store.dispatch('ROLL_DICE_ANIMATION', animation);
     }
 
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
@@ -1318,7 +1363,12 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     applyLog({
       system, character: characterName, characterId, color: characterColor, comment,
-      resultText: `${resultText}${expiredNote}`, diceDetail
+      resultText: `${resultText}${expiredNote}`, diceDetail,
+      // シークレットダイスは伏せた状態で流す（公開はログの右クリックから。
+      // js/store/handlers/chat.jsのSET_CHAT_SECRET_REVEALED）。
+      // 消滅バフのメモも本文の一部なので公開まで一緒に伏せられるが、バフが消えたこと自体は
+      // コマの表示に出るので、別行に切り出してまでは追わない。
+      ...(secret ? { secret: true } : {})
     }, tabId);
     onSent?.();
 
@@ -2445,6 +2495,13 @@ EventBus.subscribe('STATE_CHANGED', (state) => {
 EventBus.subscribe('IDENTITY_CHANGED', () => {
   renderChatTabs(store.state);
   ensureActiveTabVisible(store.state);
+
+  // 自分が誰かが変われば、見えるシークレットダイスの出目も変わる。ログ欄は差分追記なので、
+  // 描き直しの基準を捨てないと既に描いた行が古い伏せ方のまま残る。
+  lastRenderedLogTabId = null;
+  lastRenderedLogCount = 0;
+  lastRenderedLogEntries = null;
+  renderActiveTabLog(store.state);
 });
 
 // ダイスコマンドとコメントの切り分け。「1D10 命中判定」の空白から後ろがコメント。
@@ -2474,7 +2531,7 @@ function splitForSpace(string) {
 //
 // 色はここでは扱わない。固定色はCSSのクラス（css/board.css）に持たせ、発言者ごとに
 // 変わるキャラ名の色だけを、挿入した後に applyLogNameColor がCSSOMから当てる。
-function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null }, { hideSystem = false, hideTime = false } = {}) {
+function buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null, secret = false, revealed = false }, { hideSystem = false, hideTime = false } = {}) {
   const detail = diceDetail ? `<small class="log-detail">出目内訳: [${escapeHtml(diceDetail)}]</small>` : "";
   const systemTag = (!hideSystem && system) ? `<strong class="log-system">[${escapeHtml(system)}]</strong>` : '';
   const characterTag = character ? `<span class="log-name">${escapeHtml(character)}</span>` : '';
@@ -2495,7 +2552,13 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
   // 後から本文が書き換えられたことは隠さない（js/game-store.jsのEDIT_CHAT_MESSAGE）。
   // 時刻とは別の情報なので、時刻を出さないカレントチャット欄でもこの印だけは出す。
   const editedMark = editedAt ? '<small class="log-edited">(編集済み)</small>' : '';
-  const headerLine = [systemTag, characterTag, commentTag, timestamp, editedMark].filter(Boolean).join(' ');
+  // シークレットダイスの印。伏せているかどうかに関わらず全員に出す——「振ったことは共有し、
+  // 出目だけを伏せる」のがこの機能なので、印まで隠すと振ったこと自体が伝わらない。
+  // 本文を伏せるのはここではなく呼び出し側（js/visibility.jsのvisibleChatEntry）の仕事。
+  const secretMark = secret
+    ? `<small class="log-secret">${revealed ? '🔓 公開済みのシークレットダイス' : '🔒 シークレットダイス'}</small>`
+    : '';
+  const headerLine = [systemTag, characterTag, commentTag, timestamp, editedMark, secretMark].filter(Boolean).join(' ');
   const headerHtml = headerLine ? `${headerLine}<br>` : '';
 
   return `

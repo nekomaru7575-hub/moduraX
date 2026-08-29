@@ -28,7 +28,11 @@ export async function rollBCDice(system, command) {
     return {
       success: true,
       resultText: data.text,
-      diceValues: data.rands // 🆕 サーバーから届いた生の出目配列（rands）をそのまま渡す
+      diceValues: data.rands, // 🆕 サーバーから届いた生の出目配列（rands）をそのまま渡す
+      // シークレットダイス（コマンドの頭にSを付けて振ったもの）かどうか。BCDice側の判定を
+      // そのまま運ぶ：command_patternが元から`^S?...`で始まっており、どのコマンドにSを
+      // 付けられるかもシステムごとにBCDiceが持っているため、こちらで先頭のsを解釈しない。
+      secret: data.secret === true
     };
   } catch (error) {
     console.error("BCDice通信失敗:", error);

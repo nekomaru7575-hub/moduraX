@@ -261,13 +261,19 @@ function fillRoomSelect() {
     list.forEach((room) => {
       const option = document.createElement('option');
       option.value = room.id;
-      // 鍵マークは入室パスワードのある部屋の目印。パスワード自体の照合はサーバー側
-      // （server/index.jsのWebSocket接続時）。
-      // ここだけ絵文字のままなのは、<option>の中に要素を置けないため（HTMLの仕様）。
-      // 他の鍵はjs/icons.jsのSVGに揃えてある。
-      const people = room.clients > 0 ? `${room.clients}人` : '';
-      option.textContent = (room.locked ? '🔒 ' : '') + (room.name || room.id)
-        + (people ? `（${people}）` : '');
+      // 部屋名のうしろの括弧に、混み具合と入室パスワードの有無をまとめる。
+      // パスワード自体の照合はサーバー側（server/index.jsのWebSocket接続時）。
+      //
+      // ここを絵文字の鍵（🔒）ではなく文字で書くのは、<option>の中に要素を置けない
+      // （HTMLの仕様）ためSVGに揃えられず、絵文字のままだと字面がOSとブラウザ任せに
+      // なるため（js/icons.js冒頭に書いた、絵文字をやめた理由がそのまま当てはまる）。
+      // 読み上げ機に「錠」と読まれていたのも、文字にすることで揃う。
+      // 選択中の部屋については、この下のrenderSelectedRoomがSVGの鍵と説明文を出す。
+      const marks = [];
+      if (room.clients > 0) marks.push(`${room.clients}人`);
+      if (room.locked) marks.push('パスワードあり');
+      option.textContent = (room.name || room.id)
+        + (marks.length > 0 ? `（${marks.join('・')}）` : '');
       entry.select.appendChild(option);
     });
     if (list.some((room) => room.id === previous)) entry.select.value = previous;

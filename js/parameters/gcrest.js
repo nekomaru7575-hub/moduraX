@@ -239,20 +239,49 @@ const USE_PERIODS = [
   { key: 'round', label: 'ラウンド' }
 ];
 
-// 特技。コストの種類は行ごとに選ぶ（MPか天運）。sign:-1で「入力した正の数を減らす」形。
-// 支払いはSET_PARAMETERを通るので、選択肢はeditable:trueのパラメータに限ること。
+// 特技と魔法は1つの一覧にまとめ、「種別」のトグルで切り替える。
+// 別々の一覧にすると、同じ「使う能力」を2か所へ探しに行くことになるため。
+//
+// 種別で意味が変わる欄は availableWhen で出し分ける（docs/plugin-guide.md 6.1）。
+//   レベル   … 魔法には無い。薄く出したまま押せなくする（＝「この種別には無い」と読める）
+//   目標値   … 魔法だけが持つ
+//   コスト   … 特技は種類を選ぶ（MPか天運）。魔法はMPで固定
+// コスト欄を種別ごとに分けてあるのは、支払いを枠組みに任せ切るため。
+// availableWhen が偽の欄は sumSkillCosts が読まないので（skill-use.js）、
+// 「天運を選んだあと魔法へ切り替えたら天運が減る」という取り違えが起きない。
+const KIND_ART = 'art';
+const KIND_SPELL = 'spell';
+const isSpell = (fields) => fields?.kind === KIND_SPELL;
+
 export const GCREST_ART_SPEC = createSkillSpec({
   id: 'gcrest-art',
   noun: '特技',
   componentKey: 'arts',
   fields: [
-    { key: 'level', label: 'レベル', type: 'number', className: 'effect-box-level', formulaName: 'Lv' },
+    {
+      key: 'kind', label: '種別', type: 'toggle',
+      options: [
+        { value: KIND_ART, label: '特技' },
+        { value: KIND_SPELL, label: '魔法' }
+      ]
+    },
+    {
+      key: 'level', label: 'レベル', type: 'number', className: 'effect-box-level',
+      formulaName: 'Lv', availableWhen: fields => !isSpell(fields)
+    },
     { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
     { key: 'target', label: '対象', type: 'text' },
     { key: 'range', label: '射程', type: 'text' },
+    {
+      key: 'targetValue', label: '目標値', type: 'text',
+      availableWhen: isSpell, hideWhenUnavailable: true
+    },
     MC_FIELD,
+    // 特技のコスト。種類を行ごとに選ぶ。支払いはSET_PARAMETERを通るので、
+    // 選択肢はeditable:trueのパラメータに限ること。
     {
       key: 'costType', label: 'コスト種', type: 'select', newRow: true,
+      availableWhen: fields => !isSpell(fields), hideWhenUnavailable: true,
       options: [
         { value: '', label: '（なし）' },
         { value: MP_PARAM_ID, label: 'MP' },
@@ -261,28 +290,13 @@ export const GCREST_ART_SPEC = createSkillSpec({
     },
     {
       key: 'costValue', label: 'コスト', type: 'number',
-      availableWhen: fields => !!fields.costType,
+      availableWhen: fields => !isSpell(fields) && !!fields.costType, hideWhenUnavailable: true,
       onUse: { paramIdFromField: 'costType', sign: -1 }
-    }
-  ],
-  periods: USE_PERIODS,
-  modTargets: MOD_TARGETS,
-  hasUseCommand: true
-});
-
-// 魔法。特技と同じ形で、レベルの代わりに目標値を持ち、コストはMPで固定。
-export const GCREST_SPELL_SPEC = createSkillSpec({
-  id: 'gcrest-spell',
-  noun: '魔法',
-  componentKey: 'spells',
-  fields: [
-    { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
-    { key: 'target', label: '対象', type: 'text' },
-    { key: 'range', label: '射程', type: 'text' },
-    { key: 'targetValue', label: '目標値', type: 'text' },
-    MC_FIELD,
+    },
+    // 魔法のコスト。MPで固定なので種類を選ばせない。
     {
-      key: 'cost', label: 'MP', type: 'number', className: 'effect-box-encroach', newRow: true,
+      key: 'mp', label: 'MP', type: 'number', className: 'effect-box-encroach', newRow: true,
+      availableWhen: isSpell, hideWhenUnavailable: true,
       onUse: { addToParamId: MP_PARAM_ID, sign: -1 }
     }
   ],
@@ -290,6 +304,16 @@ export const GCREST_SPELL_SPEC = createSkillSpec({
   modTargets: MOD_TARGETS,
   hasUseCommand: true
 });
+
+/** その1件が魔法か。ログの呼び名と、使用時の案内に使う。 */
+export function isGcrestSpell(skill) {
+  return isSpell(skill?.fields);
+}
+
+/** 画面とログに出す呼び名。一覧はどちらも「特技」だが、1件ごとには種別で呼び分ける。 */
+function nounOf(skill) {
+  return isGcrestSpell(skill) ? '魔法' : '特技';
+}
 
 // 部隊特技。特技と同じ形だが、コストは士気で固定で、MCの欄を持たない
 // （マスコンバット中しか使えないものなので、1件ごとに可否を持たせる意味が無い）。
@@ -476,12 +500,26 @@ function describeMcBlock(unit, skill) {
 // ------------------------------------------------------------------
 // componentsの読み出し
 // ------------------------------------------------------------------
-export function readGcrestArts(components) {
-  return normalizeSkillList(GCREST_ART_SPEC, components?.[GCREST_ART_SPEC.componentKey] ?? []);
+// 特技と魔法が別々の一覧だった頃のキー。統合前に保存されたコマから拾い上げるためだけに
+// 残してある。読むたびに特技の一覧へ混ぜ、次の保存でarts側へ書かれる（このキーは消えるが、
+// 読み出しは常にこの関数を通るので、書き戻される前でも画面には出る）。
+const LEGACY_SPELL_COMPONENT_KEY = 'spells';
+
+function readLegacySpells(components) {
+  const raw = components?.[LEGACY_SPELL_COMPONENT_KEY];
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+
+  // 旧・魔法の欄（cost）を、統合後の魔法のコスト欄（mp）へ移す。
+  return raw.map(skill => ({
+    ...skill,
+    fields: { ...skill?.fields, kind: KIND_SPELL, mp: skill?.fields?.cost ?? skill?.cost ?? 0 }
+  }));
 }
 
-export function readGcrestSpells(components) {
-  return normalizeSkillList(GCREST_SPELL_SPEC, components?.[GCREST_SPELL_SPEC.componentKey] ?? []);
+export function readGcrestArts(components) {
+  const stored = components?.[GCREST_ART_SPEC.componentKey] ?? [];
+  const list = Array.isArray(stored) ? stored : [];
+  return normalizeSkillList(GCREST_ART_SPEC, [...list, ...readLegacySpells(components)]);
 }
 
 export function readGcrestUnitArts(components) {
@@ -498,13 +536,6 @@ export function readGcrestBonds(components) {
 
 export function readGcrestOaths(components) {
   return normalizeSkillList(GCREST_OATH_SPEC, components?.[GCREST_OATH_SPEC.componentKey] ?? []);
-}
-
-// 画面の出し分けだけを持つ小さな設定。魔法を使わないキャラクターのほうが多いので、
-// 既定はオフ（チェックを入れた人にだけ魔法一覧のボタンが出る）。
-const UI_COMPONENT_KEY = 'ui';
-export function readGcrestUi(components) {
-  return { showSpells: components?.[UI_COMPONENT_KEY]?.showSpells === true };
 }
 
 /**
@@ -834,28 +865,6 @@ function renderGcrestCharacterPanel({
     const learnedGroup = addGroup('習得');
     addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
 
-    // 魔法。使うキャラクターだけがチェックを入れる（componentsのui.showSpells）。
-    // チェックと、それが出し入れするボタンは同じ群の中で隣り合わせに置く。
-    const spellRow = document.createElement('label');
-    spellRow.className = 'gcrest-check-row';
-    const spellCheck = document.createElement('input');
-    spellCheck.type = 'checkbox';
-    spellCheck.checked = readGcrestUi(readComponents()).showSpells;
-    spellCheck.disabled = !canEdit;
-    spellRow.appendChild(spellCheck);
-    spellRow.appendChild(document.createTextNode('魔法を使う'));
-    learnedGroup.appendChild(spellRow);
-
-    const spellBtn = addListButton(learnedGroup, GCREST_SPELL_SPEC, () => readGcrestSpells(readComponents()));
-    const syncSpellBtn = () => { spellBtn.style.display = spellCheck.checked ? '' : 'none'; };
-    syncSpellBtn();
-    spellCheck.addEventListener('change', () => {
-      syncSpellBtn();
-      onComponentChange(UI_COMPONENT_KEY, {
-        ...readComponents()[UI_COMPONENT_KEY], showSpells: spellCheck.checked
-      });
-    });
-
     addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
 
     // --- 部隊 ---
@@ -882,6 +891,18 @@ function renderGcrestCharacterPanel({
             value: Number(current[MORALE_PARAM_ID]?.value) || 0
           },
           readOnly: !canWrite,
+          // 部隊特技は部隊の持ち物なので、部隊ボックスの中から開く。
+          // 一覧そのものは共通の枠組み（showSkillBox）のままで、部隊ボックスは
+          // 「開く口」だけを持つ（あちらはstoreを触らない）。
+          unitArts: {
+            noun: GCREST_UNIT_ART_SPEC.noun,
+            count: () => readGcrestUnitArts(readComponents()).length,
+            open: (onSaved) => openSkillBox(
+              GCREST_UNIT_ART_SPEC,
+              () => readGcrestUnitArts(readComponents()),
+              onSaved
+            )
+          },
           onSave: ({ unit, morale }) => {
             onComponentChange(UNIT_COMPONENT_KEY, unit);
             dispatch('SET_PARAMETER', { characterId: tokenId, paramId: MORALE_PARAM_ID, value: morale });
@@ -892,8 +913,6 @@ function renderGcrestCharacterPanel({
         });
       }
     });
-
-    addListButton(unitGroup, GCREST_UNIT_ART_SPEC, () => readGcrestUnitArts(readComponents()));
 
     const bondGroup = addGroup('関係');
     addListButton(bondGroup, GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
@@ -917,17 +936,16 @@ function renderGcrestCharacterPanel({
 // ------------------------------------------------------------------
 // チャットコマンド
 // ------------------------------------------------------------------
+// 魔法は特技の一覧に統合したので、コマンドも「特技使用(名前)」に一本化してある
+// （種別が魔法の行もこれで使う。ログの呼び名だけ「魔法使用」になる）。
 const ART_USE_PATTERN = buildSkillUseCommandPattern(GCREST_ART_SPEC);
-const SPELL_USE_PATTERN = buildSkillUseCommandPattern(GCREST_SPELL_SPEC);
 const UNIT_ART_USE_PATTERN = buildSkillUseCommandPattern(GCREST_UNIT_ART_SPEC);
 
 // この入力がグランクレストのコマンド構文に見えるか（実行できるかは問わない）。
 // プラグインが適用されていない部屋で打たれたときに理由を返すためだけに使う（副作用を持たせない）。
 function looksLikeGcrestChatCommand(rawInput) {
   const input = String(rawInput).trim();
-  return UNIT_ART_USE_PATTERN.test(input)
-    || ART_USE_PATTERN.test(input)
-    || SPELL_USE_PATTERN.test(input);
+  return UNIT_ART_USE_PATTERN.test(input) || ART_USE_PATTERN.test(input);
 }
 
 /**
@@ -944,8 +962,7 @@ function handleGcrestChatCommand(rawInput, {
   // 取り違えは起きないが、読む順番を書式の具体的なほうからにしておく。
   const matched = [
     { spec: GCREST_UNIT_ART_SPEC, read: readGcrestUnitArts, match: input.match(UNIT_ART_USE_PATTERN) },
-    { spec: GCREST_ART_SPEC, read: readGcrestArts, match: input.match(ART_USE_PATTERN) },
-    { spec: GCREST_SPELL_SPEC, read: readGcrestSpells, match: input.match(SPELL_USE_PATTERN) }
+    { spec: GCREST_ART_SPEC, read: readGcrestArts, match: input.match(ART_USE_PATTERN) }
   ].find(entry => entry.match);
 
   if (!matched) return false;
@@ -975,10 +992,14 @@ function handleGcrestChatCommand(rawInput, {
   } else {
     const blocked = describeMcBlock(unit, skill);
     if (blocked) {
-      alert(`${spec.noun}「${skill.name}」は${blocked}`);
+      alert(`${nounOf(skill)}「${skill.name}」は${blocked}`);
       return true;
     }
   }
+
+  // ログの呼び名は1件ごとの種別で決める（一覧はどちらも「特技」だが、
+  // 使ったのが魔法なら卓には「魔法使用」と出したい）。
+  const logNoun = spec === GCREST_ART_SPEC ? nounOf(skill) : spec.noun;
 
   const tokenId = token.id;
   runSkillUse({
@@ -987,7 +1008,9 @@ function handleGcrestChatCommand(rawInput, {
     allSkills: skills,
     tokenId, dispatch, getToken: () => token, getEffectiveParameterValue, generateBuffId,
     chatCommand: input,
-    logTitle: `${spec.noun}使用: ${skill.name}`,
+    // 発言種別も1件ごとの呼び名に合わせる（本文が「魔法使用」なのに種別が「特技」だと食い違う）
+    logSystem: logNoun,
+    logTitle: `${logNoun}使用: ${skill.name}`,
     onSaveSkills: (nextSkills) => dispatch('SET_COMPONENT', {
       id: tokenId, componentKey: spec.componentKey, value: nextSkills
     })
@@ -999,7 +1022,7 @@ function handleGcrestChatCommand(rawInput, {
 // 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
 function resetGcrestComponentsOnPhaseEnd(components, phase) {
   let next = components;
-  [GCREST_ART_SPEC, GCREST_SPELL_SPEC, GCREST_UNIT_ART_SPEC].forEach(spec => {
+  [GCREST_ART_SPEC, GCREST_UNIT_ART_SPEC].forEach(spec => {
     const key = spec.componentKey;
     const list = next?.[key];
     const nextList = resetSkillUsageOnPhaseEnd(spec, list, phase);

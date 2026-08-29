@@ -68,11 +68,17 @@ function buildNumberInput(value) {
  *   modGroups: Array<{label:string, rows:Array<{key:string, label:string}>}>,
  *     修正値の入力欄。大きい括りごとにまとめて描く。
  *   morale: {label:string, value:number},   士気（パラメータの今の値）
+ *   unitArts?: {noun:string, count:() => number, open:(onSaved:() => void) => void},
+ *     部隊特技の一覧を開く口。一覧そのものは共通の枠組み（showSkillBox）が描くので、
+ *     ここは件数を出してボタンを押すところまでしか持たない。省略すると出さない。
+ *     openへ渡すonSavedは、一覧が保存されたときに呼び返してもらう（件数を引き直すため）。
  *   readOnly?: boolean,
  *   onSave: (result: {unit: object, morale: number}) => void
  * }} options
  */
-export function showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = false, onSave }) {
+export function showGcrestUnitBox({
+  unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave
+}) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
@@ -120,6 +126,27 @@ export function showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = fal
 
   const moraleInput = buildNumberInput(morale?.value);
   appendInfoRow(morale?.label ?? '士気', moraleInput);
+
+  // --- 部隊特技 ---
+  // 士気の直後に置く（部隊特技のコストは士気なので、残量と並べて読めるようにする）。
+  // 一覧は別のダイアログを重ねて開く。あちらは保存すると即座にcomponentsへ書くので、
+  // この部隊ボックスの「保存」を待たない（他のボックスと同じ振る舞い）。
+  if (unitArts) {
+    const artsBtn = createElement('button', 'dialog-add-row-btn gcrest-open-btn');
+    artsBtn.type = 'button';
+
+    const artsLabel = createElement('span', null, unitArts.noun);
+    const artsBadge = createElement('span', 'gcrest-badge');
+    const syncArtsBadge = () => { artsBadge.textContent = `${unitArts.count()}件`; };
+    syncArtsBadge();
+
+    artsBtn.appendChild(artsLabel);
+    artsBtn.appendChild(artsBadge);
+    // showSkillBoxは開いたまま戻ってくるので、押した直後に数えても件数は変わらない。
+    // 保存されたときに呼び返してもらう。
+    artsBtn.addEventListener('click', () => unitArts.open(syncArtsBadge));
+    form.appendChild(artsBtn);
+  }
 
   // --- 修正値 ---
   // 大きい括りごとに見出しを付け、中身は格子に畳む。1列で並べると14件で839pxになり、

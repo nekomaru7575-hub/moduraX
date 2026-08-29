@@ -1,6 +1,6 @@
 ---
 source: js/parameters/skill/skill-model.js
-lines: 664
+lines: 663
 exports: 18
 imported_by: 12
 api_sha: 4be371c9a6c9
@@ -38,13 +38,13 @@ tags: [codemap]
 | 341 | fn | buildSkillUseCommand | `buildSkillUseCommand(spec, skillName)` |  |
 | 422 | fn | normalizeSkill | `normalizeSkill(spec, raw)` | 保存済みの1件を、欠けたフィールドを補った正規形へ揃える。 |
 | 511 | fn | normalizeSkillList | `normalizeSkillList(spec, rawList)` | componentsに保存された一覧を正規形の配列にする。 |
-| 530 | fn | findSkillByName | `findSkillByName(skills, name)` | 一覧から名前（完全一致）で1件引く。 |
-| 538 | fn | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 修正1件の解析結果（値＋なぜその値になったか）。 |
-| 546 | fn | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 複数の修正のうち、追加欄の値が最も小さいもの（DX3のクリティカル値下限は 一番低い＝一番緩いものを適用する）を1つのmetaにまとめる。 |
-| 564 | fn | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | このスキルを今使えるか。 |
-| 600 | fn | collectModProblems | `collectModProblems(spec, skills, context)` | 修正値の式のうち、評価できず0になったものの説明。 |
-| 624 | fn | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 指定スキルの使用回数を全期間+1した新しい一覧を返す（上限が無い期間も記録だけはしておく）。 |
-| 644 | fn | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | フェーズ終了で、その期間の使用回数を0へ戻す。 |
+| 529 | fn | findSkillByName | `findSkillByName(skills, name)` | 一覧から名前（完全一致）で1件引く。 |
+| 537 | fn | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 修正1件の解析結果（値＋なぜその値になったか）。 |
+| 545 | fn | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 複数の修正のうち、追加欄の値が最も小さいもの（DX3のクリティカル値下限は 一番低い＝一番緩いものを適用する）を1つのmetaにまとめる。 |
+| 563 | fn | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | このスキルを今使えるか。 |
+| 599 | fn | collectModProblems | `collectModProblems(spec, skills, context)` | 修正値の式のうち、評価できず0になったものの説明。 |
+| 623 | fn | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 指定スキルの使用回数を全期間+1した新しい一覧を返す（上限が無い期間も記録だけはしておく）。 |
+| 643 | fn | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | フェーズ終了で、その期間の使用回数を0へ戻す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（24）
 
@@ -69,14 +69,14 @@ tags: [codemap]
 | 386 | normalizeMod | `normalizeMod(spec, raw)` | 20 |  |
 | 407 | normalizeCondition | `normalizeCondition(raw)` | 7 |  |
 | 422 | normalizeSkill | `normalizeSkill(spec, raw)` | 74 | ✓ |
-| 511 | normalizeSkillList | `normalizeSkillList(spec, rawList)` | 17 | ✓ |
-| 530 | findSkillByName | `findSkillByName(skills, name)` | 3 | ✓ |
-| 538 | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 3 | ✓ |
-| 546 | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 11 | ✓ |
-| 564 | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | 31 | ✓ |
-| 600 | collectModProblems | `collectModProblems(spec, skills, context)` | 19 | ✓ |
-| 624 | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 14 | ✓ |
-| 644 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 20 | ✓ |
+| 511 | normalizeSkillList | `normalizeSkillList(spec, rawList)` | 16 | ✓ |
+| 529 | findSkillByName | `findSkillByName(skills, name)` | 3 | ✓ |
+| 537 | analyzeMod | `analyzeMod(spec, skill, mod, { token, getEffectiveParameterValue })` | 3 | ✓ |
+| 545 | buildLowestModMeta | `buildLowestModMeta(spec, paramId, mods)` | 11 | ✓ |
+| 563 | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | 31 | ✓ |
+| 599 | collectModProblems | `collectModProblems(spec, skills, context)` | 19 | ✓ |
+| 623 | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 14 | ✓ |
+| 643 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 20 | ✓ |
 
 ## 依存
 

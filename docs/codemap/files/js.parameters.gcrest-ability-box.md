@@ -1,6 +1,6 @@
 ---
 source: js/parameters/gcrest-ability-box.js
-lines: 242
+lines: 231
 exports: 1
 imported_by: 1
 api_sha: b3946a518a90
@@ -35,7 +35,7 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 20 | createElement | `createElement(tag, className, text)` | 6 |  |
-| 47 | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | 195 | ✓ |
+| 47 | showGcrestAbilityBox | `showGcrestAbilityBox({ readData, editable = false, onSave, onAddFreeSkill, onRemoveFreeSkill })` | 184 | ✓ |
 
 ## 依存
 

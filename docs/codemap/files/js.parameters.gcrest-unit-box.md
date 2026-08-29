@@ -1,10 +1,10 @@
 ---
 source: js/parameters/gcrest-unit-box.js
-lines: 203
+lines: 217
 exports: 1
 imported_by: 1
-api_sha: 86a23337bb92
-prose_sha: 86a23337bb92
+api_sha: 40692417b956
+prose_sha: 40692417b956
 generated: 2026-08-29
 tags: [codemap]
 ---
@@ -18,14 +18,14 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-コマ1体につき1つ持つ部隊（MC・ポジション・部隊名・士気・修正値）を編集する。1件だけのレコードに項目ごとの修正値がぶら下がる形は共通のスキル枠組みでは書けないので、ここに専用のUIを持つ。値を集めて onSave へ渡すだけで、修正値をバフにする・士気の表示を切り替えるといった判断は [[js.parameters.gcrest]] が持つ。士気は components ではなくパラメータ（GCREST:morale）が唯一の真実。
+コマ1体につき1つ持つ部隊（MC・ポジション・部隊名・士気・部隊特技・修正値）を編集する。部隊特技の一覧そのものは共通の枠組み（[[js.parameters.skill.skill-box]]）が別のダイアログで描き、ここは開く口と件数だけを持つ。1件だけのレコードに項目ごとの修正値がぶら下がる形は共通のスキル枠組みでは書けないので、ここに専用のUIを持つ。値を集めて onSave へ渡すだけで、修正値をバフにする・士気の表示を切り替えるといった判断は [[js.parameters.gcrest]] が持つ。士気は components ではなくパラメータ（GCREST:morale）が唯一の真実。
 <!-- /prose:role -->
 
 ## export（1）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 75 | fn | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = false, onSave })` | unit: {mc:boolean, position:'FW'\|'CT', name:string, mods:Record<string, number>}, 正規化済みの部隊データ（gcrest.jsのnorm… |
+| 79 | fn | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | unit: {mc:boolean, position:'FW'\|'CT', name:string, mods:Record<string, number>}, 正規化済みの部隊データ（gcrest.jsのnorm… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -37,7 +37,7 @@ tags: [codemap]
 | 21 | createElement | `createElement(tag, className, text)` | 6 |  |
 | 29 | buildToggle | `buildToggle(options, value, title)` | 25 |  |
 | 55 | buildNumberInput | `buildNumberInput(value)` | 8 |  |
-| 75 | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = false, onSave })` | 128 | ✓ |
+| 79 | showGcrestUnitBox | `showGcrestUnitBox({ unit, modGroups = [], morale, unitArts = null, readOnly = false, onSave })` | 138 | ✓ |
 
 ## 依存
 

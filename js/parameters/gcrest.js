@@ -629,9 +629,8 @@ function renderGcrestCharacterPanel({
   if (canWrite) renameInitiativeToAction({ readParameters, dispatch, tokenId });
 
   const title = document.createElement('h4');
+  title.className = 'gcrest-panel-title';
   title.textContent = 'グランクレスト戦記RPG';
-  title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
   container.appendChild(title);
 
   const list = document.createElement('div');
@@ -642,11 +641,8 @@ function renderGcrestCharacterPanel({
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
     const label = document.createElement('label');
-    label.className = 'dialog-param-label';
+    label.className = 'dialog-param-label gcrest-row-label';
     label.textContent = labelText;
-    label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
-    label.style.fontSize = '0.85rem';
     row.appendChild(label);
     list.appendChild(row);
     return row;
@@ -709,12 +705,21 @@ function renderGcrestCharacterPanel({
   // 値はeditable:falseなので、部屋の外のコマ作成ツール（allowParameterEdit:true）でだけ
   // 入力欄になる。書き込みはIMPORT_CHARACTER_DATAのvalueOverrides
   // （js/parameters/arianrhod-ability-box.jsと同じ経路）。
+  // 能力・技能はキャラクターの数値そのものなので、脇の一覧より重い見た目にする（is-primary）。
   const canEditAbilityValues = allowParameterEdit && canWrite;
+  const abilityGroup = document.createElement('div');
+  abilityGroup.className = 'gcrest-group';
+  const abilityGroupTitle = document.createElement('div');
+  abilityGroupTitle.className = 'gcrest-group-title';
+  abilityGroupTitle.textContent = '能力値';
+  abilityGroup.appendChild(abilityGroupTitle);
+
   const abilityBtn = document.createElement('button');
   abilityBtn.type = 'button';
-  abilityBtn.className = 'dialog-add-row-btn';
-  abilityBtn.style.marginTop = '8px';
-  abilityBtn.textContent = canEditAbilityValues ? '能力・技能を編集' : '能力・技能';
+  abilityBtn.className = 'dialog-add-row-btn gcrest-open-btn is-primary';
+  const abilityBtnLabel = document.createElement('span');
+  abilityBtnLabel.textContent = canEditAbilityValues ? '能力・技能を編集' : '能力・技能';
+  abilityBtn.appendChild(abilityBtnLabel);
   abilityBtn.addEventListener('click', () => {
     showGcrestAbilityBox({
       // 開いた後に枠を足しても巻き戻らないよう、ボックスから都度最新のparametersを読ませる
@@ -748,22 +753,58 @@ function renderGcrestCharacterPanel({
         : undefined
     });
   });
-  container.appendChild(abilityBtn);
+  abilityGroup.appendChild(abilityBtn);
+  container.appendChild(abilityGroup);
 
   // --- 各種一覧 ---
   // 既存のコマの更新時のみ開ける（新規作成時はまだcomponentsを持たないため対象外）。
   if (mode === 'edit' && onComponentChange) {
-    // ボックスを開くボタン。件数を見出しに出すので、保存されたら引き直す
-    // （showSkillBoxは開いたまま戻ってくるので、押した直後ではなく保存の後で数える）。
-    const addBoxButton = ({ label, onClick }) => {
+    // ボタンの群。見出し1つとボタン数個で1まとまり。
+    // 8個を同じ見た目で縦に並べると「どれが本体でどれが脇か」が読めないので、
+    // 意味ごとに区切る（css/character-dialog.css の .gcrest-group）。
+    const addGroup = (title) => {
+      const group = document.createElement('div');
+      group.className = 'gcrest-group';
+      const heading = document.createElement('div');
+      heading.className = 'gcrest-group-title';
+      heading.textContent = title;
+      group.appendChild(heading);
+      container.appendChild(group);
+      return group;
+    };
+
+    // ボックスを開くボタン。ラベルは短く左、件数や状態は右のバッジへ分ける。
+    // 「一覧を開く」を全ボタンに付けると、8個中7個が同じ語尾になって区別に効かない。
+    // 件数は保存されたら引き直す（showSkillBoxは開いたまま戻ってくるので、
+    // 押した直後ではなく保存の後で数える）。
+    const addBoxButton = ({ parent, label, badge, primary = false, onClick }) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'dialog-add-row-btn';
-      btn.style.marginTop = '8px';
-      const sync = () => { btn.textContent = label(); };
+      btn.className = `dialog-add-row-btn gcrest-open-btn${primary ? ' is-primary' : ''}`;
+
+      const labelEl = document.createElement('span');
+      labelEl.textContent = label();
+      btn.appendChild(labelEl);
+
+      let badgeEl = null;
+      if (badge) {
+        badgeEl = document.createElement('span');
+        badgeEl.className = 'gcrest-badge';
+        btn.appendChild(badgeEl);
+      }
+
+      const sync = () => {
+        labelEl.textContent = label();
+        if (!badgeEl) return;
+        const next = badge();
+        badgeEl.textContent = next.text;
+        // 意味を持つ状態（部隊のMCがON）のときだけ浮かせる。件数は沈めたまま。
+        badgeEl.classList.toggle('is-on', next.on === true);
+      };
       sync();
+
       btn.addEventListener('click', () => onClick(sync));
-      container.appendChild(btn);
+      (parent ?? container).appendChild(btn);
       return btn;
     };
 
@@ -783,30 +824,29 @@ function renderGcrestCharacterPanel({
     };
 
     // 一覧のボックスはどれも同じ形（開く → 保存したら件数を引き直す）。
-    const addListButton = (spec, readList) => addBoxButton({
-      label: () => `${spec.noun}一覧を開く（${readList().length}件）`,
+    const addListButton = (parent, spec, readList) => addBoxButton({
+      parent,
+      label: () => spec.noun,
+      badge: () => ({ text: `${readList().length}件` }),
       onClick: (sync) => openSkillBox(spec, readList, sync)
     });
 
-    addListButton(GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
+    const learnedGroup = addGroup('習得');
+    addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
 
     // 魔法。使うキャラクターだけがチェックを入れる（componentsのui.showSpells）。
+    // チェックと、それが出し入れするボタンは同じ群の中で隣り合わせに置く。
     const spellRow = document.createElement('label');
-    spellRow.style.display = 'flex';
-    spellRow.style.alignItems = 'center';
-    spellRow.style.gap = '6px';
-    spellRow.style.marginTop = '8px';
-    spellRow.style.color = '#ccc';
-    spellRow.style.fontSize = '0.85rem';
+    spellRow.className = 'gcrest-check-row';
     const spellCheck = document.createElement('input');
     spellCheck.type = 'checkbox';
     spellCheck.checked = readGcrestUi(readComponents()).showSpells;
     spellCheck.disabled = !canEdit;
     spellRow.appendChild(spellCheck);
     spellRow.appendChild(document.createTextNode('魔法を使う'));
-    container.appendChild(spellRow);
+    learnedGroup.appendChild(spellRow);
 
-    const spellBtn = addListButton(GCREST_SPELL_SPEC, () => readGcrestSpells(readComponents()));
+    const spellBtn = addListButton(learnedGroup, GCREST_SPELL_SPEC, () => readGcrestSpells(readComponents()));
     const syncSpellBtn = () => { spellBtn.style.display = spellCheck.checked ? '' : 'none'; };
     syncSpellBtn();
     spellCheck.addEventListener('change', () => {
@@ -816,18 +856,22 @@ function renderGcrestCharacterPanel({
       });
     });
 
-    addListButton(GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
+    addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
 
     // --- 部隊 ---
-    // 見出しに部隊名とMCの状態を出す。MCの入り切りはここでしか変えられないので、
-    // ボックスを開かなくても今どちらなのかが読めるようにしてある。
-    const unitButtonLabel = () => {
-      const unit = readGcrestUnit(readComponents());
-      const state = unit.mc ? `ON／${unit.position}` : 'OFF';
-      return `部隊${unit.name ? `「${unit.name}」` : ''}を開く（MC：${state}）`;
-    };
+    // MCの状態はバッジで出す。件数と違って「今どちらか」で使える特技が変わるので、
+    // ONのときだけ浮かせて、ボックスを開かなくても読めるようにしてある。
+    const unitGroup = addGroup('マスコンバット');
     addBoxButton({
-      label: unitButtonLabel,
+      parent: unitGroup,
+      label: () => {
+        const unit = readGcrestUnit(readComponents());
+        return unit.name ? `部隊 ${unit.name}` : '部隊';
+      },
+      badge: () => {
+        const unit = readGcrestUnit(readComponents());
+        return unit.mc ? { text: `MC ${unit.position}`, on: true } : { text: 'MC オフ' };
+      },
       onClick: (sync) => {
         const current = readParameters();
         showGcrestUnitBox({
@@ -849,13 +893,16 @@ function renderGcrestCharacterPanel({
       }
     });
 
-    addListButton(GCREST_UNIT_ART_SPEC, () => readGcrestUnitArts(readComponents()));
+    addListButton(unitGroup, GCREST_UNIT_ART_SPEC, () => readGcrestUnitArts(readComponents()));
 
-    addListButton(GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
+    const bondGroup = addGroup('関係');
+    addListButton(bondGroup, GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
 
-    // 誓いは枠が3つで固定なので件数は出さない（数えても常に3）。
+    // 誓いは枠が3つで固定なので件数は数えない（常に3）。
     addBoxButton({
-      label: () => `${GCREST_OATH_SPEC.noun}を開く（${GCREST_OATH_SPEC.defaultSkills.length}枠）`,
+      parent: bondGroup,
+      label: () => GCREST_OATH_SPEC.noun,
+      badge: () => ({ text: `${GCREST_OATH_SPEC.defaultSkills.length}枠` }),
       onClick: () => openSkillBox(GCREST_OATH_SPEC, () => readGcrestOaths(readComponents()))
     });
   }

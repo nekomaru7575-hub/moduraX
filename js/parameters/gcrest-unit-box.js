@@ -57,7 +57,7 @@ function buildNumberInput(value) {
   input.type = 'number';
   input.step = '1';
   input.value = Math.trunc(Number(value) || 0);
-  input.style.width = '5em';
+  // 幅は .dialog-custom-row input[type="number"]（38px固定）が持つ。ここで指定しても効かない。
   return input;
 }
 
@@ -79,21 +79,13 @@ export function showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = fal
   const form = document.createElement('form');
   form.appendChild(createElement('h3', null, '部隊'));
 
-  const note = createElement('p', null,
-    'MCをオンにすると、下の修正値が自分へのバフとして掛かり、部隊特技が使えるようになります。オフにすると修正は外れます。');
-  note.style.color = '#888';
-  note.style.fontSize = '0.8rem';
-  form.appendChild(note);
+  form.appendChild(createElement('p', 'gcrest-note',
+    'MCをオンにすると、下の修正値が自分へのバフとして掛かり、部隊特技が使えるようになります。オフにすると修正は外れます。'));
 
   // --- 1行目：MC と ポジション ---
   const stateRow = createElement('div', 'effect-box-header-row');
 
-  const mcLabel = document.createElement('label');
-  mcLabel.style.display = 'flex';
-  mcLabel.style.alignItems = 'center';
-  mcLabel.style.gap = '6px';
-  mcLabel.style.color = '#ccc';
-  mcLabel.style.fontSize = '0.85rem';
+  const mcLabel = createElement('label', 'gcrest-check-row');
   const mcCheck = document.createElement('input');
   mcCheck.type = 'checkbox';
   mcCheck.checked = unit.mc === true;
@@ -115,11 +107,7 @@ export function showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = fal
 
   const appendInfoRow = (labelText, control) => {
     const row = createElement('div', 'dialog-custom-row');
-    const label = createElement('label', 'dialog-param-label', labelText);
-    label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
-    label.style.fontSize = '0.85rem';
-    row.appendChild(label);
+    row.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', labelText));
     row.appendChild(control);
     infoList.appendChild(row);
   };
@@ -134,29 +122,28 @@ export function showGcrestUnitBox({ unit, modGroups = [], morale, readOnly = fal
   appendInfoRow(morale?.label ?? '士気', moraleInput);
 
   // --- 修正値 ---
+  // 大きい括りごとに見出しを付け、中身は格子に畳む。1列で並べると14件で839pxになり、
+  // ノートPCの画面に収まらずスクロールして、上のMCとポジションが見えなくなるため
+  // （css/character-dialog.css の .gcrest-mod-grid）。
   const modInputs = new Map();
 
   modGroups.forEach(group => {
-    const groupTitle = createElement('div', 'effect-box-combo-title', group.label);
-    form.appendChild(groupTitle);
+    const groupEl = createElement('div', 'gcrest-mod-group');
+    groupEl.appendChild(createElement('div', 'gcrest-mod-group-title', group.label));
 
-    const groupList = createElement('div', 'dialog-custom-list');
-    form.appendChild(groupList);
-
+    const grid = createElement('div', 'gcrest-mod-grid');
     group.rows.forEach(row => {
       const rowEl = createElement('div', 'dialog-custom-row');
-      const label = createElement('label', 'dialog-param-label', row.label);
-      label.style.alignSelf = 'center';
-      label.style.color = '#ccc';
-      label.style.fontSize = '0.85rem';
+      rowEl.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', row.label));
 
       const input = buildNumberInput(unit.mods?.[row.key]);
       modInputs.set(row.key, input);
-
-      rowEl.appendChild(label);
       rowEl.appendChild(input);
-      groupList.appendChild(rowEl);
+      grid.appendChild(rowEl);
     });
+
+    groupEl.appendChild(grid);
+    form.appendChild(groupEl);
   });
 
   // --- ボタン ---

@@ -112,11 +112,8 @@ export function showGcrestAbilityBox({
     form.appendChild(createElement('h3', null, canEditValues ? '能力・技能を編集' : '能力・技能'));
 
     if (!canEditValues) {
-      const note = createElement('p', null,
-        'これらの値は部屋の中では編集できません。コマ作成ツール（キャラクター作成）で入力してから部屋へ持ち込んでください。');
-      note.style.color = '#888';
-      note.style.fontSize = '0.8rem';
-      form.appendChild(note);
+      form.appendChild(createElement('p', 'gcrest-note',
+        'これらの値は部屋の中では編集できません。コマ作成ツール（キャラクター作成）で入力してから部屋へ持ち込んでください。'));
     }
 
     const groupListEl = createElement('div', 'ability-box-group-list');
@@ -189,11 +186,7 @@ export function showGcrestAbilityBox({
 
     const appendCombatRow = (label, valueEl) => {
       const row = createElement('div', 'dialog-custom-row');
-      const labelEl = createElement('label', 'dialog-param-label', label);
-      labelEl.style.alignSelf = 'center';
-      labelEl.style.color = '#ccc';
-      labelEl.style.fontSize = '0.85rem';
-      row.appendChild(labelEl);
+      row.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', label));
       row.appendChild(valueEl);
       combatList.appendChild(row);
     };
@@ -202,16 +195,12 @@ export function showGcrestAbilityBox({
       if (canEditValues) {
         appendCombatRow(row.label, buildValueInput(row.paramId, row.value));
       } else {
-        const valueEl = createElement('span', null, String(row.value));
-        valueEl.style.color = '#fff';
-        appendCombatRow(row.label, valueEl);
+        appendCombatRow(row.label, createElement('span', 'gcrest-row-value', String(row.value)));
       }
     });
 
     // 所持重量は持ち物から自動で決まるので、いつでも表示だけ。
-    const loadEl = createElement('span', null, String(loadRow.value));
-    loadEl.style.color = '#fff';
-    appendCombatRow(loadRow.label, loadEl);
+    appendCombatRow(loadRow.label, createElement('span', 'gcrest-row-value', String(loadRow.value)));
 
     const btnRow = createElement('div', 'dialog-button-row');
 

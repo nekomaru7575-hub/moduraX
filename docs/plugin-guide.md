@@ -476,6 +476,27 @@ function importMyCharacterJson(json) {
 
 実装しない場合は Core の汎用読み込み（`js/character-json-import.js`）が使われる。
 
+**シートの値を読む小道具**が `js/parameters/sheet-source.js` にある。自前で書き直さないこと。
+
+| 関数 | 使いどころ |
+|---|---|
+| `sheetText(v)` | 文字列欄。未記入を空文字へそろえる |
+| `sheetRichText(v)` | 効果のような書式付きの欄。HTMLの実体参照（`&amp;lt;炎熱&amp;gt;`）と `<br>` を元へ戻す。**この値を `innerHTML` へ渡さないこと**（渡すなら `js/html-escape.js` の `escapeHtml` を通す） |
+| `assignSheetNumber(target, paramId, v)` | 数値欄。`"―"` や空欄は**キーごと生やさない**ので、既定値がそのまま残る |
+
+**`valueOverrides` は数値しか通らない**（`js/store/handlers/characters.js` の
+`IMPORT_CHARACTER_DATA`）。文字列を入れたいパラメータは `newParameters` に
+`buildParameters` で組んで渡すこと。
+
+一覧（`components`）は `{ name, note, fields: {...} }` の配列にして、**最後に必ず
+`normalizeSkillList(SPEC, list)` を通す**。空名の行はそこで落ちるので、シートが返す
+空の枠を自分で除いておかなくてよい。数値の欄は `type: 'number'` なら文字列のまま渡しても
+数へ寄る。逆に `"12+3D"` のような式を保ちたい欄は `type: 'text'` にすること（number だと 0 へ潰れる）。
+
+**冒頭で「自分のシートか」を判定すること。** 他システムのシートを読ませたときに
+`null` を返さないと、黙って空のコマができる（`js/parameters/stella-knights.js` の
+`looksLikeSheet`、`js/parameters/gcrest.js` の `looksLikeGcrestSheet`）。
+
 ---
 
 ### 3.8.1 `characterSheetSource`
@@ -1244,8 +1265,8 @@ npm run dev
 2. `js/parameters/registry.js` — フックの一覧と、各フックの契約（JSDoc が正）
 3. `js/parameters/shinobigami.js` — 共通フレームワークを一通り使っている実例
 4. `js/parameters/dx3.js` — パラメータ定義が最も多い実例
-5. `js/parameters/gcrest.js` — スキル枠組みを4種類（特技・魔法・アイテム・一覧）並べ、
-   足りない分だけ専用ボックスを書いた実例
+5. `js/parameters/gcrest.js` — スキル枠組みを1つの一覧へまとめる（種別トグル）実例と、
+   シートのJSONを読む実例（`importGcrestCharacterJson`）
 6. `docs/codemap/INDEX.md` — 全ファイルの役割一覧
 
 **迷ったら `registry.js` の JSDoc が正**。この文書と食い違っていたら、そちらを信じて

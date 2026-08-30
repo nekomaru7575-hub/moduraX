@@ -21,6 +21,7 @@ import { runSkillUse } from './skill/skill-use.js';
 import { showSkillBox } from './skill/skill-box.js';
 import { showGcrestAbilityBox } from './gcrest-ability-box.js';
 import { showGcrestUnitBox } from './gcrest-unit-box.js';
+import { sheetText, sheetRichText, assignSheetNumber } from './sheet-source.js';
 
 const SOURCE = 'GCREST';
 const paramId = (key) => `${SOURCE}:${key}`;
@@ -126,7 +127,6 @@ export const GCREST_SKILL_GROUPS = [
 
 const FIXED_SKILLS = GCREST_SKILL_GROUPS.flatMap(group => group.skills);
 
-// 防御力4種。攻撃力と並んでダメージ計算の受け皿になる。
 // 防御力4種。攻撃力と並んでダメージ計算の受け皿になる。
 // shortLabelは、既に「防御力」の見出しが付いている場所で使う短い名前
 // （部隊の修正値。「防御力」を4回繰り返さないため）。
@@ -275,10 +275,11 @@ export const GCREST_ART_SPEC = createSkillSpec({
     { key: 'timing', label: 'タイミング', type: 'text', className: 'effect-box-timing' },
     { key: 'target', label: '対象', type: 'text' },
     { key: 'range', label: '射程', type: 'text' },
-    {
-      key: 'targetValue', label: '目標値', type: 'text',
-      availableWhen: isSpell, hideWhenUnavailable: true
-    },
+    // 何を振るか（自動成功／白兵技能／〈重武器〉）。シートの「判定」欄。
+    { key: 'check', label: '判定', type: 'text' },
+    // 特技では難易度（―／対決）、魔法では目標値。同じ「どこまで届けばよいか」の欄なので
+    // 1つにまとめ、種別によらず出す。
+    { key: 'targetValue', label: '難易度／目標値', type: 'text' },
     MC_FIELD,
     // 特技のコスト。種類を行ごとに選ぶ。支払いはSET_PARAMETERを通るので、
     // 選択肢はeditable:trueのパラメータに限ること。
@@ -349,15 +350,110 @@ export const GCREST_ITEM_SPEC = createItemSpec({
   fields: [
     { key: 'weight', label: '重量', type: 'number', className: 'effect-box-level' }
   ],
-  // 所持重量／所持可能重量。画面の今の値で毎回引かれるので、重量や数を直した瞬間に動く。
+  // 画面の今の値で毎回引かれるので、重量や数を直した瞬間に動く。
   // 上限を超えたら赤字になる（skill-box.jsの.effect-box-footer.is-over）。
+  //
+  // ここに出すのは**アイテムだけ**の重量。装備を含めた合計は所持重量のパラメータが持ち、
+  // 能力・技能ボックスの「戦闘・移動」に出る（この一覧からは装備の中身が見えないため、
+  // 同じ「所持重量」という語を別の意味で使わない）。
   footerNote: ({ skills, parameters }) => {
-    const load = sumGcrestItemWeight(skills);
+    const weight = sumGcrestItemWeight(skills);
     const limit = Number(parameters?.[LOAD_MAX_PARAM_ID]?.value) || 0;
     return {
-      text: `所持重量 ${load} ／ 所持可能重量 ${limit}`,
-      warning: load > limit
+      text: `アイテムの重量 ${weight} ／ 所持可能重量 ${limit}`,
+      warning: weight > limit
     };
+  }
+});
+
+// 装備（武器・防具・乗騎）。
+//
+// 3種類を1つの一覧にまとめ、行ごとの「種別」トグルで切り替える（特技と魔法と同じ形）。
+// 3つの一覧に割ると、同じ「身に着けているもの」を3か所へ探しに行くことになるため。
+// 種別で意味が変わる欄は availableWhen で出し分ける。
+//
+// 使う・回数を数える・修正が乗るという概念を持たないので createListSpec。
+// **装備は値を持つだけで、防御力や移動力のパラメータを動かさない。** シートは装備込みの
+// 合計値を別に持っており（armorTotalDef*・sttMoveTotal は装備の -7 を含む）、
+// 取り込みではそちらをパラメータへ入れる。ここで二重に計算すると、どちらが正かが決まらない。
+// 例外は重量で、所持重量はアイテムと装備の合計から自動で決まる（computeGcrestDerivedParameters）。
+const EQUIP_WEAPON = 'weapon';
+const EQUIP_ARMOR = 'armor';
+const EQUIP_VEHICLE = 'vehicle';
+const isWeapon = (fields) => fields?.kind === EQUIP_WEAPON;
+const isArmor = (fields) => fields?.kind === EQUIP_ARMOR;
+const isVehicle = (fields) => fields?.kind === EQUIP_VEHICLE;
+// 防御力と回避は防具と乗騎が共通で持つ。
+const hasDefence = (fields) => isArmor(fields) || isVehicle(fields);
+// 命中と攻撃力は武器と乗騎。
+const hasAttack = (fields) => isWeapon(fields) || isVehicle(fields);
+
+export const GCREST_EQUIPMENT_SPEC = createListSpec({
+  id: 'gcrest-equipment',
+  noun: '装備',
+  componentKey: 'equipment',
+  fields: [
+    {
+      key: 'kind', label: '種別', type: 'toggle',
+      options: [
+        { value: EQUIP_WEAPON, label: '武器' },
+        { value: EQUIP_ARMOR, label: '防具' },
+        { value: EQUIP_VEHICLE, label: '乗騎' }
+      ]
+    },
+    // 「重武器（大剣）」「鎧／金属」のような分類。乗騎は持たない。
+    {
+      key: 'type', label: '種別（分類）', type: 'text',
+      availableWhen: fields => isWeapon(fields) || isArmor(fields), hideWhenUnavailable: true
+    },
+    {
+      key: 'skill', label: '技能', type: 'text',
+      availableWhen: isWeapon, hideWhenUnavailable: true
+    },
+    {
+      key: 'acc', label: '命中', type: 'number', className: 'effect-box-level',
+      availableWhen: hasAttack, hideWhenUnavailable: true
+    },
+    // 攻撃力は「12+3D」のようなダイス式で来るので text。number にすると
+    // normalizeSkill の toNumber が 0 へ潰す（js/parameters/skill/skill-model.js）。
+    {
+      key: 'atk', label: '攻撃力', type: 'text',
+      availableWhen: hasAttack, hideWhenUnavailable: true
+    },
+    {
+      key: 'guard', label: 'ガード', type: 'number', className: 'effect-box-level',
+      availableWhen: isWeapon, hideWhenUnavailable: true
+    },
+    // 「0Sq」のような単位付きで来るので text。
+    {
+      key: 'range', label: '射程', type: 'text',
+      availableWhen: isWeapon, hideWhenUnavailable: true
+    },
+    // 防御力4種。次の段へ送って、上の段（何であるか）と読み分ける。
+    ...DEFENSES.map((def, index) => ({
+      key: def.key, label: def.shortLabel, type: 'number', className: 'effect-box-level',
+      newRow: index === 0, availableWhen: hasDefence, hideWhenUnavailable: true
+    })),
+    {
+      key: 'eva', label: '回避', type: 'number', className: 'effect-box-level',
+      availableWhen: hasDefence, hideWhenUnavailable: true
+    },
+    // 行動値・移動力は3種別すべてが持つ。重量は乗騎だけ持たない（乗るものなので担がない）。
+    { key: 'init', label: '行動値', type: 'number', className: 'effect-box-level', newRow: true },
+    { key: 'move', label: '移動力', type: 'number', className: 'effect-box-level' },
+    {
+      key: 'weight', label: '重量', type: 'number', className: 'effect-box-level',
+      availableWhen: fields => !isVehicle(fields), hideWhenUnavailable: true
+    }
+  ],
+  // 装備の合計。シートの armorTotal* / weaponTotal* と同じものを画面側で出し直す
+  // （取り込みでは合計欄を読まず、1件ずつを持つため）。
+  footerNote: ({ skills }) => {
+    const defence = DEFENSES.map(def => {
+      const total = skills.reduce((sum, item) => sum + (Number(item.fields?.[def.key]) || 0), 0);
+      return `${def.shortLabel}${total}`;
+    }).join('／');
+    return { text: `防御力 ${defence} ・ 重量 ${sumGcrestItemWeight(skills)}` };
   }
 });
 
@@ -536,6 +632,12 @@ export function readGcrestUnitArts(components) {
   return normalizeSkillList(GCREST_UNIT_ART_SPEC, components?.[GCREST_UNIT_ART_SPEC.componentKey] ?? []);
 }
 
+export function readGcrestEquipment(components) {
+  return normalizeSkillList(
+    GCREST_EQUIPMENT_SPEC, components?.[GCREST_EQUIPMENT_SPEC.componentKey] ?? []
+  );
+}
+
 export function readGcrestItems(components) {
   return normalizeSkillList(GCREST_ITEM_SPEC, components?.[GCREST_ITEM_SPEC.componentKey] ?? []);
 }
@@ -563,9 +665,16 @@ export function sumGcrestItemWeight(items) {
 
 // 持ち物から決まる値（所持重量）。SET_COMPONENTのたびに呼び直される
 // （js/parameters/registry.jsのapplyPluginDerivedParameters）。
+//
+// アイテムと装備の両方を数える。シートの totalWeight もその合計で
+// （この例では アイテム8＋防具8＋武器10＝26 で sttMaxWeight と並ぶ）、装備を外すと
+// 取り込んだ直後に所持重量だけがシートと食い違う。
+// sumGcrestItemWeight は個数を持たない行を1個として数えるので、装備にもそのまま使える。
 function computeGcrestDerivedParameters(parameters, components = {}) {
+  const items = sumGcrestItemWeight(readGcrestItems(components));
+  const equipment = sumGcrestItemWeight(readGcrestEquipment(components));
   return {
-    [LOAD_PARAM_ID]: sumGcrestItemWeight(readGcrestItems(components))
+    [LOAD_PARAM_ID]: items + equipment
   };
 }
 
@@ -880,6 +989,7 @@ function renderGcrestCharacterPanel({
     const learnedGroup = addGroup();
     addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
 
+    addListButton(learnedGroup, GCREST_EQUIPMENT_SPEC, () => readGcrestEquipment(readComponents()));
     addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
 
     // --- 部隊 ---
@@ -1046,6 +1156,328 @@ function resetGcrestComponentsOnPhaseEnd(components, phase) {
   return next;
 }
 
+// ------------------------------------------------------------------
+// キャラクターシートの取り込み
+// ------------------------------------------------------------------
+// 対象はゆとシート（yutorize.work の ytsheet/gc）が書き出すJSON。
+// ファイルから読ませる道（盤面の「JSONを読み込む」／コマ作成ツール）だけを受ける。
+// URLから取る道（characterSheetSource）は宣言していない：あちらはサーバーが外部へ
+// 取りに行く経路なので、生JSONを返す口を確かめてから足すこと。
+//
+// シートにあってこのアプリが持っていない項目（クラス・スタイル・ワークス・レベル・
+// 経験点・能力値そのもの）は取り込まない。プラグインが持つのは能力「判定値」だけで、
+// パラメータ化していないものを隠しパラメータとして持たせても画面のどこにも出ないため。
+
+// シートの能力の綴り → このプラグインの能力キー。感覚だけ綴りが違う（Per）。
+const SHEET_ABILITIES = [
+  { sheet: 'Str', key: 'STR' },
+  { sheet: 'Ref', key: 'REF' },
+  { sheet: 'Per', key: 'SEN' },
+  { sheet: 'Int', key: 'INT' },
+  { sheet: 'Mnd', key: 'MND' },
+  { sheet: 'Emp', key: 'EMP' }
+];
+
+// 防御力。シートの綴りはこちらと違う（炎熱=Fire・衝撃=Shock・体内=Internal）。
+const SHEET_DEFENCES = [
+  { sheet: 'DefWeapon', key: 'defWeapon' },
+  { sheet: 'DefFire', key: 'defHeat' },
+  { sheet: 'DefShock', key: 'defImpact' },
+  { sheet: 'DefInternal', key: 'defInner' }
+];
+
+// 部隊。シートの force1* は、このプラグインの修正値と項目がそのまま揃っている。
+const SHEET_UNIT_MODS = [
+  ...SHEET_ABILITIES.map(ability => ({ sheet: ability.sheet, key: ability.key })),
+  { sheet: 'Hp', key: 'hp' },
+  { sheet: 'Init', key: 'initiative' },
+  { sheet: 'Move', key: 'move' },
+  { sheet: 'Atk', key: 'atk' },
+  ...SHEET_DEFENCES
+];
+
+// 技能はラベルで引く（シートは skillStr1Label:'格闘' の形で名前を持ち、キーを持たない）。
+const SHEET_SKILL_BY_LABEL = new Map(FIXED_SKILLS.map(skill => [skill.label, paramId(skill.key)]));
+// 自由記述の枠の見出し（「専門知識」「芸術」）→ その分類の宣言。
+const SHEET_FREE_BY_LABEL = new Map(
+  GCREST_SKILL_GROUPS.filter(group => group.free).map(group => [group.free.label, group.free])
+);
+const SHEET_SKILL_GROUPS = SHEET_ABILITIES.map(ability => ability.sheet);
+
+// シートの「件数」欄（classAbilityNum 等）は枠の数で、埋まっている数とは限らない
+// （この例では worksAbilityNum:'3' に対して中身は2件）。件数を信じず、上限まで走査して
+// 名前のある行だけを拾う（js/parameters/dx3.js の可変スロット技能と同じ構え）。
+const SHEET_MAX_ROWS = 30;
+const SHEET_MAX_SKILL_SLOTS = 12;
+// 武器と防具は「主」「副」の2枠。Total は合計欄なので読まない（合計は画面側で出し直す）。
+const SHEET_EQUIP_SLOTS = ['Main', 'Sub'];
+
+/**
+ * このJSONがグランクレストのシートに見えるか。
+ * 他システムのシートを読ませたときに、黙って空のコマを作らないための入口
+ * （js/parameters/stella-knights.js の looksLikeSheet と同じ役割）。
+ * 天運はこのシステムだけが持つ。念のためもう1組を or で見る。
+ */
+function looksLikeGcrestSheet(json) {
+  if (!json || typeof json !== 'object') return false;
+  return json.sttFateTotal !== undefined
+    || (json.classAbilityNum !== undefined && json.sttMaxWeight !== undefined);
+}
+
+/** シートの「―」「-」「なし」は未記入と同じ扱いにする。 */
+function isSheetBlank(text) {
+  return text === '' || text === '―' || text === '-' || text === 'なし';
+}
+
+/**
+ * 天恵・ワークス特技のコスト欄を、コスト種とコスト値へ割る。
+ * 数値ならMP、「天運」と書いてあれば天運。天運は「消費天運（最大5）」のように
+ * 使うたびに決める書き方なので、値は0のままにして卓で入れてもらう。
+ */
+function readSheetArtCost(raw) {
+  const text = sheetText(raw);
+  if (isSheetBlank(text)) return { costType: '', costValue: 0 };
+  if (text.includes('天運')) return { costType: LUCK_PARAM_ID, costValue: 0 };
+  const value = Number(text);
+  return Number.isFinite(value)
+    ? { costType: MP_PARAM_ID, costValue: Math.trunc(value) }
+    : { costType: '', costValue: 0 };
+}
+
+/** MC欄。シートの表記（○ / × / FW）はトグルの選択肢とそのまま一致する。 */
+function readSheetMc(raw) {
+  const text = sheetText(raw);
+  return [MC_OK, MC_NG, MC_FW].includes(text) ? text : MC_OK;
+}
+
+/**
+ * 天恵（classAbility）とワークス特技（worksAbility）の1件。
+ * 種別（天恵（強化／BS）・戦闘）は専用の欄を持たないので、効果の先頭へ置く。
+ */
+function readSheetArt(json, prefix, index) {
+  const at = (field) => json[`${prefix}${index}${field}`];
+  const name = sheetText(at('Name'));
+  if (!name) return null;
+
+  const type = sheetText(at('Type'));
+  const note = sheetRichText(at('Note'));
+
+  return {
+    name,
+    note: type && note ? `${type}／${note}` : (type || note),
+    fields: {
+      kind: KIND_ART,
+      level: at('Lv'),
+      timing: sheetText(at('Timing')),
+      target: sheetText(at('Target')),
+      range: sheetText(at('Range')),
+      check: sheetText(at('Check')),
+      targetValue: sheetText(at('Dfclty')),
+      mc: readSheetMc(at('MC')),
+      ...readSheetArtCost(at('Cost')),
+      mp: 0
+    }
+  };
+}
+
+function readSheetArts(json) {
+  const arts = [];
+  ['classAbility', 'worksAbility'].forEach(prefix => {
+    for (let index = 1; index <= SHEET_MAX_ROWS; index += 1) {
+      const art = readSheetArt(json, prefix, index);
+      if (art) arts.push(art);
+    }
+  });
+  return normalizeSkillList(GCREST_ART_SPEC, arts);
+}
+
+function readSheetItems(json) {
+  const items = [];
+  for (let index = 1; index <= SHEET_MAX_ROWS; index += 1) {
+    const name = sheetText(json[`item${index}Name`]);
+    if (!name) continue;
+    items.push({
+      name,
+      note: sheetRichText(json[`item${index}Note`]),
+      fields: { weight: json[`item${index}Weight`] },
+      quantity: json[`item${index}Quantity`]
+    });
+  }
+  return normalizeSkillList(GCREST_ITEM_SPEC, items);
+}
+
+/** 武器・防具・乗騎を1つの装備一覧へ。 */
+function readSheetEquipment(json) {
+  const equipment = [];
+
+  SHEET_EQUIP_SLOTS.forEach(slot => {
+    const at = (field) => json[`weapon${slot}${field}`];
+    const name = sheetText(at('Name'));
+    if (!name) return;
+    equipment.push({
+      name,
+      note: '',
+      fields: {
+        kind: EQUIP_WEAPON,
+        type: sheetText(at('Type')),
+        skill: sheetText(at('Skill')),
+        acc: at('Acc'),
+        // ダイス式（12+3D）で来るので文字列のまま
+        atk: sheetText(at('Atk')),
+        guard: at('Guard'),
+        range: sheetText(at('Range')),
+        init: at('Init'),
+        move: at('Move'),
+        weight: at('Weight')
+      }
+    });
+  });
+
+  SHEET_EQUIP_SLOTS.forEach(slot => {
+    const at = (field) => json[`armor${slot}${field}`];
+    const name = sheetText(at('Name'));
+    if (!name) return;
+    const fields = {
+      kind: EQUIP_ARMOR,
+      type: sheetText(at('Type')),
+      eva: at('Eva'),
+      init: at('Init'),
+      move: at('Move'),
+      weight: at('Weight')
+    };
+    SHEET_DEFENCES.forEach(def => { fields[def.key] = at(def.sheet); });
+    equipment.push({ name, note: '', fields });
+  });
+
+  for (let index = 1; index <= SHEET_MAX_ROWS; index += 1) {
+    const at = (field) => json[`vehicle${index}${field}`];
+    const name = sheetText(at('Name'));
+    if (!name) continue;
+    const fields = {
+      kind: EQUIP_VEHICLE,
+      acc: at('Acc'),
+      atk: sheetText(at('Atk')),
+      eva: at('Eva'),
+      init: at('Init'),
+      move: at('Move')
+    };
+    SHEET_DEFENCES.forEach(def => { fields[def.key] = at(def.sheet); });
+    equipment.push({ name, note: sheetRichText(at('Note')), fields });
+  }
+
+  return normalizeSkillList(GCREST_EQUIPMENT_SPEC, equipment);
+}
+
+/**
+ * 部隊。シートに部隊名の欄が無いので、種別（歩兵）を名前に置く。
+ * MCはオフ・ポジションはFWで取り込む（マスコンバットが始まったら卓で決めるもの）。
+ * 落ちるのは force1Lv（置き場が無い）。
+ */
+function readSheetUnit(json) {
+  const type = sheetText(json.force1Type);
+  const hasMods = SHEET_UNIT_MODS.some(mod => json[`force1${mod.sheet}`] !== undefined);
+  if (!type && !hasMods) return null;
+
+  const mods = {};
+  SHEET_UNIT_MODS.forEach(mod => { mods[mod.key] = json[`force1${mod.sheet}`]; });
+  return normalizeGcrestUnit({ mc: false, position: POSITION_FW, name: type, mods });
+}
+
+/**
+ * 技能。固定23種はラベル一致でパラメータへ、「専門知識:考古学」のような自由記述は
+ * 新しいパラメータとして足す。コロンの後ろが空の枠は未使用なので拾わない。
+ */
+function readSheetSkills(json) {
+  const valueOverrides = {};
+  const freeDefinitions = [];
+  const freeCount = new Map();
+
+  SHEET_SKILL_GROUPS.forEach(group => {
+    for (let index = 1; index <= SHEET_MAX_SKILL_SLOTS; index += 1) {
+      const label = sheetText(json[`skill${group}${index}Label`]);
+      if (!label) continue;
+      const level = json[`skill${group}${index}Lv`];
+
+      const fixed = SHEET_SKILL_BY_LABEL.get(label);
+      if (fixed) {
+        assignSheetNumber(valueOverrides, fixed, level);
+        continue;
+      }
+
+      // 「専門知識:考古学」。区切りは半角/全角のどちらでも来うる。
+      const separator = label.search(/[:：]/);
+      if (separator === -1) continue;
+      const free = SHEET_FREE_BY_LABEL.get(label.slice(0, separator).trim());
+      const name = label.slice(separator + 1).trim();
+      if (!free || !name) continue;
+
+      const next = (freeCount.get(free.prefix) ?? 0) + 1;
+      freeCount.set(free.prefix, next);
+      const value = Number(level);
+      freeDefinitions.push({
+        key: `${free.prefix}${next}`,
+        label: `${free.label}：${name}`,
+        value: Number.isFinite(value) ? Math.trunc(value) : SKILL_BASE_VALUE,
+        editable: false,
+        visible: false
+      });
+    }
+  });
+
+  // locked:false のまま作る（後から消せるように。buildFreeSkillParameter と同じ扱い）。
+  return { valueOverrides, newParameters: buildParameters(SOURCE, freeDefinitions) };
+}
+
+/**
+ * ゆとシートのJSONを取り込む。
+ * @returns {{name?:string, valueOverrides:object, labelOverrides:object,
+ *            newParameters:object, components:object} | null}
+ */
+export function importGcrestCharacterJson(json) {
+  if (!looksLikeGcrestSheet(json)) return null;
+
+  const skills = readSheetSkills(json);
+  const valueOverrides = { ...skills.valueOverrides };
+
+  assignSheetNumber(valueOverrides, HP_PARAM_ID, json.sttHpTotal);
+  assignSheetNumber(valueOverrides, INITIATIVE_PARAM_ID, json.sttInitTotal);
+  assignSheetNumber(valueOverrides, MP_PARAM_ID, json.sttMpTotal);
+  assignSheetNumber(valueOverrides, LUCK_PARAM_ID, json.sttFateTotal);
+  assignSheetNumber(valueOverrides, MOVE_PARAM_ID, json.sttMoveTotal);
+  assignSheetNumber(valueOverrides, LOAD_MAX_PARAM_ID, json.sttMaxWeight);
+  assignSheetNumber(valueOverrides, MORALE_PARAM_ID, json.force1Morale);
+
+  SHEET_ABILITIES.forEach(ability => {
+    assignSheetNumber(valueOverrides, paramId(ability.key), json[`stt${ability.sheet}CheckTotal`]);
+  });
+
+  // 防御力は装備込みの合計を持つ（armorTotal*）。装備一覧は内訳の記録で、
+  // ここを計算し直さない（二重計上になるため）。
+  SHEET_DEFENCES.forEach(def => {
+    assignSheetNumber(valueOverrides, paramId(def.key), json[`armorTotal${def.sheet}`]);
+  });
+
+  // 攻撃力（GCREST:atk）は入れない。シートの weaponTotalAtk は「12+3D」という
+  // ダイス式で、数値のパラメータには収まらない。武器側に文字列として持つ。
+
+  const components = {
+    [GCREST_ART_SPEC.componentKey]: readSheetArts(json),
+    [GCREST_EQUIPMENT_SPEC.componentKey]: readSheetEquipment(json),
+    [GCREST_ITEM_SPEC.componentKey]: readSheetItems(json)
+  };
+
+  const unit = readSheetUnit(json);
+  if (unit) components[UNIT_COMPONENT_KEY] = unit;
+
+  return {
+    name: sheetText(json.characterName) || undefined,
+    valueOverrides,
+    labelOverrides: { [INITIATIVE_PARAM_ID]: INITIATIVE_LABEL },
+    newParameters: skills.newParameters,
+    components
+  };
+}
+
 export const GCREST_PLUGIN = {
   id: SOURCE,
   label: 'グランクレスト戦記RPG',
@@ -1058,6 +1490,7 @@ export const GCREST_PLUGIN = {
   handleChatCommand: handleGcrestChatCommand,
   looksLikeOwnChatCommand: looksLikeGcrestChatCommand,
   resetComponentsOnPhaseEnd: resetGcrestComponentsOnPhaseEnd,
+  importCharacterJson: importGcrestCharacterJson,
 
   // このシステム用のスタンプ（docs/plugin-guide.md 3.9）。宣言するのはデータだけで、
   // 画像URLはCoreが image/stamps/GCREST/<file> として組み立てる（フォルダ名はidそのまま）。

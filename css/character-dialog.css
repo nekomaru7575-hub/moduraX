@@ -2119,7 +2119,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* チェック欄とその説明を横に並べる1行（「魔法を使う」「MC（マスコンバット）」）。 */
+/* チェック欄とその説明を横に並べる1行（部隊の「MC（マスコンバット）」）。 */
 .gcrest-check-row {
   display: flex;
   align-items: center;
@@ -2129,9 +2129,9 @@
 }
 
 /* --- プラグイン専用スペースのボタン群 ------------------------------
-   ボックスを開くボタンが8個あり、全部が同じ見た目だと「どれが本体で
-   どれが脇か」が読めない。4つの群に分け、群の見出しと、能力・技能だけの
-   強い見た目で差を付ける。 */
+   ボックスを開くボタン（能力・技能／特技／装備／アイテム／部隊／因縁／誓い）が
+   全部同じ見た目だと「どれが本体でどれが脇か」が読めない。意味ごとに空きで区切り、
+   能力・技能だけを強い見た目にして差を付ける。 */
 
 /* ボタンのまとまり。見出しは置かず、空きだけで切れ目を示す
    （ダイアログの他の箇所と同じやり方。.dialog-button-row.is-spaced を参照）。 */
@@ -2191,16 +2191,34 @@
   margin-bottom: 12px;
 }
 
+/* 群の見出し（能力修正・防御力・戦闘力…）。行の見出し（.gcrest-row-label）と
+   取り違えないよう、淡い色・小さい字・字間・上の罫で「これは見出しだ」と示す。
+   格子や横一列に畳むと項目が横へ流れるので、境界が見えないと群が読めなくなる。 */
+.gcrest-mod-group-title {
+  margin-bottom: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-faint);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
 .gcrest-mod-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px 12px;
 }
 
-/* 格子の中では見出しの固定幅（.dialog-param-label の 96px）だと桁が入らない。
-   残り幅を見出しへ渡し、入りきらなければ省略する。 */
+/* 畳んだ並びでは見出しの固定幅（.dialog-param-label の 96px）だと桁が入らない。
+   格子では残り幅を見出しへ渡し、横一列では中身なりの幅にする
+   （「武器」の2文字に96pxを取ると、4つで1行に収まらなくなる）。 */
 .gcrest-mod-grid .dialog-param-label {
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gcrest-mod-row-flow .dialog-param-label {
+  flex: 0 1 auto;
   min-width: 0;
 }
 
@@ -2217,8 +2235,10 @@
   flex: 0 0 auto;
 }
 
-/* 見出しが行の名前を兼ねる群（攻撃力）。入力欄だけを置く。 */
-.gcrest-mod-grid .dialog-custom-row.is-unlabeled .dialog-param-label {
+/* 見出しが行の名前を兼ねる群（攻撃力）。入力欄だけを置く。
+   格子と横一列のどちらでも効かせる。 */
+.gcrest-mod-grid .dialog-custom-row.is-unlabeled .dialog-param-label,
+.gcrest-mod-row-flow .dialog-custom-row.is-unlabeled .dialog-param-label {
   display: none;
 }
 

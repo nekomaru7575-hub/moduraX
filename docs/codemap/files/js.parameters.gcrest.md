@@ -1,11 +1,11 @@
 ---
 source: js/parameters/gcrest.js
-lines: 1056
+lines: 1070
 exports: 25
 imported_by: 1
 api_sha: da3b86b9d7c0
 prose_sha: da3b86b9d7c0
-generated: 2026-08-29
+generated: 2026-08-30
 tags: [codemap]
 ---
 
@@ -49,7 +49,7 @@ tags: [codemap]
 | 543 | fn | readGcrestBonds | `readGcrestBonds(components)` |  |
 | 547 | fn | readGcrestOaths | `readGcrestOaths(components)` |  |
 | 556 | fn | sumGcrestItemWeight | `sumGcrestItemWeight(items)` | 持ち物の重量の合計。 |
-| 1035 | const | GCREST_PLUGIN | `GCREST_PLUGIN` |  |
+| 1049 | const | GCREST_PLUGIN | `GCREST_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（27）
 
@@ -78,13 +78,13 @@ tags: [codemap]
 | 566 | computeGcrestDerivedParameters | `computeGcrestDerivedParameters(parameters, components = {})` | 5 |  |
 | 576 | readFreeSkills | `readFreeSkills(parameters, free)` | 7 |  |
 | 586 | buildAbilityGroups | `buildAbilityGroups(parameters)` | 18 |  |
-| 607 | buildCombatRows | `buildCombatRows(parameters)` | 8 |  |
-| 621 | buildFreeSkillParameter | `buildFreeSkillParameter(parameters, free, rawLabel)` | 20 |  |
-| 650 | renameInitiativeToAction | `renameInitiativeToAction({ readParameters, dispatch, tokenId })` | 8 |  |
-| 659 | renderGcrestCharacterPanel | `renderGcrestCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, generateBuffId, dispatch, tokenId, allowParameterEdit = false })` | **277** |  |
-| 947 | looksLikeGcrestChatCommand | `looksLikeGcrestChatCommand(rawInput)` | 4 |  |
-| 957 | handleGcrestChatCommand | `handleGcrestChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId })` | 64 |  |
-| 1024 | resetGcrestComponentsOnPhaseEnd | `resetGcrestComponentsOnPhaseEnd(components, phase)` | 10 |  |
+| 611 | buildCombatGroups | `buildCombatGroups(parameters)` | 24 |  |
+| 641 | buildFreeSkillParameter | `buildFreeSkillParameter(parameters, free, rawLabel)` | 20 |  |
+| 670 | renameInitiativeToAction | `renameInitiativeToAction({ readParameters, dispatch, tokenId })` | 8 |  |
+| 679 | renderGcrestCharacterPanel | `renderGcrestCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, getToken, generateBuffId, dispatch, tokenId, allowParameterEdit = false })` | **271** |  |
+| 961 | looksLikeGcrestChatCommand | `looksLikeGcrestChatCommand(rawInput)` | 4 |  |
+| 971 | handleGcrestChatCommand | `handleGcrestChatCommand(rawInput, { token, dispatch, getEffectiveParameterValue, generateBuffId })` | 64 |  |
+| 1038 | resetGcrestComponentsOnPhaseEnd | `resetGcrestComponentsOnPhaseEnd(components, phase)` | 10 |  |
 
 ## 依存
 

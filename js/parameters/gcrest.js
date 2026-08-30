@@ -604,13 +604,33 @@ function buildAbilityGroups(parameters) {
 
 // 攻撃力・防御力・移動力・所持可能重量。どれもeditable:falseで更新ダイアログから手入力
 // できないため、能力値ボックス（＝コマ作成ツールでのみ編集可）に入口を持つ。
-function buildCombatRows(parameters) {
+// 並べ方は部隊の修正値と同じ考え方。単発の値は格子に、4つで1組の防御力は
+// 見出し1つ＋短い名前の横一列にする（「防御力」を4回前置しない）。
+// ここでのlabelは表示だけに使うので、防御力は短い名前をそのまま渡してよい
+// （部隊の修正値と違い、バフ名の材料にはならない）。
+function buildCombatGroups(parameters) {
+  const valueOf = (id) => Number(parameters[id]?.value) || 0;
+  const labelOf = (id, fallback) => parameters[id]?.label ?? fallback;
+
   return [
-    { paramId: ATTACK_PARAM_ID, label: '攻撃力' },
-    ...DEFENSES.map(def => ({ paramId: paramId(def.key), label: def.label })),
-    { paramId: MOVE_PARAM_ID, label: '移動力' },
-    { paramId: LOAD_MAX_PARAM_ID, label: '所持可能重量' }
-  ].map(row => ({ ...row, label: parameters[row.paramId]?.label ?? row.label }));
+    {
+      rows: [
+        { paramId: ATTACK_PARAM_ID, label: labelOf(ATTACK_PARAM_ID, '攻撃力') },
+        { paramId: MOVE_PARAM_ID, label: labelOf(MOVE_PARAM_ID, '移動力') },
+        { paramId: LOAD_MAX_PARAM_ID, label: labelOf(LOAD_MAX_PARAM_ID, '所持可能重量') },
+        // 所持重量は持ち物から自動で決まるので、編集できる画面でも入力欄を出さない。
+        { paramId: LOAD_PARAM_ID, label: labelOf(LOAD_PARAM_ID, '所持重量'), readOnly: true }
+      ]
+    },
+    {
+      label: '防御力',
+      layout: 'flow',
+      rows: DEFENSES.map(def => ({ paramId: paramId(def.key), label: def.shortLabel }))
+    }
+  ].map(group => ({
+    ...group,
+    rows: group.rows.map(row => ({ ...row, value: valueOf(row.paramId) }))
+  }));
 }
 
 /**
@@ -764,13 +784,7 @@ function renderGcrestCharacterPanel({
         const current = readParameters();
         return {
           groups: buildAbilityGroups(current),
-          combatRows: buildCombatRows(current).map(row => ({
-            ...row, value: Number(current[row.paramId]?.value) || 0
-          })),
-          loadRow: {
-            label: current[LOAD_PARAM_ID]?.label ?? '所持重量',
-            value: Number(current[LOAD_PARAM_ID]?.value) || 0
-          }
+          combatGroups: buildCombatGroups(current)
         };
       },
       editable: canEditAbilityValues,

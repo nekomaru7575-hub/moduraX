@@ -123,13 +123,27 @@ h1 {
 /* ダイアログ/エフェクト・コンボ/能力技能ボックス/DX3拡張パネルのCSSは
    css/character-dialog.css へ移動（character-builder.htmlと共有するため） */
 
-/* キャラクター一覧のパラメータ表示 */
+/* キャラクター一覧のパラメータ表示。
+   横に余った分は、間隔ではなく段を増やして埋める。パネルは幅を変えられるうえ、
+   狭幅レイアウトでは中央スペース全体に広がる（1行が360px前後になる）ので、
+   1列固定だと右半分が丸ごと空いたままになっていた。
+   auto-fillにしてあるので、2段に足りない幅なら今までどおり1列に戻る
+   （既定の260pxのパネルは1列）。auto-fitではないのは、パラメータが1つのコマで
+   その1つが行いっぱいに伸びてしまうのを避けるため。
+   段の下限9emは、ラベル欄4.4em（.character-list-param-row）＋値が収まる幅。
+   min()で包んであるのは、パネルを下限の200px（js/floating-panel.jsのMIN_WIDTH）まで
+   縮めると9emの方が残り幅より広くなり、段がはみ出して行から溢れるため。
+   左の20pxのインデントは外した。左隣のアバター列と.character-list-itemのgapで
+   既に段差はついており、埋めたい余白を逆に削っていたため。 */
 .character-param-list {
   margin-top: 4px;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  /* .character-list-item（flex）の中で残り幅を全部取る。指定しないとgridは中身の
+     幅までしか広がらず、段を増やす判断も値の右寄せも効かない。 */
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(9em, 100%), 1fr));
+  gap: 2px 16px;
 }
 
 .character-param-row {
@@ -154,14 +168,17 @@ h1 {
 }
 
 .character-param-label {
-  color: #2ecc71;
+  color: var(--text-param-label);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 値は段の右端へ寄せる。ラベル欄が4.4em固定なので左寄せだと値が常に同じ位置に
+   貼り付き、その右が全部余っていた。右端で揃えると縦に数字の桁が並び、
+   HPのようなコマ同士で見比べる値が読み比べやすくなる。 */
 .character-param-value {
-  text-align: left;
+  text-align: right;
 }
 /* キャラクター一覧：浮動パネル（js/character-panel.js）の中身。盤面のコマと
 バックヤードのコマをタブで切り替えて並べる。枠と移動/拡縮は.floating-panel側。 */
@@ -2351,6 +2368,18 @@ select:focus, input[type="text"]:focus, textarea:focus {
   .chat-tab-add,
   .help-choice {
     padding: 8px 12px;
+  }
+
+  /* キャラクター一覧の「盤面／バックヤード」タブと「盤面に戻す」。
+     狭幅ではこのパネルが中央スペース全体になり、指で触る主要な導線がここになるが、
+     既定では高さ25pxしかなく、上の44pxの基準から漏れていた。
+     paddingではなくmin-heightで持ち上げているのは、この2つが0.75remと小さく、
+     paddingだけでは32px前後にしか届かないため（buttonは中身を天地中央に置くので
+     min-heightだけで文字は中央に来る）。 */
+  .character-panel-tab,
+  .character-panel-restore-btn {
+    min-height: 44px;
+    padding: 4px 14px;
   }
 }
 

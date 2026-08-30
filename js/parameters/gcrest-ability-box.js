@@ -35,8 +35,12 @@ function createElement(tag, className, text) {
  *       free: {prefix:string, label:string}|null,
  *       freeSkills: Array<{paramId:string, label:string, value:number}>
  *     }>,
- *     combatRows: Array<{paramId:string, label:string, value:number}>,
- *     loadRow: {label:string, value:number}
+ *     combatGroups: Array<{
+ *       label?: string,             見出し。省略すると見出し無しで並べる
+ *       layout?: 'grid'|'flow',     既定grid（3列の格子）。'flow'は横一列（防御力の4つ）
+ *       rows: Array<{paramId:string, label:string, value:number, readOnly?:boolean}>
+ *     }>,
+ *       readOnlyの行は編集できる画面でも入力欄を出さない（持ち物から決まる所持重量）。
  *   },
  *     **開くたび・枠を足すたびに呼ばれる**。呼び出し側は常に最新のパラメータから組むこと。
  *   editable?: boolean,   部屋の外のコマ作成ツールでのみtrue
@@ -105,7 +109,7 @@ export function showGcrestAbilityBox({
   }
 
   function render() {
-    const { groups, combatRows, loadRow } = readData();
+    const { groups, combatGroups } = readData();
 
     dialog.innerHTML = '';
     valueInputs = new Map();
@@ -181,28 +185,33 @@ export function showGcrestAbilityBox({
 
     // --- 攻撃力・防御力・移動力・所持可能重量 ---
     // どれも能力・技能と同じくeditable:falseなので、編集の入口はここにしかない。
+    // 並べ方は部隊の修正値と揃える（css/character-dialog.css の .gcrest-mod-*）。
+    // 1列で8行並べると、この節だけで226pxになって画面に収まらなかった。
     form.appendChild(createElement('h3', null, '戦闘・移動'));
 
-    const combatList = createElement('div', 'dialog-custom-list');
-    form.appendChild(combatList);
-
-    const appendCombatRow = (label, valueEl) => {
-      const row = createElement('div', 'dialog-custom-row');
-      row.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', label));
-      row.appendChild(valueEl);
-      combatList.appendChild(row);
-    };
-
-    combatRows.forEach(row => {
-      if (canEditValues) {
-        appendCombatRow(row.label, buildValueInput(row.paramId, row.value));
-      } else {
-        appendCombatRow(row.label, createElement('span', 'gcrest-row-value', String(row.value)));
+    combatGroups.forEach(group => {
+      const groupEl = createElement('div', 'gcrest-mod-group');
+      if (group.label) {
+        groupEl.appendChild(createElement('div', 'gcrest-mod-group-title', group.label));
       }
-    });
 
-    // 所持重量は持ち物から自動で決まるので、いつでも表示だけ。
-    appendCombatRow(loadRow.label, createElement('span', 'gcrest-row-value', String(loadRow.value)));
+      const body = createElement(
+        'div', group.layout === 'flow' ? 'gcrest-mod-row-flow' : 'gcrest-mod-grid'
+      );
+
+      group.rows.forEach(row => {
+        const rowEl = createElement('div', 'dialog-custom-row');
+        rowEl.appendChild(createElement('label', 'dialog-param-label gcrest-row-label', row.label));
+        // 自動で決まる値（所持重量）は、編集できる画面でも入力欄にしない。
+        rowEl.appendChild(canEditValues && !row.readOnly
+          ? buildValueInput(row.paramId, row.value)
+          : createElement('span', 'gcrest-row-value', String(row.value)));
+        body.appendChild(rowEl);
+      });
+
+      groupEl.appendChild(body);
+      form.appendChild(groupEl);
+    });
 
     const btnRow = createElement('div', 'dialog-button-row');
 

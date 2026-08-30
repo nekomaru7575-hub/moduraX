@@ -2627,11 +2627,12 @@ select:focus, input[type="text"]:focus, textarea:focus {
   color: var(--text-emphasis);
 }
 
-/* 補足として添えるもの（出目内訳・打ったコマンド・時刻・編集済みの印）。
-   本文を読む邪魔にならないよう、まとめて弱い色にする。 */
+/* 補足として添えるもの（出目内訳・打ったコマンド・時刻・編集済みの印・
+   シークレットダイスの印）。本文を読む邪魔にならないよう、まとめて弱い色にする。 */
 .log-detail,
 .log-command-text,
 .log-time,
-.log-edited {
+.log-edited,
+.log-secret {
   color: var(--text-muted);
 }

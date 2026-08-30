@@ -44,6 +44,51 @@ export function canView(audience, participantId) {
   return audience.includes(participantId);
 }
 
+// --- シークレットダイス ---
+// 宛先（audience）とは別の軸で、「振った本人だけ」に固定された秘匿。チャットログ1件が
+// secret: true を持つと、公開（revealed: true）されるまで出目を伏せる。
+//
+// 状態には本物の出目を載せたまま、表示するときだけ差し替える。情報の伏せ字
+// （js/store/info.jsのmasks[].revealed）と同じ流儀で、上のaudienceと同じ割り切りでもある
+// （このファイル冒頭の【重要】参照）。
+
+// 出目の代わりに出す文言。「振ったこと」自体は伏せない（それが機能の眼目）ので、
+// 何が起きたかは同じ行の「🔒 シークレットダイス」の印が伝える（js/main.jsのbuildLogHtml）。
+// ここはその印を繰り返さず、本文の場所に置く但し書きだけにする。
+export const SECRET_DICE_MASK = '（出目は振った本人にだけ見えています）';
+
+/**
+ * その発言の出目を今の自分が見てよいか。見えるのは振った本人だけで、GMも見えない
+ * （情報の伏せ字のcanRevealMasksがGMに見透かしを許しているのとは意図的に違う。
+ * シークレットダイスはGMに隠すためにも使うため）。
+ * @param {{secret?: boolean, revealed?: boolean, ownerId?: string|null}} entry
+ * @param {string|null} participantId 自分の参加者ID。表示名未設定（ゲスト）ならnull
+ */
+export function canViewSecretDice(entry, participantId) {
+  if (!participantId) return false; // ゲストは誰の出目も見透かせない
+  return !!entry?.ownerId && entry.ownerId === participantId;
+}
+
+/**
+ * チャットログ1件を、今の自分に見せてよい形にして返す。伏せる必要がなければ引数を
+ * そのまま返す（同一参照）。
+ *
+ * 【同一参照で返すこと】呼び出し側（js/main.jsのpatchEditedLogEntries／renderMainChatMirror）は
+ * entryの参照が変わったことで「書き換わった行」を見分けている。伏せない行まで複製を返すと、
+ * 毎回すべての行が書き換わったように見えて再描画が走る。
+ *
+ * @param {object} entry チャットログ1件
+ * @param {string|null} participantId 自分の参加者ID
+ */
+export function visibleChatEntry(entry, participantId) {
+  if (!entry?.secret || entry.revealed) return entry;
+  if (canViewSecretDice(entry, participantId)) return entry;
+
+  // 伏せるのは出目そのもの（resultText）と出目内訳だけ。発言者・コメント・時刻は
+  // 「誰がいつ何のために振ったか」として共有される。
+  return { ...entry, resultText: SECRET_DICE_MASK, diceDetail: '' };
+}
+
 /**
  * 宛先を人間に読める形にする（タブのツールチップ等の表示用）。
  * @param {string[]|null|undefined} audience

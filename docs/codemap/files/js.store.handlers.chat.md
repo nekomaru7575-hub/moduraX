@@ -1,6 +1,6 @@
 ---
 source: js/store/handlers/chat.js
-lines: 151
+lines: 188
 exports: 1
 imported_by: 1
 api_sha: 280e1a6d76d5

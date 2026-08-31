@@ -6,8 +6,8 @@
    オフラインのときだけ古いスタイルが出続ける。 */
 
 body {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+  background-color: var(--surface-page);
+  color: var(--text-default);
   /* このページはオフライン時の受け皿で、sw.jsのPRECACHE_URLSに入っている。
      CSSファイルはプリキャッシュしていないので、css/tokens.cssを読みに行くと
      肝心のオフライン時に無地になる。ここだけは書体を直接書く（中身は同じ）。 */
@@ -43,7 +43,7 @@ h1 {
 }
 
 p {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.95rem;
   line-height: 1.7;
   margin: 0 0 20px;
@@ -51,8 +51,8 @@ p {
 }
 
 .btn {
-  background-color: #007acc;
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--text-emphasis);
   font-weight: bold;
   border: none;
   border-radius: 4px;

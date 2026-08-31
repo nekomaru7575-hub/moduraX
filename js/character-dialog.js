@@ -418,6 +418,17 @@ function canToggleParameterVisibility(param) {
   return (param.source === 'core' || param.source === 'user') && !param.locked;
 }
 
+// パラメータ一覧の行は「名前・値・表示・公開先・削除」の5セルを必ず並べる決まりなので、
+// その行に出さない列にはこれを置く。一覧はgridで、行自体はdisplay:contentsで枠を消して
+// いるため、セルが欠けるとその行から先が1列ずつずれる（css/character-dialog.cssの
+// .dialog-param-list）。
+function appendEmptyParamCell(row) {
+  const cell = document.createElement('span');
+  cell.className = 'dialog-param-cell-empty';
+  cell.setAttribute('aria-hidden', 'true');
+  row.appendChild(cell);
+}
+
 // カスタムパラメータ（ユーザーが自由に名前を付けて追加する変数）の入力値を、
 // 数値として解釈できればNumberに、できなければ文字列のまま返す。空欄は0扱い（旧来の
 // Number(x)||0と同じ挙動）。HP等の組み込み・プラグイン由来パラメータは対象外（常に数値）。
@@ -428,7 +439,10 @@ function parseCustomParameterValue(raw) {
   return Number.isFinite(num) ? num : trimmed;
 }
 
-const ensureDialog = createDialogHost();
+// character-form-dialog: コマの作成/更新の2つだけに付ける印。この2つは中身が多い2カラムで、
+// 使える幅いっぱいまで広げたい（css/character-dialog.css参照）。確認だけの小さな
+// ダイアログも同じ.character-dialogを使っているので、幅はそちらへ付けない。
+const ensureDialog = createDialogHost('character-form-dialog');
 
 /**
  * @param {{
@@ -494,8 +508,10 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
   paramListLabel.style.marginTop = '4px';
   mainColumn.appendChild(paramListLabel);
 
+  // 既定パラメータと、この下で足すカスタムパラメータは同じ一覧へ入れる。
+  // 分けると列幅を決めるgridも2つに分かれ、上下で列がずれる。
   const defaultListEl = document.createElement('div');
-  defaultListEl.className = 'dialog-custom-list';
+  defaultListEl.className = 'dialog-custom-list dialog-param-list';
   mainColumn.appendChild(defaultListEl);
 
   const defaultInputs = {};
@@ -529,26 +545,31 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
         participants,
         myParticipantId
       }));
+    } else {
+      appendEmptyParamCell(row); // 表示トグル
+      appendEmptyParamCell(row); // 公開先
     }
+
+    // 既定パラメータは登録前なので消せない。削除の列は空けておく
+    appendEmptyParamCell(row);
 
     defaultListEl.appendChild(row);
     defaultInputs[def.key] = input;
   });
 
   // --- カスタムパラメータ（User層） ---
-  const customListEl = document.createElement('div');
-  customListEl.className = 'dialog-custom-list';
-  mainColumn.appendChild(customListEl);
-
   const customRows = [];
 
   function addCustomRow() {
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
 
+    // 名前の欄は一覧の1列目（既存パラメータのラベルと同じ幅）に入る。例まで書くと
+    // 収まらないので、プレースホルダは短く、例はtitleに持たせる
     const labelInput = document.createElement('input');
     labelInput.type = 'text';
-    labelInput.placeholder = 'パラメータ名（例: 正気度）';
+    labelInput.placeholder = '名前';
+    labelInput.title = 'パラメータ名（例: 正気度）';
 
     const valueInput = document.createElement('input');
     valueInput.type = 'text';
@@ -582,7 +603,7 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
     row.appendChild(visibility.element);
     row.appendChild(audienceBtn);
     row.appendChild(removeBtn);
-    customListEl.appendChild(row);
+    defaultListEl.appendChild(row);
 
     customRows.push({
       labelInput, valueInput, visibleCheckbox: visibility.checkbox,
@@ -663,7 +684,7 @@ let editDialogEl = null;
 function ensureEditDialog() {
   if (editDialogEl) return editDialogEl;
   editDialogEl = document.createElement('dialog');
-  editDialogEl.className = 'character-dialog';
+  editDialogEl.className = 'character-dialog character-form-dialog';
   document.body.appendChild(editDialogEl);
   return editDialogEl;
 }
@@ -771,8 +792,10 @@ export function showCharacterEditDialog({
   paramListLabel.style.marginTop = '4px';
   mainColumn.appendChild(paramListLabel);
 
+  // 既存パラメータと、この下で足すカスタムパラメータは同じ一覧へ入れる。
+  // 分けると列幅を決めるgridも2つに分かれ、上下で列がずれる。
   const paramListEl = document.createElement('div');
-  paramListEl.className = 'dialog-custom-list';
+  paramListEl.className = 'dialog-custom-list dialog-param-list';
   mainColumn.appendChild(paramListEl);
 
   const existingRows = []; // { paramId, valueInput, editable, isCustom, visibleCheckbox, initialVisible }
@@ -820,6 +843,7 @@ export function showCharacterEditDialog({
     const canToggle = canToggleParameterVisibility(param);
     const visibility = canToggle ? buildParameterVisibilityToggle(initialVisible) : null;
     if (visibility) row.appendChild(visibility.element);
+    else appendEmptyParamCell(row);
 
     const initialAudience = param.audience ?? null;
     const rowAudience = { value: initialAudience };
@@ -831,6 +855,8 @@ export function showCharacterEditDialog({
         participants,
         myParticipantId
       }));
+    } else {
+      appendEmptyParamCell(row);
     }
 
     // 削除ボタンは常に配置し、locked時は非表示にするだけにする（数値入力・削除の
@@ -861,19 +887,18 @@ export function showCharacterEditDialog({
   });
 
   // --- 新規カスタムパラメータの追加 ---
-  const customListEl = document.createElement('div');
-  customListEl.className = 'dialog-custom-list';
-  mainColumn.appendChild(customListEl);
-
   const customRows = [];
 
   function addCustomRow() {
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
 
+    // 名前の欄は一覧の1列目（既存パラメータのラベルと同じ幅）に入る。例まで書くと
+    // 収まらないので、プレースホルダは短く、例はtitleに持たせる
     const labelInput = document.createElement('input');
     labelInput.type = 'text';
-    labelInput.placeholder = 'パラメータ名（例: 正気度）';
+    labelInput.placeholder = '名前';
+    labelInput.title = 'パラメータ名（例: 正気度）';
 
     const valueInput = document.createElement('input');
     valueInput.type = 'text';
@@ -907,7 +932,7 @@ export function showCharacterEditDialog({
     row.appendChild(visibility.element);
     row.appendChild(audienceBtn);
     row.appendChild(removeBtn);
-    customListEl.appendChild(row);
+    paramListEl.appendChild(row);
 
     customRows.push({
       labelInput, valueInput, visibleCheckbox: visibility.checkbox,

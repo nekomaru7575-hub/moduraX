@@ -2,8 +2,8 @@
    コマ作成ツール（character-builder.html）の見た目。 */
 
 body {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+  background-color: var(--surface-page);
+  color: var(--text-default);
   font-family: var(--font-body);
   margin: 0;
   padding: 20px;
@@ -23,7 +23,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  border-bottom: 2px solid #3a3a3a;
+  border-bottom: 2px solid var(--border-subtle);
   padding-bottom: 8px;
   margin-bottom: 12px;
 }
@@ -34,13 +34,13 @@ body {
 }
 
 .app-header span {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .builder-card {
-  background-color: #242424;
-  border: 1px solid #3a3a3a;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 16px;
 }
@@ -53,15 +53,15 @@ body {
 
 .builder-form-group label {
   font-size: 0.85rem;
-  color: #aaa;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .builder-form-group select,
 .builder-form-group input[type="file"] {
-  background-color: #3a3a3a;
-  color: #fff;
-  border: 1px solid #555;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
   padding: 6px 8px;
   border-radius: 4px;
 }
@@ -69,14 +69,14 @@ body {
 /* 読み込みボタンの下に置く注記。説明している相手（ボタン）の後ろに来るので、
    余白は上だけ持つ */
 .builder-hint {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin: 12px 0 0;
 }
 
 .builder-primary-btn {
-  background-color: #007acc;
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--text-emphasis);
   font-weight: bold;
   border: none;
   padding: 8px 16px;
@@ -85,15 +85,15 @@ body {
 }
 
 .builder-primary-btn:disabled {
-  background-color: #444;
-  color: #888;
+  background-color: var(--surface-raised-2);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .builder-secondary-btn {
   background: none;
-  border: 1px solid #555;
-  color: #ddd;
+  border: 1px solid var(--border-default);
+  color: var(--text-body-strong);
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;

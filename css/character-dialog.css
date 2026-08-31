@@ -1191,7 +1191,7 @@
 }
 
 .dialog-table-name-btn:hover {
-  background-color: #454545;
+  background-color: var(--surface-hover);
 }
 
 /* --- 音楽ダイアログ --- */
@@ -1323,7 +1323,7 @@
 }
 
 .deck-list-action:hover {
-  background-color: #505050;
+  background-color: var(--surface-hover);
 }
 
 /* デッキ編集のカード1行。画像・名前・枚数・情報・複製・削除を横に並べる。

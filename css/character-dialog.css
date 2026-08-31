@@ -1044,6 +1044,9 @@
   white-space: nowrap;
 }
 
+/* min-width:0が要る理由は下の数値入力欄と同じ。無いとinput既定の自動最小幅（約187px）に
+   負けて縮まず、名前欄と値欄が並ぶユーザ定義パラメータの行が本体カラムからはみ出して、
+   右のプラグイン専用スペースの上に重なって描かれる（カラムの幅は340px、行の中身は499px）。 */
 .dialog-custom-row input {
   background-color: var(--surface-control);
   color: var(--text-emphasis);
@@ -1051,6 +1054,7 @@
   padding: 6px 8px;
   border-radius: 4px;
   flex: 1;
+  min-width: 0;
 }
 
 /* 数値入力欄はテキスト欄と同じ比率で広げる必要がないため、幅を固定して小さくする（元の約1/5）。

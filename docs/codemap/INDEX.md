@@ -20,7 +20,7 @@ generated: 2026-08-30
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 140 | 610 | 1072 | 54 | 2 |
+| 140 | 614 | 1085 | 53 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -105,13 +105,13 @@ generated: 2026-08-30
 | [[js.parameters.futarisousa\|js/parameters/futarisousa.js]] | バディサスペンスTRPG フタリソウサ のプラグイン記述子。 | 2 | 1 |
 | [[js.parameters.gcrest-ability-box\|js/parameters/gcrest-ability-box.js]] | グランクレストの能力判定値6種と技能をまとめて表示する「ボックス」。 | 1 | 1 |
 | [[js.parameters.gcrest-unit-box\|js/parameters/gcrest-unit-box.js]] | グランクレストの「部隊」（マスコンバット）を編集するボックス。 | 1 | 1 |
-| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 25 | 1 |
+| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 28 | 1 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 16 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 1 | 1 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 32 | 3 |
-| [[js.parameters.sheet-source\|js/parameters/sheet-source.js]] | 「キャラクターシートのURLから取り込む」ときの受け付け先の宣言と、シートの値を読む小道具。 | 3 | 4 |
+| [[js.parameters.sheet-source\|js/parameters/sheet-source.js]] | 「キャラクターシートのURLから取り込む」ときの受け付け先の宣言と、シートの値を読む小道具。 | 4 | 5 |
 | [[js.parameters.shinobigami-ougi-box\|js/parameters/shinobigami-ougi-box.js]] | シノビガミの「奥義」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 9 | 1 |
 | [[js.parameters.shinobigami-skills\|js/parameters/shinobigami-skills.js]] | シノビガミの特技表データ（6分野 × 11行）。 | 4 | 1 |
 | [[js.parameters.shinobigami\|js/parameters/shinobigami.js]] | シノビガミのプラグイン記述子。 | 9 | 1 |

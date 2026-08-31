@@ -55,3 +55,28 @@ export function assignSheetNumber(target, paramId, raw) {
   const value = Number(raw);
   if (Number.isFinite(value)) target[paramId] = Math.trunc(value);
 }
+
+/**
+ * シートの「効果」のような、書式の入った文字列欄を読む。
+ *
+ * ゆとシートはHTMLへ埋める形で保存するので、本文に実体参照とタグが混じる
+ * （グランクレストの天恵に `武器のダメージ属性に&lt;炎熱&gt;を追加` が入っていた）。
+ * そのまま入れると画面に `&lt;炎熱&gt;` と出るため、ここで元の文字へ戻す。
+ *
+ * 【&amp; を最後に戻すこと】先に戻すと、`&amp;lt;` が `&lt;` になった後もう一度
+ * 解釈されて `<` まで進んでしまう（二重復号）。
+ *
+ * 【戻して安全な理由】この値の行き先は、一覧ボックスの input.value と textContent だけで、
+ * innerHTML へは渡らない（js/parameters/skill/skill-box.js）。将来この一覧を innerHTML で
+ * 描く実装を足すなら、そちら側で js/html-escape.js の escapeHtml を通すこと。
+ */
+export function sheetRichText(value) {
+  return sheetText(value)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}

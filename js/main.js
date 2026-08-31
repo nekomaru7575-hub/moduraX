@@ -1284,7 +1284,11 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       return;
     }
 
-    const [command, comment = ""] = splitForSpace(rawInput);
+    // 繰り返しコマンド（x3 2D6 など）の前置きを先に剥がす。ここを剥がさないと、
+    // 「繰り返すコマンド」がまるごとコメント側へ回ってBCDiceには"x3"しか届かない。
+    const [repeatPrefix, repeatBody] = splitRepeatPrefix(rawInput);
+
+    const [command, comment = ""] = splitForSpace(repeatBody);
     // ダイスコマンドかどうかは、そのシステムのcommand_pattern（BCDiceが公開している
     // 「このシステムがコマンドとして受け付ける文字列」の正規表現）で判定する。
     // システム情報を取得できなかった場合のみ、従来の「使われる文字種だけで足切り」へ戻す。
@@ -1305,7 +1309,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     // choiceは選択肢を空白で区切って渡す書き方（choice 赤 青 緑）があり、BCDiceは
     // 半角スペースしか区切りと見なさない。ここへ渡す分だけ全角スペースを半角へそろえる。
-    const toCommand = isStartsChoice ? `${command} ${comment.replaceAll("\u3000", " ")}` : command;
+    const toCommand = repeatPrefix + (isStartsChoice ? `${command} ${comment.replaceAll("\u3000", " ")}` : command);
 
     const { success, unsupported, resultText, diceValues, secret } = await rollBCDice(system, toCommand);
     if (!success) {
@@ -2515,6 +2519,27 @@ function splitForSpace(string) {
   if (separatorIndex < 0) return [trimmed];
 
   return [trimmed.slice(0, separatorIndex), trimmed.slice(separatorIndex + 1).trim()];
+}
+
+// 繰り返しコマンド（「x3 2D6」「rep3 2D6」「repeat3 2D6」）の前置きの切り出し。
+// 返すのはBCDiceへ渡す形の前置き（末尾の半角スペース込み。繰り返しでなければ空文字）と、
+// 繰り返される中身。前置きが無ければ入力がそのまま中身になる。
+//
+// BCDiceは回数の後ろの半角スペースから先を「繰り返すコマンド」として読む。ところが
+// このアプリはコマンドとコメントを最初の空白で切り分けるため（splitForSpace）、そこを
+// 切ってしまうと"x3"だけがBCDiceへ届いて構文エラーになる。そこで前置きだけを先に外し、
+// 残りを普段どおり「コマンド＋コメント」として扱えるようにする。
+// これにより「x3 2D6 攻撃！」のコメントも、繰り返さないときと同じように後ろへ回る。
+//
+// 先頭のsはシークレットダイス（「Sx3 2D6」）。BCDiceがそのまま解釈するので前置きに含める。
+// 区切りは全角スペースでも受け付ける（BCDiceは半角しか認めないため、渡す前に半角へそろえる）。
+// \u3000は全角スペース。半角と見分けが付かないので、文字そのままではなくエスケープで書く。
+function splitRepeatPrefix(string) {
+  const trimmed = string.trim();
+  const matched = trimmed.match(/^(s?(?:repeat|rep|x)\d+)[ \u3000]+(?=\S)/i);
+  if (!matched) return ["", trimmed];
+
+  return [`${matched[1]} `, trimmed.slice(matched[0].length)];
 }
 
 // hideSystem: カレントチャット欄など、システム名（[Cthulhu7th]等）の表示が不要な場所ではtrueにする。

@@ -16,6 +16,18 @@
   max-width: 720px;
 }
 
+/* コマの作成/更新ダイアログだけ、上のmax-widthいっぱいまで広げる。
+   <dialog>の既定の幅はfit-contentなので、指定しないと中身の最小幅で確定してしまい、
+   720pxに一度も届かないまま中のボタンの文字が2行に折れていた（画面幅1280pxでも
+   実測634px。680pxあれば「+ バフ/デバフを付与」「バフ/デバフ一覧」は1行に収まる）。
+   .character-dialogそのものに書かないこと。確認だけの小さなダイアログ
+   （チャットタブの削除・バフの付与など）も同じクラスを使っており、全部720pxになる。 */
+.character-dialog.character-form-dialog {
+  /* box-sizingは既定のcontent-boxなので、この720pxに左右のpadding+borderの42pxが
+     外側へ足される。画面幅から引く側も、その42px＋余白を見込んで80px引いてある */
+  width: min(720px, calc(100vw - 80px));
+}
+
 .dialog-columns {
   display: flex;
   gap: 20px;
@@ -1029,6 +1041,32 @@
   gap: 6px;
 }
 
+/* パラメータ一覧（コマの作成/更新ダイアログの「パラメータ」）だけは、行ごとのflexではなく
+   一覧全体で1つの表にする。行の中で幅を決めていると、その行が持つ部品の数で列の位置が
+   変わり、同じ「×」が行ごとに違う左端に並んでいた（実測 HP=508px／イニシアチブ=426px／
+   ユーザ定義パラメータ=590px の3箇所）。表示トグルと公開先ボタンは出ない行があるためで、
+   ×だけは「常に置いて非表示にする」手当てが元からあったが、他の列に及んでいなかった。
+   一覧側にgridを持たせ、行はdisplay:contentsで枠を消して、列幅を一覧が決める形にする。
+
+   【行は必ず5セル並べること】display:contentsは行という入れ物を無くすので、セルが欠けた
+   行があるとそこから先の行が1列ずつずれる。出さない列にも .dialog-param-cell-empty を
+   置くこと（js/character-dialog.jsのappendEmptyParamCell）。
+   列は左から：名前 ／ 値 ／ 表示トグル ／ 公開先 ／ 削除。 */
+.dialog-param-list {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+}
+
+.dialog-param-list > .dialog-custom-row {
+  display: contents;
+}
+
+/* 出さない列に置く空のセル。列を1つ占めるためだけのもの */
+.dialog-param-cell-empty {
+  display: block;
+}
+
 /* バフ/デバフ一覧の説明テキスト（名前・対象パラメータ・増減値・終了条件をまとめた1行） */
 .buff-row-info {
   flex: 1;
@@ -1036,9 +1074,12 @@
   font-size: 0.9rem;
 }
 
-/* 既存パラメータ一覧のラベル列。幅を固定し、数値入力・表示・削除の縦位置を全行で揃える */
+/* 既存パラメータ一覧のラベル列。幅を固定し、数値入力・表示・削除の縦位置を全行で揃える。
+   （.dialog-param-listの中ではgridの1列目が幅を決めるのでflexは効かない。min-width:0が
+   無いとgrid itemの自動最小幅に負けて、長い名前で列がはみ出す） */
 .dialog-param-label {
   flex: 0 0 96px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1113,6 +1154,9 @@
   border-color: #c9a227;
 }
 
+/* 行を消すボタン。パラメータ行では「×」1文字だが、画像の行では「画像を削除」の
+   ように文字が入る。狭い列に入ると文字が2行に折れて行の高さだけが伸びるので、
+   折らずに幅の方を確保する（隣の「画像を選択」は伸縮するので押し出されない）。 */
 .dialog-remove-row {
   background-color: var(--surface-raised-2);
   color: var(--text-body-strong);
@@ -1120,6 +1164,7 @@
   border-radius: 4px;
   padding: 0 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 /* チェックボックス付きの行（ログ保存のタブ選択）。行全体をlabelにして名前部分でも切り替えられる */
@@ -1437,10 +1482,15 @@
 .dialog-buff-row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
+/* 2つ横に並べて160pxずつ取れないときは、縮めずに縦へ折り返す。狭い画面で
+   等分すると1つ約144pxになり、「+ バフ/デバフを付与」の文字が2行に折れる
+   （幅320pxの端末で発生。375px以上なら横に並ぶ）。画面幅ではなく実際に置ける
+   幅で決まるので、@mediaの区切りを増やさずに済む。 */
 .dialog-buff-row .dialog-add-row-btn {
-  flex: 1 1 0;
+  flex: 1 1 160px;
   min-width: 0;
 }
 
@@ -2026,7 +2076,11 @@
    1カラムの縦長シートに畳む。combined_layout.html側の@mediaと同じ900pxで切る。
    ====================================================================== */
 @media (max-width: 900px) {
-  .character-dialog {
+  /* .character-form-dialogを並べて書いてあるのは、幅を指定している側（ファイル冒頭）と
+     クラスの数が同じで打ち消せないため。片方だけにすると、狭い画面でも
+     calc(100vw - 80px)が勝ってダイアログが画面の3/4まで縮む */
+  .character-dialog,
+  .character-dialog.character-form-dialog {
     box-sizing: border-box;
     min-width: 0;
     max-width: 100%;

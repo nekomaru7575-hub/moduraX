@@ -42,6 +42,7 @@ import { isKnownStampId } from './stamp-registry.js';
 import { showsEntryMessages } from './store/room.js';
 import { adoptImportedState } from './state-import.js';
 import { handleAssetMessageAsHost } from './asset-sync.js';
+import { adoptDataUrlsInState } from './asset-store.js';
 import { getChatSendSoundUrl, getEntrySoundUrl } from './sound-config.js';
 import { CLOSE_CODES } from './net-transport.js';
 
@@ -356,10 +357,6 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
 
     // 今この部屋にいる参加者一覧を引き継ぐ。引き継がないと、読み込んだGMがその場で
     // GM権限を失う（js/state-import.js）。送り手側でも通しているが、権威側でも必ず通す。
-    //
-    // 【割り切り】サーバーのadoptStateMediaに当たるものが無いので、読み込んだファイルに
-    // 混ざっている画像はデータURL・他の部屋のURLのまま全員へ渡る。メディアをブラウザへ
-    // 移す段（docs/p2p-migration-notes.md）で回収する。
     let adopted;
     try {
       adopted = adoptImportedState(message.state, { participants: store.state.participants });
@@ -373,6 +370,27 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     // 送り手にも配る。送り手のタブは既にローカルで置き換えているが、権威が均した形
     // （参加者一覧の引き継ぎ）で揃え直す。
     peers.forEach((other) => sendTo(other, { type: 'INIT', state: store.state }));
+    // 読み込んだファイルに混ざっている画像・音源をこのブラウザの実体へ移す
+    // （サーバーのadoptStateMediaに当たる）。**先に配ってから**行う——数MBの読み替えで
+    // 読み込みが待たされるより、絵が後から差し替わる方がよい。
+    adoptReplacedMedia();
+  }
+
+  // 置き換えた状態に残っているデータURLを実体へ移し替える。
+  //
+  // 【やらないと保存が止まる】状態に実体が残ったままだと、控えが上限
+  // （MAX_SNAPSHOT_BYTES）を超えてサーバーに捨てられる＝**その卓だけ保存されなくなる**。
+  // 実体を状態から追い出すのは、通信量の話であると同時に永続化の前提でもある。
+  async function adoptReplacedMedia() {
+    try {
+      const { state, adopted } = await adoptDataUrlsInState(store.state);
+      if (adopted === 0) return;
+      console.info(`[net-host] 読み込んだ画像${adopted}件をこのブラウザの持ち物にしました`);
+      store.hydrate(state);
+      peers.forEach((other) => sendTo(other, { type: 'INIT', state: store.state }));
+    } catch (error) {
+      console.warn('[net-host] 読み込んだ画像を引き取れませんでした:', error.message);
+    }
   }
 
   // 部屋の削除。RedisとR2を消せるのはサーバーだけなので、シグナリング接続で頼む。

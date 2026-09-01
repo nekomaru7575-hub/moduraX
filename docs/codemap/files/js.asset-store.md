@@ -2,7 +2,7 @@
 source: js/asset-store.js
 lines: 473
 exports: 19
-imported_by: 6
+imported_by: 8
 api_sha: d3c98bc5f4df
 prose_sha: d3c98bc5f4df
 generated: 2026-09-01
@@ -78,7 +78,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.host-persistence]], [[js.image-upload]], [[js.main]], [[js.net-sync]]
+- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.host-persistence]], [[js.image-upload]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-index]]
 
 ## 注意
 

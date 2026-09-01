@@ -19,6 +19,7 @@ import { openSignaling } from './net-signaling.js';
 import { startHost } from './net-host.js';
 import { ensureAssetsFor, handleAssetMessage, initAssetSync } from './asset-sync.js';
 import { startHostPersistence } from './host-persistence.js';
+import { takePendingImport } from './p2p-import-handoff.js';
 import { adoptDataUrlsInState } from './asset-store.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
@@ -473,21 +474,38 @@ function initAsHost(session, seedState) {
   if (seedState) {
     hasReceivedInit = true;
     store.hydrate(seedState);
+    // 「ファイルから作ったP2P卓」の中身は、サーバーではなく部屋一覧ページから直接来る
+    // （js/p2p-import-handoff.js）。サーバーに大きなボディを読ませないための回り道で、
+    // 流し込むのは**種を敷いた後・画面を出す前**——先に敷かないと、この後のhydrateが
+    // 補った既定値を取りこぼす。
+    //
+    // 状態は渡す側で既にadoptImportedStateを通してある（参加者一覧は空）。この時点の
+    // 部屋にもまだ誰も居ないので、ここで通し直しても結果は変わらない。
+    const pending = takePendingImport(currentRoomId());
+    if (pending) {
+      console.info('[net-sync] ファイルから読み込んだ内容をこの部屋へ流し込みます');
+      store.hydrate(pending);
+    }
     EventBus.emit('NET_STATUS_CHANGED', 'connected');
     // 参加者としての名乗り等のきっかけ。ゲストのINIT受信時と同じ役割（js/main.jsが待っている）。
-    EventBus.emit('NET_INITIALIZED', seedState);
+    EventBus.emit('NET_INITIALIZED', store.state);
     // 取り込んだファイル由来のデータURLをこのブラウザの実体へ移す（サーバーの
     // adoptStateMediaに当たる）。**先に画面を出してから**行う——数MBの読み替えで
     // 入室が待たされるより、絵が後から差し替わる方がよい。
-    adoptSeedMedia();
+    adoptLocalMedia();
   }
 
   return host;
 }
 
-// 種に埋まっているデータURLを実体へ移し替える。移したぶんは状態が軽くなり、控えとして
-// サーバーへ送る量もそのぶん減る（js/host-persistence.js）。
-async function adoptSeedMedia() {
+// いまの状態に埋まっているデータURLを実体へ移し替える。ホストになった直後（種）と、
+// GM自身がファイルを読み込んだ直後（replaceState）の両方から呼ぶ。
+//
+// 移したぶんは状態が軽くなり、控えとしてサーバーへ送る量もそのぶん減る
+// （js/host-persistence.js）。**軽くしないと控えが上限を超えて捨てられる**ので、
+// これは表示の都合ではなく永続化の前提。ゲストが送ってきたぶんは権威側でも同じことを
+// する（js/net-host.jsのadoptReplacedMedia）。
+async function adoptLocalMedia() {
   try {
     const { state, adopted } = await adoptDataUrlsInState(store.state);
     if (adopted === 0) return;
@@ -671,11 +689,12 @@ export function replaceState(newState) {
   });
   store.hydrate(adopted);
 
-  // ホスト役のときは自分が権威なので、送るのではなく配る。データURLの複製し直し
-  // （サーバー側のadoptStateMedia）に当たるものは無いので、画像は読み込んだ形のまま
-  // 全員へ渡ることになる——スパイクの割り切り（js/net-host.js冒頭）。
+  // ホスト役のときは自分が権威なので、送るのではなく配る。
   if (host) {
     host.broadcast({ type: 'INIT', state: store.state });
+    // 読み込んだファイルに混ざっている画像をこのブラウザの実体へ移す（サーバー側の
+    // adoptStateMediaに当たる）。配ってから行い、移し終えたらもう一度配り直す。
+    adoptLocalMedia();
     return;
   }
 

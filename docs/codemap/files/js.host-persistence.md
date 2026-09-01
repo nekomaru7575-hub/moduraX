@@ -1,6 +1,6 @@
 ---
 source: js/host-persistence.js
-lines: 220
+lines: 241
 exports: 1
 imported_by: 1
 api_sha: 41e4d0e4d399
@@ -35,7 +35,7 @@ _(未記入)_
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 54 | gzipToBase64 | `async gzipToBase64(json)` | 10 |  |
-| 73 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 147 | ✓ |
+| 73 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 168 | ✓ |
 
 ## 依存
 

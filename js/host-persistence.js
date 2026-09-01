@@ -29,7 +29,7 @@
 
 import { EventBus } from './EventBus.js';
 import { store } from './game-store.js';
-import { nextSnapshotDelay } from './net-host-rules.js';
+import { nextSnapshotDelay, MAX_SNAPSHOT_BYTES } from './net-host-rules.js';
 // base64への詰め替えは実体の配送と同じもので済む（js/asset-store.js の冒頭にある
 // 「JSONの道へ乗せるための詰め替え」）。ここのためだけに同じものをもう1つ作らない。
 import { blobToBase64 } from './asset-store.js';
@@ -84,6 +84,8 @@ export function startHostPersistence({ send, seedState = null }) {
   // 閉じる瞬間はawaitできないので、ここに用意してあるものをそのまま送る。
   let warm = null;
   let warmTimer = null;
+  // 大きすぎて送れない旨は1回だけ言う（5分ごとに繰り返してもうるさいだけ）
+  let oversizeWarned = false;
 
   function safeStringify(state) {
     try {
@@ -110,6 +112,25 @@ export function startHostPersistence({ send, seedState = null }) {
 
   // 実際に送る一手。ここだけは同期（閉じる瞬間から呼ぶため）。
   function deliver(json, body) {
+    // サーバーが受け取れる上限（js/net-host-rules.jsのMAX_SNAPSHOT_BYTES）を超えていたら、
+    // 送っても向こうで捨てられる。**捨てられたことはこちらに返ってこない**ので、黙って
+    // 送り続けると「保存されていない卓」が保存されているつもりで進む。ここで気づかせる。
+    //
+    // 普通に遊んで届く値ではない（実測180KB／上限8MB）。届くとしたら、取り込んだファイルの
+    // データURLが実体へ移らずに状態へ残っている場合で、それはこちらの直すべき不具合。
+    // 文字数ではなくバイト数で測る。日本語は1文字3バイトになるので、json.lengthで見ると
+    // 3分の1に見積もってしまい、サーバー側の判定とずれる。
+    const bytes = new Blob([json]).size;
+    if (bytes > MAX_SNAPSHOT_BYTES) {
+      if (!oversizeWarned) {
+        oversizeWarned = true;
+        console.error('[host-persistence] 状態が大きすぎて控えを預けられません'
+          + `（${Math.floor(bytes / 1024)}KB / 上限 ${MAX_SNAPSHOT_BYTES / 1024 / 1024}MB）。`
+          + '画像がこのブラウザの実体へ移らずに状態へ残っている可能性があります。');
+      }
+      return;
+    }
+
     const message = body
       ? { type: 'HOST_SNAPSHOT', encoding: 'gzip', body }
       : { type: 'HOST_SNAPSHOT', state: store.state };

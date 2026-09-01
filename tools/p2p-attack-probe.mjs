@@ -252,7 +252,37 @@ console.log('\n[7] 圧縮した控えで膨らませない（zip爆弾）');
   host.send({ type: 'HOST_SNAPSHOT', encoding: 'gzip', body: 'これはgzipではない' });
   await wait(1000);
   check(await fetch(`${BASE}/api/rooms`).then((r) => r.ok).catch(() => false), '壊れた本文でも落ちない');
+
+  // **ここが本題。** 上の500MBは極端なので上限が93MBでも止まっていた。実際に危ないのは
+  // 「上限のすぐ下」を狙う本文で、展開後32MBならJSON.parseの上乗せと合わせて100MB超に
+  // なる。手前の門（WS_HEAVY_FRAME_BYTES）は圧縮後しか見られないので素通りする。
+  // 控えに実体は入らない＝8MBあれば足りる（MAX_SNAPSHOT_BYTES）ことを確かめる。
+  const fat = JSON.stringify({
+    room: { name: '__probe__上限すれすれ', bcdiceSystem: 'DiceBot' },
+    chatLogs: { main: [{ text: 'a'.repeat(32 * 1024 * 1024) }] }
+  });
+  const packed = gzipSync(Buffer.from(fat), { level: 9 });
+  check(packed.length < 512 * 1024, '32MBに膨らむ本文も手前の門をすり抜ける大きさ',
+    `(${Math.round(packed.length / 1024)}KB)`);
+  host.send({ type: 'HOST_SNAPSHOT', encoding: 'gzip', body: packed.toString('base64') });
+  await wait(2000);
+  check(await fetch(`${BASE}/api/rooms`).then((r) => r.ok).catch(() => false), 'それでも落ちない');
+
+  // 上限を入れたせいで普通の控えまで捨てていないか。**守りを入れて普通の操作を壊すのが
+  // 一番ありがちな失敗**なので、同じ流れの中で必ず確かめる。
+  host.send({ type: 'HOST_SNAPSHOT', state: { room: { name: '__probe__普通の控え', bcdiceSystem: 'DiceBot' }, chatLogs: { main: [{ text: '__probe__これは残るはず' }] } } });
+  await wait(1500);
   host.ws.close();
+  await wait(300);
+
+  const after = connect(room.id, { net: 'rtc' });
+  await after.ready;
+  await wait(500);
+  const seed = after.got.find((m) => m.type === 'INIT')?.state;
+  check(seed?.room?.name === '__probe__普通の控え', '大きすぎる控えは保存されず、普通の控えは通る',
+    `(${seed?.room?.name})`);
+  check(JSON.stringify(seed || {}).length < 1024 * 1024, '巨大な本文が保存先へ入っていない');
+  after.ws.close();
 }
 
 console.log('\n[8] /asset/ はサーバーには無い（肩代わりするのはService Worker）');

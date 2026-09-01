@@ -1,10 +1,10 @@
 ---
 source: js/state-import.js
-lines: 140
-exports: 1
-imported_by: 3
-api_sha: 455e229c5397
-prose_sha: 455e229c5397
+lines: 187
+exports: 2
+imported_by: 4
+api_sha: 252d8b773c56
+prose_sha: 252d8b773c56
 generated: 2026-09-01
 tags: [codemap]
 ---
@@ -18,16 +18,17 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-外部から取り込んだ部屋の状態を、この部屋で使える形へ均す。取り込み時にしか通らない正規化をここに閉じ込めてあり、クライアント（[[js.net-sync]]）とサーバー（[[server.index]]）の両方から同じ関数が呼ばれる。均す対象は参加者・情報欄に加えて、読み込んだ利用者のバックヤードのコマの所有者付け替えも含む。この所有者判定は [[js.character-panel]] の `listMyBackyardTokens` と同じ規則（参加者IDが分かればownerId、分からなければブラウザ単位のID）に揃えている。
+外部から取り込んだ部屋の状態を、この部屋で使える形へ均す。取り込み時にしか通らない正規化をここに閉じ込めてあり、クライアント（[[js.net-sync]]）とサーバー（[[server.index]]）の両方から同じ関数が呼ばれる。均す対象は参加者・情報欄に加えて、読み込んだ利用者のバックヤードのコマの所有者付け替えも含む。この所有者判定は [[js.character-panel]] の `listMyBackyardTokens` と同じ規則（参加者IDが分かればownerId、分からなければブラウザ単位のID）に揃えている。部屋を新しく作るときの突き合わせ（部屋名はフォーム入力で上書きし、プラグインとダイスシステムはファイル側を優先する）も `buildRoomStateFromImport` としてここに置いてある——P2P卓ではこの読み込みをブラウザ側（[[js.room-index]]）が行うため、同じ規則が2か所に要るようになった。
 <!-- /prose:role -->
 
-## export（1）
+## export（2）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 125 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
+| 165 | fn | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 部屋を新しく作るときの取り込み。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（4）
+## トップレベル関数（LOCAL TASKS 候補）（5）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -38,11 +39,12 @@ tags: [codemap]
 | 79 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
 | 101 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
 | 125 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 15 | ✓ |
+| 165 | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 22 | ✓ |
 
 ## 依存
 
 - import → [[js.game-store]]
-- imported by → [[js.net-host]], [[js.net-sync]], [[server.index]]
+- imported by → [[js.net-host]], [[js.net-sync]], [[js.room-index]], [[server.index]]
 
 ## 注意
 

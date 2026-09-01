@@ -9,7 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MESSAGE_RATE_LIMIT, SNAPSHOT_INTERVAL_MS, createFixedWindowLimiter, createSlidingWindowLimiter,
+  MESSAGE_RATE_LIMIT, SNAPSHOT_INTERVAL_MS, MAX_SNAPSHOT_BYTES,
+  createFixedWindowLimiter, createSlidingWindowLimiter,
   entryMessageDecision, nextSnapshotDelay, typingUsersFrom
 } from '../js/net-host-rules.js';
 
@@ -178,4 +179,15 @@ test('控えの間隔は、失って困る幅として決めてある', () => {
   // 数字そのものを固定したいのではなく、サーバー側の保存デバウンス（1秒）と桁が
   // 違うこと＝別の理由で決まっていることを守りたい。
   assert.ok(SNAPSHOT_INTERVAL_MS >= 60 * 1000, '分の単位であること');
+});
+
+// --- 控え1回の大きさの上限 ---
+
+test('控えの上限は、育った卓の実測より十分大きく、部屋データ1つぶんより十分小さい', () => {
+  // 発言1000件・コマ40個の育った卓で実測180KB。その何十倍かは余裕が要る
+  assert.ok(MAX_SNAPSHOT_BYTES > 4 * 1024 * 1024);
+  // ここが緩いと守りにならない。server/index.jsのMAX_IMPORT_BYTES（約93MB）に対して
+  // 桁で小さいこと——手前の門は圧縮後の大きさしか見られないので、この値がそのまま
+  // 「1通で確保させられる領域」の上限になる。
+  assert.ok(MAX_SNAPSHOT_BYTES <= 16 * 1024 * 1024);
 });

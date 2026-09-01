@@ -43,6 +43,26 @@ export const MESSAGE_RATE_LIMIT = Object.freeze({ windowMs: 10 * 1000, max: 300 
 export const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
+ * 控え1回の、**展開したあとの**大きさの上限（js/host-persistence.js／server/index.js）。
+ *
+ * 【なぜ要るか】サーバー側でフレームの大きさを見ている門（server/index.jsの
+ * WS_HEAVY_FRAME_BYTES）は、**圧縮したあとの大きさしか見られない**。控えはgzipして
+ * 送るので、数百KBのフレームが展開後は何百MBにもなりうる——門を素通りしたうえで、
+ * 重い操作の予算（server/memory-budget.js）の外側で大きな領域を確保させられる。
+ * 落ちるのはプロセスごとなので、同居している全部屋が巻き添えになる。
+ *
+ * 【8MBで足りる理由】P2P卓の状態に画像・音源の実体は入らない（/asset/<hash>の参照だけ。
+ * js/asset-store.js）。残るのは文字だけで、発言1000件・コマ40個の育った卓で実測180KB。
+ * 8MBはその40倍以上あり、普通に遊んで届く値ではない。
+ *
+ * 【実体が混ざらないようにするのは送り手の仕事】取り込んだファイル由来のデータURLは、
+ * ホストが受け取った時点でこのブラウザの実体へ移す（js/net-host.jsのhandleReplaceState、
+ * js/net-sync.jsのadoptLocalMedia）。これを怠ると状態に実体が残り、ここに引っかかって
+ * **控えが黙って捨てられる**＝その卓だけ保存されない、という壊れ方をする。
+ */
+export const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
+
+/**
  * 次に控えを送るまでの待ち時間を決める。
  *
  * 先送り（デバウンス）ではなく間引き（スロットル）。デバウンスだと「操作が続いている間は

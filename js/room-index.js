@@ -13,6 +13,9 @@ import { listPlugins, getPluginBcdiceSystem } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
+import { buildRoomStateFromImport } from './state-import.js';
+import { adoptDataUrlsInState } from './asset-store.js';
+import { stashPendingImport, commitPendingImport, clearPendingImport } from './p2p-import-handoff.js';
 import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
 import { setIconText } from './icons.js';
 
@@ -499,6 +502,31 @@ function mountCreatePanel() {
 
   form.appendChild(btnRow);
 
+  // P2P卓を「ファイルから作る」ときの下ごしらえ。サーバーへ送る代わりに、この場で
+  // 画像・音源を実体（IndexedDB）へ移し、残った文字だけを盤面ページへ渡す。
+  //
+  // 【この順でないと意味が無い】先に実体を抜いておかないと、渡す文字列がデータURLごと
+  // 数十MBになってsessionStorageに入らない。抜いてしまえば発言1000件の卓でも180KB程度。
+  // ついでに、この卓で使う実体が入室前に揃うので、ホストになった直後から絵が出る。
+  //
+  // @returns {Promise<boolean>} 渡せたか。falseなら呼び出し側は従来どおりサーバーへ送る
+  async function prepareP2pImport(importedState, { name, activePlugin, bcdiceSystem }) {
+    const { state: lightened, adopted } = await adoptDataUrlsInState(importedState);
+    if (adopted > 0) {
+      console.info(`[room-index] 画像・音源${adopted}件をこのブラウザの持ち物にしました`);
+    }
+    // フォームの入力との突き合わせは、サーバーの部屋作成と同じ関数を通す
+    // （js/state-import.jsのbuildRoomStateFromImport）。ここで別の規則を書くと、
+    // 通常卓とP2P卓で「読み込んだのに設定が違う」というずれ方をする。
+    const initialState = buildRoomStateFromImport(lightened, {
+      name: String(name || '').trim(),
+      activePlugin: activePlugin && listPlugins().some((p) => p.id === activePlugin) ? activePlugin : null,
+      bcdiceSystem,
+      validPluginIds: new Set(listPlugins().map((p) => p.id))
+    });
+    return stashPendingImport(initialState);
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorText.style.display = 'none';
@@ -518,6 +546,24 @@ function mountCreatePanel() {
     createBtn.disabled = true;
     createBtn.textContent = '作成中...';
 
+    // P2P卓では、読み込んだファイルをサーバーへ送らずに自分のタブで流し込む
+    // （js/p2p-import-handoff.js）。サーバーで一番大きなボディを読む経路がここなので、
+    // 通さずに済むならその方がよい。控えられなかった場合（容量不足）は従来どおり送る。
+    let handedOff = false;
+    if (p2pInput.checked && importedState) {
+      try {
+        createBtn.textContent = '読み込み中...';
+        handedOff = await prepareP2pImport(importedState, {
+          name: nameInput.value,
+          activePlugin: pluginSelect.value || null,
+          bcdiceSystem: bcdiceSelect.value
+        });
+      } catch (error) {
+        console.warn('[room-index] 手元での読み込みに失敗しました:', error.message);
+      }
+      createBtn.textContent = '作成中...';
+    }
+
     try {
       // 部屋IDはサーバーが決める（応答のidがそれ）。こちらからは送らない。
       const response = await fetch('/api/rooms', {
@@ -529,18 +575,23 @@ function mountCreatePanel() {
           bcdiceSystem: bcdiceSelect.value,
           entryPassword: passwordInput.value,
           p2p: p2pInput.checked,
-          importedState
+          importedState: handedOff ? undefined : importedState
         })
       });
 
       const result = await response.json();
       if (!response.ok) {
+        clearPendingImport();
         errorText.textContent = result.error || '部屋の作成に失敗しました。';
         errorText.style.display = 'block';
         createBtn.disabled = false;
         createBtn.textContent = '作成して入室';
         return;
       }
+
+      // 控えの宛先を確定する。**部屋ができてから**でないと宛先が決まらない
+      // （IDはサーバーが採番する）。
+      if (handedOff) commitPendingImport(result.id);
 
       // 作った本人は続けて入室するので、入力したパスワードをこのブラウザに覚えさせて
       // おく（覚えさせないと、遷移した直後に自分で入力し直すことになる）。
@@ -549,6 +600,7 @@ function mountCreatePanel() {
       // （サーバーが応答で返したp2pを正とする。中継が無効なら立たない）。
       window.location.href = roomBoardUrl({ id: result.id, p2p: result.p2p === true });
     } catch (error) {
+      clearPendingImport();
       errorText.textContent = `通信エラー: ${error.message}`;
       errorText.style.display = 'block';
       createBtn.disabled = false;

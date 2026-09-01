@@ -20,7 +20,7 @@ generated: 2026-09-01
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 146 | 655 | 1141 | 59 | 2 |
+| 147 | 661 | 1146 | 58 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -29,7 +29,7 @@ generated: 2026-09-01
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
 | [[js.asset-base\|js/asset-base.js]] | 「このアプリが画面に出す絵のうち、リポジトリに置いていないもの」の置き場所を1か所で持つ。 | 4 | 3 |
-| [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場（IndexedDB）。中身のSHA-256を名前にし、状態には /asset/<hash> の参照だけを載せる。状態を歩いて集める・差し替える道具もここ。 | 19 | 6 |
+| [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場（IndexedDB）。中身のSHA-256を名前にし、状態には /asset/<hash> の参照だけを載せる。状態を歩いて集める・差し替える道具もここ。 | 19 | 8 |
 | [[js.asset-sync\|js/asset-sync.js]] | P2P卓で、画像・音源の実体をピアの間で行き来させる。 | 5 | 4 |
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 6 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
@@ -81,7 +81,7 @@ generated: 2026-09-01
 | [[js.main\|js/main.js]] |  | 0 | 0 |
 | [[js.mobile-layout\|js/mobile-layout.js]] | 狭幅（スマホ）向けの縦積みレイアウト。 | 1 | 1 |
 | [[js.net-chunk\|js/net-chunk.js]] | DataChannelで大きなメッセージを運ぶための分割と組み直し。 | 5 | 2 |
-| [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。連打よけ・記入中の集計・入室メッセージの重複判定・控えを送る間引き。サーバーと共有する上限もここに置く。 | 8 | 3 |
+| [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。連打よけ・記入中の集計・入室メッセージの重複判定・控えを送る間引き。サーバーと共有する上限もここに置く。 | 9 | 3 |
 | [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。 | 1 | 1 |
 | [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 3 |
 | [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 9 | 3 |
@@ -91,6 +91,7 @@ generated: 2026-09-01
 | [[js.no-browser-zoom\|js/no-browser-zoom.js]] | ブラウザ標準のページズームを止める。 | 1 | 1 |
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
+| [[js.p2p-import-handoff\|js/p2p-import-handoff.js]] | P2P卓を「ファイルから作る」ときに、読み込んだ状態を部屋一覧ページから盤面ページへ渡す。 | 4 | 2 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
 | [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 3 | 1 |
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
@@ -145,7 +146,7 @@ generated: 2026-09-01
 | [[js.stamp-layer\|js/stamp-layer.js]] | スタンプの表示レイヤー。 | 2 | 2 |
 | [[js.stamp-panel\|js/stamp-panel.js]] | 「スタンプ送信」：使えるスタンプを画像で並べ、押すとその場で送る浮動パネル。 | 1 | 1 |
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 6 |
-| [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 3 |
+| [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 2 | 4 |
 | [[js.store.audio\|js/store/audio.js]] | 音楽（BGM・効果音）まわりの語彙。 | 3 | 4 |
 | [[js.store.buffs\|js/store/buffs.js]] | バフ/デバフの終了条件（フェーズ）と、フェーズ終了時の後始末。 | 8 | 4 |
 | [[js.store.cards\|js/store/cards.js]] | カード・デッキ・カードストッカーの形を整える処理と、その上限。 | 36 | 3 |
@@ -167,7 +168,7 @@ generated: 2026-09-01
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
-| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 8 |
+| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |

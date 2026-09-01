@@ -29,14 +29,14 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
 // メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
-import { MESSAGE_RATE_LIMIT } from '../js/net-host-rules.js';
+import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
 // キャラクターシートの取り込み先の宣言。どのURLを取りに行ってよいかはプラグインだけが知る。
 import { getPluginSheetSource } from '../js/parameters/registry.js';
-import { adoptImportedState } from '../js/state-import.js';
+import { adoptImportedState, buildRoomStateFromImport } from '../js/state-import.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 // GM限定の判定は画面側・ホスト役と規則を1つにしてある（js/room-authority-rules.js）。
 // 画面側のjs/room-authority.jsではなくこちらを読むのは、あちらがstoreとnet-sync.jsを
@@ -1048,17 +1048,29 @@ async function persistRoomNow(roomId, entry) {
 // 本文は生のJSON（message.state）か、gzipしてbase64にしたもの（message.body）のどちらか。
 // 育った卓は状態が200KBを超え、そのままではタブを閉じる瞬間に回線へ出し切れない
 // （js/host-persistence.jsに実測がある）ので、ホスト側は基本的に圧縮して送ってくる。
-async function applyHostSnapshot(roomId, entry, message) {
+async function applyHostSnapshot(roomId, entry, message, frameBytes) {
   let state = null;
 
   if (message.encoding === 'gzip') {
     const compressed = Buffer.from(String(message.body || ''), 'base64');
     // **展開後の大きさを縛る。** 縛らないと、数KBの本文が数GBに膨らむものを送るだけで
     // このプロセスを落とせる（＝同居している全部屋が巻き添えで切断される）。
-    // 上限は「部屋データ1つぶん」の既存の枠に合わせる。
-    const json = await gunzip(compressed, { maxOutputLength: MAX_IMPORT_BYTES });
+    //
+    // 上限が「部屋データ1つぶん」（MAX_IMPORT_BYTES＝93MB）では緩すぎる。**手前の門
+    // （WS_HEAVY_FRAME_BYTES）は圧縮後の大きさしか見られない**ので、数百KBのフレームが
+    // 予算（server/memory-budget.js）の外側で93MBを確保させられる。JSON.parseがその
+    // 3〜4倍を上乗せするため、1通で数百MBまで届く。控えに実体は入らないので、
+    // 実際に要る大きさで縛る（MAX_SNAPSHOT_BYTES、js/net-host-rules.js）。
+    const json = await gunzip(compressed, { maxOutputLength: MAX_SNAPSHOT_BYTES });
     state = parseUntrustedJson(json.toString('utf-8'));
   } else {
+    // 圧縮していない控え。こちらはフレームの大きさがそのまま費用なので、手前の門
+    // （WS_HEAVY_FRAME_BYTES + hasRoomFor）が既に効いている。同じ上限で揃えるためだけに
+    // フレーム長で見る（JSON.parseはもう済んでいるので、ここで測り直す意味は無い）。
+    if (frameBytes > MAX_SNAPSHOT_BYTES) {
+      console.warn(`[server] ${roomId}: 大きすぎる控え（${Math.floor(frameBytes / 1024)}KB）を捨てました`);
+      return;
+    }
     state = message.state;
   }
 
@@ -2238,31 +2250,15 @@ async function handleCreateRoom(req, res) {
 
   let initialState;
   if (importedState && typeof importedState === 'object') {
-    // 全データ読み込み：既存の状態をベースに、部屋名はフォーム入力で上書きするが、
-    // プラグイン・システムはインポートしたファイル側に値があればそちらを優先する
-    // （読み込んだ部屋データが前提にしていた構成を、その場のフォーム選択で誤って
-    // 上書きしないようにするため）。ファイル側に値が無い場合のみフォーム入力を使う。
-    const importedRoom = importedState.room || {};
-    const importedActivePlugin = importedRoom.activePlugin;
-    const resolvedActivePlugin = importedActivePlugin && validPluginIds.has(importedActivePlugin)
-      ? importedActivePlugin
-      : safeActivePlugin;
-    const resolvedBcdiceSystem = typeof importedRoom.bcdiceSystem === 'string' && importedRoom.bcdiceSystem
-      ? importedRoom.bcdiceSystem
-      : safeBcdiceSystem;
-
-    // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。この部屋にはまだ誰も
-    // 入っていないので参加者一覧は空で渡す＝ファイル側の参加者（GMの印を含む）を捨て、
-    // 「最初に名乗った人がGMになる」規則に戻す。
-    initialState = adoptImportedState({
-      ...importedState,
-      room: {
-        ...importedRoom,
-        name: trimmedName,
-        activePlugin: resolvedActivePlugin,
-        bcdiceSystem: resolvedBcdiceSystem
-      }
-    }, { participants: {} });
+    // 全データ読み込み。突き合わせ方（部屋名はフォーム／プラグインとシステムはファイル優先）は
+    // js/state-import.jsに置いてある——P2P卓ではブラウザ側が同じことをするため
+    // （js/room-index.js。サーバーへ大きなボディを送らないようにしてある）。
+    initialState = buildRoomStateFromImport(importedState, {
+      name: trimmedName,
+      activePlugin: safeActivePlugin,
+      bcdiceSystem: safeBcdiceSystem,
+      validPluginIds
+    });
   } else {
     initialState = createInitialGameState({ name: trimmedName, activePlugin: safeActivePlugin, bcdiceSystem: safeBcdiceSystem });
   }
@@ -3447,7 +3443,7 @@ wss.on('connection', async (ws, req) => {
       }
       // 圧縮されている場合は解くのに待ちが要るので、この先は非同期にする。
       // 待っている間に部屋が消えることがあるので、適用の直前にもう一度確かめる。
-      applyHostSnapshot(roomId, entry, message)
+      applyHostSnapshot(roomId, entry, message, data.length)
         .catch((error) => console.warn(`[server] ${roomId}: 控えを取り込めませんでした:`, error.message));
       return;
     }

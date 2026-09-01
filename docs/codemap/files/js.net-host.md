@@ -1,6 +1,6 @@
 ---
 source: js/net-host.js
-lines: 528
+lines: 546
 exports: 1
 imported_by: 1
 api_sha: e37cb80cb420
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 71 | fn | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | ホスト役を始める。 |
+| 72 | fn | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | ホスト役を始める。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -34,11 +34,11 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 71 | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | **457** | ✓ |
+| 72 | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | **474** | ✓ |
 
 ## 依存
 
-- import → [[js.asset-sync]], [[js.game-store]], [[js.local-identity]], [[js.net-chunk]], [[js.net-host-rules]], [[js.net-signaling]], [[js.net-transport]], [[js.room-authority-rules]], [[js.sound-config]], [[js.stamp-catalog]], [[js.stamp-registry]], [[js.state-import]], [[js.store.room]]
+- import → [[js.asset-store]], [[js.asset-sync]], [[js.game-store]], [[js.local-identity]], [[js.net-chunk]], [[js.net-host-rules]], [[js.net-signaling]], [[js.net-transport]], [[js.room-authority-rules]], [[js.sound-config]], [[js.stamp-catalog]], [[js.stamp-registry]], [[js.state-import]], [[js.store.room]]
 - imported by → [[js.net-sync]]
 
 ## 注意

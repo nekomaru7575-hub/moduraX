@@ -1,6 +1,6 @@
 ---
 source: js/host-persistence.js
-lines: 126
+lines: 220
 exports: 1
 imported_by: 1
 api_sha: 41e4d0e4d399
@@ -25,20 +25,21 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 42 | fn | startHostPersistence | `startHostPersistence({ send, seedState = null })` | ホストの控えの送信を始める。 |
+| 73 | fn | startHostPersistence | `startHostPersistence({ send, seedState = null })` | ホストの控えの送信を始める。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（1）
+## トップレベル関数（LOCAL TASKS 候補）（2）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 42 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 84 | ✓ |
+| 54 | gzipToBase64 | `async gzipToBase64(json)` | 10 |  |
+| 73 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 147 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.game-store]], [[js.net-host-rules]]
+- import → [[js.EventBus]], [[js.asset-store]], [[js.game-store]], [[js.net-host-rules]]
 - imported by → [[js.net-sync]]
 
 ## 注意

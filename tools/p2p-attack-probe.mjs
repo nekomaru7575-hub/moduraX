@@ -25,6 +25,7 @@
 //
 // 撃つ相手は検証用サーバーだけ。本番URLへは撃たない。
 import { WebSocket } from 'ws';
+import { gzipSync } from 'node:zlib';
 
 const BASE = process.argv[2] || 'http://localhost:8085';
 if (!/^http:\/\/(localhost|127\.0\.0\.1)(:|$)/.test(BASE)) {
@@ -226,7 +227,35 @@ console.log('\n[6] 控え（HOST_SNAPSHOT）を書けるのはホストだけ');
   after.ws.close();
 }
 
-console.log('\n[7] /asset/ はサーバーには無い（肩代わりするのはService Worker）');
+console.log('\n[7] 圧縮した控えで膨らませない（zip爆弾）');
+{
+  // 控えはgzipで送られてくる（js/host-persistence.js）。展開後の大きさを縛っていないと、
+  // **数KBの本文でこのプロセスを落とせる**——同居している全部屋が巻き添えで切断される。
+  const room = await createRoom('__probe__zip爆弾', true);
+  const host = connect(room.id, { net: 'rtc' });
+  await host.ready;
+  await wait(300);
+  host.send({ type: 'SIGNAL_HELLO', wantsHost: true });
+  await wait(300);
+  check(host.got.find((m) => m.type === 'SIGNAL_WELCOME')?.role === 'host', 'ホストになる');
+
+  // 500MBのゼロ列をgzipすると数百KB。展開させれば一発でメモリを食い潰せる
+  const bomb = gzipSync(Buffer.alloc(500 * 1024 * 1024), { level: 9 });
+  check(bomb.length < 1024 * 1024, '本文自体は小さい', `(${Math.round(bomb.length / 1024)}KB)`);
+  host.send({ type: 'HOST_SNAPSHOT', encoding: 'gzip', body: bomb.toString('base64') });
+  await wait(3000);
+
+  const alive = await fetch(`${BASE}/api/rooms`).then((r) => r.ok).catch(() => false);
+  check(alive, 'サーバーが生きている  ←ここが落ちると全部屋が巻き添え');
+
+  // 壊れたgzipでも落ちない
+  host.send({ type: 'HOST_SNAPSHOT', encoding: 'gzip', body: 'これはgzipではない' });
+  await wait(1000);
+  check(await fetch(`${BASE}/api/rooms`).then((r) => r.ok).catch(() => false), '壊れた本文でも落ちない');
+  host.ws.close();
+}
+
+console.log('\n[8] /asset/ はサーバーには無い（肩代わりするのはService Worker）');
 {
   // SWが居ない環境では、このURLはそのままサーバーへ届く。静的配信の外へ出られないことを
   // 確かめる——ここが緩いと、**状態に書いただけの文字列でソースや.envを読み出す口**になる。
@@ -245,7 +274,7 @@ console.log('\n[7] /asset/ はサーバーには無い（肩代わりするの�
   }
 }
 
-console.log('\n[8] サーバーの生存');
+console.log('\n[9] サーバーの生存');
 {
   const res = await fetch(`${BASE}/api/rooms`).catch(() => null);
   check(res?.ok === true, 'サーバーが生きている  ←ここが落ちると全部屋が巻き添え');

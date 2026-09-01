@@ -30,6 +30,37 @@
 import { EventBus } from './EventBus.js';
 import { store } from './game-store.js';
 import { nextSnapshotDelay } from './net-host-rules.js';
+// base64への詰め替えは実体の配送と同じもので済む（js/asset-store.js の冒頭にある
+// 「JSONの道へ乗せるための詰め替え」）。ここのためだけに同じものをもう1つ作らない。
+import { blobToBase64 } from './asset-store.js';
+
+// 圧縮せずにそのまま送ってよい大きさ。**閉じる瞬間に回線へ出し切れる上限**として
+// 実測で決めた（1.5KBと65KBは出せた／221KBは出せなかった）。安全側に64KBで切る。
+const RAW_SNAPSHOT_LIMIT_BYTES = 64 * 1024;
+
+// 圧縮済みの控えを用意し直すまでの、操作が途切れてからの待ち時間。
+// 閉じる瞬間は待てない（awaitするとページの片付けが先に進む）ので、**あらかじめ
+// 用意しておいたものを送る**という形にしている。ここを短くするほど閉じたときに失う幅が
+// 縮むが、そのぶんGMのタブでgzipが走る回数が増える。221KBで1回10ms前後。
+const WARM_DELAY_MS = 2000;
+
+/**
+ * 状態のJSONをgzipしてbase64にする。使えない環境ではnull（呼び出し側は生で送る）。
+ *
+ * CompressionStreamはChrome 80 / Firefox 113 / Safari 16.4 以降。無い環境では
+ * 圧縮なしのまま動く——大きい卓で閉じる瞬間の取りこぼしが起きやすくなるだけで、
+ * 5分ごとの控えは通る。
+ */
+async function gzipToBase64(json) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+    return await blobToBase64(await new Response(stream).blob());
+  } catch (error) {
+    console.warn('[host-persistence] 控えを圧縮できませんでした:', error.message);
+    return null;
+  }
+}
 
 /**
  * ホストの控えの送信を始める。ホスト役になったときに1回だけ呼ぶ。
@@ -49,6 +80,10 @@ export function startHostPersistence({ send, seedState = null }) {
   // あるが（persistRoomNow）、そこまで運ぶ帯域はこちらでしか節約できない。
   // 種と同じ内容を最初に送り返さないよう、貰った時点の姿を入れておく。
   let lastSentJson = seedState ? safeStringify(seedState) : null;
+  // 圧縮済みの控え。{ json, body }で、jsonはそれを作った時点の状態。
+  // 閉じる瞬間はawaitできないので、ここに用意してあるものをそのまま送る。
+  let warm = null;
+  let warmTimer = null;
 
   function safeStringify(state) {
     try {
@@ -58,18 +93,46 @@ export function startHostPersistence({ send, seedState = null }) {
     }
   }
 
-  function sendNow() {
+  // 圧縮したものを送る（できなければ生で）。定期の控えはここを通る——待てる場面なので、
+  // 用意が間に合っていなければその場で圧縮する。
+  async function sendNow() {
     if (stopped) return;
     const json = safeStringify(store.state);
     // 中身が変わっていなければ送らない。間引きの時計（lastSentAt）も進めない——進めると
     // 「動きの無い間に時計だけ進み、次の変更が余計に待たされる」ことになる。
     if (json === null || json === lastSentJson) return;
+
+    const body = warm?.json === json ? warm.body : await gzipToBase64(json);
+    if (stopped) return;
+    if (body) warm = { json, body };
+    deliver(json, body);
+  }
+
+  // 実際に送る一手。ここだけは同期（閉じる瞬間から呼ぶため）。
+  function deliver(json, body) {
+    const message = body
+      ? { type: 'HOST_SNAPSHOT', encoding: 'gzip', body }
+      : { type: 'HOST_SNAPSHOT', state: store.state };
     // 送れたときだけ「送った」ことにする。切れている間に諦めると、繋がり直した後も
     // 同じ内容だからと送らないままになり、その卓は永久に保存されない。
-    if (send({ type: 'HOST_SNAPSHOT', state: store.state })) {
+    if (send(message)) {
       lastSentJson = json;
       lastSentAt = Date.now();
     }
+  }
+
+  // 圧縮済みの控えを用意しておく。操作が途切れてから1回だけ走る。
+  // これがあるおかげで、閉じる瞬間に待たずに小さいものを送れる。
+  function scheduleWarm() {
+    if (stopped) return;
+    if (warmTimer) clearTimeout(warmTimer);
+    warmTimer = setTimeout(async () => {
+      warmTimer = null;
+      const json = safeStringify(store.state);
+      if (json === null || warm?.json === json || json === lastSentJson) return;
+      const body = await gzipToBase64(json);
+      if (body && !stopped) warm = { json, body };
+    }, WARM_DELAY_MS);
   }
 
   // 変更があったら、前回から間隔が空くのを待って送る（間引き）。
@@ -77,7 +140,10 @@ export function startHostPersistence({ send, seedState = null }) {
   // **予約済みなら何もしない。** デバウンスのように予約を取り直すと、操作が続いている
   // 卓ほど控えが遅れることになり、一番失いたくない状況で一番守られない。
   function onChanged() {
-    if (stopped || timer) return;
+    if (stopped) return;
+    // 閉じる瞬間に備えて、圧縮済みの控えは間隔と関係なく用意し直しておく。
+    scheduleWarm();
+    if (timer) return;
     const delayMs = nextSnapshotDelay({ now: Date.now(), lastSentAt });
     timer = setTimeout(() => {
       timer = null;
@@ -85,13 +151,39 @@ export function startHostPersistence({ send, seedState = null }) {
     }, delayMs);
   }
 
-  /** いま送る（待たない）。タブを閉じるときと、ホスト役を降りるときに使う。 */
+  /**
+   * いま送る（待たない）。タブを閉じるとき・ホスト役を降りるときに使う。
+   *
+   * **ここではawaitできない。** 閉じる瞬間にawaitすると、続きが動く前にページの片付けが
+   * 進んでしまう。だから圧縮は「あらかじめ用意しておいたもの」しか使わない。
+   * 3つの手を順に試す：
+   *   1. 用意済みの控えが今の状態と一致 … それを送る（小さいので確実に出る）
+   *   2. 生でも64KBに収まる            … 生で送る（今の状態そのままを残せる）
+   *   3. どちらでもない                … 数秒古い控えを送る。丸ごと失うよりはよい
+   */
   function flush() {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
-    sendNow();
+    if (stopped) return;
+
+    const json = safeStringify(store.state);
+    if (json === null || json === lastSentJson) return;
+
+    if (warm?.json === json) {
+      deliver(json, warm.body);
+      return;
+    }
+    if (new Blob([json]).size <= RAW_SNAPSHOT_LIMIT_BYTES) {
+      deliver(json, null);
+      return;
+    }
+    if (warm) {
+      // 最後に用意してから数秒ぶん古い。それでも、サーバーが持っているもの
+      // （最大5分前）よりは新しい。
+      deliver(warm.json, warm.body);
+    }
   }
 
   // ホスト役を降りたとき。EventBusには購読をやめる口が無いので、stoppedを立てて
@@ -99,7 +191,9 @@ export function startHostPersistence({ send, seedState = null }) {
   function stop() {
     stopped = true;
     if (timer) clearTimeout(timer);
+    if (warmTimer) clearTimeout(warmTimer);
     timer = null;
+    warmTimer = null;
     window.removeEventListener('pagehide', onPageHide);
     document.removeEventListener('visibilitychange', onVisibilityChange);
   }

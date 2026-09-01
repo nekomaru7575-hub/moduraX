@@ -126,6 +126,9 @@ function roomKey(roomId) {
 const COMPRESSED_PREFIX = 'B1:';
 const brotliCompress = promisify(zlib.brotliCompress);
 const brotliDecompress = promisify(zlib.brotliDecompress);
+// P2P卓のホストが送ってくる控えを解く（HOST_SNAPSHOT）。ブラウザ側がgzipしか持って
+// いないのでbrotliではなくgzip（CompressionStreamにbrotliは無い。js/host-persistence.js）。
+const gunzip = promisify(zlib.gunzip);
 // 品質5は圧縮率と速度の釣り合いが良い（q4より10%小さく、q11より桁違いに速い）。
 const BROTLI_OPTIONS = { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } };
 
@@ -1038,6 +1041,36 @@ async function persistRoomNow(roomId, entry) {
   }
   // 一覧用の要約も追随させる。中身が変わっていなければ何も書かない（syncRoomSummary参照）。
   await syncRoomSummary(roomId, entry);
+}
+
+// --- P2P卓のホストが送ってきた控えを取り込む ---
+//
+// 本文は生のJSON（message.state）か、gzipしてbase64にしたもの（message.body）のどちらか。
+// 育った卓は状態が200KBを超え、そのままではタブを閉じる瞬間に回線へ出し切れない
+// （js/host-persistence.jsに実測がある）ので、ホスト側は基本的に圧縮して送ってくる。
+async function applyHostSnapshot(roomId, entry, message) {
+  let state = null;
+
+  if (message.encoding === 'gzip') {
+    const compressed = Buffer.from(String(message.body || ''), 'base64');
+    // **展開後の大きさを縛る。** 縛らないと、数KBの本文が数GBに膨らむものを送るだけで
+    // このプロセスを落とせる（＝同居している全部屋が巻き添えで切断される）。
+    // 上限は「部屋データ1つぶん」の既存の枠に合わせる。
+    const json = await gunzip(compressed, { maxOutputLength: MAX_IMPORT_BYTES });
+    state = parseUntrustedJson(json.toString('utf-8'));
+  } else {
+    state = message.state;
+  }
+
+  if (!state || typeof state !== 'object') return;
+  // 解いている間に部屋が消えていることがある。ここを通すと、片付けたそばから
+  // 保存先へ書き戻されて消したはずの部屋が復活する。
+  if (entry.pendingDelete || rooms.get(roomId) !== entry) return;
+
+  entry.store.hydrate(state);
+  // 保存そのものは通常の卓とまったく同じ道を通る（末尾デバウンス・同内容なら書かない・
+  // 一覧用の要約の追随まで含めて）。P2P卓のためだけの保存経路を別に作らない。
+  schedulePersistForRoom(roomId, entry);
 }
 
 // 操作が続いている間は保存を先送りし、途切れてから書く（末尾デバウンス）。
@@ -3412,16 +3445,10 @@ wss.on('connection', async (ws, req) => {
         console.warn(`[server] ${roomId}: ホスト以外からの控えを拒否しました`);
         return;
       }
-      if (!message.state || typeof message.state !== 'object') return;
-      try {
-        entry.store.hydrate(message.state);
-      } catch (error) {
-        console.warn(`[server] ${roomId}: 控えを取り込めませんでした:`, error.message);
-        return;
-      }
-      // 保存そのものは通常の卓とまったく同じ道を通る（末尾デバウンス・同内容なら書かない・
-      // 一覧用の要約の追随まで含めて）。P2P卓のためだけの保存経路を別に作らない。
-      schedulePersistForRoom(roomId, entry);
+      // 圧縮されている場合は解くのに待ちが要るので、この先は非同期にする。
+      // 待っている間に部屋が消えることがあるので、適用の直前にもう一度確かめる。
+      applyHostSnapshot(roomId, entry, message)
+        .catch((error) => console.warn(`[server] ${roomId}: 控えを取り込めませんでした:`, error.message));
       return;
     }
 

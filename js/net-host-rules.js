@@ -25,6 +25,34 @@
 export const MESSAGE_RATE_LIMIT = Object.freeze({ windowMs: 10 * 1000, max: 300 });
 
 /**
+ * 保存を先送りする間隔と、先送りし続ける上限。
+ *
+ * 操作が続いている間は書かず、途切れてから書く（末尾デバウンス）。ただし操作が途切れない
+ * まま延々と続く場合に一度も書かないのは困るので、最初の未保存の変更から maxWaitMs が
+ * 経ったらそこで一度書く。
+ *
+ * サーバー（server/index.jsのschedulePersistForRoom）とP2P卓のホスト
+ * （js/host-persistence.js）が同じ値を使う。**守っている資源が同じ**——どちらも最後は
+ * Redisへの書き込みになるので、片方だけ緩めても意味が無く、両方に数字を書けばずれる。
+ */
+export const SAVE_POLICY = Object.freeze({ debounceMs: 1000, maxWaitMs: 5000 });
+
+/**
+ * 次に保存するまでの待ち時間を決める。
+ *
+ * @param {object} options
+ * @param {number} options.now いま
+ * @param {number|null} options.deadline 先送りの期限（未設定ならこれから決める）
+ * @param {{debounceMs: number, maxWaitMs: number}} [options.policy]
+ * @returns {{delayMs: number, deadline: number}}
+ */
+export function nextSaveDelay({ now, deadline, policy = SAVE_POLICY }) {
+  const nextDeadline = deadline || (now + policy.maxWaitMs);
+  const delayMs = Math.max(0, Math.min(now + policy.debounceMs, nextDeadline) - now);
+  return { delayMs, deadline: nextDeadline };
+}
+
+/**
  * 1つの接続が名乗ってよい回数。
  *
  * サーバー側の理由（開発用の合言葉の総当たり）はホストには無い——合言葉はサーバーの

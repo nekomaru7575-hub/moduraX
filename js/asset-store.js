@@ -400,6 +400,60 @@ export function dataUrlToBlob(dataUrl) {
 }
 
 /**
+ * 状態に埋まっているデータURLを、この置き場の実体へ移し替える。
+ *
+ * サーバーの `adoptStateMedia`（取り込んだ画像をR2へ移す）に当たるもののP2P卓版。
+ * 取り込んだファイルには、この機能より前に書き出されたデータURLの画像が混ざっている。
+ * 放っておくと**部屋の状態そのものが数MBになる**——それは全参加者へ配られ、控えとして
+ * Redisへも送られる（js/host-persistence.js）ので、P2P化で減らしたかったものが
+ * そっくり戻ってくる。参照へ移せば状態は数十バイトに戻り、実体は各自のブラウザに残る。
+ *
+ * **引き換え**：移した実体は、持っている人が誰も居なくなれば戻らない（データURLのままなら
+ * 部屋データと一緒に残っていた）。これはこの置き場の設計そのもので、ここだけの例外は作らない。
+ *
+ * 外部URLと既に参照のものは触らない。移せなかったものは元のまま残す。
+ *
+ * @param {object} state
+ * @returns {Promise<{state: object, adopted: number}>}
+ */
+export async function adoptDataUrlsInState(state) {
+  // 同じデータURLが何度も出てくる（コマを複製した場合など）。1回だけ読む。
+  const seen = new Map();
+  const collect = (value) => {
+    if (typeof value === 'string') {
+      if (value.startsWith('data:') && !seen.has(value)) seen.set(value, null);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(collect); return; }
+    Object.values(value).forEach(collect);
+  };
+  collect(state);
+  if (seen.size === 0) return { state, adopted: 0 };
+
+  let adopted = 0;
+  for (const dataUrl of [...seen.keys()]) {
+    const ref = await adoptDataUrl(dataUrl);
+    if (typeof ref === 'string' && ref !== dataUrl) {
+      seen.set(dataUrl, ref);
+      adopted += 1;
+    }
+  }
+  if (adopted === 0) return { state, adopted: 0 };
+
+  const swap = (value) => {
+    if (typeof value === 'string') return seen.get(value) || value;
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(swap);
+    const next = {};
+    for (const [key, item] of Object.entries(value)) next[key] = swap(item);
+    return next;
+  };
+
+  return { state: swap(state), adopted };
+}
+
+/**
  * データURLを実体としてしまい、参照を返す。取り込んだファイルの引き取りで使う。
  * データURLでなければ、その値をそのまま返す（外部URL・既に参照のものは触らない）。
  * @param {unknown} value

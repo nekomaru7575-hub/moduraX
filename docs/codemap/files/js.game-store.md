@@ -2,7 +2,7 @@
 source: js/game-store.js
 lines: 433
 exports: 4
-imported_by: 15
+imported_by: 16
 api_sha: a787e28853cd
 prose_sha: a787e28853cd
 generated: 2026-09-01
@@ -42,7 +42,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.handlers.index]], [[js.store.ids]], [[js.store.info]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]]
-- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
+- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.host-persistence]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
 
 ## 注意
 

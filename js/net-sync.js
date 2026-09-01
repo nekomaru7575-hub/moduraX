@@ -18,6 +18,8 @@ import { createRtcGuestTransport } from './net-transport-rtc.js';
 import { openSignaling } from './net-signaling.js';
 import { startHost } from './net-host.js';
 import { ensureAssetsFor, handleAssetMessage, initAssetSync } from './asset-sync.js';
+import { startHostPersistence } from './host-persistence.js';
+import { adoptDataUrlsInState } from './asset-store.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
@@ -36,6 +38,9 @@ let transport = null;
 
 // ホスト役として動いている場合の中継口（js/net-host.js）。ゲスト・WebSocket時はnull。
 let host = null;
+
+// ホストが部屋の控えをサーバーへ預ける係（js/host-persistence.js）。ホスト時だけ。
+let hostPersistence = null;
 
 // P2P卓でサーバーとの間に張っている口（js/net-signaling.js）。ホストもゲストも1本持つ。
 // 同期データは通らないが、入室パスワードの照合と部屋の削除はここを通る。
@@ -449,6 +454,14 @@ function initAsHost(session, seedState) {
   // 実体の置き場での役どころ。ホストは権威なので取りに行く先が無く、代わりに配る側になる。
   initAssetSync({ host: true, send: null });
 
+  // 部屋の控えをサーバーへ預ける（js/host-persistence.js）。これが無いと、このタブを
+  // 閉じた時点でその日の卓が消える。種と同じ内容は送り返さない。
+  hostPersistence?.stop();
+  hostPersistence = startHostPersistence({
+    send: (message) => session.sendToServer(message),
+    seedState
+  });
+
   store.dispatch = (action, payload) => {
     const stampedPayload = stampPayload(action, payload);
     localDispatch(action, stampedPayload);
@@ -463,9 +476,28 @@ function initAsHost(session, seedState) {
     EventBus.emit('NET_STATUS_CHANGED', 'connected');
     // 参加者としての名乗り等のきっかけ。ゲストのINIT受信時と同じ役割（js/main.jsが待っている）。
     EventBus.emit('NET_INITIALIZED', seedState);
+    // 取り込んだファイル由来のデータURLをこのブラウザの実体へ移す（サーバーの
+    // adoptStateMediaに当たる）。**先に画面を出してから**行う——数MBの読み替えで
+    // 入室が待たされるより、絵が後から差し替わる方がよい。
+    adoptSeedMedia();
   }
 
   return host;
+}
+
+// 種に埋まっているデータURLを実体へ移し替える。移したぶんは状態が軽くなり、控えとして
+// サーバーへ送る量もそのぶん減る（js/host-persistence.js）。
+async function adoptSeedMedia() {
+  try {
+    const { state, adopted } = await adoptDataUrlsInState(store.state);
+    if (adopted === 0) return;
+    console.info(`[net-sync] 取り込み済みの画像${adopted}件をこのブラウザの持ち物にしました`);
+    store.hydrate(state);
+    // 既に繋がっている参加者へ配り直す（この時点では普通まだ誰も居ない）
+    host?.broadcast({ type: 'INIT', state: store.state });
+  } catch (error) {
+    console.warn('[net-sync] 取り込み済みの画像を引き取れませんでした:', error.message);
+  }
 }
 
 // 参加者として動く。ホストのタブとDataChannelを1本張り、以後の同期はそこだけを流れる。

@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MESSAGE_RATE_LIMIT, createFixedWindowLimiter, createSlidingWindowLimiter,
-  entryMessageDecision, typingUsersFrom
+  MESSAGE_RATE_LIMIT, SAVE_POLICY, createFixedWindowLimiter, createSlidingWindowLimiter,
+  entryMessageDecision, nextSaveDelay, typingUsersFrom
 } from '../js/net-host-rules.js';
 
 // --- 窓を区切って数える方（メッセージ流量。server/index.jsのexceedsMessageRateの移植） ---
@@ -142,4 +142,48 @@ test('名乗っていない人には出さない', () => {
     enabled: true, alreadyDecided: false, participantId: null, otherParticipantIds: []
   });
   assert.deepEqual(decision, { announce: false, markDecided: false });
+});
+
+// --- 保存の先送り（末尾デバウンス） ---
+// サーバーとP2P卓のホストが同じ policy を使う。間違えると「操作のたびに書く」（Redisを
+// 叩き続ける）か「いつまでも書かない」（落ちたときに失う幅が広がる）のどちらかになる。
+
+test('初回は debounce ぶんだけ待ち、期限が決まる', () => {
+  const { delayMs, deadline } = nextSaveDelay({
+    now: 1000, deadline: null, policy: { debounceMs: 100, maxWaitMs: 500 }
+  });
+  assert.equal(delayMs, 100);
+  assert.equal(deadline, 1500);
+});
+
+test('操作が続く間は先送りされるが、期限は動かない', () => {
+  const policy = { debounceMs: 100, maxWaitMs: 500 };
+  let { deadline } = nextSaveDelay({ now: 1000, deadline: null, policy });
+  // 50msごとに操作が続く
+  for (const now of [1050, 1100, 1150]) {
+    const next = nextSaveDelay({ now, deadline, policy });
+    assert.equal(next.deadline, 1500, '期限は最初の未保存の変更から動かない');
+    assert.equal(next.delayMs, 100, '毎回 debounce ぶん先送りされる');
+    deadline = next.deadline;
+  }
+});
+
+test('期限に近づいたら debounce より短く待つ', () => {
+  const policy = { debounceMs: 100, maxWaitMs: 500 };
+  // 期限は1500。1450での操作は、100待つと期限を50超えてしまう
+  const { delayMs } = nextSaveDelay({ now: 1450, deadline: 1500, policy });
+  assert.equal(delayMs, 50);
+});
+
+test('期限を過ぎていたら待たない', () => {
+  const policy = { debounceMs: 100, maxWaitMs: 500 };
+  const { delayMs } = nextSaveDelay({ now: 1600, deadline: 1500, policy });
+  assert.equal(delayMs, 0);
+});
+
+test('保存の間隔はサーバーとホストで1か所から配る', () => {
+  assert.equal(typeof SAVE_POLICY.debounceMs, 'number');
+  assert.equal(typeof SAVE_POLICY.maxWaitMs, 'number');
+  assert.ok(SAVE_POLICY.debounceMs < SAVE_POLICY.maxWaitMs, '上限は先送りより長いこと');
+  assert.ok(Object.isFrozen(SAVE_POLICY));
 });

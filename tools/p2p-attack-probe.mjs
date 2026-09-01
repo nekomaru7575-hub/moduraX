@@ -176,7 +176,57 @@ console.log('\n[5] SIGNALの中継が部屋の外へ出ない');
   b.ws.close();
 }
 
-console.log('\n[6] /asset/ はサーバーには無い（肩代わりするのはService Worker）');
+console.log('\n[6] 控え（HOST_SNAPSHOT）を書けるのはホストだけ');
+{
+  // P2P卓の永続化は「ホストが部屋の中身を丸ごと送り、サーバーが保存する」形
+  // （js/host-persistence.js）。ここが空いていると、同じ部屋の誰でも保存先を好きな内容へ
+  // 上書きできる——ACTIONの権限判定を全部迂回する口になる。
+  const room = await createRoom('__probe__控え攻撃', true);
+
+  const host = connect(room.id, { net: 'rtc' });
+  await host.ready;
+  await wait(300);
+  host.send({ type: 'SIGNAL_HELLO', wantsHost: true });
+  await wait(300);
+  check(host.got.find((m) => m.type === 'SIGNAL_WELCOME')?.role === 'host', '先にホストを取る');
+
+  // ホストが正しい控えを預ける
+  host.send({ type: 'HOST_SNAPSHOT', state: { room: { name: '__probe__控え攻撃', bcdiceSystem: 'DiceBot' }, chatLogs: { main: [{ text: '__probe__ホストの控え' }] } } });
+  await wait(1500);
+
+  // 参加者が偽の控えを送る
+  const thief = connect(room.id, { net: 'rtc' });
+  await thief.ready;
+  await wait(300);
+  thief.send({ type: 'SIGNAL_HELLO', wantsHost: true });
+  await wait(300);
+  check(thief.got.find((m) => m.type === 'SIGNAL_WELCOME')?.role === 'guest', '2人目は参加者');
+  thief.send({ type: 'HOST_SNAPSHOT', state: { room: { name: '__probe__乗っ取り' }, chatLogs: { main: [{ text: '__probe__偽の控え' }] } } });
+
+  // SIGNAL_HELLOすら送っていない接続からも試す
+  const stranger = connect(room.id, { net: 'rtc' });
+  await stranger.ready;
+  await wait(300);
+  stranger.send({ type: 'HOST_SNAPSHOT', state: { room: { name: '__probe__名乗らず' } } });
+  await wait(1500);
+
+  host.ws.close();
+  thief.ws.close();
+  stranger.ws.close();
+  await wait(300);
+
+  // 入り直して種を見れば、保存先が書き換わったかが分かる
+  const after = connect(room.id, { net: 'rtc' });
+  await after.ready;
+  await wait(500);
+  const seed = after.got.find((m) => m.type === 'INIT')?.state;
+  check(seed?.room?.name === '__probe__控え攻撃', '参加者の控えで部屋が書き換わらない', `(${seed?.room?.name})`);
+  check((seed?.chatLogs?.main || []).every((e) => e.text !== '__probe__偽の控え'), '偽の控えの中身が残らない');
+  check((seed?.chatLogs?.main || []).some((e) => e.text === '__probe__ホストの控え'), 'ホストの控えはちゃんと保存されている');
+  after.ws.close();
+}
+
+console.log('\n[7] /asset/ はサーバーには無い（肩代わりするのはService Worker）');
 {
   // SWが居ない環境では、このURLはそのままサーバーへ届く。静的配信の外へ出られないことを
   // 確かめる——ここが緩いと、**状態に書いただけの文字列でソースや.envを読み出す口**になる。
@@ -195,7 +245,7 @@ console.log('\n[6] /asset/ はサーバーには無い（肩代わりするの�
   }
 }
 
-console.log('\n[7] サーバーの生存');
+console.log('\n[8] サーバーの生存');
 {
   const res = await fetch(`${BASE}/api/rooms`).catch(() => null);
   check(res?.ok === true, 'サーバーが生きている  ←ここが落ちると全部屋が巻き添え');

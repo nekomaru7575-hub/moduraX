@@ -20,7 +20,7 @@ generated: 2026-09-01
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 145 | 651 | 1135 | 58 | 2 |
+| 146 | 655 | 1139 | 59 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -29,7 +29,7 @@ generated: 2026-09-01
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
 | [[js.asset-base\|js/asset-base.js]] | 「このアプリが画面に出す絵のうち、リポジトリに置いていないもの」の置き場所を1か所で持つ。 | 4 | 3 |
-| [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場。 | 18 | 4 |
+| [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場（IndexedDB）。中身のSHA-256を名前にし、状態には /asset/<hash> の参照だけを載せる。状態を歩いて集める・差し替える道具もここ。 | 19 | 5 |
 | [[js.asset-sync\|js/asset-sync.js]] | P2P卓で、画像・音源の実体をピアの間で行き来させる。 | 5 | 4 |
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 6 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
@@ -59,12 +59,13 @@ generated: 2026-09-01
 | [[js.dice-draft-panel\|js/dice-draft-panel.js]] | 「ダイスドラフト」：振ってプールに溜めた目を1個ずつドラッグし、スキルの上に乗せて発動する 浮動パネル。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
 | [[js.drag-gesture\|js/drag-gesture.js]] | ドラッグと長押しの共通ヘルパー。 | 2 | 4 |
-| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 16 |
+| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 17 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 7 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 15 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 16 |
 | [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 6 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
+| [[js.host-persistence\|js/host-persistence.js]] | P2P卓の永続化。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
 | [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
@@ -80,7 +81,7 @@ generated: 2026-09-01
 | [[js.main\|js/main.js]] |  | 0 | 0 |
 | [[js.mobile-layout\|js/mobile-layout.js]] | 狭幅（スマホ）向けの縦積みレイアウト。 | 1 | 1 |
 | [[js.net-chunk\|js/net-chunk.js]] | DataChannelで大きなメッセージを運ぶための分割と組み直し。 | 5 | 2 |
-| [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。 | 6 | 2 |
+| [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。連打よけ・記入中の集計・入室メッセージの重複判定・保存の先送り。サーバーと共有する上限もここに置く。 | 8 | 3 |
 | [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。 | 1 | 1 |
 | [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 3 |
 | [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 9 | 3 |
@@ -179,9 +180,9 @@ generated: 2026-09-01
 | ファイル | 被import |
 |---|---:|
 | [[js.dialog-host\|js/dialog-host.js]] | 35 |
-| [[js.EventBus\|js/EventBus.js]] | 16 |
+| [[js.EventBus\|js/EventBus.js]] | 17 |
+| [[js.game-store\|js/game-store.js]] | 16 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 16 |
-| [[js.game-store\|js/game-store.js]] | 15 |
 | [[js.store.patch\|js/store/patch.js]] | 15 |
 | [[js.local-identity\|js/local-identity.js]] | 14 |
 | [[js.icons\|js/icons.js]] | 12 |

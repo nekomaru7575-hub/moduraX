@@ -1,6 +1,6 @@
 ---
 source: js/net-sync.js
-lines: 652
+lines: 684
 exports: 9
 imported_by: 3
 api_sha: 4fc499cfc0b5
@@ -25,52 +25,53 @@ store.dispatchをラップし、ローカル適用に加えてサーバーへACT
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 67 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
-| 334 | fn | initNetSync | `initNetSync()` |  |
-| 549 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
-| 572 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
-| 583 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
-| 597 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除を要求する。 |
-| 607 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
-| 616 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
-| 627 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
+| 72 | fn | isDeveloperIdentity | `isDeveloperIdentity()` |  |
+| 339 | fn | initNetSync | `initNetSync()` |  |
+| 581 | fn | sendIdentify | `sendIdentify(participantId, authToken, name)` | この接続での名乗りをサーバーへ伝える。 |
+| 604 | fn | requestChatSendSound | `requestChatSendSound()` | 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。 |
+| 615 | fn | sendStamp | `sendStamp(stampId)` | スタンプを送る。 |
+| 629 | fn | requestRoomDeletion | `requestRoomDeletion()` | 部屋の削除を要求する。 |
+| 639 | fn | sendTypingStart | `sendTypingStart()` | メイン入力欄が空→非空になった瞬間に呼ぶ。 |
+| 648 | fn | sendTypingStop | `sendTypingStop()` | メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。 |
+| 659 | fn | replaceState | `replaceState(newState)` | ファイルから読み込んだ状態などで、ローカル・サーバー・他クライアントの状態をまるごと 置き換える。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（25）
+## トップレベル関数（LOCAL TASKS 候補）（26）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 67 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
-| 77 | askEntryPassword | `askEntryPassword({ error, submit })` | 10 |  |
-| 90 | sendJoin | `sendJoin(submit)` | 8 |  |
-| 100 | submitJoinOverTransport | `submitJoinOverTransport(password)` | 3 |  |
-| 108 | flushIdentify | `flushIdentify()` | 4 |  |
-| 113 | connect | `connect()` | 9 |  |
-| 123 | handleOpen | `handleOpen()` | 6 |  |
-| 132 | handleMessage | `handleMessage(message)` | 103 |  |
-| 237 | handleClose | `handleClose({ code })` | 53 |  |
-| 293 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
-| 309 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
-| 329 | stampPayload | `stampPayload(action, payload)` | 4 |  |
-| 334 | initNetSync | `initNetSync()` | 16 | ✓ |
-| 358 | startP2pSession | `async startP2pSession()` | 70 |  |
-| 435 | initAsHost | `initAsHost(session, seedState)` | 35 |  |
-| 472 | initAsP2pGuest | `initAsP2pGuest(session)` | 23 |  |
-| 500 | handleP2pClose | `handleP2pClose({ code })` | 29 |  |
-| 532 | handleP2pFailure | `handleP2pFailure(reason)` | 5 |  |
-| 549 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 11 | ✓ |
-| 572 | requestChatSendSound | `requestChatSendSound()` | 7 | ✓ |
-| 583 | sendStamp | `sendStamp(stampId)` | 7 | ✓ |
-| 597 | requestRoomDeletion | `requestRoomDeletion()` | 7 | ✓ |
-| 607 | sendTypingStart | `sendTypingStart()` | 7 | ✓ |
-| 616 | sendTypingStop | `sendTypingStop()` | 7 | ✓ |
-| 627 | replaceState | `replaceState(newState)` | 25 | ✓ |
+| 72 | isDeveloperIdentity | `isDeveloperIdentity()` | 3 | ✓ |
+| 82 | askEntryPassword | `askEntryPassword({ error, submit })` | 10 |  |
+| 95 | sendJoin | `sendJoin(submit)` | 8 |  |
+| 105 | submitJoinOverTransport | `submitJoinOverTransport(password)` | 3 |  |
+| 113 | flushIdentify | `flushIdentify()` | 4 |  |
+| 118 | connect | `connect()` | 9 |  |
+| 128 | handleOpen | `handleOpen()` | 6 |  |
+| 137 | handleMessage | `handleMessage(message)` | 103 |  |
+| 242 | handleClose | `handleClose({ code })` | 53 |  |
+| 298 | generateChatEntryId | `generateChatEntryId()` | 4 |  |
+| 314 | withStampedChatEntry | `withStampedChatEntry(action, payload)` | 12 |  |
+| 334 | stampPayload | `stampPayload(action, payload)` | 4 |  |
+| 339 | initNetSync | `initNetSync()` | 16 | ✓ |
+| 363 | startP2pSession | `async startP2pSession()` | 70 |  |
+| 440 | initAsHost | `initAsHost(session, seedState)` | 47 |  |
+| 490 | adoptSeedMedia | `async adoptSeedMedia()` | 12 |  |
+| 504 | initAsP2pGuest | `initAsP2pGuest(session)` | 23 |  |
+| 532 | handleP2pClose | `handleP2pClose({ code })` | 29 |  |
+| 564 | handleP2pFailure | `handleP2pFailure(reason)` | 5 |  |
+| 581 | sendIdentify | `sendIdentify(participantId, authToken, name)` | 11 | ✓ |
+| 604 | requestChatSendSound | `requestChatSendSound()` | 7 | ✓ |
+| 615 | sendStamp | `sendStamp(stampId)` | 7 | ✓ |
+| 629 | requestRoomDeletion | `requestRoomDeletion()` | 7 | ✓ |
+| 639 | sendTypingStart | `sendTypingStart()` | 7 | ✓ |
+| 648 | sendTypingStop | `sendTypingStop()` | 7 | ✓ |
+| 659 | replaceState | `replaceState(newState)` | 25 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.asset-sync]], [[js.audio-player]], [[js.game-store]], [[js.local-identity]], [[js.net-host]], [[js.net-signaling]], [[js.net-transport-rtc]], [[js.net-transport]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]]
+- import → [[js.EventBus]], [[js.asset-store]], [[js.asset-sync]], [[js.audio-player]], [[js.game-store]], [[js.host-persistence]], [[js.local-identity]], [[js.net-host]], [[js.net-signaling]], [[js.net-transport-rtc]], [[js.net-transport]], [[js.room-entry-dialog]], [[js.room-entry]], [[js.state-import]]
 - imported by → [[js.main]], [[js.room-authority]], [[js.stamp-layer]]
 
 ## 注意

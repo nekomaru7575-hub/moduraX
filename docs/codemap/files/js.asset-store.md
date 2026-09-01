@@ -1,10 +1,10 @@
 ---
 source: js/asset-store.js
-lines: 419
-exports: 18
-imported_by: 4
-api_sha: 67b1a379605e
-prose_sha: 67b1a379605e
+lines: 473
+exports: 19
+imported_by: 5
+api_sha: d3c98bc5f4df
+prose_sha: d3c98bc5f4df
 generated: 2026-09-01
 tags: [codemap]
 ---
@@ -12,7 +12,7 @@ tags: [codemap]
 # js/asset-store.js
 
 <!-- prose:summary -->
-P2P卓で使う、画像・音源の実体の置き場。
+P2P卓で使う、画像・音源の実体の置き場（IndexedDB）。中身のSHA-256を名前にし、状態には /asset/<hash> の参照だけを載せる。状態を歩いて集める・差し替える道具もここ。
 <!-- /prose:summary -->
 
 ## 役割
@@ -21,7 +21,7 @@ P2P卓で使う、画像・音源の実体の置き場。
 _(未記入)_
 <!-- /prose:role -->
 
-## export（18）
+## export（19）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -42,9 +42,10 @@ _(未記入)_
 | 337 | fn | base64ToBlob | `base64ToBlob(base64, type)` | base64を実体に戻す。 |
 | 359 | fn | putVerifiedAsset | `async putVerifiedAsset(hash, blob)` | 受け取った実体を、名乗られたハッシュと突き合わせてからしまう。 |
 | 383 | fn | dataUrlToBlob | `dataUrlToBlob(dataUrl)` | データURLを実体（Blob）にする。 |
-| 408 | fn | adoptDataUrl | `async adoptDataUrl(value)` | データURLを実体としてしまい、参照を返す。 |
+| 419 | fn | adoptDataUrlsInState | `async adoptDataUrlsInState(state)` | 状態に埋まっているデータURLを、この置き場の実体へ移し替える。 |
+| 462 | fn | adoptDataUrl | `async adoptDataUrl(value)` | データURLを実体としてしまい、参照を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（21）
+## トップレベル関数（LOCAL TASKS 候補）（22）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -71,12 +72,13 @@ _(未記入)_
 | 337 | base64ToBlob | `base64ToBlob(base64, type)` | 10 | ✓ |
 | 359 | putVerifiedAsset | `async putVerifiedAsset(hash, blob)` | 11 | ✓ |
 | 383 | dataUrlToBlob | `dataUrlToBlob(dataUrl)` | 18 | ✓ |
-| 408 | adoptDataUrl | `async adoptDataUrl(value)` | 11 | ✓ |
+| 419 | adoptDataUrlsInState | `async adoptDataUrlsInState(state)` | 36 | ✓ |
+| 462 | adoptDataUrl | `async adoptDataUrl(value)` | 11 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.image-upload]], [[js.main]]
+- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.image-upload]], [[js.main]], [[js.net-sync]]
 
 ## 注意
 

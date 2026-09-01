@@ -28,8 +28,9 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
-// メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
-import { MESSAGE_RATE_LIMIT } from '../js/net-host-rules.js';
+// メッセージ流量の上限と保存の間隔。ホスト権威P2Pのホスト役と共有する
+// （下のWS_MESSAGE_WINDOW_MS / SAVE_DEBOUNCE_MS参照）。
+import { MESSAGE_RATE_LIMIT, SAVE_POLICY } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -75,8 +76,12 @@ const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 // 操作が途切れてから保存するまでの待ち時間と、操作が続いている場合でも必ず保存する上限。
 // 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
 // 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
-const SAVE_DEBOUNCE_MS = 1000;
-const SAVE_MAX_WAIT_MS = 5000;
+//
+// 数字はjs/net-host-rules.jsに置いてある。P2P卓ではホストのタブが同じ間隔でスナップショットを
+// 送ってくる（js/host-persistence.js）ので、片方だけ緩めても意味が無い——守っている資源が
+// 同じ（最後はどちらもRedisへの書き込みになる）。
+const SAVE_DEBOUNCE_MS = SAVE_POLICY.debounceMs;
+const SAVE_MAX_WAIT_MS = SAVE_POLICY.maxWaitMs;
 // 1タブあたり、保存先に残すチャットログの件数（stateForPersist参照）。
 // 実測で1件あたり約150バイトなので、1000件で約150KB分。
 const PERSISTED_CHAT_ENTRIES = 1000;
@@ -3380,11 +3385,45 @@ wss.on('connection', async (ws, req) => {
     // 減らしたかった負荷そのものなので、悪意ある参加者がここを叩いて元に戻せないよう、
     // 「来ないはず」ではなく明示的に閉じる。
     //
-    // 通すのは2つだけ：
-    //   IDENTIFY    … ホスト役の資格（GMか）を検算するのに要る。ただし下で見るとおり、
-    //                 入室メッセージは出さない（出すのはホストの仕事）
-    //   DELETE_ROOM … RedisとR2を消せるのはサーバーだけ。ホストが中継してくる
-    if (entry.p2p && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM') return;
+    // 通すのは3つだけ：
+    //   IDENTIFY      … ホスト役の資格（GMか）を検算するのに要る。ただし下で見るとおり、
+    //                   入室メッセージは出さない（出すのはホストの仕事）
+    //   DELETE_ROOM   … RedisとR2を消せるのはサーバーだけ。ホストが中継してくる
+    //   HOST_SNAPSHOT … ホストが定期的に送ってくる控え。保存先を持っているのもサーバーだけ
+    if (entry.p2p && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM'
+        && message.type !== 'HOST_SNAPSHOT') {
+      return;
+    }
+
+    // --- ホストからの控え（P2P卓の永続化） ---
+    //
+    // P2P卓の状態はホストのタブの中にしかない。タブを閉じればセッションが消えるので、
+    // ホストが一定間隔で丸ごと送ってきたものをここで保存する（js/host-persistence.js）。
+    //
+    // **受け取ってよいのは、いまホスト役を務めている接続だけ。** ここが空いていると、
+    // 同じ部屋の誰でも部屋の中身を好きな内容へ書き換えられる——ACTIONの権限判定を
+    // 全部迂回して、保存先を直接上書きする口になる。
+    //
+    // 状態はホストが権威なので、参加者一覧もそのまま受け取る（REPLACE_STATEのように
+    // adoptImportedStateへ通さない。あれは「よそで作られた状態を今の部屋へ迎える」ための
+    // 処理で、ここは「この部屋の今の姿」がそのまま来ている）。
+    if (message.type === 'HOST_SNAPSHOT') {
+      if (!ws.isSignalHost || entry.hostPeerId !== ws.signalPeerId) {
+        console.warn(`[server] ${roomId}: ホスト以外からの控えを拒否しました`);
+        return;
+      }
+      if (!message.state || typeof message.state !== 'object') return;
+      try {
+        entry.store.hydrate(message.state);
+      } catch (error) {
+        console.warn(`[server] ${roomId}: 控えを取り込めませんでした:`, error.message);
+        return;
+      }
+      // 保存そのものは通常の卓とまったく同じ道を通る（末尾デバウンス・同内容なら書かない・
+      // 一覧用の要約の追随まで含めて）。P2P卓のためだけの保存経路を別に作らない。
+      schedulePersistForRoom(roomId, entry);
+      return;
+    }
 
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。

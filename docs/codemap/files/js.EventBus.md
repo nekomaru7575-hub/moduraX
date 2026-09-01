@@ -2,7 +2,7 @@
 source: js/EventBus.js
 lines: 16
 exports: 1
-imported_by: 16
+imported_by: 17
 api_sha: b4ae73ec975f
 prose_sha: b4ae73ec975f
 generated: 2026-09-01
@@ -34,7 +34,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.audio-player]], [[js.board-data-driven]], [[js.character-panel]], [[js.dice-animation]], [[js.dice-draft-panel]], [[js.game-store]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.net-sync]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.characters]], [[js.store.handlers.chat]], [[js.store.handlers.room]]
+- imported by → [[js.audio-player]], [[js.board-data-driven]], [[js.character-panel]], [[js.dice-animation]], [[js.dice-draft-panel]], [[js.game-store]], [[js.host-persistence]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.net-sync]], [[js.round-panel]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.characters]], [[js.store.handlers.chat]], [[js.store.handlers.room]]
 
 ## 注意
 

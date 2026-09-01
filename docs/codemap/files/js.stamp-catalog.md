@@ -2,10 +2,10 @@
 source: js/stamp-catalog.js
 lines: 41
 exports: 3
-imported_by: 2
+imported_by: 3
 api_sha: 874d7c25ac62
 prose_sha: 874d7c25ac62
-generated: 2026-08-30
+generated: 2026-09-01
 tags: [codemap]
 ---
 
@@ -36,7 +36,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.stamp-registry]], [[server.index]]
+- imported by → [[js.net-host]], [[js.stamp-registry]], [[server.index]]
 
 ## 注意
 

@@ -2,10 +2,10 @@
 source: js/store/room.js
 lines: 88
 exports: 10
-imported_by: 6
+imported_by: 7
 api_sha: 6432f88cc011
 prose_sha: 6432f88cc011
-generated: 2026-08-30
+generated: 2026-09-01
 tags: [codemap]
 ---
 
@@ -52,7 +52,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.parameters.core]], [[js.parameters.registry]]
-- imported by → [[js.game-store]], [[js.store.handlers.characters]], [[js.store.handlers.chat]], [[js.store.handlers.participants]], [[js.store.handlers.room]], [[js.store.handlers.round]]
+- imported by → [[js.game-store]], [[js.net-host]], [[js.store.handlers.characters]], [[js.store.handlers.chat]], [[js.store.handlers.participants]], [[js.store.handlers.room]], [[js.store.handlers.round]]
 
 ## 注意
 

@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 594
+lines: 654
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-08-30
+generated: 2026-09-01
 tags: [codemap]
 ---
 
@@ -25,26 +25,27 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（13）
+## トップレベル関数（LOCAL TASKS 候補）（14）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 34 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
-| 66 | formatUptime | `formatUptime(sec)` | 8 |  |
-| 75 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
-| 87 | renderServerStatus | `renderServerStatus(load)` | 61 |  |
-| 156 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
-| 180 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
-| 240 | visibleRooms | `visibleRooms()` | 5 |  |
-| 246 | fillRoomSelect | `fillRoomSelect()` | 38 |  |
-| 286 | renderSelectedRoom | `renderSelectedRoom()` | 46 |  |
-| 336 | mountCreatePanel | `mountCreatePanel()` | 178 |  |
-| 516 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
-| 530 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
-| 543 | loadRooms | `async loadRooms()` | 44 |  |
+| 41 | roomBoardUrl | `roomBoardUrl(room)` | 5 |  |
+| 47 | buildSelectOptions | `buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {})` | 15 |  |
+| 79 | formatUptime | `formatUptime(sec)` | 8 |  |
+| 88 | appendMetric | `appendMetric(parent, label, value, suffix = '')` | 9 |  |
+| 100 | renderServerStatus | `renderServerStatus(load)` | 61 |  |
+| 169 | describeExpiry | `describeExpiry(updatedAt)` | 13 |  |
+| 193 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
+| 253 | visibleRooms | `visibleRooms()` | 5 |  |
+| 259 | fillRoomSelect | `fillRoomSelect()` | 39 |  |
+| 300 | renderSelectedRoom | `renderSelectedRoom()` | 58 |  |
+| 362 | mountCreatePanel | `mountCreatePanel()` | **202** |  |
+| 566 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 580 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 593 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 

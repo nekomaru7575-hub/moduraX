@@ -193,6 +193,23 @@ body {
   margin-top: 4px;
 }
 
+/* P2Pの部屋であることの説明（js/room-index.jsのrenderSelectedRoom）。
+   期限ほど急ぎではないが、普通の部屋との違いは入る前に知っておいてほしいので、
+   メタ情報より少しだけ目立たせる。 */
+.room-p2p {
+  color: #9ecbff;
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+/* 入力欄の下に添える補足（作成フォームのP2Pの説明など）。
+   ラベルより弱く、読み飛ばしても操作に困らない位置づけ。 */
+.field-note {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
 /* 入れない・作れないときの理由。サーバーが断る根拠をそのまま出す */
 .panel-blocked {
   color: #e0b13a;

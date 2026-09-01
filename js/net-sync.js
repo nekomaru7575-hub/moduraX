@@ -13,12 +13,17 @@ const RECONNECT_DELAY_MS = 2000;
 import { store } from './game-store.js';
 import { adoptImportedState } from './state-import.js';
 import { EventBus } from './EventBus.js';
-import { createTransport, CLOSE_CODES, isHostMode } from './net-transport.js';
+import { createTransport, CLOSE_CODES, isP2pMode } from './net-transport.js';
+import { createRtcGuestTransport } from './net-transport-rtc.js';
+import { openSignaling } from './net-signaling.js';
 import { startHost } from './net-host.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
-import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
+import {
+  activateRoomIdentity, getCurrentAuthToken, getCurrentParticipantId, getLocalUserId,
+  getStoredRoomName
+} from './local-identity.js';
 
 // ラップ前の元のdispatch。サーバーから受け取ったアクションは、これで直接適用することで
 // サーバーへの再送信（無限ループ）を防ぐ。
@@ -30,6 +35,20 @@ let transport = null;
 
 // ホスト役として動いている場合の中継口（js/net-host.js）。ゲスト・WebSocket時はnull。
 let host = null;
+
+// P2P卓でサーバーとの間に張っている口（js/net-signaling.js）。ホストもゲストも1本持つ。
+// 同期データは通らないが、入室パスワードの照合と部屋の削除はここを通る。
+let signaling = null;
+
+// P2P卓で繋ぎ直した回数と、この読み込みの間に一度でもホストと繋がれたか。
+// 一度も繋がれないまま重なった場合だけ、黙って待たせずに理由を伝えて部屋一覧へ戻す
+// （下のhandleP2pClose）。一度繋がった相手なら、ホストが繋ぎ直している最中かもしれない
+// ので待ってやり直す——ここを分けないと、GMがリロードしただけで全員が追い出される。
+let p2pAttempts = 0;
+let p2pEverConnected = false;
+// ホストがそもそも居たか。「繋がらなかった」の理由が回線なのか、GMがまだ来ていないのかを
+// 分けて伝えるために要る（どちらも症状は同じ「入れない」なので、混ぜると直しようがない）。
+let p2pHostSeen = false;
 
 // この接続で一度でもINITを受け取ったか。受け取る前に「不正／未作成の部屋」で切られた場合
 // だけ、繋ぎ直さずに部屋一覧へ案内する（下のhandleClose）。接続は常に1本なので、
@@ -50,25 +69,34 @@ export function isDeveloperIdentity() {
 
 // 入室パスワードの入力を求める。入力された値は覚えておき、繋がっていればその場で
 // 送り直す。切れていた場合は、再接続後のENTRY_REQUIREDで自動的に使われる。
-function askEntryPassword({ error }) {
+//
+// submitは「照合してもらう相手へJOINを送る関数」。従来の卓ではサーバーとの同期の道
+// （transport）、P2P卓ではシグナリングの口（js/net-signaling.js）になる。合言葉を
+// 持っているのはどちらの場合もサーバーで、ホスト役は照合に関わらない。
+function askEntryPassword({ error, submit }) {
   showRoomEntryDialog({
     password: getStoredEntryPassword(currentRoomId()),
     error,
     onSubmit: (password) => {
       setStoredEntryPassword(currentRoomId(), password);
-      sendJoin();
+      sendJoin(submit);
     }
   });
 }
 
 // 覚えているパスワードで入室を試みる。まだ何も覚えていなければ入力を求める
 // （パスワードなしの部屋ではサーバーがENTRY_REQUIREDを送らないので、ここは通らない）。
-function sendJoin() {
+function sendJoin(submit) {
   const password = getStoredEntryPassword(currentRoomId());
   if (!password) {
-    askEntryPassword({ error: false });
+    askEntryPassword({ error: false, submit });
     return;
   }
+  submit(password);
+}
+
+// 従来の卓での送り先。P2P卓ではシグナリングのsendJoinを渡す（openSignalingが引数でくれる）。
+function submitJoinOverTransport(password) {
   transport?.send({ type: 'JOIN', password });
 }
 
@@ -102,13 +130,15 @@ function handleOpen() {
 // （js/net-transport.jsの契約）。
 function handleMessage(message) {
   // 入室パスワードのある部屋。これを通すまでINITは届かない（server/index.js参照）。
+  // P2P卓ではこの2つはここへ来ない——照合はシグナリングの口で済ませてある
+  // （js/net-signaling.jsのonEntryPasswordRequired）。
   if (message.type === 'ENTRY_REQUIRED') {
-    sendJoin();
+    sendJoin(submitJoinOverTransport);
     return;
   }
 
   if (message.type === 'ENTRY_REJECTED') {
-    askEntryPassword({ error: true });
+    askEntryPassword({ error: true, submit: submitJoinOverTransport });
     return;
   }
 
@@ -206,6 +236,18 @@ function handleClose({ code }) {
     return;
   }
 
+  // P2Pで開かれている卓へ、従来のWebSocketで入ろうとした。**付け忘れを黙って直す。**
+  // 断らずに中身を渡すと、この人はサーバー権威の部屋、ホストは自分が権威の部屋に居る形で
+  // 黙って2つのセッションに割れる（docs/p2p-migration-notes.mdの4-④）。共有された古いURLや
+  // ブックマークで一番起きやすい経路なので、警告を出すより先に正しい入り方へ回す。
+  // 入り直した先はP2Pの道を通るので、ここへ戻ってきて回り続けることはない。
+  if (code === CLOSE_CODES.ROOM_IS_P2P) {
+    const params = new URLSearchParams(location.search);
+    params.set('net', 'rtc');
+    window.location.search = params.toString();
+    return;
+  }
+
   // 入室パスワードを通らないまま切られた場合は、繋ぎ直して聞き直す（部屋は在る）。
   // ダイアログを開いたままにしておくと、再接続後のENTRY_REQUIREDで送信し直される。
   if (code === CLOSE_CODES.ENTRY_REJECTED) {
@@ -278,8 +320,8 @@ function stampPayload(action, payload) {
 }
 
 export function initNetSync() {
-  if (isHostMode()) {
-    initAsHost();
+  if (isP2pMode()) {
+    startP2pSession();
     return;
   }
 
@@ -294,26 +336,103 @@ export function initNetSync() {
   connect();
 }
 
-// ホスト役として動く（`?net=rtc&host=1`）。この画面のstoreがそのまま部屋の権威になり、
-// 送り先は「繋がっている参加者たち」になる。トランスポート（transport）は持たない——
-// 自分より上の権威が無いので、送る相手が居ない。
+// --- P2P卓（?net=rtc） ---
 //
-// 【スパイクの範囲】js/net-host.jsの冒頭を参照。永続化が無いので、このタブを閉じると
-// 部屋の状態は消える。
-function initAsHost() {
+// 従来の卓と違い、繋ぐ前に「自分がホストか参加者か」が決まっていない。役割を決めるのは
+// サーバーで（js/net-signaling.js）、資格（GM）と先着で1人だけがホストに選ばれる。
+// 画面が自分で決めると、2人が同時にホストを名乗って同期経路が2つに割れる。
+//
+// 手順は3つ：名乗りを用意する → シグナリングで役割を貰う → 言われた役を組み立てる。
+async function startP2pSession() {
+  EventBus.emit('NET_STATUS_CHANGED', 'connecting');
+  p2pAttempts += 1;
+
+  // 名乗りを先に導出しておく。ホストの資格の判定はサーバーが名乗りで行うので、
+  // シグナリングを開く時点で持っていないと、GMが自分の卓のホストになれない。
+  // 導出元（この部屋で使う表示名）はjs/main.jsが後で使うものと同じ。
+  const roomId = currentRoomId();
+  const storedName = getStoredRoomName(roomId) || '';
+  await activateRoomIdentity(roomId, storedName).catch(() => null);
+  const participantId = getCurrentParticipantId();
+  const authToken = getCurrentAuthToken();
+  if (participantId && authToken) identityToSend = { participantId, authToken, name: storedName };
+
+  // シグナリングは役割が決まってから相手を教えてくれるので、届いた合図の行き先は
+  // 後から差し替える。役割が決まる前にSIGNAL_*が届くことはない（呼びかけはWELCOMEの後）。
+  let routeSignal = null;
+  let routeHostReady = null;
+  let seedState = null;
+
+  let session;
+  try {
+    session = await openSignaling({
+      identity: () => identityToSend,
+      // 従来の卓のENTRY_REQUIRED / ENTRY_REJECTEDと同じ分け方をする。求められただけの
+      // ときは覚えているパスワードで黙って通し（sendJoin）、断られたときだけ聞き直す。
+      // ここを一緒くたに「聞く」にすると、毎回入力させることになる。
+      onEntryPasswordRequired: ({ error, sendJoin: submit }) => (
+        error ? askEntryPassword({ error: true, submit }) : sendJoin(submit)
+      ),
+      onSignal: (info) => routeSignal?.(info),
+      onSeed: (state) => { seedState = state; },
+      onHostReady: (id) => routeHostReady?.(id),
+      onClose: () => console.warn('[net-sync] シグナリングの口が切れました')
+    });
+  } catch (error) {
+    // P2P卓ではない部屋に ?net=rtc が付いていただけ。4010の裏返しで、こちらも
+    // 黙って直す（フラグを外して入り直す）。
+    if (error.code === 'NOT_P2P') {
+      const params = new URLSearchParams(location.search);
+      params.delete('net');
+      window.location.search = params.toString();
+      return;
+    }
+    handleP2pFailure(error.message);
+    return;
+  }
+
+  signaling = session;
+  closeRoomEntryDialog();
+
+  if (session.role === 'host') {
+    const hostRole = initAsHost(session, seedState);
+    // ホストは呼ばれる側なので、来るのは参加者からのSDPとICE候補だけ。
+    // 「ホストが現れた」の知らせ（SIGNAL_HOST_READY）は自分には来ない。
+    routeSignal = ({ from, payload }) => hostRole.handleSignal(from, payload);
+    return;
+  }
+
+  const guest = initAsP2pGuest(session);
+  if (session.hostPeerId) p2pHostSeen = true;
+  routeSignal = ({ payload }) => guest.handleSignal(payload);
+  routeHostReady = (id) => {
+    p2pHostSeen = true;
+    guest.setHost(id);
+  };
+  // 呼びかけは行き先を決めてから始める。先に始めると、返事が届いたときに回す先がまだ
+  // 決まっていない、という順番の穴が空く（いまは非同期のぶんで間に合っているだけ）。
+  guest.start();
+}
+
+// ホスト役として動く。この画面のstoreがそのまま部屋の権威になり、送り先は「繋がっている
+// 参加者たち」になる。トランスポート（transport）は持たない——自分より上の権威が無いので、
+// 送る相手が居ない。
+//
+// 【永続化が無い】このタブを閉じると部屋の状態は消える。Redisへの定期バックアップは
+// 次の段（docs/p2p-migration-notes.md）。
+function initAsHost(session, seedState) {
   console.info('[net-sync] ホスト役として動きます（この画面が部屋の権威になります）');
 
   host = startHost({
+    signaling: session,
     applyRemote: localDispatch,
-    // サーバーから貰う部屋の初期値。ここから先は自分が権威なので、以後サーバーの
-    // 言うことは聞かない（js/net-signaling.jsのonServerInitは1回だけ呼ばれる）。
-    onSeeded: (state) => {
-      store.hydrate(state);
-      EventBus.emit('NET_STATUS_CHANGED', 'connected');
-      // 参加者としての名乗り等のきっかけ。ゲストのINIT受信時と同じ役割
-      // （js/main.jsがこれを待っている）。
-      EventBus.emit('NET_INITIALIZED', state);
-    }
+    // 「送り主を含む全員へ配る」ものを、自分の画面へも届ける口。サーバーが
+    // broadcastToRoom(entry, null, …) としていた場面がこれに当たる。
+    onLocal: handleMessage,
+    self: () => ({
+      participantId: identityToSend?.participantId ?? null,
+      name: identityToSend?.name?.trim() || 'ゲスト'
+    })
   });
 
   store.dispatch = (action, payload) => {
@@ -322,7 +441,82 @@ function initAsHost() {
     host.broadcast({ type: 'ACTION', action, payload: stampedPayload });
   };
 
-  EventBus.emit('NET_STATUS_CHANGED', 'connecting');
+  // サーバーから貰った部屋の初期値。ここから先は自分が権威なので、以後サーバーの
+  // 言うことは聞かない。
+  if (seedState) {
+    hasReceivedInit = true;
+    store.hydrate(seedState);
+    EventBus.emit('NET_STATUS_CHANGED', 'connected');
+    // 参加者としての名乗り等のきっかけ。ゲストのINIT受信時と同じ役割（js/main.jsが待っている）。
+    EventBus.emit('NET_INITIALIZED', seedState);
+  }
+
+  return host;
+}
+
+// 参加者として動く。ホストのタブとDataChannelを1本張り、以後の同期はそこだけを流れる。
+function initAsP2pGuest(session) {
+  console.info('[net-sync] 参加者として動きます（同期はホストのタブを通ります）');
+
+  store.dispatch = (action, payload) => {
+    const stampedPayload = stampPayload(action, payload);
+    localDispatch(action, stampedPayload);
+    transport?.send({ type: 'ACTION', action, payload: stampedPayload });
+  };
+
+  hasReceivedInit = false;
+  transport = createRtcGuestTransport({
+    signaling: session,
+    onOpen: () => {
+      p2pEverConnected = true;
+      handleOpen();
+    },
+    onMessage: handleMessage,
+    onClose: handleP2pClose
+  });
+  return transport;
+}
+
+// P2P卓で道が切れた。**WebSocketへは落ちない。** 落ちるとホストは自分が権威のまま、
+// 落ちた人はサーバー権威の部屋に居る形で黙って2つに割れる（docs/p2p-migration-notes.mdの
+// 4-④）。ホストが繋ぎ直している最中のこともあるので、一度でも繋がった相手なら待って
+// やり直し、一度も繋がっていないなら理由を伝えて部屋一覧へ戻す。
+function handleP2pClose({ code }) {
+  transport = null;
+  signaling?.close();
+  signaling = null;
+  EventBus.emit('NET_STATUS_CHANGED', 'disconnected');
+  developerIdentity = false;
+
+  if (code === CLOSE_CODES.ROOM_DELETED) {
+    alert('この部屋は削除されました。部屋一覧へ戻ります。');
+    window.location.href = '/';
+    return;
+  }
+
+  // この読み込みの間、一度もホストと繋がれていない。黙って待たせず、はっきり断る。
+  // 一度でも繋がったことがあるなら、ホストが繋ぎ直している最中かもしれないので待って
+  // やり直す（GMのリロードで全員が追い出されないように）。
+  //
+  // 理由は2つに分ける。症状はどちらも「入れない」で同じだが、打つ手が正反対になる：
+  // ホストが居ないならGMを待てばよく、居るのに張れないなら回線の問題で待っても直らない
+  // （TURNを用意していないため。docs/p2p-migration-notes.mdの5-2）。
+  if (!p2pEverConnected && p2pAttempts >= 2) {
+    handleP2pFailure(p2pHostSeen
+      ? 'お使いの回線からホストと直接繋がりませんでした'
+      : 'この部屋のGMがまだ入室していません');
+    return;
+  }
+
+  setTimeout(startP2pSession, RECONNECT_DELAY_MS);
+}
+
+// P2P卓に入れなかった。理由を必ず見せる——**この卓では「黙って同期しない」を作らない**
+// のが今回の設計の要（docs/p2p-migration-notes.mdの4-④）。
+function handleP2pFailure(reason) {
+  console.warn('[net-sync] P2P卓に入れませんでした:', reason);
+  alert(`この部屋はP2P（参加者どうしの直接通信）で開かれていますが、入れませんでした。\n\n理由: ${reason}\n\n部屋一覧へ戻ります。`);
+  window.location.href = '/';
 }
 
 // この接続での名乗りをサーバーへ伝える。表示名から導出した公開ID（participantId）と、
@@ -343,38 +537,71 @@ export function sendIdentify(participantId, authToken, name) {
   // 次に繋ぎ直したときに前の人として名乗り直してしまう。
   identityToSend = (participantId && authToken) ? { participantId, authToken, name } : null;
   flushIdentify();
+  // ホスト役のときは、自分の入室メッセージを出す相手も自分しかいない。サーバー権威の
+  // 部屋では名乗った本人にも出るので、そこに揃える（js/net-host.jsのannounceSelf）。
+  host?.announceSelf();
 }
+
+// --- 権威へ送る揮発的な要求 ---
+//
+// どれも状態を変えず、権威が「送り主を含む全員」へ配り直す種類の通知。
+// **ホスト役のときは送り先が無い**（transportがnull）ので、権威である自分に直接頼む。
+// ここを分けそこねると、GMが押したスタンプが自分にも他人にも出ない・GMの入力が
+// 「記入中」に出ない、という形で静かに壊れる（サーバーには無い、ホスト権威特有の分岐）。
 
 // 素のチャット発言（コマンドとして処理されなかった入力）が送信されたときに呼ぶ。URLの決定は
 // サーバー任せ（環境変数CHAT_SEND_SOUND_URL）で、ここでは要求を送るだけ。どの発言が「素」かの
-// 判断はjs/main.jsのsubmitChatText側が持つ。サーバーは送信者を含む部屋の全員にACTION
+// 判断はjs/main.jsのsubmitChatText側が持つ。権威は送信者を含む部屋の全員にACTION
 // （action: 'CHAT_SEND_SOUND'）で配り直す（上のACTIONハンドラ参照）。
 export function requestChatSendSound() {
+  if (host) {
+    host.requestChatSendSound();
+    return;
+  }
   transport?.send({ type: 'REQUEST_CHAT_SEND_SOUND' });
 }
 
 // スタンプを送る。requestChatSendSoundと同じ揮発メッセージで、状態もログも変えない。
-// 送るのはIDだけ（画像URLも表示名もサーバー／受け手側が決める。js/stamp-catalog.js冒頭参照）。
-// 名乗っていない場合はサーバーが黙って捨てるので、押せないようにするのは画面側の仕事。
+// 送るのはIDだけ（画像URLも表示名も権威／受け手側が決める。js/stamp-catalog.js冒頭参照）。
+// 名乗っていない場合は権威が黙って捨てるので、押せないようにするのは画面側の仕事。
 export function sendStamp(stampId) {
+  if (host) {
+    host.sendStamp(stampId);
+    return;
+  }
   transport?.send({ type: 'SEND_STAMP', stampId });
 }
 
-// 部屋の削除をサーバーへ要求する。サーバー側は自分を含む全クライアントを退室させ、
-// その場で実データを消す（切断の完了は待たない。server/index.jsのstartRoomDeletion）。
+// 部屋の削除を要求する。サーバー側は自分を含む全クライアントを退室させ、その場で実データを
+// 消す（切断の完了は待たない。server/index.jsのstartRoomDeletion）。
 // 結果は各クライアントの切断（CLOSE_CODES.ROOM_DELETED）で通知される。
+//
+// P2P卓でもRedisとR2を消せるのはサーバーだけなので、ホストはシグナリングの口で頼み、
+// 参加者には理由を付けて切ってもらう（js/net-host.jsのdeleteRoom）。
 export function requestRoomDeletion() {
+  if (host) {
+    host.requestRoomDeletion();
+    return;
+  }
   transport?.send({ type: 'DELETE_ROOM' });
 }
 
 // メイン入力欄が空→非空になった瞬間に呼ぶ。「記入中」を要求を送るだけの揮発的な通知で、
-// requestChatSendSoundと同じ流儀（状態は変えず、サーバーへ要求を送るのみ）。
+// requestChatSendSoundと同じ流儀（状態は変えず、権威へ要求を送るのみ）。
 export function sendTypingStart() {
+  if (host) {
+    host.setOwnTyping(true);
+    return;
+  }
   transport?.send({ type: 'TYPING_START' });
 }
 
 // メイン入力欄が非空→空になった瞬間に呼ぶ（sendTypingStartの対）。
 export function sendTypingStop() {
+  if (host) {
+    host.setOwnTyping(false);
+    return;
+  }
   transport?.send({ type: 'TYPING_STOP' });
 }
 

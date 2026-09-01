@@ -2,10 +2,10 @@
 source: js/state-import.js
 lines: 140
 exports: 1
-imported_by: 2
+imported_by: 3
 api_sha: 455e229c5397
 prose_sha: 455e229c5397
-generated: 2026-08-30
+generated: 2026-09-01
 tags: [codemap]
 ---
 
@@ -42,7 +42,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.game-store]]
-- imported by → [[js.net-sync]], [[server.index]]
+- imported by → [[js.net-host]], [[js.net-sync]], [[server.index]]
 
 ## 注意
 

@@ -56,6 +56,7 @@ import { showLogExportDialog } from './log-export-dialog.js';
 import { showLogClearConfirmDialog } from './log-clear-dialog.js';
 import { registerServiceWorker } from './pwa.js';
 import { setAssetBaseUrl } from './asset-base.js';
+import { setSoundConfig } from './sound-config.js';
 import { showLogEditDialog } from './log-edit-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
@@ -2618,15 +2619,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 盤面が自前でズームを持っているので、ブラウザのページズームとは競合させない
   initNoBrowserZoom();
 
-  // リポジトリに置いていない絵（プラグインのスタンプ・トランプ）の置き場を先に受け取る。
-  // スタンプの一覧もデッキの裏面も、最初に読まれた時点のURLで固まるので、
-  // 盤面を組み立てる前でなければ間に合わない（js/asset-base.js）。
-  // 取れなくても止めない。その場合それらの絵は「無い」ものとして動く。
+  // リポジトリに置いていない絵（プラグインのスタンプ・トランプ）の置き場と、鳴らす音のURLを
+  // 先に受け取る。スタンプの一覧もデッキの裏面も、最初に読まれた時点のURLで固まるので、
+  // 盤面を組み立てる前でなければ間に合わない（js/asset-base.js）。音の方はP2P卓の
+  // ホスト役が入室メッセージ・送信音を組み立てるのに要るので、initNetSyncより前で入れる
+  // （js/sound-config.js）。
+  // 取れなくても止めない。その場合それらの絵は「無い」ものとして、音は鳴らないものとして動く。
   try {
     const config = await fetch('/api/config').then(r => r.json());
     setAssetBaseUrl(config?.assetBaseUrl);
+    setSoundConfig(config);
   } catch {
     setAssetBaseUrl(null);
+    setSoundConfig(null);
   }
 
   initNetSync();

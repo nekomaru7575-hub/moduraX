@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-08-31
+generated: 2026-09-01
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-08-31
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 140 | 614 | 1086 | 53 | 2 |
+| 140 | 614 | 1092 | 53 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -77,12 +77,12 @@ generated: 2026-08-31
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
 | [[js.main\|js/main.js]] |  | 0 | 0 |
 | [[js.mobile-layout\|js/mobile-layout.js]] | 狭幅（スマホ）向けの縦積みレイアウト。 | 1 | 1 |
-| [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。 | 1 | 1 |
-| [[js.net-signaling\|js/net-signaling.js]] | WebRTCで相手を見つけるための、サーバーを経由した細い口。 | 2 | 2 |
+| [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。 | 1 | 1 |
+| [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 3 |
 | [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 9 | 3 |
-| [[js.net-transport-rtc\|js/net-transport-rtc.js]] | js/net-transport.jsの契約を、ホスト役（GMのタブ）とのWebRTC DataChannelで満たす実装。 | 1 | 1 |
+| [[js.net-transport-rtc\|js/net-transport-rtc.js]] | ホスト（GMのタブ）とDataChannelを1本張る、ゲスト側のトランスポート。開いたシグナリングを受け取って使い、大きいメッセージは js/net-chunk.js で組み直す。 | 1 | 1 |
 | [[js.net-transport-ws\|js/net-transport-ws.js]] | js/net-transport.jsの契約を、今までどおりのWebSocketで満たす実装。 | 2 | 2 |
-| [[js.net-transport\|js/net-transport.js]] | 「同期のメッセージを運ぶ道」の契約と、どの実装を使うかの選択。 | 3 | 1 |
+| [[js.net-transport\|js/net-transport.js]] | 「同期のメッセージを運ぶ道」の契約と、切断の理由。どちらを使うかは決めない（P2P卓の組み立ては役割が決まってからなので js/net-sync.js にある）。 | 3 | 2 |
 | [[js.no-browser-zoom\|js/no-browser-zoom.js]] | ブラウザ標準のページズームを止める。 | 1 | 1 |
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
@@ -135,11 +135,11 @@ generated: 2026-08-31
 | [[js.scene-dialog\|js/scene-dialog.js]] | シーンの作成・編集ダイアログ（一覧はscene-list-dialog.js）。 | 1 | 1 |
 | [[js.scene-list-dialog\|js/scene-list-dialog.js]] | 登録済みのシーン（room.scenes）の一覧ダイアログ。 | 1 | 1 |
 | [[js.site-nav\|js/site-nav.js]] | 部屋の外にある3ページ（部屋入口・コマ作成ツール・このサービスについて）の行き来。 | 0 | 0 |
-| [[js.stamp-catalog\|js/stamp-catalog.js]] | Core（どのゲームシステムでも使える）スタンプの一覧。 | 3 | 2 |
+| [[js.stamp-catalog\|js/stamp-catalog.js]] | Core（どのゲームシステムでも使える）スタンプの一覧。 | 3 | 3 |
 | [[js.stamp-layer\|js/stamp-layer.js]] | スタンプの表示レイヤー。 | 2 | 2 |
 | [[js.stamp-panel\|js/stamp-panel.js]] | 「スタンプ送信」：使えるスタンプを画像で並べ、押すとその場で送る浮動パネル。 | 1 | 1 |
-| [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 5 |
-| [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 2 |
+| [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 6 |
+| [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 1 | 3 |
 | [[js.store.audio\|js/store/audio.js]] | 音楽（BGM・効果音）まわりの語彙。 | 3 | 4 |
 | [[js.store.buffs\|js/store/buffs.js]] | バフ/デバフの終了条件（フェーズ）と、フェーズ終了時の後始末。 | 8 | 4 |
 | [[js.store.cards\|js/store/cards.js]] | カード・デッキ・カードストッカーの形を整える処理と、その上限。 | 36 | 3 |
@@ -159,9 +159,9 @@ generated: 2026-08-31
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
-| [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 6 |
+| [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
-| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
+| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 7 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |

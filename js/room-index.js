@@ -31,6 +31,19 @@ let rooms = [];
 // 手元のフィルタではなくサーバーへの問い合わせ（?q=）に切り替える。
 let truncated = false;
 
+// このサーバーでP2Pの卓を作れるか（GET /api/config）。作れないサーバーで選択肢を出すと、
+// 誰も入れない部屋ができてしまうので、届くまでは無いものとして扱う。
+let p2pAvailable = false;
+
+// 盤面を開くURL。P2P卓には ?net=rtc を付ける——付いていない接続はサーバーが4010で断り、
+// ブラウザが自分で付け直して入り直す（js/net-sync.js）。ここで付けるのは、その回り道を
+// 普通の入室で踏ませないため。
+function roomBoardUrl(room) {
+  const id = typeof room === 'string' ? room : room?.id;
+  const isP2p = typeof room === 'object' && room?.p2p === true;
+  return `/combined_layout.html?room=${encodeURIComponent(id)}${isP2p ? '&net=rtc' : ''}`;
+}
+
 function buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {}) {
   select.innerHTML = '';
   if (noneLabel) {
@@ -219,9 +232,9 @@ function mountEntryPanel() {
   select.addEventListener('change', renderSelectedRoom);
 
   joinBtn.addEventListener('click', () => {
-    const roomId = select.value;
-    if (!roomId) return;
-    window.location.href = `/combined_layout.html?room=${encodeURIComponent(roomId)}`;
+    const room = rooms.find((r) => r.id === select.value);
+    if (!room) return;
+    window.location.href = roomBoardUrl(room);
   });
 
   search.addEventListener('input', () => {
@@ -272,6 +285,7 @@ function fillRoomSelect() {
       const marks = [];
       if (room.clients > 0) marks.push(`${room.clients}人`);
       if (room.locked) marks.push('パスワードあり');
+      if (room.p2p) marks.push('P2P');
       option.textContent = (room.name || room.id)
         + (marks.length > 0 ? `（${marks.join('・')}）` : '');
       entry.select.appendChild(option);
@@ -306,6 +320,18 @@ function renderSelectedRoom() {
     const lockNote = document.createElement('div');
     setIconText(lockNote, 'lock', 'この部屋に入るには入室パスワードが必要です');
     entry.info.appendChild(lockNote);
+  }
+
+  // P2Pの卓。普通の卓と決定的に違うところだけを伝える：GMのタブが同期の中心になるので、
+  // GMが居ないと始まらず、GMが閉じると内容が残らない。
+  if (room.p2p) {
+    const p2pNote = document.createElement('div');
+    p2pNote.className = 'room-p2p';
+    p2pNote.textContent = 'P2Pの部屋です。GMのブラウザが同期の中心になるため、'
+      + 'GMが入室していないと始められません。';
+    p2pNote.title = '同期をサーバーではなく参加者どうしの直接通信で行います。'
+      + '回線によっては繋がらないことがあります。';
+    entry.info.appendChild(p2pNote);
   }
 
   // 期限が近い部屋にだけ、あと何日で自動削除されるかを出す。常に出すとうるさいだけなので、
@@ -421,6 +447,25 @@ function mountCreatePanel() {
   passwordGroup.appendChild(passwordInput);
   form.appendChild(passwordGroup);
 
+  // P2Pの卓（任意）。**作るときにしか決められない**ので、ここに出す以外の道が無い。
+  // 途中で切り替えられるようにすると、サーバー権威の参加者とホスト権威の参加者が同時に
+  // 居る瞬間ができて状態が2つに割れる（server/index.jsのhandleCreateRoom）。
+  // 中継が無効なサーバーでは丸ごと隠す：作れても誰も入れない部屋になるため。
+  const p2pGroup = document.createElement('div');
+  p2pGroup.style.display = 'none';
+  const p2pLabel = document.createElement('label');
+  const p2pInput = document.createElement('input');
+  p2pInput.type = 'checkbox';
+  p2pLabel.appendChild(p2pInput);
+  p2pLabel.appendChild(document.createTextNode(' P2Pで開く（同期をGMのブラウザが受け持ちます）'));
+  const p2pNote = document.createElement('p');
+  p2pNote.className = 'field-note';
+  p2pNote.textContent = 'サーバーの負担が減りますが、GMが入室していないと始められず、'
+    + 'GMがタブを閉じるとその日の内容は残りません。回線によっては繋がらない人が出ます。';
+  p2pGroup.appendChild(p2pLabel);
+  p2pGroup.appendChild(p2pNote);
+  form.appendChild(p2pGroup);
+
   const fileGroup = document.createElement('div');
   const fileLabel = document.createElement('label');
   fileLabel.textContent = '部屋の全データ読み込み（任意・以前保存したファイル）';
@@ -483,6 +528,7 @@ function mountCreatePanel() {
           activePlugin: pluginSelect.value || null,
           bcdiceSystem: bcdiceSelect.value,
           entryPassword: passwordInput.value,
+          p2p: p2pInput.checked,
           importedState
         })
       });
@@ -499,7 +545,9 @@ function mountCreatePanel() {
       // 作った本人は続けて入室するので、入力したパスワードをこのブラウザに覚えさせて
       // おく（覚えさせないと、遷移した直後に自分で入力し直すことになる）。
       setStoredEntryPassword(result.id, passwordInput.value.trim());
-      window.location.href = `/combined_layout.html?room=${encodeURIComponent(result.id)}`;
+      // 作った本人はそのままホストになるので、P2P卓ならここでフラグを付けて入る
+      // （サーバーが応答で返したp2pを正とする。中継が無効なら立たない）。
+      window.location.href = roomBoardUrl({ id: result.id, p2p: result.p2p === true });
     } catch (error) {
       errorText.textContent = `通信エラー: ${error.message}`;
       errorText.style.display = 'block';
@@ -509,7 +557,9 @@ function mountCreatePanel() {
   });
 
   roomCreateEl.replaceChildren(heading, openBtn, blocked, form);
-  create = { openBtn, blocked, bcdiceSelect, createBtn };
+  create = { openBtn, blocked, bcdiceSelect, createBtn, p2pGroup };
+  // 設定が先に届いていた場合の取りこぼしを防ぐ（届く順は保証されない）
+  if (p2pAvailable) p2pGroup.style.display = '';
 }
 
 // BCDiceのシステム一覧は最初の読み込みで届く。届いてから作成フォームのselectを埋める。
@@ -586,6 +636,16 @@ async function loadRooms() {
 }
 
 loadRooms();
+
+// このサーバーでP2Pの卓を作れるか。一覧の表示には関わらないので、取れなくても止めない
+// （取れなければ選択肢を出さない＝いままでどおりの卓だけが作れる）。
+fetch('/api/config')
+  .then((response) => response.json())
+  .then((config) => {
+    p2pAvailable = config?.p2pSignaling === true;
+    if (p2pAvailable && create?.p2pGroup) create.p2pGroup.style.display = '';
+  })
+  .catch(() => { /* 出さないだけ */ });
 
 // 「アプリとして追加」の導線は部屋一覧にだけ置く（盤面の狭いヘッダーには置き場が無く、
 // セッション中に出ても邪魔なだけなので）。

@@ -3,28 +3,46 @@
 // やっていた仕事を引き受ける。server/index.jsのwss.on('connection')の移植で、
 // P2P化が成立するかどうかはここが動くかで決まる（docs/p2p-migration-notes.md）。
 //
-// 【2026-08-21 凍結】実験はここで止めてある。再開の手引きは
-// docs/p2p-migration-notes.md（未移植分の一覧・踏んだ落とし穴・着手の順番）。
+// 【移した範囲】接続受理→INIT、名乗り（IDENTIFY）、ACTIONの権限判定・適用・中継、
+//   GM限定を断ったときのRESYNC、参加者登録の本人確認、記入中（TYPING_*）、スタンプ、
+//   入室メッセージと入室音、チャット送信音、メッセージ流量制限、参加者からの全データ
+//   読み込み（REPLACE_STATE）、部屋の削除（サーバーへ中継）。
 //
-// 【スパイクの範囲】疎通が成立するかを確かめるための最小限だけを移した。
-//   移した … 接続受理→INIT、名乗り（IDENTIFY）、ACTIONの権限判定・適用・中継、
-//            GM限定を断ったときのRESYNC、参加者登録の本人確認
-//   移して いない … 記入中（TYPING_*）、スタンプ、送信音、部屋の削除、入室パスワード、
-//            メッセージ流量制限、そして**永続化**
-// 永続化が無いということは、**GMがタブを閉じた時点で部屋の状態が消える**ということ。
-// これはP2P化の本質的な弱点で、緩和（IndexedDB・自動書き出し）は別の段の話。
+// 【移していない・移せないもの】
+//   ・**永続化** … 状態はこのタブの中にしかない。**閉じた時点で消える**。
+//     Redisへの定期バックアップは次の段（docs/p2p-migration-notes.md）
+//   ・入室パスワードの照合 … 合言葉を持っているのはサーバーだけ。P2P卓では
+//     シグナリング接続がサーバーの入室門を通るので、ここへ来る時点で照合は済んでいる
+//   ・開発用の合言葉 … サーバーの環境変数で、ブラウザに突き合わせる材料が無い。
+//     P2P卓では**この抜け道そのものが使えない**
+//   ・取り込んだ画像の引き取り（サーバーのadoptStateMedia）… メディアをブラウザへ移す
+//     段で作る。それまでは読み込んだ形（データURL等）のまま全員へ渡る
 //
 // 【2つ目のストアを作ってはいけない】js/game-store.jsのstoreとjs/EventBus.jsのEventBusは
 // どちらもモジュール・シングルトンで、ImmutableStoreはコミットのたびにEventBus越しに
 // STATE_CHANGEDを撃つ。サーバーのentry.storeに当たるものをここで新しく作ると、
 // **画面が他人のストアの状態で描き直される**。サーバーは1プロセスに複数の部屋を抱えるので
 // 部屋ごとのストアが要るが、ブラウザは1タブ1部屋なので要らない——GM自身のストアが権威。
+//
+// 【1メッセージで送らない】DataChannelには1メッセージの上限があり、超えると**チャネルごと
+// 落ちる**。状態まるごとを運ぶINIT・RESYNCは実運用で必ず超えるので、送受信とも
+// js/net-chunk.jsを通す。
 
 import { store } from './game-store.js';
-import { createSignaling, ICE_SERVERS } from './net-signaling.js';
+import { ICE_SERVERS } from './net-signaling.js';
+import { chunkBudgetBytes, createChunkReassembler, createChunkSender } from './net-chunk.js';
 import { deriveParticipantId } from './local-identity.js';
 import { canParticipantOperateAsGm, GM_ONLY_ACTIONS } from './room-authority-rules.js';
-import { parseUntrustedJson } from './untrusted-json.js';
+import {
+  MAX_IDENTIFY_PER_PEER, MESSAGE_RATE_LIMIT, createFixedWindowLimiter,
+  createSlidingWindowLimiter, entryMessageDecision, typingUsersFrom
+} from './net-host-rules.js';
+import { STAMP_RATE_LIMIT } from './stamp-catalog.js';
+import { isKnownStampId } from './stamp-registry.js';
+import { showsEntryMessages } from './store/room.js';
+import { adoptImportedState } from './state-import.js';
+import { getChatSendSoundUrl, getEntrySoundUrl } from './sound-config.js';
+import { CLOSE_CODES } from './net-transport.js';
 
 // 名乗りの値の形。server/index.jsのPARTICIPANT_ID_PATTERN / AUTH_TOKEN_PATTERNと同じ。
 // 形を先に見るのは、桁の違う文字列をハッシュに通す無駄を省くため。
@@ -35,32 +53,30 @@ const AUTH_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
  * ホスト役を始める。
  *
  * @param {object} options
+ * @param {object} options.signaling js/net-signaling.jsのopenSignalingが返したもの（role==='host'）
  * @param {(action: string, payload: any) => void} options.applyRemote
  *        他の参加者の操作を自分のストアへ適用する関数。js/net-sync.jsの
  *        localDispatch（ラップ前のdispatch）を渡す。ここでstoreのdispatchを直に
  *        呼ばないのは、ラップ済みのdispatchを踏むと中継が二重になるため。
- * @param {(state: object) => void} options.onSeeded
- *        サーバーから部屋の初期値を受け取ったとき。ホストはここから権威を引き継ぐ。
- * @returns {{ broadcast: (message: object, except?: object) => void, peerCount: () => number }}
+ * @param {(message: object) => void} options.onLocal
+ *        「送り主を含む全員へ配る」ものを、ホスト自身の画面へも届ける口。
+ *        js/net-sync.jsのhandleMessageを渡す——サーバーがbroadcastToRoom(entry, null, …)
+ *        としていた場面がこれに当たる（入室メッセージ・記入中・スタンプ・送信音）。
+ * @param {() => ({participantId: string|null, name: string})} options.self
+ *        ホスト自身の名乗り。記入中の一覧に自分を入れるのに要る（サーバーは自分では
+ *        書かないので、ここだけ移植元に無い）
+ * @returns {object} ホスト役の口
  */
-export function startHost({ applyRemote, onSeeded }) {
-  // peerId -> { id, pc, channel, participantId, name, identifying, queue }
+export function startHost({ signaling, applyRemote, onLocal, self }) {
+  // peerId -> peer
   const peers = new Map();
-  let seeded = false;
-
-  const signaling = createSignaling({
-    host: true,
-    onSignal: ({ from, payload }) => handleSignal(from, payload),
-    // 部屋の初期値はサーバーから1回だけ貰う。ホストのタブも普通のクライアントとして
-    // 繋がっているのでINITが届く——それを種にして、以後は自分が権威になる。
-    // 【承知の上での割り切り】以後ホストの操作はサーバーへ送らないので、サーバー側の
-    // 部屋データはこの時点で止まる。スパイクでは永続化を扱わないので問題にしない。
-    onServerInit: (state) => {
-      if (seeded) return;
-      seeded = true;
-      onSeeded(state);
-    }
-  });
+  // ホスト自身が記入中か。記入中の一覧はpeersとこれから毎回導出する。
+  let ownTyping = false;
+  // ホスト自身の連打よけ。ピアと同じ上限を自分にも掛ける（GMだけ無制限に押せると、
+  // 連打よけが「荒らし対策ではなく事故防止」であることと食い違う）。
+  const ownStampLimiter = createSlidingWindowLimiter(STAMP_RATE_LIMIT);
+  // ホスト自身の入室メッセージを判断済みか（下のannounceSelf）。
+  let selfEntryDecided = false;
 
   // --- 繋ぐところ ---
 
@@ -88,12 +104,23 @@ export function startHost({ applyRemote, onSeeded }) {
       id,
       pc,
       channel: null,
+      sender: null,
+      reassembler: null,
       // 名乗って検算まで通った参加者ID。名乗っていない（ゲスト）ならnullのまま。
       participantId: null,
       name: 'ゲスト',
       // 名乗りの検算中か（下のreceiveを参照）
       identifying: false,
-      queue: []
+      queue: [],
+      // 記入中か。一覧は保守せず、この旗から毎回導出する（js/net-host-rules.js）。
+      isTyping: false,
+      // この接続で入室メッセージを判断済みか。ブラウザは1接続で何度もIDENTIFYを送るため。
+      entryDecided: false,
+      identifyCount: 0,
+      // 流量の窓。ピアごとに持つので、切れれば一緒に捨てられる（サーバーがwsに
+      // 生やしているのと同じ理由）。
+      messageLimiter: createFixedWindowLimiter(MESSAGE_RATE_LIMIT),
+      stampLimiter: createSlidingWindowLimiter(STAMP_RATE_LIMIT)
     };
     peers.set(id, peer);
 
@@ -111,32 +138,33 @@ export function startHost({ applyRemote, onSeeded }) {
 
   function attachChannel(peer, channel) {
     peer.channel = channel;
+    peer.sender = createChunkSender(channel, () => chunkBudgetBytes(peer.pc));
+    peer.reassembler = createChunkReassembler({
+      onMessage: (message) => receive(peer, message),
+      onDrop: (reason) => console.warn(`[net-host] ${peer.id} からのメッセージを捨てました: ${reason}`)
+    });
 
     channel.addEventListener('open', () => {
       console.info(`[net-host] 参加者が繋がりました（現在${peerCount()}人）`);
-      // server/index.jsのadmit()に当たる。記入中の一覧（TYPING_USERS）は
-      // スパイクでは扱わないので送らない。
+      // server/index.jsのadmit()に当たる。記入中の一覧は状態（INIT）に乗らない揮発情報
+      // なので別送りする。誰も記入中でなくても送る：省くと、繋ぎ直した本人の画面に
+      // 切断前の古い一覧が残る。
       sendTo(peer, { type: 'INIT', state: store.state });
+      sendTo(peer, { type: 'TYPING_USERS', users: typingUsers() });
     });
 
-    channel.addEventListener('message', (event) => {
-      let message;
-      try {
-        message = parseUntrustedJson(event.data);
-      } catch {
-        return;
-      }
-      receive(peer, message);
-    });
-
+    channel.addEventListener('message', (event) => peer.reassembler.receive(event.data));
     channel.addEventListener('close', () => dropPeer(peer));
   }
 
   function dropPeer(peer) {
     if (!peers.has(peer.id)) return;
     peers.delete(peer.id);
+    peer.sender?.close();
     try { peer.pc.close(); } catch { /* 既に閉じている */ }
     console.info(`[net-host] 参加者が切れました（残り${peerCount()}人）`);
+    // 記入中のまま切れた人を一覧に残さない。一覧は導出なので、配り直すだけでよい。
+    if (peer.isTyping) broadcastTyping();
   }
 
   // --- 受け取ったメッセージの処理（server/index.jsのws.on('message')の移植） ---
@@ -153,6 +181,11 @@ export function startHost({ applyRemote, onSeeded }) {
       return;
     }
 
+    // 流量制限は組み直したあと＝「1つの操作」ごとに数える。分割された1件を何十回とも
+    // 数えると、大きな取り込み（REPLACE_STATE）が自分で自分を弾く。分割そのものの
+    // 溢れはjs/net-chunk.jsの組み直し上限が受け持つ。
+    if (peer.messageLimiter.exceeds()) return;
+
     if (message.type === 'IDENTIFY') {
       handleIdentify(peer, message);
       return;
@@ -163,11 +196,59 @@ export function startHost({ applyRemote, onSeeded }) {
       return;
     }
 
-    // スパイクで移していない型（TYPING_* / SEND_STAMP / REQUEST_CHAT_SEND_SOUND /
-    // REPLACE_STATE / DELETE_ROOM / JOIN）は黙って捨てる。
+    if (message.type === 'TYPING_START' || message.type === 'TYPING_STOP') {
+      // 名乗っていない人は対象外。名前も参加者IDも安定しないため（サーバーと同じ扱い）。
+      if (!peer.participantId) return;
+      peer.isTyping = message.type === 'TYPING_START';
+      broadcastTyping();
+      return;
+    }
+
+    if (message.type === 'SEND_STAMP') {
+      handleStamp(peer, message);
+      return;
+    }
+
+    if (message.type === 'REQUEST_CHAT_SEND_SOUND') {
+      broadcastToAll({
+        type: 'ACTION',
+        action: 'CHAT_SEND_SOUND',
+        payload: { chatSendSoundUrl: getChatSendSoundUrl() }
+      });
+      return;
+    }
+
+    if (message.type === 'REPLACE_STATE') {
+      handleReplaceState(peer, message);
+      return;
+    }
+
+    if (message.type === 'DELETE_ROOM') {
+      // 送り手の画面では何も起きていないので、状態を戻す必要はない
+      if (!mayOperateAsGm(peer.participantId)) {
+        console.warn('[net-host] GM以外からの部屋削除の要求を拒否しました');
+        return;
+      }
+      deleteRoom();
+      return;
+    }
+
+    // JOIN（入室パスワード）はここへ来ない。照合はサーバーのシグナリング接続で
+    // 済んでいて、通らなかった人はDataChannelを張る前に切られている。
   }
 
   async function handleIdentify(peer, message) {
+    peer.identifyCount += 1;
+    // 名乗り1回ごとにcrypto.subtleのハッシュが1回走る。上限が無いと、参加者1人で
+    // GMのタブのCPUを好きなだけ使える。超えた分は黙って捨てる（切断すると、名前を
+    // 何度も変えただけの人が部屋から落ちる）。
+    if (peer.identifyCount > MAX_IDENTIFY_PER_PEER) {
+      if (peer.identifyCount === MAX_IDENTIFY_PER_PEER + 1) {
+        console.warn('[net-host] 名乗りが多すぎるため以後このピアの分を捨てます');
+      }
+      return;
+    }
+
     peer.identifying = true;
     try {
       const participantId = String(message.participantId || '');
@@ -183,9 +264,9 @@ export function startHost({ applyRemote, onSeeded }) {
         const rawName = typeof message.name === 'string' ? message.name.trim() : '';
         peer.name = rawName || 'ゲスト';
         // developerは必ずfalse。開発用の合言葉はサーバーの環境変数（DEVELOPER_PASSPHRASE）で、
-        // ブラウザには突き合わせる材料が無い。ホスト権威で動かしている間はこの抜け道が
-        // 使えない、ということでもある。
+        // ブラウザには突き合わせる材料が無い。
         sendTo(peer, { type: 'IDENTITY_ACCEPTED', developer: false });
+        announceEntry(peer);
       } else {
         peer.participantId = null;
         console.warn(`[net-host] 参加者の本人確認に失敗しました (${participantId.slice(0, 8)}…)`);
@@ -201,6 +282,101 @@ export function startHost({ applyRemote, onSeeded }) {
     }
   }
 
+  // 入室メッセージ（server/index.jsのIDENTIFY内の移植）。同じ人が再接続・タブの複数開きを
+  // しても増やさない。判断そのものはjs/net-host-rules.jsにあり、テストで押さえてある。
+  function announceEntry(peer) {
+    const others = [];
+    // ホスト自身も「既に入っている人」に数える。数えないと、GMが自分の名前を入れ直した
+    // 拍子に自分の入室メッセージがもう一度出る。
+    others.push(self().participantId);
+    peers.forEach((other) => {
+      if (other !== peer) others.push(other.participantId);
+    });
+
+    const { announce, markDecided } = entryMessageDecision({
+      enabled: showsEntryMessages(store.state),
+      alreadyDecided: peer.entryDecided,
+      participantId: peer.participantId,
+      otherParticipantIds: others
+    });
+    if (markDecided) peer.entryDecided = true;
+    if (!announce) return;
+
+    // 状態を変えるので、ホスト自身の分もonLocal経由のlocalDispatchで1回だけ適用する
+    // （ここでapplyRemoteも呼ぶと二重に入る）。入室音もその先で鳴る。
+    announceEntryMessage(peer.name);
+  }
+
+  // 入室メッセージ1件を、送り主を含む全員へ配る。
+  // timeをここで確定させるのは、載せずに配ると受け取った各自がDate.now()を呼び直し、
+  // 同じ入室が人によって別の時刻で並ぶため（js/net-sync.jsのstampPayloadと同じ理屈）。
+  // ホストが中継する分だけサーバー権威のときよりずれ幅が大きいので、ここで揃えておく。
+  function announceEntryMessage(name) {
+    broadcastToAll({
+      type: 'ACTION',
+      action: 'ADD_ENTRY_MESSAGE',
+      payload: { name, entrySoundUrl: getEntrySoundUrl(), time: Date.now() }
+    });
+  }
+
+  function handleStamp(peer, message) {
+    // スタンプには送り主の名前が出る。名前の無いゲストはそもそも描けないので対象外。
+    if (!peer.participantId) return;
+    // 使えるスタンプはその部屋に適用中のプラグインで変わる。別のシステムのスタンプを
+    // 名指しで送られても、ここで落ちる。URLではなくIDだけを受けるのも同じ理由
+    // （js/stamp-catalog.js冒頭）。
+    if (!isKnownStampId(message.stampId, store.state.room?.activePlugin ?? null)) return;
+    if (!peer.stampLimiter.allow()) return;
+
+    broadcastToAll({
+      type: 'ACTION',
+      action: 'SHOW_STAMP',
+      payload: {
+        stampId: String(message.stampId),
+        participantId: peer.participantId,
+        // 表示名は申告ではなく、名乗りのときにこちらが決めた値を使う
+        name: peer.name
+      }
+    });
+  }
+
+  function handleReplaceState(peer, message) {
+    // 全員の状態を丸ごと置き換えるため、部屋の削除と同じくGM限定にする
+    if (!mayOperateAsGm(peer.participantId)) {
+      console.warn('[net-host] GM限定の操作を拒否しました (REPLACE_STATE)');
+      sendTo(peer, { type: 'RESYNC', state: store.state });
+      return;
+    }
+
+    // 今この部屋にいる参加者一覧を引き継ぐ。引き継がないと、読み込んだGMがその場で
+    // GM権限を失う（js/state-import.js）。送り手側でも通しているが、権威側でも必ず通す。
+    //
+    // 【割り切り】サーバーのadoptStateMediaに当たるものが無いので、読み込んだファイルに
+    // 混ざっている画像はデータURL・他の部屋のURLのまま全員へ渡る。メディアをブラウザへ
+    // 移す段（docs/p2p-migration-notes.md）で回収する。
+    let adopted;
+    try {
+      adopted = adoptImportedState(message.state, { participants: store.state.participants });
+    } catch (error) {
+      console.warn('[net-host] 読み込んだ状態の取り込みに失敗しました:', error.message);
+      sendTo(peer, { type: 'RESYNC', state: store.state });
+      return;
+    }
+
+    store.hydrate(adopted);
+    // 送り手にも配る。送り手のタブは既にローカルで置き換えているが、権威が均した形
+    // （参加者一覧の引き継ぎ）で揃え直す。
+    peers.forEach((other) => sendTo(other, { type: 'INIT', state: store.state }));
+  }
+
+  // 部屋の削除。RedisとR2を消せるのはサーバーだけなので、シグナリング接続で頼む。
+  // ホストは参加者に理由を伝えてから自分も畳む——伝えないと、参加者は「ホストが落ちた」
+  // として繋ぎ直しに回り、消えた部屋を叩き続ける。
+  function deleteRoom() {
+    signaling.sendToServer({ type: 'DELETE_ROOM' });
+    peers.forEach((peer) => sendTo(peer, { type: 'CLOSE', code: CLOSE_CODES.ROOM_DELETED }));
+  }
+
   function handleAction(peer, message) {
     // 参加者としての登録は、本人確認が通ったID本人からのものだけ受け付ける。ここが空いて
     // いると、他人の名前を書き換えられるほか、まだ誰もGMでない部屋で他人のIDを先に登録して
@@ -213,8 +389,7 @@ export function startHost({ applyRemote, onSeeded }) {
       }
     }
 
-    if (GM_ONLY_ACTIONS.has(message.action)
-        && !canParticipantOperateAsGm(store.state.participants, peer.participantId)) {
+    if (GM_ONLY_ACTIONS.has(message.action) && !mayOperateAsGm(peer.participantId)) {
       // 送り手は自分の画面へ先に反映しているので、断っただけでは画面がずれたまま残る。
       console.warn(`[net-host] GM限定の操作を拒否しました (${message.action})`);
       sendTo(peer, { type: 'RESYNC', state: store.state });
@@ -234,12 +409,17 @@ export function startHost({ applyRemote, onSeeded }) {
     broadcast({ type: 'ACTION', action: message.action, payload: message.payload }, peer);
   }
 
+  // 開発用の合言葉はP2P卓では効かない（サーバーの環境変数で、ここに材料が無い）。
+  // そのぶんserver/index.jsのmayOperateAsGmより短い。
+  function mayOperateAsGm(participantId) {
+    return canParticipantOperateAsGm(store.state.participants, participantId);
+  }
+
   // --- 送るところ ---
 
   function sendTo(peer, message) {
     if (peer.channel?.readyState !== 'open') return false;
-    peer.channel.send(JSON.stringify(message));
-    return true;
+    return peer.sender.send(message);
   }
 
   /**
@@ -247,16 +427,95 @@ export function startHost({ applyRemote, onSeeded }) {
    * server/index.jsのbroadcastToRoomに当たる。
    */
   function broadcast(message, except = null) {
-    const outgoing = JSON.stringify(message);
     peers.forEach((peer) => {
-      if (peer === except || peer.channel?.readyState !== 'open') return;
-      peer.channel.send(outgoing);
+      if (peer === except) return;
+      sendTo(peer, message);
     });
+  }
+
+  // 送り主を含む全員へ配る（サーバーのbroadcastToRoom(entry, null, …)に当たる）。
+  // ホスト自身は繋がっている相手ではないので、onLocalで自分の画面へ届ける。
+  function broadcastToAll(message) {
+    broadcast(message);
+    onLocal(message);
+  }
+
+  function typingUsers() {
+    const me = self();
+    return typingUsersFrom([
+      { participantId: me.participantId, name: me.name, isTyping: ownTyping },
+      ...peers.values()
+    ]);
+  }
+
+  function broadcastTyping() {
+    broadcastToAll({ type: 'TYPING_USERS', users: typingUsers() });
   }
 
   function peerCount() {
     return peers.size;
   }
 
-  return { broadcast, peerCount };
+  return {
+    broadcast,
+    peerCount,
+    handleSignal,
+
+    /**
+     * ホスト自身の入室メッセージ。
+     *
+     * サーバー権威の部屋では、名乗った本人にも入室メッセージが出る（サーバーが送り主を
+     * 含めて配るため）。ホスト権威でもそこは揃える——揃えないと、GMだけ自分の入室が
+     * 出ないという分かりにくい差になる。P2P卓ではサーバー側が入室メッセージを出さない
+     * ので（server/index.jsのIDENTIFY）、出すならここしかない。
+     *
+     * 名乗るたびに呼ばれるが、参加者と同じ規則で1回だけ出す。
+     */
+    announceSelf() {
+      const me = self();
+      const { announce, markDecided } = entryMessageDecision({
+        enabled: showsEntryMessages(store.state),
+        alreadyDecided: selfEntryDecided,
+        participantId: me.participantId,
+        otherParticipantIds: Array.from(peers.values(), (peer) => peer.participantId)
+      });
+      if (markDecided) selfEntryDecided = true;
+      if (announce) announceEntryMessage(me.name);
+    },
+
+    /** ホスト自身の記入中。js/net-sync.jsのsendTypingStart/Stopから呼ばれる。 */
+    setOwnTyping(isTyping) {
+      if (ownTyping === isTyping) return;
+      ownTyping = isTyping;
+      broadcastTyping();
+    },
+
+    /** ホスト自身のスタンプ。参加者から来たときと同じ検査を通す。 */
+    sendStamp(stampId) {
+      const me = self();
+      if (!me.participantId) return;
+      if (!isKnownStampId(stampId, store.state.room?.activePlugin ?? null)) return;
+      if (!ownStampLimiter.allow()) return;
+      broadcastToAll({
+        type: 'ACTION',
+        action: 'SHOW_STAMP',
+        payload: { stampId: String(stampId), participantId: me.participantId, name: me.name }
+      });
+    },
+
+    /** ホスト自身のチャット送信音。 */
+    requestChatSendSound() {
+      broadcastToAll({
+        type: 'ACTION',
+        action: 'CHAT_SEND_SOUND',
+        payload: { chatSendSoundUrl: getChatSendSoundUrl() }
+      });
+    },
+
+    /** ホスト自身からの部屋削除。画面側で既にGM限定にしてあるが、ここでも確かめる。 */
+    requestRoomDeletion() {
+      if (!mayOperateAsGm(self().participantId)) return;
+      deleteRoom();
+    }
+  };
 }

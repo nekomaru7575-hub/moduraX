@@ -1,18 +1,18 @@
 ---
 source: js/net-transport.js
-lines: 85
+lines: 59
 exports: 3
-imported_by: 1
-api_sha: 5a6cff8a3b51
-prose_sha: 5a6cff8a3b51
-generated: 2026-08-30
+imported_by: 2
+api_sha: 4f9dbcf010d1
+prose_sha: 4f9dbcf010d1
+generated: 2026-09-01
 tags: [codemap]
 ---
 
 # js/net-transport.js
 
 <!-- prose:summary -->
-「同期のメッセージを運ぶ道」の契約と、どの実装を使うかの選択。
+「同期のメッセージを運ぶ道」の契約と、切断の理由。どちらを使うかは決めない（P2P卓の組み立ては役割が決まってからなので js/net-sync.js にある）。
 <!-- /prose:summary -->
 
 ## 役割
@@ -25,9 +25,9 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 31 | const | CLOSE_CODES | `CLOSE_CODES` | 切断の理由。 |
-| 48 | fn | isHostMode | `isHostMode()` | この画面がホスト役として動くか。 |
-| 64 | fn | createTransport | `createTransport(handlers)` | このページで使うトランスポートを1本作る。 |
+| 34 | const | CLOSE_CODES | `CLOSE_CODES` | 切断の理由。 |
+| 48 | fn | isP2pMode | `isP2pMode()` | この画面がP2P卓として振る舞うか。 |
+| 56 | fn | createTransport | `createTransport(handlers)` | 従来どおりのWebSocketの道を1本作る。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -36,13 +36,13 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 48 | isHostMode | `isHostMode()` | 4 | ✓ |
-| 64 | createTransport | `createTransport(handlers)` | 21 | ✓ |
+| 48 | isP2pMode | `isP2pMode()` | 3 | ✓ |
+| 56 | createTransport | `createTransport(handlers)` | 3 | ✓ |
 
 ## 依存
 
-- import → [[js.net-transport-rtc]], [[js.net-transport-ws]]
-- imported by → [[js.net-sync]]
+- import → [[js.net-transport-ws]]
+- imported by → [[js.net-host]], [[js.net-sync]]
 
 ## 注意
 

@@ -28,6 +28,8 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
+// メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
+import { MESSAGE_RATE_LIMIT } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -198,6 +200,10 @@ function roomSummaryOf(entry) {
   // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは載せない。
   return {
     name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword,
+    // P2Pで開かれた卓か。一覧が入室リンクに ?net=rtc を付けるのに要る。付けずに入ると
+    // サーバーが4010で断り、ブラウザが自分で付け直す（js/net-sync.jsのhandleClose）——
+    // ここに出しておくのは、その回り道を普通の入室では踏ませないため。
+    p2p: !!entry.p2p,
     // 部屋の自動削除（sweepExpiredRooms）と、一覧の残り日数表示の唯一の根拠。
     updatedAt: Math.floor((entry.updatedAt || Date.now()) / TOUCH_GRANULARITY_MS) * TOUCH_GRANULARITY_MS
   };
@@ -934,6 +940,12 @@ async function getOrLoadRoom(roomId) {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
       lastPersistedJson: null, lastSummaryJson: null,
       entryPassword: meta.entryPassword || null, typing: new Map(),
+      // p2p: この卓をP2Pで開くか。入室パスワードと同じ認証情報側に持つ（部屋の状態に
+      // 入れない理由はhandleCreateRoomのコメント参照）。作成時にしか決まらない。
+      // hostPeerId: いまホスト役を務めている接続。先着1人に固定し、切れたら空ける。
+      // hostParticipantId: 誰が務めているか。GMがリロードした隙に参加者がホストを
+      //   横取りして部屋の中身を消してしまうのを防ぐ（SIGNAL_HELLOのコメント参照）。
+      p2p: !!meta.p2p, hostPeerId: null, hostParticipantId: null,
       updatedAt,
       // activeUntil: 誰も居なくなってもこの時刻まではアクティブな卓として枠を確保する。
       // unloadTimer: そのあとメモリから降ろすためのタイマー（どちらもisRoomActive参照）。
@@ -2126,8 +2138,15 @@ async function handleCreateRoom(req, res) {
   }
 
   const {
-    name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState
+    name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState,
+    p2p
   } = body;
+
+  // P2Pで開く卓か。**作るときにしか決められない。** 途中で切り替えられるようにすると、
+  // 同じ部屋にサーバー権威の参加者とホスト権威の参加者が同時に居る瞬間ができ、そこで
+  // 状態が2つに割れる（docs/p2p-migration-notes.mdの4-④）。
+  // 中継そのものが無効なサーバーでは受け付けない（作れてしまうと、誰も入れない部屋になる）。
+  const wantsP2p = ENABLE_P2P_SIGNALING && p2p === true;
 
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   if (!trimmedName) {
@@ -2232,8 +2251,14 @@ async function handleCreateRoom(req, res) {
 
   // 認証情報はここで書いておく。書かずにおくと、次にサーバーが読み直したときに
   // getOrLoadRoomの移行処理が走り、入室パスワードごと初期化されてしまう。
+  // P2Pかどうかは入室パスワードと同じ認証情報側に置く。**部屋の状態には入れない。**
+  // P2P卓の状態はホストのタブが権威なので、状態に置くと「サーバーが接続を振り分ける根拠」を
+  // ホストに書き換えさせることになる（いまはサーバーへ書き戻さないので実害は無いが、
+  // Redisへの定期バックアップを入れた段で確実に穴になる）。
   try {
-    await updateAuthMeta(id, { version: CURRENT_AUTH_VERSION, entryPassword: entryPasswordRecord });
+    await updateAuthMeta(id, {
+      version: CURRENT_AUTH_VERSION, entryPassword: entryPasswordRecord, p2p: wantsP2p
+    });
   } catch (error) {
     console.warn(`[server] ${id} の認証情報の保存に失敗しました:`, error.message);
     sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
@@ -2248,6 +2273,7 @@ async function handleCreateRoom(req, res) {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
     lastPersistedJson: null, lastSummaryJson: null,
     entryPassword: entryPasswordRecord, typing: new Map(),
+    p2p: wantsP2p, hostPeerId: null, hostParticipantId: null,
     updatedAt: Date.now(),
     activeUntil: Date.now() + ACTIVE_GRACE_MS, unloadTimer: null
   };
@@ -2257,7 +2283,9 @@ async function handleCreateRoom(req, res) {
   // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoom）、
   // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
   await syncRoomSummary(id, entry);
-  sendJson(res, 201, { id });
+  // p2pも返す。作った本人は続けて入室するので、?net=rtc を付けるかの判断に要る。
+  // 要求した値ではなくサーバーが採用した値を返すこと（中継が無効なら立たない）。
+  sendJson(res, 201, { id, p2p: wantsP2p });
 }
 
 // POST /api/rooms/<id>/export：書き出し用に、画像を埋め込んだ自己完結の状態を返す。
@@ -2852,10 +2880,22 @@ await migrateLegacySummariesIfNeeded();
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // ブラウザ側が起動時に一度だけ読む設定。今は絵の置き場だけ。
+  // ブラウザ側が起動時に一度だけ読む設定。絵の置き場と、鳴らす音のURL。
   // 秘密は載せない（誰でも叩けるので）。増やすときもその線を守ること。
+  //
+  // 音のURLをここから配るのは、P2P卓では権威がGMのタブになるため（js/net-host.js）。
+  // 従来はサーバーが入室メッセージ・送信音のACTIONにURLを載せて配っていたが、ホスト役は
+  // 環境変数を読めない。値そのものは元から全員のブラウザへ配っていた公開URLで、
+  // 「秘密は載せない」の線は動いていない。
   if (url.pathname === '/api/config' && req.method === 'GET') {
-    sendJson(res, 200, { assetBaseUrl: ASSET_BASE_URL || null });
+    sendJson(res, 200, {
+      assetBaseUrl: ASSET_BASE_URL || null,
+      entrySoundUrl: ENTRY_SOUND_URL || null,
+      chatSendSoundUrl: CHAT_SEND_SOUND_URL || null,
+      // P2Pの卓を作れるか。部屋一覧が作成フォームに選択肢を出すかの判断に使う
+      // （出しても作れないサーバーでは、誰も入れない部屋ができてしまう）。
+      p2pSignaling: ENABLE_P2P_SIGNALING
+    });
     return;
   }
 
@@ -2962,22 +3002,27 @@ const WS_HEAVY_FRAME_BYTES = 512 * 1024;
 // 1接続あたりのメッセージ流量。1操作ごとに状態の保存（Redisへの書き込み）が走るため、
 // 連打されると課金と帯域がそのまま伸びる。人間の操作としてはこれで十分足りる。
 // 溢れた分は黙って捨てる（切断はしない。取りこぼしはRESYNCで直せるほうが親切なため）。
-const WS_MESSAGE_WINDOW_MS = 10 * 1000;
-const WS_MAX_MESSAGES_PER_WINDOW = 300;
+//
+// 数字はjs/net-host-rules.jsに置いてある。P2P卓ではホスト役が同じ制限を掛ける必要があり
+// （1人の連打が部屋全員への中継に増幅される）、両方に書くと必ずどちらかがずれるため。
+// スタンプの上限をjs/stamp-catalog.jsに置いてあるのと同じ流儀。
+const WS_MESSAGE_WINDOW_MS = MESSAGE_RATE_LIMIT.windowMs;
+const WS_MAX_MESSAGES_PER_WINDOW = MESSAGE_RATE_LIMIT.max;
 
 // 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
 const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
 
 // --- P2Pのシグナリング中継を開けるか（既定は閉じる） ---
-// 下のSIGNAL_HELLO / SIGNALは、部屋にいる誰でも「同じ部屋の他の人へ任意のJSONを
-// 転送させられる」口になる。P2P（docs/p2p-migration-notes.md）を使うときには要るが、
-// 使っていない間は開けておく理由が無いので、明示的に有効化したときだけ通す。
+// 下のSIGNAL_HELLO / SIGNALは「同じ部屋の他の人へ任意のJSONを転送させられる」口になる。
+// P2P（docs/p2p-migration-notes.md）には要るが、使っていないサーバーで開けておく理由は無い。
 //
-// 実害が小さいから開けっ放しでよい、とはしない。この中継は「誰でもhost:trueを名乗れる」
-// 問題（同上ドキュメントの6節）を抱えたままで、しかも凍結中は誰も使わない。
-// 使われない機能のために本番へ口を開けない、という判断。
+// 口は2段で閉じてある：
+//   ・この環境変数           … サーバー全体。未設定ならP2Pの卓そのものを作れない
+//   ・その部屋がP2Pかどうか  … 従来卓では中継を通さない（下のsignalingOpen）
+// 「誰でもhost:trueを名乗れる」問題（同上ドキュメントの6節）は、名乗り済みのGMだけに
+// 絞ることで塞いである（下のSIGNAL_HELLO）。
 //
-// 再開するときはRenderの環境変数に ENABLE_P2P_SIGNALING=1 を足すだけでよい。
+// 本番（Render）で使うときは環境変数に ENABLE_P2P_SIGNALING=1 を足す。
 const ENABLE_P2P_SIGNALING = process.env.ENABLE_P2P_SIGNALING === '1';
 
 const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
@@ -2998,6 +3043,10 @@ wss.on('connection', async (ws, req) => {
 
   const url = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room');
+  // この接続がP2Pのシグナリングとして来たか。ブラウザは接続先URLに location.search を
+  // そのまま引き継ぐので（js/net-transport-ws.jsのWS_URL）、繋がった時点で分かる。
+  // 分かる場所がここなのが要点で、部屋の中身を渡す前に振り分けられる。
+  const wantsSignaling = url.searchParams.get('net') === 'rtc';
 
   // 生存確認の初期値。以後はpongが返るたびに立て直す（下のheartbeatTimer参照）。
   ws.isAlive = true;
@@ -3051,6 +3100,19 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
+  // --- P2P卓の振り分け ---
+  // P2Pで開かれた卓へ、従来のWebSocketで入ろうとした接続には**部屋の中身を渡さない**。
+  //
+  // 渡すと、その人はサーバー権威の部屋、ホストは自分が権威の部屋に居ることになり、
+  // 警告も出ないまま2つのセッションに割れる（docs/p2p-migration-notes.mdの4-④。
+  // 凍結時点で最重要の未解決事項だったもの）。**割れさせる代わりに、はっきり断る。**
+  // ブラウザは4010を受けて ?net=rtc を付け直して入り直すので、古いURLやブックマークで
+  // 来た人は自動で正しい入り方に回る（js/net-sync.jsのhandleClose）。
+  if (entry.p2p && !wantsSignaling) {
+    ws.close(4010, 'room is p2p');
+    return;
+  }
+
   // この接続が来た時点で枠を確保する。admit()まで待たないのは、入室パスワード待ちの
   // 接続がclientsに入らないため：待つ形にすると、パスワードを入力している数十秒の間に
   // 他の卓で枠が埋まり、正しいパスワードを入れた人が弾かれる。
@@ -3084,6 +3146,13 @@ wss.on('connection', async (ws, req) => {
     // 誰も記入中でなくても送る：省くと、再接続した本人の画面に切断前の古い一覧が
     // 残ったままになってしまう（空の一覧で必ず上書きする）。
     ws.send(JSON.stringify({ type: 'TYPING_USERS', users: typingUsersList(entry) }));
+
+    // P2P卓ではない部屋へ ?net=rtc で入ってきた（手で書き足したURLなど）。この接続は
+    // シグナリングの返事を待って止まってしまうので、待たせずに無いと伝える。
+    // 黙っていると、WebRTCの時間切れ（8秒）まで理由の分からない待ちになる。
+    if (wantsSignaling && !entry.p2p) {
+      ws.send(JSON.stringify({ type: 'SIGNAL_UNAVAILABLE' }));
+    }
   }
 
   if (entryAuthorized) {
@@ -3218,23 +3287,70 @@ wss.on('connection', async (ws, req) => {
     //
     // 部屋の中でしか届かない：宛先は同じentry.clientsの中からしか探さない。入室パスワードの
     // 照合より後に置いてあるのも同じ理由で、通っていない接続はここへ来られない。
-    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL_HELLO') {
+    //
+    // 【P2P卓でしか開かない】環境変数（ENABLE_P2P_SIGNALING）だけでなく、その部屋が
+    // P2Pで開かれていることも条件にする。従来卓では誰も使わないのに、開けておくと
+    // 「同じ部屋の他人へ任意のJSONを転送させる口」だけが残る——ACTIONの検査を全部
+    // 迂回して、相手のparseUntrustedJsonへ直に入る経路になる。
+    // こちらのクライアントが読み捨てるから安全、とはしない（それは相手のコードへの
+    // 期待であって、守りではない）。従来卓の接続にはadmit()でSIGNAL_UNAVAILABLEを
+    // 返してあるので、待たされることもない。
+    const signalingOpen = ENABLE_P2P_SIGNALING && entry.p2p;
+
+    if (signalingOpen && message.type === 'SIGNAL_HELLO') {
       // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
       if (ws.signalPeerId) return;
       ws.signalPeerId = randomUUID();
-      ws.isSignalHost = !!message.host;
+
+      // --- ホスト役を誰が務めるか。決めるのはここ ---
+      //
+      // 【画面に決めさせない】以前は `?host=1` を付けた人がホストを名乗れた。つまり
+      // **同じ部屋の誰でもホストになりすませた**（docs/p2p-migration-notes.mdの6節）。
+      // 同期経路そのものを握られるうえ、2人が同時に名乗れば部屋が2つに割れる。
+      // 名乗りを検算できるのはサーバーだけなので、資格の判定はここでしか行えない。
+      //
+      // 規則は2つ：
+      //   ・この卓のホストが既に分かっている … その人だけ（entry.hostParticipantId）
+      //   ・まだ誰も務めていない             … 資格のある人が先着。資格の判定は
+      //     canOperateAsGm＝GMが居る部屋ならそのGM、居なければ全員（既存の
+      //     「最初に名乗った人がGM」と同じ性格）
+      // 決まったら接続に固定し、その接続が切れるまで他の人には渡さない。
+      //
+      // 【hostParticipantIdが要る理由】entry.store.stateはこの部屋を読み込んだ瞬間の姿で、
+      // P2P卓では以後サーバーへ書き戻らない＝**サーバーから見ると永遠に「GMが居ない部屋」**。
+      // これだけだと、GMがリロードした一瞬の隙に参加者がホストを名乗れてしまい、
+      // **GMのタブにしか無かった部屋の中身が、サーバーの空の種で上書きされて消える**。
+      // 実際に踏んだ。誰が務めていたかを部屋がメモリに載っている間だけ覚えておけば、
+      // その隙が閉じる（GMが戻るまで、他の人は待つ）。
+      // 全員が抜けて部屋がメモリから降りれば忘れる——そのときは状態も一緒に消えている
+      // ので、次の人が新しく始めてよい。
+      const wantsHost = message.wantsHost === true;
+      const hostTaken = entry.hostPeerId !== null;
+      const eligible = entry.hostParticipantId
+        ? verifiedParticipantId === entry.hostParticipantId
+        : mayOperateAsGm();
+      const isHost = wantsHost && !hostTaken && eligible;
+      if (isHost) {
+        entry.hostPeerId = ws.signalPeerId;
+        ws.isSignalHost = true;
+        // 名乗る前にホストになることもある（表示名を入れていない状態で部屋を開いた場合）。
+        // その場合はIDENTIFYの側で後から控える。
+        if (verifiedParticipantId) entry.hostParticipantId = verifiedParticipantId;
+        console.log(`[server] ${roomId}: ホスト役が決まりました（${ws.participantName || 'ゲスト'}）`);
+      }
 
       const host = Array.from(entry.clients).find((client) => client.isSignalHost);
       ws.send(JSON.stringify({
         type: 'SIGNAL_WELCOME',
         peerId: ws.signalPeerId,
+        role: isHost ? 'host' : 'guest',
         // ホスト自身にはhostPeerIdを返さない（自分に繋ぎに行かせないため）
-        hostPeerId: ws.isSignalHost ? null : (host?.signalPeerId ?? null)
+        hostPeerId: isHost ? null : (host?.signalPeerId ?? null)
       }));
 
       // ホストより先に来て待っているゲストへ「ホストが来た」と伝える。これが無いと、
       // 部屋を開くより先に参加者が入っていた場合、誰も繋ぎに行かないまま止まる。
-      if (ws.isSignalHost) {
+      if (isHost) {
         entry.clients.forEach((client) => {
           if (client === ws || !client.signalPeerId || client.isSignalHost) return;
           if (client.readyState !== WebSocket.OPEN) return;
@@ -3244,7 +3360,7 @@ wss.on('connection', async (ws, req) => {
       return;
     }
 
-    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL') {
+    if (signalingOpen && message.type === 'SIGNAL') {
       if (!ws.signalPeerId) return;
       const target = Array.from(entry.clients)
         .find((client) => client.signalPeerId === String(message.to || ''));
@@ -3252,6 +3368,23 @@ wss.on('connection', async (ws, req) => {
       target.send(JSON.stringify({ type: 'SIGNAL', from: ws.signalPeerId, payload: message.payload }));
       return;
     }
+
+    // --- P2P卓では、ここから下の仕事をしない ---
+    //
+    // P2P卓のこの接続は「同期の道」ではなく「シグナリングの口」で、部屋の状態を動かす
+    // のはホストのタブ（js/net-host.js）。ここで状態を触ると、**サーバー側にもう1つの
+    // 権威ができる**——しかもホストは何も知らないので、2つの部屋データが静かに食い違う。
+    //
+    // 同時に、これが「Redisへの書き込みが起きない」ことの担保でもある。ACTIONも
+    // REPLACE_STATEも通らない＝schedulePersistForRoomへ辿り着く道が無い。P2P化で
+    // 減らしたかった負荷そのものなので、悪意ある参加者がここを叩いて元に戻せないよう、
+    // 「来ないはず」ではなく明示的に閉じる。
+    //
+    // 通すのは2つだけ：
+    //   IDENTIFY    … ホスト役の資格（GMか）を検算するのに要る。ただし下で見るとおり、
+    //                 入室メッセージは出さない（出すのはホストの仕事）
+    //   DELETE_ROOM … RedisとR2を消せるのはサーバーだけ。ホストが中継してくる
+    if (entry.p2p && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM') return;
 
     // 名乗り。表示名から導出した公開IDとトークンを突き合わせる（verifyIdentity参照）。
     // 通らなかった場合はゲスト扱いのままにする（切断はしない。閲覧はできてよいため）。
@@ -3269,6 +3402,10 @@ wss.on('connection', async (ws, req) => {
 
       if (verifyIdentity(participantId, authToken)) {
         verifiedParticipantId = participantId;
+        // P2P卓で、ホスト役が名乗ったところ。誰が務めているかをここで控える。
+        // 表示名を入れないまま部屋を開くとSIGNAL_HELLOの時点では名無しなので、
+        // 控える機会はここにしかない（上のSIGNAL_HELLOのコメント参照）。
+        if (entry.p2p && ws.isSignalHost) entry.hostParticipantId = participantId;
         isDeveloper = isDeveloperToken(roomId, authToken);
         if (isDeveloper) {
           console.log(`[server] ${roomId}: 開発用の合言葉で名乗りました（GMと同じ操作を許可します）`);
@@ -3289,7 +3426,12 @@ wss.on('connection', async (ws, req) => {
         // チャットタブへ1件追加する（再接続・タブの複数開きでは増やさない）。この接続自身は
         // admit()で既にentry.clientsへ入っているため、自分を除いて数える
         // （client.participantIdは下でこの後に立てる。先に立てると常に1件ヒットしてしまう）。
-        if (showsEntryMessages(entry.store.state) && !entryMessageSent) {
+        //
+        // P2P卓では出さない。出すのはホスト役（js/net-host.jsのannounceEntry）で、ここでも
+        // 出すと**同じ入室が2か所で記録される**：ホストのタブに1件、サーバーの凍った部屋
+        // データにもう1件。後者は誰の画面にも出ないまま溜まり、次に部屋を読み直したときに
+        // 種として蘇る（しかもRedisへの書き込みまで起きる）。
+        if (!entry.p2p && showsEntryMessages(entry.store.state) && !entryMessageSent) {
           const alreadyConnected = Array.from(entry.clients).some(
             (client) => client !== ws && client.participantId === participantId
           );
@@ -3477,6 +3619,14 @@ wss.on('connection', async (ws, req) => {
     clearTimeout(entryTimer);
     // 入室パスワードを通らないまま切れた接続はclientsに入っていない（deleteは空振りでよい）
     entry.clients.delete(ws);
+    // ホスト役が抜けた。枠を空けておかないと、GMが繋ぎ直しても「もうホストが居ます」で
+    // 断られ、その部屋は誰もホストになれないまま終わる。
+    // （この時点で部屋の状態はホストのタブと一緒に消えている。次に誰かが入ると、
+    //   サーバーが持っている凍った状態から種を取り直すことになる。永続化は次の段）
+    if (ws.isSignalHost && entry.hostPeerId === ws.signalPeerId) {
+      entry.hostPeerId = null;
+      console.log(`[server] ${roomId}: ホスト役が抜けました`);
+    }
     // 記入中のまま切断された場合、一覧に残り続けないようここで落とす（T-013）。
     // 同じ参加者の別タブがまだ記入中なら（TYPING_STOP同様）消さない。
     if (verifiedParticipantId && entry.typing.has(verifiedParticipantId)) {

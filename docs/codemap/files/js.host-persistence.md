@@ -1,6 +1,6 @@
 ---
 source: js/host-persistence.js
-lines: 113
+lines: 126
 exports: 1
 imported_by: 1
 api_sha: 41e4d0e4d399
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 32 | fn | startHostPersistence | `startHostPersistence({ send, seedState = null })` | ホストの控えの送信を始める。 |
+| 42 | fn | startHostPersistence | `startHostPersistence({ send, seedState = null })` | ホストの控えの送信を始める。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -34,7 +34,7 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 32 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 81 | ✓ |
+| 42 | startHostPersistence | `startHostPersistence({ send, seedState = null })` | 84 | ✓ |
 
 ## 依存
 

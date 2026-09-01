@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MESSAGE_RATE_LIMIT, SAVE_POLICY, createFixedWindowLimiter, createSlidingWindowLimiter,
-  entryMessageDecision, nextSaveDelay, typingUsersFrom
+  MESSAGE_RATE_LIMIT, SNAPSHOT_INTERVAL_MS, createFixedWindowLimiter, createSlidingWindowLimiter,
+  entryMessageDecision, nextSnapshotDelay, typingUsersFrom
 } from '../js/net-host-rules.js';
 
 // --- 窓を区切って数える方（メッセージ流量。server/index.jsのexceedsMessageRateの移植） ---
@@ -144,46 +144,38 @@ test('名乗っていない人には出さない', () => {
   assert.deepEqual(decision, { announce: false, markDecided: false });
 });
 
-// --- 保存の先送り（末尾デバウンス） ---
-// サーバーとP2P卓のホストが同じ policy を使う。間違えると「操作のたびに書く」（Redisを
-// 叩き続ける）か「いつまでも書かない」（落ちたときに失う幅が広がる）のどちらかになる。
+// --- 控えを送る間引き（スロットル） ---
+// サーバー側の保存デバウンスとは別物。あちらは既に手元にある状態を書くだけだが、
+// こちらは状態を丸ごと回線で送るので、頻度がそのまま通信量になる。
 
-test('初回は debounce ぶんだけ待ち、期限が決まる', () => {
-  const { delayMs, deadline } = nextSaveDelay({
-    now: 1000, deadline: null, policy: { debounceMs: 100, maxWaitMs: 500 }
-  });
-  assert.equal(delayMs, 100);
-  assert.equal(deadline, 1500);
+test('まだ一度も送っていなければ待たない', () => {
+  // 開いた直後に落ちた卓が丸ごと失われないように
+  assert.equal(nextSnapshotDelay({ now: 1000, lastSentAt: null, intervalMs: 1000 }), 0);
 });
 
-test('操作が続く間は先送りされるが、期限は動かない', () => {
-  const policy = { debounceMs: 100, maxWaitMs: 500 };
-  let { deadline } = nextSaveDelay({ now: 1000, deadline: null, policy });
-  // 50msごとに操作が続く
-  for (const now of [1050, 1100, 1150]) {
-    const next = nextSaveDelay({ now, deadline, policy });
-    assert.equal(next.deadline, 1500, '期限は最初の未保存の変更から動かない');
-    assert.equal(next.delayMs, 100, '毎回 debounce ぶん先送りされる');
-    deadline = next.deadline;
-  }
+test('前回から間隔が空くまで待つ', () => {
+  assert.equal(nextSnapshotDelay({ now: 1000, lastSentAt: 1000, intervalMs: 5000 }), 5000);
+  assert.equal(nextSnapshotDelay({ now: 3000, lastSentAt: 1000, intervalMs: 5000 }), 3000);
 });
 
-test('期限に近づいたら debounce より短く待つ', () => {
-  const policy = { debounceMs: 100, maxWaitMs: 500 };
-  // 期限は1500。1450での操作は、100待つと期限を50超えてしまう
-  const { delayMs } = nextSaveDelay({ now: 1450, deadline: 1500, policy });
-  assert.equal(delayMs, 50);
+test('間隔が空いていればすぐ送ってよい', () => {
+  assert.equal(nextSnapshotDelay({ now: 6000, lastSentAt: 1000, intervalMs: 5000 }), 0);
+  assert.equal(nextSnapshotDelay({ now: 99999, lastSentAt: 1000, intervalMs: 5000 }), 0);
 });
 
-test('期限を過ぎていたら待たない', () => {
-  const policy = { debounceMs: 100, maxWaitMs: 500 };
-  const { delayMs } = nextSaveDelay({ now: 1600, deadline: 1500, policy });
-  assert.equal(delayMs, 0);
+test('操作が続いても控えは遅れない（デバウンスとの違い）', () => {
+  // デバウンスなら「操作が途切れるまで送らない」ので、遊び続けている卓ほど控えが古くなる。
+  // 間引きは前回からの経過だけを見るので、活動の多寡に関わらず上限が守られる。
+  const intervalMs = 5000;
+  const lastSentAt = 1000;
+  const delays = [1100, 1200, 1300, 1400].map(
+    (now) => nextSnapshotDelay({ now, lastSentAt, intervalMs })
+  );
+  assert.deepEqual(delays, [4900, 4800, 4700, 4600], '待ち時間は縮んでいく（延びない）');
 });
 
-test('保存の間隔はサーバーとホストで1か所から配る', () => {
-  assert.equal(typeof SAVE_POLICY.debounceMs, 'number');
-  assert.equal(typeof SAVE_POLICY.maxWaitMs, 'number');
-  assert.ok(SAVE_POLICY.debounceMs < SAVE_POLICY.maxWaitMs, '上限は先送りより長いこと');
-  assert.ok(Object.isFrozen(SAVE_POLICY));
+test('控えの間隔は、失って困る幅として決めてある', () => {
+  // 数字そのものを固定したいのではなく、サーバー側の保存デバウンス（1秒）と桁が
+  // 違うこと＝別の理由で決まっていることを守りたい。
+  assert.ok(SNAPSHOT_INTERVAL_MS >= 60 * 1000, '分の単位であること');
 });

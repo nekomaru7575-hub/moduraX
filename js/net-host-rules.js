@@ -25,31 +25,41 @@
 export const MESSAGE_RATE_LIMIT = Object.freeze({ windowMs: 10 * 1000, max: 300 });
 
 /**
- * 保存を先送りする間隔と、先送りし続ける上限。
+ * ホストが控えをサーバーへ預ける間隔（js/host-persistence.js）。
  *
- * 操作が続いている間は書かず、途切れてから書く（末尾デバウンス）。ただし操作が途切れない
- * まま延々と続く場合に一度も書かないのは困るので、最初の未保存の変更から maxWaitMs が
- * 経ったらそこで一度書く。
+ * **サーバー側の保存間隔（server/index.jsのSAVE_DEBOUNCE_MS）とは別物。** あちらは
+ * 「既に手元にある状態をいつ書くか」で、状態はもうメモリに在るのだから短くてよい。
+ * こちらは「状態を丸ごと回線で送る」ので、頻度がそのまま通信量になる。
  *
- * サーバー（server/index.jsのschedulePersistForRoom）とP2P卓のホスト
- * （js/host-persistence.js）が同じ値を使う。**守っている資源が同じ**——どちらも最後は
- * Redisへの書き込みになるので、片方だけ緩めても意味が無く、両方に数字を書けばずれる。
+ * 控えはバックアップであって同期ではない。1操作ごとに追いつく必要はなく、
+ * **失って困る幅**（クラッシュしたときに巻き戻る時間）だけで決めればよい。
+ * 普通にタブを閉じる・別のページへ移る場合は、その瞬間に吐き出すので1件も失われない
+ * （host-persistence.jsのpagehide / visibilitychange）。ここに引っかかるのは
+ * ブラウザごと落ちた・電源が切れた・回線が死んだ場合だけ。
+ *
+ * 短くすると通信量とRedisへの書き込みが直接効いてくる：状態221KBの卓で5秒間隔なら
+ * 1時間あたり約180MB、5分間隔なら約2.6MB。
  */
-export const SAVE_POLICY = Object.freeze({ debounceMs: 1000, maxWaitMs: 5000 });
+export const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * 次に保存するまでの待ち時間を決める。
+ * 次に控えを送るまでの待ち時間を決める。
+ *
+ * 先送り（デバウンス）ではなく間引き（スロットル）。デバウンスだと「操作が続いている間は
+ * 送らない」ことになり、**遊び続けている卓ほど控えが古くなる**——一番失いたくない状況で
+ * 一番守られない。一定間隔なら、活動の多寡に関わらず巻き戻る幅が上限で抑えられる。
  *
  * @param {object} options
  * @param {number} options.now いま
- * @param {number|null} options.deadline 先送りの期限（未設定ならこれから決める）
- * @param {{debounceMs: number, maxWaitMs: number}} [options.policy]
- * @returns {{delayMs: number, deadline: number}}
+ * @param {number|null} options.lastSentAt 最後に送った時刻（まだ送っていなければnull）
+ * @param {number} [options.intervalMs]
+ * @returns {number} 待つミリ秒。0ならすぐ送ってよい
  */
-export function nextSaveDelay({ now, deadline, policy = SAVE_POLICY }) {
-  const nextDeadline = deadline || (now + policy.maxWaitMs);
-  const delayMs = Math.max(0, Math.min(now + policy.debounceMs, nextDeadline) - now);
-  return { delayMs, deadline: nextDeadline };
+export function nextSnapshotDelay({ now, lastSentAt, intervalMs = SNAPSHOT_INTERVAL_MS }) {
+  // まだ一度も送っていない＝サーバーには部屋を開いた時点の姿しかない。最初の変更は
+  // 待たずに預ける（ここで待つと、開いた直後に落ちた卓が丸ごと失われる）。
+  if (lastSentAt === null) return 0;
+  return Math.max(0, lastSentAt + intervalMs - now);
 }
 
 /**

@@ -28,9 +28,8 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
-// メッセージ流量の上限と保存の間隔。ホスト権威P2Pのホスト役と共有する
-// （下のWS_MESSAGE_WINDOW_MS / SAVE_DEBOUNCE_MS参照）。
-import { MESSAGE_RATE_LIMIT, SAVE_POLICY } from '../js/net-host-rules.js';
+// メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
+import { MESSAGE_RATE_LIMIT } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -77,11 +76,12 @@ const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 // 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
 // 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
 //
-// 数字はjs/net-host-rules.jsに置いてある。P2P卓ではホストのタブが同じ間隔でスナップショットを
-// 送ってくる（js/host-persistence.js）ので、片方だけ緩めても意味が無い——守っている資源が
-// 同じ（最後はどちらもRedisへの書き込みになる）。
-const SAVE_DEBOUNCE_MS = SAVE_POLICY.debounceMs;
-const SAVE_MAX_WAIT_MS = SAVE_POLICY.maxWaitMs;
+// この短さでよいのは、**状態が既にこのプロセスのメモリに在る**ため。書くのはRedisへの
+// 往復だけで、回線で状態を運ぶ必要が無い。P2P卓のホストが控えを送る間隔
+// （js/net-host-rules.jsのSNAPSHOT_INTERVAL_MS、5分）とは桁が違うが、それでよい——
+// あちらは状態を丸ごと回線で送るので、頻度がそのまま通信量になる。
+const SAVE_DEBOUNCE_MS = 1000;
+const SAVE_MAX_WAIT_MS = 5000;
 // 1タブあたり、保存先に残すチャットログの件数（stateForPersist参照）。
 // 実測で1件あたり約150バイトなので、1000件で約150KB分。
 const PERSISTED_CHAT_ENTRIES = 1000;

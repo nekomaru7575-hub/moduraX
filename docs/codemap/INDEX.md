@@ -20,7 +20,7 @@ generated: 2026-09-01
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 140 | 614 | 1092 | 53 | 2 |
+| 145 | 651 | 1135 | 58 | 2 |
 
 エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -29,6 +29,8 @@ generated: 2026-09-01
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
 | [[js.asset-base\|js/asset-base.js]] | 「このアプリが画面に出す絵のうち、リポジトリに置いていないもの」の置き場所を1か所で持つ。 | 4 | 3 |
+| [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場。 | 18 | 4 |
+| [[js.asset-sync\|js/asset-sync.js]] | P2P卓で、画像・音源の実体をピアの間で行き来させる。 | 5 | 4 |
 | [[js.audience-picker\|js/audience-picker.js]] | 「誰に見せるか」(audience)を選ぶ共通UI。 | 2 | 6 |
 | [[js.audio-dialog\|js/audio-dialog.js]] | 部屋の音楽ダイアログ（ヘッダーの「♪」から開く）。 | 1 | 1 |
 | [[js.audio-phrase\|js/audio-phrase.js]] | 音源に設定した「再生フレーズ」と発言の照合。 | 1 | 1 |
@@ -67,7 +69,7 @@ generated: 2026-09-01
 | [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 3 |
-| [[js.image-upload\|js/image-upload.js]] | 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。 | 5 | 6 |
+| [[js.image-upload\|js/image-upload.js]] | 画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。 | 5 | 6 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
 | [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 14 |
@@ -77,12 +79,14 @@ generated: 2026-09-01
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
 | [[js.main\|js/main.js]] |  | 0 | 0 |
 | [[js.mobile-layout\|js/mobile-layout.js]] | 狭幅（スマホ）向けの縦積みレイアウト。 | 1 | 1 |
+| [[js.net-chunk\|js/net-chunk.js]] | DataChannelで大きなメッセージを運ぶための分割と組み直し。 | 5 | 2 |
+| [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。 | 6 | 2 |
 | [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。 | 1 | 1 |
 | [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 3 |
 | [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 9 | 3 |
 | [[js.net-transport-rtc\|js/net-transport-rtc.js]] | ホスト（GMのタブ）とDataChannelを1本張る、ゲスト側のトランスポート。開いたシグナリングを受け取って使い、大きいメッセージは js/net-chunk.js で組み直す。 | 1 | 1 |
 | [[js.net-transport-ws\|js/net-transport-ws.js]] | js/net-transport.jsの契約を、今までどおりのWebSocketで満たす実装。 | 2 | 2 |
-| [[js.net-transport\|js/net-transport.js]] | 「同期のメッセージを運ぶ道」の契約と、切断の理由。どちらを使うかは決めない（P2P卓の組み立ては役割が決まってからなので js/net-sync.js にある）。 | 3 | 2 |
+| [[js.net-transport\|js/net-transport.js]] | 「同期のメッセージを運ぶ道」の契約と、切断の理由。どちらを使うかは決めない（P2P卓の組み立ては役割が決まってからなので js/net-sync.js にある）。 | 3 | 5 |
 | [[js.no-browser-zoom\|js/no-browser-zoom.js]] | ブラウザ標準のページズームを止める。 | 1 | 1 |
 | [[js.original-table-dialog\|js/original-table-dialog.js]] | オリジナル表（ユーザー定義のダイス表）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
@@ -135,6 +139,7 @@ generated: 2026-09-01
 | [[js.scene-dialog\|js/scene-dialog.js]] | シーンの作成・編集ダイアログ（一覧はscene-list-dialog.js）。 | 1 | 1 |
 | [[js.scene-list-dialog\|js/scene-list-dialog.js]] | 登録済みのシーン（room.scenes）の一覧ダイアログ。 | 1 | 1 |
 | [[js.site-nav\|js/site-nav.js]] | 部屋の外にある3ページ（部屋入口・コマ作成ツール・このサービスについて）の行き来。 | 0 | 0 |
+| [[js.sound-config\|js/sound-config.js]] | 入室音・チャット送信音のURLを1か所で持つ。 | 3 | 2 |
 | [[js.stamp-catalog\|js/stamp-catalog.js]] | Core（どのゲームシステムでも使える）スタンプの一覧。 | 3 | 3 |
 | [[js.stamp-layer\|js/stamp-layer.js]] | スタンプの表示レイヤー。 | 2 | 2 |
 | [[js.stamp-panel\|js/stamp-panel.js]] | 「スタンプ送信」：使えるスタンプを画像で並べ、押すとその場で送る浮動パネル。 | 1 | 1 |
@@ -161,7 +166,7 @@ generated: 2026-09-01
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
-| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 7 |
+| [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 8 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |

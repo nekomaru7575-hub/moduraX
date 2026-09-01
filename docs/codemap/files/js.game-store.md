@@ -1,6 +1,6 @@
 ---
 source: js/game-store.js
-lines: 430
+lines: 433
 exports: 4
 imported_by: 15
 api_sha: a787e28853cd
@@ -28,7 +28,7 @@ tags: [codemap]
 | 136 | class | ImmutableStore | `ImmutableStore` |  |
 | 307 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
 | 311 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 429 | const | store | `store` |  |
+| 432 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -37,7 +37,7 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 311 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 117 | ✓ |
+| 311 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 120 | ✓ |
 
 ## 依存
 

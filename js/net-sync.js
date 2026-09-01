@@ -17,6 +17,7 @@ import { createTransport, CLOSE_CODES, isP2pMode } from './net-transport.js';
 import { createRtcGuestTransport } from './net-transport-rtc.js';
 import { openSignaling } from './net-signaling.js';
 import { startHost } from './net-host.js';
+import { ensureAssetsFor, handleAssetMessage, initAssetSync } from './asset-sync.js';
 import { currentRoomId, getStoredEntryPassword, setStoredEntryPassword } from './room-entry.js';
 import { showRoomEntryDialog, closeRoomEntryDialog } from './room-entry-dialog.js';
 import { playEntrySound, playChatSendSound } from './audio-player.js';
@@ -129,6 +130,9 @@ function handleOpen() {
 // 届いたメッセージ1件。信用しないJSONとして読むところまではトランスポート側が済ませている
 // （js/net-transport.jsの契約）。
 function handleMessage(message) {
+  // 画像・音源の実体（P2P卓。js/asset-sync.js）。状態とは別の流れなので先に捌く。
+  if (handleAssetMessage(message)) return;
+
   // 入室パスワードのある部屋。これを通すまでINITは届かない（server/index.js参照）。
   // P2P卓ではこの2つはここへ来ない——照合はシグナリングの口で済ませてある
   // （js/net-signaling.jsのonEntryPasswordRequired）。
@@ -151,6 +155,9 @@ function handleMessage(message) {
     // そちらは表示名からIDを導出し直す非同期の処理なので、届くまでのわずかな間だけ
     // 「画面は操作できるのにサーバーからは誰でもない」状態になってしまう。
     flushIdentify();
+    // 状態が使っている画像・音源のうち、まだ持っていないものを取りに行く（P2P卓）。
+    // 待たない：描画は進めてよく、実体が要るところはService Workerが到着を待つ（sw.js）。
+    ensureAssetsFor(message.state);
     // サーバーの最新状態を受け取った直後にだけ行いたい処理（参加者としての名乗り等）の
     // きっかけ。INITより前にdispatchしても、このhydrateで上書きされてしまうため。
     EventBus.emit('NET_INITIALIZED', message.state);
@@ -162,6 +169,7 @@ function handleMessage(message) {
   // （NET_INITIALIZED）は起こさない。
   if (message.type === 'RESYNC') {
     store.hydrate(message.state);
+    ensureAssetsFor(message.state);
     return;
   }
 
@@ -213,6 +221,10 @@ function handleMessage(message) {
     }
 
     localDispatch(message.action, message.payload);
+    // 他の人が足した画像・音源を取りに行く（P2P卓）。状態全体ではなくpayloadだけを見る——
+    // 操作のたびに状態を丸ごと歩くとコマのドラッグで効いてくる。新しい参照が現れるのは
+    // それを持ち込んだpayloadの中だけなので、これで取りこぼさない。
+    ensureAssetsFor(message.payload);
     // 入室メッセージに合わせた入室音。URLはサーバーの環境変数ENTRY_SOUND_URL由来で、
     // 状態には載せずこのACTIONメッセージのpayloadだけで運ぶ（js/audio-player.js参照）。
     if (message.action === 'ADD_ENTRY_MESSAGE' && message.payload?.entrySoundUrl) {
@@ -434,6 +446,8 @@ function initAsHost(session, seedState) {
       name: identityToSend?.name?.trim() || 'ゲスト'
     })
   });
+  // 実体の置き場での役どころ。ホストは権威なので取りに行く先が無く、代わりに配る側になる。
+  initAssetSync({ host: true, send: null });
 
   store.dispatch = (action, payload) => {
     const stampedPayload = stampPayload(action, payload);
@@ -474,6 +488,8 @@ function initAsP2pGuest(session) {
     onMessage: handleMessage,
     onClose: handleP2pClose
   });
+  // 実体はホストから貰い、自分が上げたものはホストへ渡す（js/asset-sync.js）。
+  initAssetSync({ host: false, send: (message) => transport?.send(message) ?? false });
   return transport;
 }
 

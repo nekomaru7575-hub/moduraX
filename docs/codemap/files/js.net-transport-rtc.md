@@ -38,7 +38,7 @@ _(未記入)_
 
 ## 依存
 
-- import → [[js.net-signaling]]
+- import → [[js.net-chunk]], [[js.net-signaling]]
 - imported by → [[js.net-sync]]
 
 ## 注意

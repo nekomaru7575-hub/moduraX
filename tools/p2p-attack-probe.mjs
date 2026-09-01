@@ -176,7 +176,26 @@ console.log('\n[5] SIGNALの中継が部屋の外へ出ない');
   b.ws.close();
 }
 
-console.log('\n[6] サーバーの生存');
+console.log('\n[6] /asset/ はサーバーには無い（肩代わりするのはService Worker）');
+{
+  // SWが居ない環境では、このURLはそのままサーバーへ届く。静的配信の外へ出られないことを
+  // 確かめる——ここが緩いと、**状態に書いただけの文字列でソースや.envを読み出す口**になる。
+  // 参照は部屋の状態に載り、部屋の状態は参加者が書ける。
+  const cases = [
+    [`/asset/${'a'.repeat(64)}`, '知らない実体は404'],
+    ['/asset/../../server/index.js', '相対パスで外へ出られない'],
+    ['/asset/..%2f..%2fserver%2findex.js', 'エンコードしても出られない'],
+    ['/asset/../.env', '.envへ届かない']
+  ];
+  for (const [path, label] of cases) {
+    const res = await fetch(BASE + path, { redirect: 'manual' });
+    const body = res.ok ? await res.text() : '';
+    const leaked = /UPSTASH|R2_SECRET|process\.env|^import /m.test(body);
+    check(!res.ok && !leaked, label, `(${res.status})`);
+  }
+}
+
+console.log('\n[7] サーバーの生存');
 {
   const res = await fetch(`${BASE}/api/rooms`).catch(() => null);
   check(res?.ok === true, 'サーバーが生きている  ←ここが落ちると全部屋が巻き添え');

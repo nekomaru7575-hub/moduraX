@@ -57,6 +57,8 @@ import { showLogClearConfirmDialog } from './log-clear-dialog.js';
 import { registerServiceWorker } from './pwa.js';
 import { setAssetBaseUrl } from './asset-base.js';
 import { setSoundConfig } from './sound-config.js';
+import { isP2pMode } from './net-transport.js';
+import { embedAssetsInState } from './asset-store.js';
 import { showLogEditDialog } from './log-edit-dialog.js';
 import { buildLogExportHtml } from './log-export.js';
 import { showAudioDialog } from './audio-dialog.js';
@@ -1136,6 +1138,11 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+// P2P卓で1ファイルに埋め込んでよい合計の目安。サーバー側の既定（MAX_EXPORT_EMBED_MB、
+// 64MB）に合わせてある。あちらはサーバーのメモリを守るための値だが、こちらは
+// 「開けないほど大きいJSONを作らない」ための値。同じ桁でよい。
+const EXPORT_EMBED_LIMIT_BYTES = 64 * 1024 * 1024;
+
 // セッションデータのファイル保存／読み込み。今の盤面・キャラ・チャットを丸ごとJSONに
 // 書き出し、後で読み込んで復元できるようにする（サーバー側の再起動・リセット対策）。
 // 部屋削除前の「部屋を保存し削除」からも使うため、関数として切り出してある。
@@ -1156,6 +1163,25 @@ async function exportStateToFile() {
   const roomId = new URLSearchParams(location.search).get('room') || '';
 
   let exportedState = { ...store.state, myBackyardTokenIds };
+
+  // P2P卓はサーバーに頼まない。**サーバーが持っているのはこの部屋を開いた瞬間の姿**で、
+  // 以後の中身はホストのタブにしか無いため、頼むと空の部屋が書き出される。
+  // 画像・音源の実体もこのブラウザにしかないので、埋め込みもここで行う。
+  if (isP2pMode()) {
+    try {
+      const { state, skipped } = await embedAssetsInState(exportedState, EXPORT_EMBED_LIMIT_BYTES);
+      exportedState = state;
+      if (skipped > 0) {
+        alert(`画像・音源${skipped}件はファイルに埋め込めませんでした（このブラウザが実体を持っていないか、合計サイズの上限を超えています）。`
+          + '\nこのぶんは、部屋を閉じると復元できなくなります。');
+      }
+    } catch (error) {
+      console.warn('[export] 実体を埋め込めませんでした。参照のまま書き出します:', error.message);
+    }
+    downloadStateJson(exportedState);
+    return;
+  }
+
   if (roomId) {
     try {
       const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/export`, {
@@ -1178,6 +1204,11 @@ async function exportStateToFile() {
     }
   }
 
+  downloadStateJson(exportedState);
+}
+
+// 書き出しの最後の一手。従来卓とP2P卓で埋め込みのやり方は違うが、落とし方は同じ。
+function downloadStateJson(exportedState) {
   const json = JSON.stringify(exportedState, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
 

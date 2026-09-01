@@ -2,7 +2,7 @@
 source: js/net-transport.js
 lines: 59
 exports: 3
-imported_by: 2
+imported_by: 5
 api_sha: 4f9dbcf010d1
 prose_sha: 4f9dbcf010d1
 generated: 2026-09-01
@@ -42,7 +42,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.net-transport-ws]]
-- imported by → [[js.net-host]], [[js.net-sync]]
+- imported by → [[js.audio-dialog]], [[js.image-upload]], [[js.main]], [[js.net-host]], [[js.net-sync]]
 
 ## 注意
 

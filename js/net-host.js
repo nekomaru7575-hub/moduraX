@@ -41,6 +41,7 @@ import { STAMP_RATE_LIMIT } from './stamp-catalog.js';
 import { isKnownStampId } from './stamp-registry.js';
 import { showsEntryMessages } from './store/room.js';
 import { adoptImportedState } from './state-import.js';
+import { handleAssetMessageAsHost } from './asset-sync.js';
 import { getChatSendSoundUrl, getEntrySoundUrl } from './sound-config.js';
 import { CLOSE_CODES } from './net-transport.js';
 
@@ -185,6 +186,11 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     // 数えると、大きな取り込み（REPLACE_STATE）が自分で自分を弾く。分割そのものの
     // 溢れはjs/net-chunk.jsの組み直し上限が受け持つ。
     if (peer.messageLimiter.exceeds()) return;
+
+    // 画像・音源の実体のやり取り（js/asset-sync.js）。名乗りは要らない——欲しいのは
+    // 「この部屋に居る人が見ている絵」で、それは既に状態に載っている。名乗りを条件に
+    // すると、ゲスト参加の人だけ絵が出ない部屋になる。
+    if (handleAssetMessageAsHost(message, (reply) => sendTo(peer, reply))) return;
 
     if (message.type === 'IDENTIFY') {
       handleIdentify(peer, message);

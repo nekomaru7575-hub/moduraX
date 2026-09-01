@@ -3,6 +3,9 @@
 // 音量調整を行う。実際の再生はjs/audio-player.jsが状態の変化を見て行う。
 
 import { pickFile } from './file-uploader.js';
+import { isP2pMode } from './net-transport.js';
+import { publishAsset } from './asset-sync.js';
+import { MAX_ASSET_BYTES } from './asset-store.js';
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
 import { entryPasswordHeaders } from './room-entry.js';
 import {
@@ -62,6 +65,8 @@ let uploadCapability = null;
 // アップロード前のサイズ判定はサーバーの上限に合わせる。ここが食い違うと、サーバー側で
 // 弾かれた際にブラウザには理由が届かず（応答前に接続を切るため）通信失敗にしか見えない。
 function currentMaxBytes() {
+  // P2P卓の上限は置き場（このブラウザ）の都合で決まる。サーバーの設定は関係ない。
+  if (isP2pMode()) return MAX_ASSET_BYTES;
   return uploadCapability?.maxBytes || DEFAULT_MAX_AUDIO_BYTES;
 }
 
@@ -86,6 +91,12 @@ function fetchUploadCapability(onResolved) {
 // ヘッダに載せる（server/index.jsのhandleAudioUpload）。名乗り用のトークンなので、
 // ログに残りうるクエリ文字列ではなくヘッダで送る。
 async function uploadAudioFile(file) {
+  // P2P卓ではR2を通さず、このブラウザへしまってホストへ渡す（js/asset-sync.js）。
+  // 返す形は同じで、keyはnull——R2上の実体を指す鍵は存在しないため。
+  if (isP2pMode()) {
+    return { url: await publishAsset(file), key: null };
+  }
+
   const headers = { 'Content-Type': file.type || 'audio/mpeg', ...entryPasswordHeaders() };
   const participantId = getCurrentParticipantId();
   const authToken = getCurrentAuthToken();
@@ -422,7 +433,12 @@ export function showAudioDialog({
     addArea.innerHTML = '';
     addArea.appendChild(buildAddRow(stripExtension(file.name), async ({ name, kind, phrase }) => {
       const { url, key } = await uploadAudioFile(file);
-      onAdd({ name, url, source: 'upload', key, channel: kind.channel, loop: kind.loop, phrase });
+      // sourceは「R2に実体があるか」の印。P2P卓のものはR2に無いので'external'側へ回す
+      // （消すときにR2のキーで消しに行かせない。js/store/handlers/audio.js）。
+      onAdd({
+        name, url, source: key ? 'upload' : 'external', key,
+        channel: kind.channel, loop: kind.loop, phrase
+      });
     }));
   });
   container.appendChild(addBtn);
@@ -430,7 +446,8 @@ export function showAudioDialog({
   // R2が未設定のサーバーではアップロードできないので、押す前に分かるようにしておく
   // （URLでの追加は設定に関係なく使える）。GM以外には既に別の理由で止めているので、
   // そちらの表示を上書きしないよう問い合わせ自体を行わない。
-  if (canAddTrack) fetchUploadCapability(({ uploadEnabled }) => {
+  // P2P卓ではR2を使わない（置き場がこのブラウザ）ので、問い合わせ自体が要らない。
+  if (canAddTrack && !isP2pMode()) fetchUploadCapability(({ uploadEnabled }) => {
     if (uploadEnabled) return;
     addBtn.disabled = true;
     addBtn.textContent = '音楽ファイルのアップロードは利用できません';

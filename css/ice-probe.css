@@ -1,0 +1,161 @@
+/* css/ice-probe.css
+   つながり方しらべ（ice-probe.html）の見た目。部屋一覧（room-index.css）と同じ地の色・
+   同じボタンの形にしてある——測定用の別ページだが、貼られたリンクを開いた人にとっては
+   同じアプリの一部として見えた方がよい。 */
+
+html {
+  overscroll-behavior: none;
+}
+
+body {
+  background-color: var(--surface-page);
+  color: var(--text-default);
+  font-family: var(--font-body);
+  margin: 0;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+           max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  box-sizing: border-box;
+  line-height: 1.7;
+}
+
+main {
+  width: 100%;
+  max-width: 620px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 16px;
+  border-bottom: 2px solid var(--surface-control);
+  padding-bottom: 8px;
+}
+
+.lead {
+  color: var(--text-body);
+  font-size: 0.9rem;
+  margin: 0 0 12px;
+}
+
+/* 判定。**結論を一番大きく出す**——測りに来た人が知りたいのは1行だけで、
+   内訳は確かめたい人だけが読めばよい。 */
+.verdict {
+  font-size: 1.15rem;
+  font-weight: bold;
+  margin: 24px 0 12px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  border-left: 5px solid var(--border-default);
+  background-color: var(--surface-base);
+}
+
+.verdict.ok { border-left-color: #3fa653; }
+.verdict.warn { border-left-color: #c8912f; }
+.verdict.ng { border-left-color: #c0504d; }
+
+#detail p {
+  font-size: 0.88rem;
+  color: var(--text-body);
+  margin: 0 0 10px;
+}
+
+#detail p.reason {
+  color: var(--text-secondary);
+}
+
+#detail p.note {
+  color: var(--text-tertiary);
+  font-size: 0.82rem;
+}
+
+#detail table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 16px 0;
+}
+
+#detail th,
+#detail td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+#detail th {
+  color: var(--text-tertiary);
+  font-weight: normal;
+}
+
+#detail td:last-child {
+  color: var(--text-bright);
+}
+
+label[for="share"] {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+  margin-top: 20px;
+  margin-bottom: 4px;
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--surface-control);
+  color: var(--text-default);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn {
+  background-color: var(--accent);
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn:hover { background-color: #0090f0; }
+.btn:disabled { background-color: var(--surface-raised-2); cursor: default; }
+.btn-secondary { background-color: var(--surface-raised-2); }
+.btn-secondary:hover { background-color: var(--border-default); }
+
+details {
+  margin-top: 28px;
+  border-top: 1px solid var(--border-faint);
+  padding-top: 12px;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+details p {
+  font-size: 0.85rem;
+  color: var(--text-body-dim);
+}
+
+.back {
+  margin-top: 28px;
+  font-size: 0.85rem;
+}
+
+.back a { color: var(--text-link); }

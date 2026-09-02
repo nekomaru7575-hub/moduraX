@@ -2,10 +2,10 @@
 source: js/net-signaling.js
 lines: 188
 exports: 2
-imported_by: 3
+imported_by: 4
 api_sha: 02b82c9b7e5c
 prose_sha: 02b82c9b7e5c
-generated: 2026-09-01
+generated: 2026-09-02
 tags: [codemap]
 ---
 
@@ -40,7 +40,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.net-transport-ws]], [[js.untrusted-json]]
-- imported by → [[js.net-host]], [[js.net-sync]], [[js.net-transport-rtc]]
+- imported by → [[js.ice-probe]], [[js.net-host]], [[js.net-sync]], [[js.net-transport-rtc]]
 
 ## 注意
 

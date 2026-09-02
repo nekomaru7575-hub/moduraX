@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>もじゅらX - つながり方しらべ</title>
+<!-- 検索避け。測定用のページで、部屋一覧やアプリ本体とは別物 -->
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/ice-probe.css">
+</head>
+<body>
+<main>
+  <h1>つながり方しらべ</h1>
+  <p class="lead">
+    P2Pの部屋は、参加者どうしのブラウザを直接つないで動きます。回線によっては直接つなげず、
+    その場合は中継（TURN）が要ります。<strong>このページは、いまお使いの回線がどちらかを調べます。</strong>
+  </p>
+  <p class="lead">
+    調べるだけで、<strong>結果はどこにも送信しません。</strong>
+    下の一行をコピーして、頼まれた方へ貼って返してください。
+  </p>
+
+  <p id="result" class="verdict">測っています…</p>
+  <div id="detail"></div>
+
+  <label for="share">貼って返す一行（住所は含まれません）</label>
+  <textarea id="share" rows="2" readonly></textarea>
+  <div class="buttons">
+    <button id="copy" type="button" class="btn">コピー</button>
+    <button id="run" type="button" class="btn btn-secondary">もう一度測る</button>
+  </div>
+
+  <details>
+    <summary>何を見ているのか</summary>
+    <p>
+      ブラウザは接続の前に「自分に届く住所」の候補を集めます。LAN内の住所（host）、
+      外側から見た住所（srflx）、中継サーバーが貸してくれる住所（relay）の3種類です。
+    </p>
+    <p>
+      直接つなぐには外側の住所が要りますが、<strong>あってもつながるとは限りません。</strong>
+      回線の機器（NAT）が「通信相手ごとに別の穴を開ける」種類だと、
+      調べたときの住所は調べた相手にしか通じないためです。
+    </p>
+    <p>
+      そこで、運営者の違うSTUNサーバー2か所へ同時に問い合わせ、
+      <strong>同じ足元から見た外側のポートが同じか違うか</strong>を見ています。
+      同じなら直接つながる見込み、違えば中継が要ります。
+      この見分けは相手を用意しなくてもできます。
+    </p>
+  </details>
+
+  <p class="back"><a href="/">部屋一覧へ戻る</a></p>
+</main>
+<script type="module" src="/js/ice-probe.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-01
+generated: 2026-09-02
 ---
 
 # trpg-app コードマップ
@@ -20,9 +20,9 @@ generated: 2026-09-01
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 147 | 661 | 1146 | 58 | 2 |
+| 149 | 666 | 1155 | 58 | 2 |
 
-エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
+エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
 ## ファイル一覧
 
@@ -67,6 +67,8 @@ generated: 2026-09-01
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.host-persistence\|js/host-persistence.js]] | P2P卓の永続化。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
+| [[js.ice-probe-rules\|js/ice-probe-rules.js]] | 「この回線からP2Pが張れるか」の判定そのもの。 | 5 | 1 |
+| [[js.ice-probe\|js/ice-probe.js]] | 「この回線からP2Pの部屋に入れるか」を、相手を用意せずに1台だけで測る道具（/ice-probe.html）。 | 0 | 0 |
 | [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 3 |
@@ -83,7 +85,7 @@ generated: 2026-09-01
 | [[js.net-chunk\|js/net-chunk.js]] | DataChannelで大きなメッセージを運ぶための分割と組み直し。 | 5 | 2 |
 | [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。連打よけ・記入中の集計・入室メッセージの重複判定・控えを送る間引き。サーバーと共有する上限もここに置く。 | 9 | 3 |
 | [[js.net-host\|js/net-host.js]] | ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。 | 1 | 1 |
-| [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 3 |
+| [[js.net-signaling\|js/net-signaling.js]] | P2P卓でサーバーとの間に1本だけ張る細い口。SDPとICE候補のほか、サーバーにしか決められない3つ（入室パスワードの照合・ホスト役の資格・部屋の削除）を運ぶ。役割はサーバーが決める。 | 2 | 4 |
 | [[js.net-sync\|js/net-sync.js]] | ブラウザ側のWebSocketクライアント。 | 9 | 3 |
 | [[js.net-transport-rtc\|js/net-transport-rtc.js]] | ホスト（GMのタブ）とDataChannelを1本張る、ゲスト側のトランスポート。開いたシグナリングを受け取って使い、大きいメッセージは js/net-chunk.js で組み直す。 | 1 | 1 |
 | [[js.net-transport-ws\|js/net-transport-ws.js]] | js/net-transport.jsの契約を、今までどおりのWebSocketで満たす実装。 | 2 | 2 |

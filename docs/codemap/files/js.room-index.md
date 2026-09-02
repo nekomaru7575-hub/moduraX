@@ -1,11 +1,11 @@
 ---
 source: js/room-index.js
-lines: 706
+lines: 715
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-09-01
+generated: 2026-09-02
 tags: [codemap]
 ---
 
@@ -41,11 +41,11 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 | 196 | mountEntryPanel | `mountEntryPanel()` | 57 |  |
 | 256 | visibleRooms | `visibleRooms()` | 5 |  |
 | 262 | fillRoomSelect | `fillRoomSelect()` | 39 |  |
-| 303 | renderSelectedRoom | `renderSelectedRoom()` | 58 |  |
-| 365 | mountCreatePanel | `mountCreatePanel()` | **251** |  |
-| 618 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
-| 632 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
-| 645 | loadRooms | `async loadRooms()` | 44 |  |
+| 303 | renderSelectedRoom | `renderSelectedRoom()` | 67 |  |
+| 374 | mountCreatePanel | `mountCreatePanel()` | **251** |  |
+| 627 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 641 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 654 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 

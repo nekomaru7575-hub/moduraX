@@ -334,6 +334,15 @@ function renderSelectedRoom() {
       + 'GMが入室していないと始められません。';
     p2pNote.title = '同期をサーバーではなく参加者どうしの直接通信で行います。'
       + '回線によっては繋がらないことがあります。';
+    // 繋がらない回線が実際にある（TURNを用意していないため。docs/p2p-migration-notes.mdの5-2）。
+    // **入る前に確かめられる場所を、入り口のすぐ横に置く**——入ってから20秒待たされて
+    // 断られるより、先に分かる方がよい。
+    const probeLink = document.createElement('a');
+    probeLink.href = '/ice-probe.html';
+    probeLink.className = 'room-p2p-check';
+    probeLink.textContent = 'この回線で繋がるか調べる';
+    p2pNote.appendChild(document.createTextNode(' '));
+    p2pNote.appendChild(probeLink);
     entry.info.appendChild(p2pNote);
   }
 

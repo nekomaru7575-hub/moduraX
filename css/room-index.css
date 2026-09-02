@@ -202,6 +202,14 @@ body {
   margin-top: 4px;
 }
 
+/* 「この回線で繋がるか調べる」（/ice-probe.html）。説明文と地続きに置き、
+   下線だけで押せると分かるようにする——ボタンにすると入室ボタンと張り合ってしまう。 */
+.room-p2p-check {
+  color: var(--text-link);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 /* 入力欄の下に添える補足（作成フォームのP2Pの説明など）。
    ラベルより弱く、読み飛ばしても操作に困らない位置づけ。 */
 .field-note {

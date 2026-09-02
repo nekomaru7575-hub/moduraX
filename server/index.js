@@ -524,7 +524,10 @@ const PUBLIC_FILES = new Set([
   // 利用規約・プライバシーポリシー・免責事項・問い合わせ先（部屋一覧の下から辿れる）
   'about.html',
   // 更新の記録（部屋の外の各ページの「⋯」から辿れる）
-  'release-notes.html'
+  'release-notes.html',
+  // つながり方しらべ（js/ice-probe.js）。P2P卓が自分の回線から使えるかを、
+  // 相手を用意せずに測るための道具。どこからも辿れないが、URLを配って回るので配信は要る
+  'ice-probe.html'
 ]);
 const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
 // 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の

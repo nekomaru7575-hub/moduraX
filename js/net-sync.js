@@ -47,6 +47,19 @@ let hostPersistence = null;
 // 同期データは通らないが、入室パスワードの照合と部屋の削除はここを通る。
 let signaling = null;
 
+// シグナリングから届いた合図の行き先。口を繋ぎ直しても**ホスト役はそのまま**なので、
+// 行き先だけを新しい口へ差し替えられるようモジュール側に置く（reconnectHostSignaling）。
+let routeSignal = null;
+let routeHostReady = null;
+
+// ホストがシグナリングを繋ぎ直すための予約と、いま何回目か。
+let hostReconnectTimer = null;
+let hostReconnectAttempts = 0;
+// ホスト役の枠が空くのを待つ回数。サーバーが古い接続の切断に気づくまでの猶予で、
+// 2秒から倍にして5回＝およそ1分待つ。ここを1回にすると、回線が一瞬切れただけで
+// 「他人に移りました」と誤って追い出すことになる。
+const HOST_RECLAIM_TRIES = 5;
+
 // P2P卓で繋ぎ直した回数と、この読み込みの間に一度でもホストと繋がれたか。
 // 一度も繋がれないまま重なった場合だけ、黙って待たせずに理由を伝えて部屋一覧へ戻す
 // （下のhandleP2pClose）。一度繋がった相手なら、ホストが繋ぎ直している最中かもしれない
@@ -377,8 +390,10 @@ async function startP2pSession() {
 
   // シグナリングは役割が決まってから相手を教えてくれるので、届いた合図の行き先は
   // 後から差し替える。役割が決まる前にSIGNAL_*が届くことはない（呼びかけはWELCOMEの後）。
-  let routeSignal = null;
-  let routeHostReady = null;
+  // 行き先はモジュール側に置く——ホストが口を繋ぎ直したとき、**同じホスト役のまま**
+  // 新しい口へ差し替える必要があるため（reconnectHostSignaling）。
+  routeSignal = null;
+  routeHostReady = null;
   let seedState = null;
 
   let session;
@@ -394,7 +409,7 @@ async function startP2pSession() {
       onSignal: (info) => routeSignal?.(info),
       onSeed: (state) => { seedState = state; },
       onHostReady: (id) => routeHostReady?.(id),
-      onClose: () => console.warn('[net-sync] シグナリングの口が切れました')
+      onClose: () => handleSignalingClose()
     });
   } catch (error) {
     // P2P卓ではない部屋に ?net=rtc が付いていただけ。4010の裏返しで、こちらも
@@ -432,6 +447,88 @@ async function startP2pSession() {
   guest.start();
 }
 
+// シグナリングの口が切れた。**ホストのときだけ繋ぎ直す。**
+//
+// 【なぜホストだけか】参加者は口が切れても困らない——DataChannelが張れていれば同期は
+// そちらを流れ、切れたときはhandleP2pCloseがセッションごとやり直す。困るのはホストで、
+// この口が無いと、
+//   ・控えをサーバーへ預けられない＝**その卓は以後まったく保存されない**
+//   ・新しい参加者からの呼びかけが届かない＝**誰も入ってこられない**
+// しかもDataChannelは生きているので画面は「接続済み」のまま。**黙って壊れる。**
+// サーバーを1回再起動しただけでこの状態になることを実測した（デプロイのたびに起きる）。
+//
+// 【間隔】待ちは2秒から始めて倍にし、30秒で頭打ちにする。デプロイの入れ替わりは数十秒
+// なので数回で戻るが、長い停止でも叩き続けない。
+function handleSignalingClose() {
+  console.warn('[net-sync] シグナリングの口が切れました');
+  if (!host) return;                 // 参加者は放っておいてよい
+  if (hostReconnectTimer) return;    // 予約済み
+  const delayMs = Math.min(2000 * (2 ** hostReconnectAttempts), 30000);
+  hostReconnectAttempts += 1;
+  hostReconnectTimer = setTimeout(() => {
+    hostReconnectTimer = null;
+    reconnectHostSignaling();
+  }, delayMs);
+}
+
+// ホストのまま、シグナリングの口だけを張り直す。
+//
+// **ホスト役（js/net-host.js）は作り直さない。** 作り直すと繋がっている参加者との
+// DataChannelが全部切れる——サーバーが再起動しただけで卓が中断するのでは本末転倒。
+// 差し替えるのは口と、合図の行き先だけ。
+async function reconnectHostSignaling() {
+  if (!host) return;
+  let session;
+  try {
+    session = await openSignaling({
+      identity: () => identityToSend,
+      onEntryPasswordRequired: ({ error, sendJoin: submit }) => (
+        error ? askEntryPassword({ error: true, submit }) : sendJoin(submit)
+      ),
+      onSignal: (info) => routeSignal?.(info),
+      onSeed: () => { /* 種は要らない。権威はこちらにあり、貰うと巻き戻る */ },
+      onHostReady: (id) => routeHostReady?.(id),
+      onClose: () => handleSignalingClose()
+    });
+  } catch (error) {
+    console.warn('[net-sync] シグナリングを繋ぎ直せませんでした:', error.message);
+    handleSignalingClose();
+    return;
+  }
+
+  // **役を貰えたか必ず確かめる。** サーバーはホスト役を記録しているので（認証情報の
+  // hostParticipantId）普通は自分に戻ってくるが、戻らなかった場合に黙って続けると
+  // 「サーバーが認めていないホスト」になり、卓が2つに割れる。ここは塞ぐと決めた穴
+  // （docs/p2p-migration-notes.mdの4-④）なので、続けずに知らせる。
+  //
+  // **ただし、すぐには諦めない。** 回線が一瞬切れただけの場合、サーバーはまだ古い接続の
+  // 切断に気づいておらず、ホストの枠が埋まったままに見える（server/index.jsのhostTaken）。
+  // ここで即座に「他人に移った」と言うと、実際には自分の席なのに追い出すことになる。
+  // 数回試して、それでも戻らないときだけ本物の交代とみなす。
+  if (session.role !== 'host') {
+    session.close();
+    if (hostReconnectAttempts < HOST_RECLAIM_TRIES) {
+      console.warn('[net-sync] ホスト役の枠がまだ空いていません。少し待って試し直します');
+      handleSignalingClose();
+      return;
+    }
+    console.error('[net-sync] 繋ぎ直しでホスト役に戻れませんでした');
+    alert('この部屋のホスト役が別の人に移りました。'
+      + '\n\nこの画面は同期の中心ではなくなっているため、いまの内容は保存されません。'
+      + '\n再読み込みしてください。');
+    return;
+  }
+
+  signaling = session;
+  hostReconnectAttempts = 0;
+  // 控えの送り先も新しい口へ。**ここを忘れると繋ぎ直しても保存が戻らない。**
+  host.setSignaling(session);
+  console.info('[net-sync] シグナリングを繋ぎ直しました（ホスト役のまま）');
+  // 溜まっているぶんを待たずに預ける。次の定期送信まで最大5分空くので、
+  // 「繋がったのにしばらく保存されない」時間を作らない。
+  hostPersistence?.flush();
+}
+
 // ホスト役として動く。この画面のstoreがそのまま部屋の権威になり、送り先は「繋がっている
 // 参加者たち」になる。トランスポート（transport）は持たない——自分より上の権威が無いので、
 // 送る相手が居ない。
@@ -459,7 +556,9 @@ function initAsHost(session, seedState) {
   // 閉じた時点でその日の卓が消える。種と同じ内容は送り返さない。
   hostPersistence?.stop();
   hostPersistence = startHostPersistence({
-    send: (message) => session.sendToServer(message),
+    // **その時点の口**へ送る。sessionを直接掴むと、繋ぎ直した後も切れた口へ送り続けて
+    // 「送れたつもりで1件も保存されない」状態になる（reconnectHostSignaling）。
+    send: (message) => signaling?.sendToServer(message) ?? false,
     seedState
   });
 
@@ -603,6 +702,13 @@ export function sendIdentify(participantId, authToken, name) {
   // 次に繋ぎ直したときに前の人として名乗り直してしまう。
   identityToSend = (participantId && authToken) ? { participantId, authToken, name } : null;
   flushIdentify();
+  // **ホストは名乗りをサーバーへも伝える。** 伝えないと、サーバーは「誰がホスト役か」を
+  // 記録できない（server/index.jsのpinHostParticipant）。記録が無いと、サーバーを
+  // 再起動したときに他の人がホスト役を取れてしまい、卓が2つに割れる。
+  //
+  // 部屋を開いてから表示名を入れるのが普通の順番なので、**ここを通さないとほぼ毎回
+  // 記録されない**。シグナリングを開いた時点ではまだ名乗りが空だったため。
+  if (host && identityToSend) signaling?.sendToServer({ type: 'IDENTIFY', ...identityToSend });
   // ホスト役のときは、自分の入室メッセージを出す相手も自分しかいない。サーバー権威の
   // 部屋では名乗った本人にも出るので、そこに揃える（js/net-host.jsのannounceSelf）。
   host?.announceSelf();

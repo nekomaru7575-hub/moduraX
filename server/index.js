@@ -960,9 +960,12 @@ async function getOrLoadRoom(roomId) {
       // p2p: この卓をP2Pで開くか。入室パスワードと同じ認証情報側に持つ（部屋の状態に
       // 入れない理由はhandleCreateRoomのコメント参照）。作成時にしか決まらない。
       // hostPeerId: いまホスト役を務めている接続。先着1人に固定し、切れたら空ける。
-      // hostParticipantId: 誰が務めているか。GMがリロードした隙に参加者がホストを
-      //   横取りして部屋の中身を消してしまうのを防ぐ（SIGNAL_HELLOのコメント参照）。
-      p2p: !!meta.p2p, hostPeerId: null, hostParticipantId: null,
+      // hostParticipantId: 誰が務めているか。**認証情報から読む**＝サーバーを再起動しても
+      //   覚えている（pinHostParticipant参照）。入室パスワード・p2pと同じ扱いで、
+      //   部屋の状態には入れない——状態はホストが送ってくるので、入れるとホスト自身に
+      //   「次のホストは自分だ」と書き換えさせることになる。
+      p2p: !!meta.p2p, hostPeerId: null,
+      hostParticipantId: meta.hostParticipantId || null,
       updatedAt,
       // activeUntil: 誰も居なくなってもこの時刻まではアクティブな卓として枠を確保する。
       // unloadTimer: そのあとメモリから降ろすためのタイマー（どちらもisRoomActive参照）。
@@ -1050,6 +1053,40 @@ async function persistRoomNow(roomId, entry) {
   }
   // 一覧用の要約も追随させる。中身が変わっていなければ何も書かない（syncRoomSummary参照）。
   await syncRoomSummary(roomId, entry);
+}
+
+// --- ホスト役を「この人」と決めて覚える ---
+//
+// メモリだけでなく認証情報（Redis）にも書く。**サーバーの再起動をまたいで覚えるため。**
+//
+// 【なぜ必要になったか】以前はメモリだけで、その判断の根拠はgetOrLoadRoomにこう書いてある：
+// 「全員が抜けて部屋がメモリから降りれば忘れる——そのときは状態も一緒に消えているので、
+// 次の人が新しく始めてよい」。**永続化を入れた時点でこの前提が崩れた。** 状態はRedisに
+// 残るのに、誰がホストかだけ忘れる。結果、サーバーが再起動すると：
+//   ・古いホストのタブは動き続けているが、名乗り直せない
+//   ・そこへ入ってきた人が2人目のホストになれる
+//   ・**卓が2つに割れ、どちらも「接続済み」と表示されたまま誰にも知らされない**
+// 実際に再現した（docs/p2p-migration-notes.md）。4-④で塞いだはずの穴が、
+// 「サーバー再起動」という別の入り口から戻ってきていた。
+//
+// 【状態側に置かない】入室パスワード・p2pと同じ認証情報側に置く。部屋の状態はホストが
+// 丸ごと送ってくるものなので、そこに置けば**ホスト自身に「次のホストは自分だ」と
+// 書き換えさせる**ことになる。
+//
+// 【締め出しは増えない】固定した人が名乗れなくなる（表示名を変えた等）と、その卓の
+// ホストになれる人が居なくなる。ただしそれは既存のGM判定と同じ性質で（表示名を変えれば
+// participantIdが変わり、状態に記録されたGMとも一致しなくなる）、ここで新しく作った
+// 制約ではない。
+//
+// 保存の失敗は無視してよい：メモリ側は立っているので、この起動の間は今までどおり効く。
+async function pinHostParticipant(roomId, entry, participantId) {
+  if (!participantId || entry.hostParticipantId === participantId) return;
+  entry.hostParticipantId = participantId;
+  try {
+    await updateAuthMeta(roomId, { hostParticipantId: participantId });
+  } catch (error) {
+    console.warn(`[server] ${roomId}: ホスト役の記録に失敗しました:`, error.message);
+  }
 }
 
 // --- P2P卓のホストが送ってきた控えを取り込む ---
@@ -3445,10 +3482,14 @@ wss.on('connection', async (ws, req) => {
       // P2P卓では以後サーバーへ書き戻らない＝**サーバーから見ると永遠に「GMが居ない部屋」**。
       // これだけだと、GMがリロードした一瞬の隙に参加者がホストを名乗れてしまい、
       // **GMのタブにしか無かった部屋の中身が、サーバーの空の種で上書きされて消える**。
-      // 実際に踏んだ。誰が務めていたかを部屋がメモリに載っている間だけ覚えておけば、
-      // その隙が閉じる（GMが戻るまで、他の人は待つ）。
-      // 全員が抜けて部屋がメモリから降りれば忘れる——そのときは状態も一緒に消えている
-      // ので、次の人が新しく始めてよい。
+      // 実際に踏んだ。誰が務めていたかを覚えておけば、その隙が閉じる
+      // （GMが戻るまで、他の人は待つ）。
+      //
+      // **この記録はサーバーの再起動をまたぐ**（認証情報に書く。pinHostParticipant参照）。
+      // 以前はメモリだけで、「部屋がメモリから降りるときは状態も一緒に消えるのだから
+      // 忘れてよい」という理屈だった。永続化を入れた時点でその前提が崩れ、再起動のたびに
+      // **卓が2つに割れうる**状態になっていた。忘れてよいのは部屋を削除するときだけ
+      // （deleteAuthMetaが認証情報ごと消す）。
       const wantsHost = message.wantsHost === true;
       const hostTaken = entry.hostPeerId !== null;
       const eligible = entry.hostParticipantId
@@ -3459,8 +3500,10 @@ wss.on('connection', async (ws, req) => {
         entry.hostPeerId = ws.signalPeerId;
         ws.isSignalHost = true;
         // 名乗る前にホストになることもある（表示名を入れていない状態で部屋を開いた場合）。
-        // その場合はIDENTIFYの側で後から控える。
-        if (verifiedParticipantId) entry.hostParticipantId = verifiedParticipantId;
+        // その場合はIDENTIFYの側で後から控える。**表示名を入れていないホストは固定
+        // できない**（固定する相手が無いため）ので、その卓は再起動後に割れうる。
+        // なりすましを守らないと決めている以上ここは踏み込まない（脅威モデル参照）。
+        pinHostParticipant(roomId, entry, verifiedParticipantId);
         console.log(`[server] ${roomId}: ホスト役が決まりました（${ws.participantName || 'ゲスト'}）`);
       }
 
@@ -3558,7 +3601,7 @@ wss.on('connection', async (ws, req) => {
         // P2P卓で、ホスト役が名乗ったところ。誰が務めているかをここで控える。
         // 表示名を入れないまま部屋を開くとSIGNAL_HELLOの時点では名無しなので、
         // 控える機会はここにしかない（上のSIGNAL_HELLOのコメント参照）。
-        if (entry.p2p && ws.isSignalHost) entry.hostParticipantId = participantId;
+        if (entry.p2p && ws.isSignalHost) pinHostParticipant(roomId, entry, participantId);
         isDeveloper = isDeveloperToken(roomId, authToken);
         if (isDeveloper) {
           console.log(`[server] ${roomId}: 開発用の合言葉で名乗りました（GMと同じ操作を許可します）`);

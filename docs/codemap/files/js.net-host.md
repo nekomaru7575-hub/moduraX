@@ -1,6 +1,6 @@
 ---
 source: js/net-host.js
-lines: 546
+lines: 560
 exports: 1
 imported_by: 1
 api_sha: e37cb80cb420
@@ -34,7 +34,7 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 72 | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | **474** | ✓ |
+| 72 | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | **488** | ✓ |
 
 ## 依存
 

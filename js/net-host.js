@@ -70,6 +70,10 @@ const AUTH_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
  * @returns {object} ホスト役の口
  */
 export function startHost({ signaling, applyRemote, onLocal, self }) {
+  // 口は後から差し替わる（サーバー再起動でシグナリングが切れ、繋ぎ直したとき。
+  // js/net-sync.jsのreconnectHostSignaling）。**ホスト役そのものは作り直さない**——
+  // 作り直すと繋がっている参加者とのDataChannelが全部切れる。
+  let link = signaling;
   // peerId -> peer
   const peers = new Map();
   // ホスト自身が記入中か。記入中の一覧はpeersとこれから毎回導出する。
@@ -90,7 +94,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
         if (payload.sdp.type === 'offer') {
           const answer = await peer.pc.createAnswer();
           await peer.pc.setLocalDescription(answer);
-          signaling.sendSignal(from, { sdp: peer.pc.localDescription });
+          link.sendSignal(from, { sdp: peer.pc.localDescription });
         }
         return;
       }
@@ -127,7 +131,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     peers.set(id, peer);
 
     pc.addEventListener('icecandidate', (event) => {
-      if (event.candidate) signaling.sendSignal(id, { candidate: event.candidate });
+      if (event.candidate) link.sendSignal(id, { candidate: event.candidate });
     });
     // DataChannelを作るのはゲスト側。こちらは受け取る側。
     pc.addEventListener('datachannel', (event) => attachChannel(peer, event.channel));
@@ -397,7 +401,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
   // ホストは参加者に理由を伝えてから自分も畳む——伝えないと、参加者は「ホストが落ちた」
   // として繋ぎ直しに回り、消えた部屋を叩き続ける。
   function deleteRoom() {
-    signaling.sendToServer({ type: 'DELETE_ROOM' });
+    link.sendToServer({ type: 'DELETE_ROOM' });
     peers.forEach((peer) => sendTo(peer, { type: 'CLOSE', code: CLOSE_CODES.ROOM_DELETED }));
   }
 
@@ -484,6 +488,16 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     broadcast,
     peerCount,
     handleSignal,
+
+    /**
+     * シグナリングの口を差し替える。切れて繋ぎ直したときに呼ぶ
+     * （js/net-sync.jsのreconnectHostSignaling）。
+     *
+     * **繋がっている参加者には何も起きない。** 差し替えるのは「サーバーとの口」だけで、
+     * 参加者とのDataChannelはこの口を通っていないため。サーバーが再起動しただけで
+     * 卓が中断しては本末転倒なので、ここは必ず無傷で残す。
+     */
+    setSignaling(next) { link = next; },
 
     /**
      * ホスト自身の入室メッセージ。

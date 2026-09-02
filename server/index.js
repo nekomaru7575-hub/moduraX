@@ -37,6 +37,7 @@ import {
 // キャラクターシートの取り込み先の宣言。どのURLを取りに行ってよいかはプラグインだけが知る。
 import { getPluginSheetSource } from '../js/parameters/registry.js';
 import { adoptImportedState, buildRoomStateFromImport } from '../js/state-import.js';
+import { meansMissing, decideCacheRead, buildUnavailableEntry } from './bcdice-cache-rules.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 // GM限定の判定は画面側・ホスト役と規則を1つにしてある（js/room-authority-rules.js）。
 // 画面側のjs/room-authority.jsではなくこちらを読むのは、あちらがstoreとnet-sync.jsを
@@ -2557,9 +2558,8 @@ const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://modurax.onrender.com/)';
 // 振れなくなるので、住所は1つだけ持つ。
 const BCDICE_BASE_URL = BCDICE_ORIGIN;
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
-// 「そのシステムは無い」と分かった答えを覚えておく時間。本来のキャッシュよりずっと
-// 短くしているのは、上流にシステムが増えたときに「無い」と言い続ける時間を短くするため。
-const BCDICE_MISS_CACHE_MS = 60 * 60 * 1000;
+// 「無い」と覚える時間・休みの長さ・どの答えを「無い」とみなすかは
+// server/bcdice-cache-rules.jsに置いてある（一度間違えた判断なので、テストの効く形にした）。
 // cacheKey -> { fetchedAt, payload }。Redisへの往復すら省くためのプロセス内キャッシュ。
 // 件数に上限を設けているのは、キーがリクエストのパス（システムID）由来で、実在しない
 // IDを次々に投げられると際限なく育つため。溢れたら一番古い登録から落とす（Mapは
@@ -2592,13 +2592,18 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     }
   }
 
-  // 「そんなシステムは無い」の記録（下で覚える）。覚えている間は上流へ行かずに断る。
-  // 有効期限を本来のキャッシュよりずっと短くしているのは、上流にシステムが増えたときに
-  // 「無い」と言い続ける時間を短くするため。
-  if (cached?.missing) {
-    if (now - cached.fetchedAt < BCDICE_MISS_CACHE_MS) throw new Error('HTTP 404');
-  } else if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
-    return { ...cached.payload, fetchedAt: cached.fetchedAt };
+  // 覚えている記録を見て、上流へ行く前に済ませられるかを決める（bcdice-cache-rules.js）。
+  const decision = decideCacheRead({ cached, now, cacheMs: BCDICE_CACHE_MS });
+  if (decision.action === 'missing') throw new Error('HTTP 404');
+  if (decision.action === 'fresh') return { ...cached.payload, fetchedAt: cached.fetchedAt };
+  if (decision.action === 'stale') {
+    return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+  }
+  if (decision.action === 'unavailable') {
+    // **上流へ行っていないことをログに残す。** 同じ文言だと「休んでいる」のか
+    // 「毎回叩いて毎回失敗している」のか、ログから見分けられない——本番でまさに
+    // その切り分けが要る場面なので、ここで区別が付くようにしておく。
+    throw new Error(`${decision.reason || '取得できません'}（休み中。上流へは行っていません）`);
   }
 
   try {
@@ -2608,11 +2613,15 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     if (!response.ok) {
       // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
       // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
-      // 覚えるのは4xx（＝上流がはっきり「無い」と答えた場合）だけ。5xxや通信の失敗まで
-      // 覚えると、上流の一時的な不調をこちらで長引かせることになる。
+      //
+      // **覚えてよいのは404/410だけ**（meansMissing）。以前はここが4xx全部で、
+      // 403（弾かれた）も429（叩きすぎ）も「そのシステムは存在しない」として1時間
+      // 覚えていた。上流の一時的な事情を、こちらで1時間に引き伸ばす動きになっていた。
       // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
-      if (response.status >= 400 && response.status < 500) {
+      if (meansMissing(response.status)) {
         rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
+      } else {
+        rememberUnavailable(cacheKey, cached, now, `HTTP ${response.status}`);
       }
       throw new Error(`HTTP ${response.status}`);
     }
@@ -2626,13 +2635,22 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     }
     return { ...payload, fetchedAt: now };
   } catch (error) {
+    // 通信そのものが失敗した場合（DNS・タイムアウト等）もここへ来る。上のif文を通って
+    // いないので、休みはここで立てる（二重に立てても上書きされるだけで害は無い）。
+    rememberUnavailable(cacheKey, cached, now, error.message);
     // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
-    if (cached && !cached.missing) {
+    if (cached?.payload && !cached.missing) {
       console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
       return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
     }
     throw error;
   }
+}
+
+// 「いまは取れない」を短時間だけ覚える。中身を捨てない組み立て方はbcdice-cache-rules.js。
+function rememberUnavailable(cacheKey, cached, now, reason) {
+  const entry = buildUnavailableEntry({ cached, now, reason });
+  if (entry) rememberBcdice(cacheKey, entry);
 }
 
 // GET /api/bcdice/game_system：システム一覧（部屋作成フォーム・ルーム設定のselect用）

@@ -37,7 +37,9 @@ import {
 // キャラクターシートの取り込み先の宣言。どのURLを取りに行ってよいかはプラグインだけが知る。
 import { getPluginSheetSource } from '../js/parameters/registry.js';
 import { adoptImportedState, buildRoomStateFromImport } from '../js/state-import.js';
-import { meansMissing, decideCacheRead, buildUnavailableEntry } from './bcdice-cache-rules.js';
+import {
+  meansMissing, meansBlocked, decideCacheRead, buildUnavailableEntry, BLOCKED_COOLDOWN_MS
+} from './bcdice-cache-rules.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 // GM限定の判定は画面側・ホスト役と規則を1つにしてある（js/room-authority-rules.js）。
 // 画面側のjs/room-authority.jsではなくこちらを読むのは、あちらがstoreとnet-sync.jsを
@@ -2568,6 +2570,12 @@ const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 
 const BCDICE_MEMORY_CACHE_MAX = 500;
 const bcdiceMemoryCache = new Map();
 
+// 上流に門前払いされている間の休み（bcdice-cache-rules.jsのmeansBlocked）。
+// **IDごとではなく上流まるごと**で持つ：403が言っているのは「そのIDは無い」ではなく
+// 「お前とは話さない」なので、IDを変えて試しても意味が無い。
+// 実際に本番で起きている：BCDice側がRenderからのアクセスを403で拒否している。
+let bcdiceBlockedUntil = 0;
+
 function rememberBcdice(cacheKey, entry) {
   bcdiceMemoryCache.set(cacheKey, entry);
   while (bcdiceMemoryCache.size > BCDICE_MEMORY_CACHE_MAX) {
@@ -2606,6 +2614,12 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     throw new Error(`${decision.reason || '取得できません'}（休み中。上流へは行っていません）`);
   }
 
+  // 門前払いされている間は、どのIDでも上流へ行かない。持っている中身があるなら古くても返す。
+  if (now < bcdiceBlockedUntil) {
+    if (cached?.payload) return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+    throw new Error('BCDiceから拒否されています（休み中。上流へは行っていません）');
+  }
+
   try {
     const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`, {
       headers: { 'User-Agent': OUTBOUND_USER_AGENT }
@@ -2621,6 +2635,14 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
       if (meansMissing(response.status)) {
         rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
       } else {
+        if (meansBlocked(response.status)) {
+          // このIDの話ではないので、上流まるごと休みにする
+          if (now >= bcdiceBlockedUntil) {
+            console.warn(`[server] BCDiceに拒否されました (HTTP ${response.status})。`
+              + `${BLOCKED_COOLDOWN_MS / 1000 / 60}分は問い合わせを止めます`);
+          }
+          bcdiceBlockedUntil = now + BLOCKED_COOLDOWN_MS;
+        }
         rememberUnavailable(cacheKey, cached, now, `HTTP ${response.status}`);
       }
       throw new Error(`HTTP ${response.status}`);

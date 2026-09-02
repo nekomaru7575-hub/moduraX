@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  meansMissing, decideCacheRead, buildUnavailableEntry,
-  MISS_CACHE_MS, UNAVAILABLE_COOLDOWN_MS
+  meansMissing, meansBlocked, decideCacheRead, buildUnavailableEntry,
+  MISS_CACHE_MS, UNAVAILABLE_COOLDOWN_MS, BLOCKED_COOLDOWN_MS
 } from '../server/bcdice-cache-rules.js';
 
 const CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -120,4 +120,40 @@ test('403を受けても、次の1分が過ぎれば取り直せる（1時間で
     'fetch'
   );
   assert.ok(UNAVAILABLE_COOLDOWN_MS < MISS_CACHE_MS / 10, '休みは「無い」より桁で短いこと');
+});
+
+// --- 門前払いされたのか、そのIDが無いのか ---
+// この2つを混ぜたのが元の不具合。分けたうえで、扱いも変える
+// （IDの話ではないので、IDごとではなく上流まるごと休む）。
+
+test('401・403・429は「こちらが門前払いされた」', () => {
+  for (const status of [401, 403, 429]) {
+    assert.equal(meansBlocked(status), true, `${status} は門前払い`);
+  }
+});
+
+test('IDについての答えは門前払いではない', () => {
+  // 400/404/410は「そのIDは無い」。上流まるごと止める理由にはならない
+  for (const status of [400, 404, 410]) {
+    assert.equal(meansBlocked(status), false, `${status} で全体を止めてはいけない`);
+  }
+});
+
+test('上流の不調も門前払いではない', () => {
+  // 5xxは相手の都合。IDを変えれば通ることもあるので全体は止めない
+  for (const status of [500, 502, 503, 520]) {
+    assert.equal(meansBlocked(status), false, `${status} で全体を止めてはいけない`);
+  }
+});
+
+test('門前払いと「無い」は排他', () => {
+  // 同じ番号が両方に入っていると、扱いが二重になって読めなくなる
+  for (let status = 400; status < 600; status += 1) {
+    assert.ok(!(meansMissing(status) && meansBlocked(status)), `${status} が両方に入っている`);
+  }
+});
+
+test('門前払いの休みは、IDごとの休みより長い', () => {
+  // データセンターのIPを弾く設定なら秒単位では明けない。短いと弾かれ続けながら叩き続ける
+  assert.ok(BLOCKED_COOLDOWN_MS > UNAVAILABLE_COOLDOWN_MS);
 });

@@ -569,6 +569,9 @@ function isPublicPath(filePath) {
 //   BCDiceを併記しているのは、ダイスを振る経路（js/BCdice.js）と、サーバー側の
 //   キャッシュが使えないときの取得（js/bcdice-catalog.js）だけはブラウザから
 //   BCDiceのAPIを直接叩くため。ここを'self'だけにするとダイスが一切振れなくなる。
+//   **サーバー側の中継はここに載っていない上流も使う**（BCDICE_UPSTREAMS）。CSPは
+//   ブラウザの通信にしか掛からないので、増やす必要は無い——増やさないこと自体が
+//   意図であって、書き忘れではない。
 // - worker-src/manifest-srcは、PWA（/sw.js と /manifest.webmanifest）のためのもの。
 //   どちらもdefault-srcの'self'で既に通るので、機能上は無くても同じ。「Service Workerを
 //   自分のファイルからだけ動かす」という意図を、後から読む人に残すために明示している。
@@ -2556,9 +2559,26 @@ const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://modurax.onrender.com/)';
 // ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
 // 負荷になる。サーバーで一度取ってRedisへ置き、既定30日を過ぎた後の最初のリクエストの
 // ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
-// 上のCSPで許可しているのと同じ相手（BCDICE_ORIGIN）。片方だけ変えるとダイスが
-// 振れなくなるので、住所は1つだけ持つ。
-const BCDICE_BASE_URL = BCDICE_ORIGIN;
+// --- サーバー側の中継が使う上流（順に試す） ---
+//
+// 【ブラウザとサーバーで相手が違う】ブラウザはBCDICE_ORIGIN（＝CSPで許可した相手）だけを
+// 見る。中継はそこに加えて控えの上流を持つ。**同じにできない事情がある**：
+// BCDice本体（bcdice.onlinesession.app）はCloudflareの後ろにあり、データセンターからの
+// アクセスを403で拒否する。ブラウザからは通るがRenderからは通らない、という非対称が実際に
+// 起きている（2026-09-02に本番のログで確認。同じ403は当方の検証環境からも再現した）。
+//
+// つまり中継は、いま本番で1件も仕事ができていない。控えとして置いてある層が、
+// **一番必要な「本体が不調のとき」に限って使えない**という形になっていた。
+//
+// 控えに選んだのはクリエイターズネットワークの公開サーバー。同じBCDice-APIで、
+// 応答の形もシステム数（336件）も一致することを確認済み。Cloudflareの後ろではないため
+// サーバーからも通る。CORSも開いているが、**ブラウザ側は切り替えない**——CSPを触ると
+// ダイスが一切振れなくなる事故の元になるうえ、ブラウザからは本体へ普通に届いている。
+//
+// 順番に意味がある。**先頭は必ずブラウザと同じ相手**にすること：中継の答えとブラウザの
+// 答えが食い違わないようにするため、本体が答えられる限りは本体の答えを使う。
+const BCDICE_FALLBACK_ORIGIN = 'https://bcdice.trpg.net';
+const BCDICE_UPSTREAMS = [BCDICE_ORIGIN, BCDICE_FALLBACK_ORIGIN];
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
 // 「無い」と覚える時間・休みの長さ・どの答えを「無い」とみなすかは
 // server/bcdice-cache-rules.jsに置いてある（一度間違えた判断なので、テストの効く形にした）。
@@ -2573,8 +2593,12 @@ const bcdiceMemoryCache = new Map();
 // 上流に門前払いされている間の休み（bcdice-cache-rules.jsのmeansBlocked）。
 // **IDごとではなく上流まるごと**で持つ：403が言っているのは「そのIDは無い」ではなく
 // 「お前とは話さない」なので、IDを変えて試しても意味が無い。
-// 実際に本番で起きている：BCDice側がRenderからのアクセスを403で拒否している。
-let bcdiceBlockedUntil = 0;
+// 上流ごとに別々に数える——1つが拒否していても、もう1つは通るため。
+const bcdiceBlockedUntil = new Map();
+
+function bcdiceIsBlocked(origin, now) {
+  return now < (bcdiceBlockedUntil.get(origin) || 0);
+}
 
 function rememberBcdice(cacheKey, entry) {
   bcdiceMemoryCache.set(cacheKey, entry);
@@ -2614,59 +2638,83 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     throw new Error(`${decision.reason || '取得できません'}（休み中。上流へは行っていません）`);
   }
 
-  // 門前払いされている間は、どのIDでも上流へ行かない。持っている中身があるなら古くても返す。
-  if (now < bcdiceBlockedUntil) {
-    if (cached?.payload) return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
-    throw new Error('BCDiceから拒否されています（休み中。上流へは行っていません）');
-  }
+  // 上流を順に試す。**「そのIDは無い」と答えられた時点で打ち切る**——それは相手が
+  // ちゃんと答えているということなので、他所へ聞き直す意味が無い（聞き直すと、
+  // ブラウザが見ているのとは違うサーバーの答えを返すことになり、食い違いの元になる）。
+  let lastError = null;
+  for (const origin of BCDICE_UPSTREAMS) {
+    // この上流は門前払い中。飛ばして次へ
+    if (bcdiceIsBlocked(origin, now)) {
+      lastError = lastError || new Error('BCDiceから拒否されています（休み中。上流へは行っていません）');
+      continue;
+    }
 
-  try {
-    const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`, {
-      headers: { 'User-Agent': OUTBOUND_USER_AGENT }
-    });
-    if (!response.ok) {
-      // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
-      // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
-      //
-      // **覚えてよいのは404/410だけ**（meansMissing）。以前はここが4xx全部で、
-      // 403（弾かれた）も429（叩きすぎ）も「そのシステムは存在しない」として1時間
-      // 覚えていた。上流の一時的な事情を、こちらで1時間に引き伸ばす動きになっていた。
-      // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
-      if (meansMissing(response.status)) {
-        rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
-      } else {
-        if (meansBlocked(response.status)) {
-          // このIDの話ではないので、上流まるごと休みにする
-          if (now >= bcdiceBlockedUntil) {
-            console.warn(`[server] BCDiceに拒否されました (HTTP ${response.status})。`
-              + `${BLOCKED_COOLDOWN_MS / 1000 / 60}分は問い合わせを止めます`);
-          }
-          bcdiceBlockedUntil = now + BLOCKED_COOLDOWN_MS;
-        }
-        rememberUnavailable(cacheKey, cached, now, `HTTP ${response.status}`);
+    let response;
+    try {
+      response = await fetch(`${origin}${upstreamPath}`, {
+        headers: { 'User-Agent': OUTBOUND_USER_AGENT }
+      });
+    } catch (error) {
+      // 通信そのものが失敗した（DNS・タイムアウト等）。次の上流を試す
+      lastError = error;
+      continue;
+    }
+
+    if (response.ok) {
+      let payload;
+      try {
+        payload = transform(await response.json());
+      } catch (error) {
+        // 200なのに読めない＝相手の形が違う。次の上流の方がまともかもしれない
+        lastError = error;
+        continue;
       }
+      const entry = { fetchedAt: now, payload };
+      rememberBcdice(cacheKey, entry);
+      // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
+      if (USE_REDIS) {
+        redis.set(`bcdice:${cacheKey}`, entry)
+          .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+      }
+      if (origin !== BCDICE_UPSTREAMS[0]) {
+        console.info(`[server] BCDiceを控えの上流から取得しました (${cacheKey}): ${origin}`);
+      }
+      return { ...payload, fetchedAt: now };
+    }
+
+    // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
+    // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
+    //
+    // **覚えてよいのは400/404/410だけ**（meansMissing。400が入るのはBCDiceが実在しない
+    // IDに400を返すため）。以前はここが4xx全部で、403（弾かれた）も429（叩きすぎ）も
+    // 「そのシステムは存在しない」として1時間覚えていた。上流の一時的な事情を、こちらで
+    // 1時間に引き伸ばす動きになっていた。
+    // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
+    if (meansMissing(response.status)) {
+      rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
       throw new Error(`HTTP ${response.status}`);
     }
-    const payload = transform(await response.json());
-    const entry = { fetchedAt: now, payload };
-    rememberBcdice(cacheKey, entry);
-    // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
-    if (USE_REDIS) {
-      redis.set(`bcdice:${cacheKey}`, entry)
-        .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+
+    if (meansBlocked(response.status)) {
+      // このIDの話ではないので、この上流まるごと休みにする
+      if (!bcdiceIsBlocked(origin, now)) {
+        console.warn(`[server] BCDiceに拒否されました (HTTP ${response.status}) ${origin}。`
+          + `${BLOCKED_COOLDOWN_MS / 1000 / 60}分はこの上流への問い合わせを止めます`);
+      }
+      bcdiceBlockedUntil.set(origin, now + BLOCKED_COOLDOWN_MS);
     }
-    return { ...payload, fetchedAt: now };
-  } catch (error) {
-    // 通信そのものが失敗した場合（DNS・タイムアウト等）もここへ来る。上のif文を通って
-    // いないので、休みはここで立てる（二重に立てても上書きされるだけで害は無い）。
-    rememberUnavailable(cacheKey, cached, now, error.message);
-    // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
-    if (cached?.payload && !cached.missing) {
-      console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
-      return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
-    }
-    throw error;
+    lastError = new Error(`HTTP ${response.status}`);
   }
+
+  // どの上流からも取れなかった
+  const error = lastError || new Error('BCDiceへ問い合わせできません');
+  rememberUnavailable(cacheKey, cached, now, error.message);
+  // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
+  if (cached?.payload && !cached.missing) {
+    console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
+    return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+  }
+  throw error;
 }
 
 // 「いまは取れない」を短時間だけ覚える。中身を捨てない組み立て方はbcdice-cache-rules.js。

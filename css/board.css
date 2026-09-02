@@ -95,7 +95,7 @@ h1 {
 }
 
 .net-status-connected {
-  color: #4caf50;
+  color: var(--text-speaker);
 }
 
 .net-status-connecting {
@@ -593,7 +593,7 @@ h1 {
   align-items: center;
   justify-content: center;
   background-color: #f0f0f0;
-  color: #222;
+  color: var(--text-on-light);
   border: 1px solid #999;
   border-radius: 5px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -1293,7 +1293,7 @@ h1 {
   position: absolute;
   left: 4px;
   right: 4px;
-  color: #1a1a1a;
+  color: var(--text-on-light);
   font-size: 24px;
   font-weight: bold;
   line-height: 1.15;
@@ -1387,7 +1387,7 @@ h1 {
   font-size: 28px;
   font-weight: bold;
   overflow-wrap: anywhere;
-  color: #1b1b1b;
+  color: var(--text-on-light);
 }
 
 /* 「カードを見る」で出すカード情報（face.info）。カードの絵の下に本文として置く。 */
@@ -1529,7 +1529,7 @@ h1 {
   z-index: 60;
   display: flex;
   flex-direction: column;
-  background-color: #262626;
+  background-color: var(--surface-base);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -1687,7 +1687,7 @@ h1 {
 }
 
 .chat-palette-name-status.is-matched {
-  color: #4caf50;
+  color: var(--text-speaker);
 }
 
 .chat-palette-name-status.is-plain {

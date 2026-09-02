@@ -8,8 +8,8 @@ html {
 }
 
 body {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+  background-color: var(--surface-page);
+  color: var(--text-default);
   font-family: var(--font-body);
   margin: 0;
   /* 20pxを下限に、ノッチ・ホームバーのぶんだけ広げる（横向きのiPhone等） */
@@ -31,7 +31,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  border-bottom: 2px solid #3a3a3a;
+  border-bottom: 2px solid var(--border-subtle);
   padding-bottom: 8px;
   margin-bottom: 20px;
 }
@@ -42,7 +42,7 @@ body {
 }
 
 .app-header span {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -59,7 +59,7 @@ body {
 .site-footer {
   margin-top: 32px;
   padding-top: 16px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
   font-size: 0.85rem;
 }
 
@@ -77,13 +77,13 @@ body {
   margin: 8px 0 0;
   font-size: 0.75rem;
   line-height: 1.6;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 /* --- 混雑状況（js/room-index.jsが中身を作る） --- */
 .server-status {
-  background-color: #242424;
-  border: 1px solid #3a3a3a;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 10px 14px;
   margin-bottom: 16px;
@@ -132,12 +132,12 @@ body {
   flex-wrap: wrap;
   gap: 2px 16px;
   margin-top: 6px;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 0.8rem;
 }
 
 .server-status-metrics b {
-  color: #ccc;
+  color: var(--text-body);
   font-weight: bold;
 }
 
@@ -149,8 +149,8 @@ body {
 
 /* --- 入室・新規作成の2枚（js/room-index.jsが中身を作る） --- */
 .panel {
-  background-color: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 14px 16px;
   margin-bottom: 16px;
@@ -179,7 +179,7 @@ body {
 
 /* 選択中の部屋の説明（プラグイン・システム・人数）。 */
 .room-info {
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 0.85rem;
   margin-top: 8px;
   min-height: 1.2em; /* 選択のたびに下の要素が跳ねないよう、1行ぶん先に空けておく */
@@ -226,8 +226,8 @@ body {
 }
 
 .btn {
-  background-color: #007acc;
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--text-emphasis);
   font-weight: bold;
   border: none;
   border-radius: 4px;
@@ -243,7 +243,7 @@ body {
 }
 
 .btn-secondary {
-  background-color: #444;
+  background-color: var(--surface-raised-2);
 }
 
 .btn-secondary:hover {
@@ -255,7 +255,7 @@ body {
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
-  border-top: 1px solid #3a3a3a;
+  border-top: 1px solid var(--border-subtle);
   padding-top: 10px;
 }
 
@@ -265,7 +265,7 @@ body {
 
 label {
   font-size: 0.8rem;
-  color: #aaa;
+  color: var(--text-secondary);
   display: block;
   margin-bottom: 3px;
 }
@@ -275,16 +275,16 @@ input[type="search"],
 input[type="password"],
 select {
   width: 100%;
-  background-color: #3a3a3a;
-  color: #fff;
-  border: 1px solid #555;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
   padding: 6px 8px;
   border-radius: 4px;
   box-sizing: border-box;
 }
 
 input[type="file"] {
-  color: #ccc;
+  color: var(--text-body);
   font-size: 0.85rem;
 }
 
@@ -307,8 +307,8 @@ input[type="file"] {
 /* 押せないボタン（枠が満杯・置き場の残量不足）。理由は隣の.panel-blockedに出す */
 .btn:disabled,
 .btn:disabled:hover {
-  background-color: #3a3a3a;
-  color: #888;
+  background-color: var(--surface-control);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 

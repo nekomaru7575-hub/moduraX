@@ -1,11 +1,11 @@
 ---
 source: js/game-store.js
-lines: 430
+lines: 433
 exports: 4
-imported_by: 15
+imported_by: 16
 api_sha: a787e28853cd
 prose_sha: a787e28853cd
-generated: 2026-08-30
+generated: 2026-09-02
 tags: [codemap]
 ---
 
@@ -28,7 +28,7 @@ tags: [codemap]
 | 136 | class | ImmutableStore | `ImmutableStore` |  |
 | 307 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
 | 311 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 429 | const | store | `store` |  |
+| 432 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -37,12 +37,12 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 311 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 117 | ✓ |
+| 311 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 120 | ✓ |
 
 ## 依存
 
 - import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.handlers.index]], [[js.store.ids]], [[js.store.info]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]]
-- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
+- imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.host-persistence]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[server.index]]
 
 ## 注意
 

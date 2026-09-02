@@ -13,6 +13,9 @@ import { listPlugins, getPluginBcdiceSystem } from './parameters/registry.js';
 import { fetchGameSystems, prefetchGameSystemInfo } from './bcdice-catalog.js';
 import { setStoredEntryPassword } from './room-entry.js';
 import { parseUntrustedJson } from './untrusted-json.js';
+import { buildRoomStateFromImport } from './state-import.js';
+import { adoptDataUrlsInState } from './asset-store.js';
+import { stashPendingImport, commitPendingImport, clearPendingImport } from './p2p-import-handoff.js';
 import { registerServiceWorker, mountInstallPrompt } from './pwa.js';
 import { setIconText } from './icons.js';
 
@@ -30,6 +33,19 @@ let rooms = [];
 // サーバーが一覧を上限（ROOM_LIST_MAX）で切ったか。切られている場合だけ、絞り込みを
 // 手元のフィルタではなくサーバーへの問い合わせ（?q=）に切り替える。
 let truncated = false;
+
+// このサーバーでP2Pの卓を作れるか（GET /api/config）。作れないサーバーで選択肢を出すと、
+// 誰も入れない部屋ができてしまうので、届くまでは無いものとして扱う。
+let p2pAvailable = false;
+
+// 盤面を開くURL。P2P卓には ?net=rtc を付ける——付いていない接続はサーバーが4010で断り、
+// ブラウザが自分で付け直して入り直す（js/net-sync.js）。ここで付けるのは、その回り道を
+// 普通の入室で踏ませないため。
+function roomBoardUrl(room) {
+  const id = typeof room === 'string' ? room : room?.id;
+  const isP2p = typeof room === 'object' && room?.p2p === true;
+  return `/combined_layout.html?room=${encodeURIComponent(id)}${isP2p ? '&net=rtc' : ''}`;
+}
 
 function buildSelectOptions(select, options, { valueKey = 'id', labelKey = 'label', noneLabel } = {}) {
   select.innerHTML = '';
@@ -219,9 +235,9 @@ function mountEntryPanel() {
   select.addEventListener('change', renderSelectedRoom);
 
   joinBtn.addEventListener('click', () => {
-    const roomId = select.value;
-    if (!roomId) return;
-    window.location.href = `/combined_layout.html?room=${encodeURIComponent(roomId)}`;
+    const room = rooms.find((r) => r.id === select.value);
+    if (!room) return;
+    window.location.href = roomBoardUrl(room);
   });
 
   search.addEventListener('input', () => {
@@ -272,6 +288,7 @@ function fillRoomSelect() {
       const marks = [];
       if (room.clients > 0) marks.push(`${room.clients}人`);
       if (room.locked) marks.push('パスワードあり');
+      if (room.p2p) marks.push('P2P');
       option.textContent = (room.name || room.id)
         + (marks.length > 0 ? `（${marks.join('・')}）` : '');
       entry.select.appendChild(option);
@@ -306,6 +323,27 @@ function renderSelectedRoom() {
     const lockNote = document.createElement('div');
     setIconText(lockNote, 'lock', 'この部屋に入るには入室パスワードが必要です');
     entry.info.appendChild(lockNote);
+  }
+
+  // P2Pの卓。普通の卓と決定的に違うところだけを伝える：GMのタブが同期の中心になるので、
+  // GMが居ないと始まらず、GMが閉じると内容が残らない。
+  if (room.p2p) {
+    const p2pNote = document.createElement('div');
+    p2pNote.className = 'room-p2p';
+    p2pNote.textContent = 'P2Pの部屋です。GMのブラウザが同期の中心になるため、'
+      + 'GMが入室していないと始められません。';
+    p2pNote.title = '同期をサーバーではなく参加者どうしの直接通信で行います。'
+      + '回線によっては繋がらないことがあります。';
+    // 繋がらない回線が実際にある（TURNを用意していないため。docs/p2p-migration-notes.mdの5-2）。
+    // **入る前に確かめられる場所を、入り口のすぐ横に置く**——入ってから20秒待たされて
+    // 断られるより、先に分かる方がよい。
+    const probeLink = document.createElement('a');
+    probeLink.href = '/ice-probe.html';
+    probeLink.className = 'room-p2p-check';
+    probeLink.textContent = 'この回線で繋がるか調べる';
+    p2pNote.appendChild(document.createTextNode(' '));
+    p2pNote.appendChild(probeLink);
+    entry.info.appendChild(p2pNote);
   }
 
   // 期限が近い部屋にだけ、あと何日で自動削除されるかを出す。常に出すとうるさいだけなので、
@@ -421,6 +459,39 @@ function mountCreatePanel() {
   passwordGroup.appendChild(passwordInput);
   form.appendChild(passwordGroup);
 
+  // P2Pの卓（任意）。**作るときにしか決められない**ので、ここに出す以外の道が無い。
+  // 途中で切り替えられるようにすると、サーバー権威の参加者とホスト権威の参加者が同時に
+  // 居る瞬間ができて状態が2つに割れる（server/index.jsのhandleCreateRoom）。
+  // 中継が無効なサーバーでは丸ごと隠す：作れても誰も入れない部屋になるため。
+  const p2pGroup = document.createElement('div');
+  p2pGroup.style.display = 'none';
+  const p2pLabel = document.createElement('label');
+  const p2pInput = document.createElement('input');
+  p2pInput.type = 'checkbox';
+  p2pLabel.appendChild(p2pInput);
+  p2pLabel.appendChild(document.createTextNode(' P2Pで開く（同期をGMのブラウザが受け持ちます）'));
+  // 【説明文は実装に追従させること】「閉じると内容が残りません」と書いていた時期があるが、
+  // 控えをサーバーへ預けるようになって（js/host-persistence.js）事実でなくなった。
+  // 残っている制約は「GMが居ないと始まらない」と「繋がらない回線がある」の2つだけ。
+  const p2pNote = document.createElement('p');
+  p2pNote.className = 'field-note';
+  p2pNote.textContent = 'サーバーの負担が減ります。内容はサーバーにも控えるので、'
+    + 'GMがタブを閉じても残ります。ただしGMが入室していないと始められず、'
+    + '回線によっては繋がらない人が出ます。';
+  // 繋がるかどうかは作る前に調べられる（js/ice-probe.js）。**部屋を作ってから
+  // 「誰も入れない」と分かるのが一番まずい**ので、決める場所のすぐ横に置く。
+  const p2pProbe = document.createElement('a');
+  p2pProbe.href = '/ice-probe.html';
+  p2pProbe.target = '_blank';
+  p2pProbe.rel = 'noopener';
+  p2pProbe.className = 'room-p2p-check';
+  p2pProbe.textContent = 'この回線で繋がるか調べる';
+  p2pNote.appendChild(document.createTextNode(' '));
+  p2pNote.appendChild(p2pProbe);
+  p2pGroup.appendChild(p2pLabel);
+  p2pGroup.appendChild(p2pNote);
+  form.appendChild(p2pGroup);
+
   const fileGroup = document.createElement('div');
   const fileLabel = document.createElement('label');
   fileLabel.textContent = '部屋の全データ読み込み（任意・以前保存したファイル）';
@@ -454,6 +525,31 @@ function mountCreatePanel() {
 
   form.appendChild(btnRow);
 
+  // P2P卓を「ファイルから作る」ときの下ごしらえ。サーバーへ送る代わりに、この場で
+  // 画像・音源を実体（IndexedDB）へ移し、残った文字だけを盤面ページへ渡す。
+  //
+  // 【この順でないと意味が無い】先に実体を抜いておかないと、渡す文字列がデータURLごと
+  // 数十MBになってsessionStorageに入らない。抜いてしまえば発言1000件の卓でも180KB程度。
+  // ついでに、この卓で使う実体が入室前に揃うので、ホストになった直後から絵が出る。
+  //
+  // @returns {Promise<boolean>} 渡せたか。falseなら呼び出し側は従来どおりサーバーへ送る
+  async function prepareP2pImport(importedState, { name, activePlugin, bcdiceSystem }) {
+    const { state: lightened, adopted } = await adoptDataUrlsInState(importedState);
+    if (adopted > 0) {
+      console.info(`[room-index] 画像・音源${adopted}件をこのブラウザの持ち物にしました`);
+    }
+    // フォームの入力との突き合わせは、サーバーの部屋作成と同じ関数を通す
+    // （js/state-import.jsのbuildRoomStateFromImport）。ここで別の規則を書くと、
+    // 通常卓とP2P卓で「読み込んだのに設定が違う」というずれ方をする。
+    const initialState = buildRoomStateFromImport(lightened, {
+      name: String(name || '').trim(),
+      activePlugin: activePlugin && listPlugins().some((p) => p.id === activePlugin) ? activePlugin : null,
+      bcdiceSystem,
+      validPluginIds: new Set(listPlugins().map((p) => p.id))
+    });
+    return stashPendingImport(initialState);
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorText.style.display = 'none';
@@ -473,6 +569,24 @@ function mountCreatePanel() {
     createBtn.disabled = true;
     createBtn.textContent = '作成中...';
 
+    // P2P卓では、読み込んだファイルをサーバーへ送らずに自分のタブで流し込む
+    // （js/p2p-import-handoff.js）。サーバーで一番大きなボディを読む経路がここなので、
+    // 通さずに済むならその方がよい。控えられなかった場合（容量不足）は従来どおり送る。
+    let handedOff = false;
+    if (p2pInput.checked && importedState) {
+      try {
+        createBtn.textContent = '読み込み中...';
+        handedOff = await prepareP2pImport(importedState, {
+          name: nameInput.value,
+          activePlugin: pluginSelect.value || null,
+          bcdiceSystem: bcdiceSelect.value
+        });
+      } catch (error) {
+        console.warn('[room-index] 手元での読み込みに失敗しました:', error.message);
+      }
+      createBtn.textContent = '作成中...';
+    }
+
     try {
       // 部屋IDはサーバーが決める（応答のidがそれ）。こちらからは送らない。
       const response = await fetch('/api/rooms', {
@@ -483,12 +597,14 @@ function mountCreatePanel() {
           activePlugin: pluginSelect.value || null,
           bcdiceSystem: bcdiceSelect.value,
           entryPassword: passwordInput.value,
-          importedState
+          p2p: p2pInput.checked,
+          importedState: handedOff ? undefined : importedState
         })
       });
 
       const result = await response.json();
       if (!response.ok) {
+        clearPendingImport();
         errorText.textContent = result.error || '部屋の作成に失敗しました。';
         errorText.style.display = 'block';
         createBtn.disabled = false;
@@ -496,11 +612,18 @@ function mountCreatePanel() {
         return;
       }
 
+      // 控えの宛先を確定する。**部屋ができてから**でないと宛先が決まらない
+      // （IDはサーバーが採番する）。
+      if (handedOff) commitPendingImport(result.id);
+
       // 作った本人は続けて入室するので、入力したパスワードをこのブラウザに覚えさせて
       // おく（覚えさせないと、遷移した直後に自分で入力し直すことになる）。
       setStoredEntryPassword(result.id, passwordInput.value.trim());
-      window.location.href = `/combined_layout.html?room=${encodeURIComponent(result.id)}`;
+      // 作った本人はそのままホストになるので、P2P卓ならここでフラグを付けて入る
+      // （サーバーが応答で返したp2pを正とする。中継が無効なら立たない）。
+      window.location.href = roomBoardUrl({ id: result.id, p2p: result.p2p === true });
     } catch (error) {
+      clearPendingImport();
       errorText.textContent = `通信エラー: ${error.message}`;
       errorText.style.display = 'block';
       createBtn.disabled = false;
@@ -509,7 +632,9 @@ function mountCreatePanel() {
   });
 
   roomCreateEl.replaceChildren(heading, openBtn, blocked, form);
-  create = { openBtn, blocked, bcdiceSelect, createBtn };
+  create = { openBtn, blocked, bcdiceSelect, createBtn, p2pGroup };
+  // 設定が先に届いていた場合の取りこぼしを防ぐ（届く順は保証されない）
+  if (p2pAvailable) p2pGroup.style.display = '';
 }
 
 // BCDiceのシステム一覧は最初の読み込みで届く。届いてから作成フォームのselectを埋める。
@@ -586,6 +711,16 @@ async function loadRooms() {
 }
 
 loadRooms();
+
+// このサーバーでP2Pの卓を作れるか。一覧の表示には関わらないので、取れなくても止めない
+// （取れなければ選択肢を出さない＝いままでどおりの卓だけが作れる）。
+fetch('/api/config')
+  .then((response) => response.json())
+  .then((config) => {
+    p2pAvailable = config?.p2pSignaling === true;
+    if (p2pAvailable && create?.p2pGroup) create.p2pGroup.style.display = '';
+  })
+  .catch(() => { /* 出さないだけ */ });
 
 // 「アプリとして追加」の導線は部屋一覧にだけ置く（盤面の狭いヘッダーには置き場が無く、
 // セッション中に出ても邪魔なだけなので）。

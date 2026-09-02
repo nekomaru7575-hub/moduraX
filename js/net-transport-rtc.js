@@ -5,41 +5,61 @@
 // 繋ぎ方はスター型：全員がGMのタブとだけ繋ぐ。メッシュにしないのは、順番を決める1点が
 // 要るため（詳細はdocs/p2p-migration-notes.mdの案1／案2）。
 //
-// 【繋がらなかったら諦める】TURNを用意していないので、Symmetric NAT下の相手とは張れない。
-// 一定時間で開かなければonCloseを返し、js/net-transport.jsがWebSocketへ落とす。
-// 「たまに繋がらない人が出るセッションツール」にしないための併存で、ここが実験の肝。
+// 【シグナリングは受け取る】相手を見つける口（js/net-signaling.js）は、役割を決める
+// ためにこれより前に開いている。ここで開き直すと2本目のWebSocketになるので、開いた
+// ものを渡してもらう。
+//
+// 【繋がらなかったら】TURNを用意していないので、Symmetric NAT下の相手とは張れない。
+// 一定時間で開かなければonCloseを返す。P2P卓ではWebSocketへ落ちる道が無い
+// （落ちると同期経路が2つに割れるため。docs/p2p-migration-notes.mdの4-④）ので、
+// js/net-sync.jsが理由を明示して部屋一覧へ戻す。
 
-import { createSignaling, ICE_SERVERS } from './net-signaling.js';
-import { parseUntrustedJson } from './untrusted-json.js';
+import { ICE_SERVERS } from './net-signaling.js';
+import { chunkBudgetBytes, createChunkReassembler, createChunkSender } from './net-chunk.js';
 
 // これを過ぎても開かなければ諦める。ICEの収集と往復に要る時間より十分長く、
 // 待たされている人が「繋がらないのか」と分かる程度には短く。
 const CONNECT_TIMEOUT_MS = 8000;
 
 // 切れた理由。プロトコル上の意味を持つ4000番台とは別で、単に「張れなかった／落ちた」。
-// js/net-sync.jsはこれを知らないコードとして扱い、少し待って繋ぎ直す。
 const ABNORMAL_CLOSE = 1006;
 
-export function createRtcGuestTransport({ onOpen, onMessage, onClose }) {
+/**
+ * ホストとのDataChannelを1本張る。
+ *
+ * @param {object} options
+ * @param {object} options.signaling js/net-signaling.jsのopenSignalingが返したもの
+ * @param {() => void} options.onOpen
+ * @param {(message: object) => void} options.onMessage
+ * @param {(info: {code: number}) => void} options.onClose
+ */
+export function createRtcGuestTransport({ signaling, onOpen, onMessage, onClose }) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   // 先に作ってからofferを出す（DataChannelがあることをSDPに載せるため）
   const channel = pc.createDataChannel('mojulax');
 
-  let hostPeerId = null;
+  let hostPeerId = signaling.hostPeerId || null;
   let finished = false;
+  // ホストが「この理由で閉じる」と言ってきた場合の控え（部屋の削除など）。
+  // 何も言われずに切れたときはABNORMAL_CLOSE。
+  let closeCode = ABNORMAL_CLOSE;
   // setRemoteDescriptionより先に届いたICE候補の置き場。順序は保証されないので、
   // 先に足そうとするとInvalidStateErrorで捨ててしまう。
   const earlyCandidates = [];
 
-  const signaling = createSignaling({
-    host: false,
-    onWelcome: ({ hostPeerId: id }) => {
-      if (!id || hostPeerId) return;
-      hostPeerId = id;
-      startOffer();
+  const sender = createChunkSender(channel, () => chunkBudgetBytes(pc));
+  const reassembler = createChunkReassembler({
+    onMessage: (message) => {
+      // ホストからの「この理由で閉じる」。部屋の削除をホスト経由で伝えるための制御で、
+      // js/net-sync.jsはCLOSE_CODESだけを見て身の振り方を決める（契約を増やさない）。
+      if (message?.type === 'CLOSE') {
+        closeCode = Number(message.code) || ABNORMAL_CLOSE;
+        finish();
+        return;
+      }
+      onMessage(message);
     },
-    onSignal: ({ payload }) => handleSignal(payload),
-    onClose: () => finish()
+    onDrop: (reason) => console.warn(`[net-transport-rtc] ホストからのメッセージを捨てました: ${reason}`)
   });
 
   const giveUpTimer = setTimeout(() => {
@@ -58,6 +78,13 @@ export function createRtcGuestTransport({ onOpen, onMessage, onClose }) {
       console.warn('[net-transport-rtc] 呼び出しに失敗しました:', error.message);
       finish();
     }
+  }
+
+  /** ホストが自分より後に現れた場合に、js/net-sync.jsから呼ばれる。 */
+  function setHost(id) {
+    if (!id || hostPeerId) return;
+    hostPeerId = id;
+    startOffer();
   }
 
   async function handleSignal(payload) {
@@ -90,45 +117,46 @@ export function createRtcGuestTransport({ onOpen, onMessage, onClose }) {
   channel.addEventListener('open', () => {
     clearTimeout(giveUpTimer);
     console.info('[net-transport-rtc] ホストと繋がりました（同期はP2Pで流れます）');
-    // 繋がってしまえばシグナリングは要らない。ただしICEの張り直し（再ネゴシエーション）
-    // に備えて開けたままにしておく——閉じると回線が切り替わったときに直せなくなる。
+    // 繋がってしまえばシグナリングは同期には要らない。ただしICEの張り直し（再ネゴシエーション）
+    // と、サーバーにしか頼めない用事（入室パスワード・部屋の削除）に備えて開けたままにする。
     onOpen();
   });
 
-  channel.addEventListener('message', (event) => {
-    let message;
-    try {
-      // ホストが中継してくるのは他の参加者の操作なので、ここも自分が書いたJSONではない
-      message = parseUntrustedJson(event.data);
-    } catch {
-      return;
-    }
-    onMessage(message);
-  });
-
+  channel.addEventListener('message', (event) => reassembler.receive(event.data));
   channel.addEventListener('close', () => finish());
+
+  /**
+   * 呼びかけを始める。作った直後ではなく呼び出し側が明示的に始めるのは、シグナリングの
+   * 合図をこのトランスポートへ回す配線が済んでから動き出させるため（js/net-sync.js）。
+   * 相手がまだ居なければ何もしない——SIGNAL_HOST_READYでsetHostが呼ばれる。
+   */
+  function start() {
+    if (hostPeerId) startOffer();
+  }
 
   // 何度呼ばれても切断の通知は1回だけ（closeとconnectionstatechangeは両方来る）
   function finish() {
     if (finished) return;
     finished = true;
     clearTimeout(giveUpTimer);
-    signaling.close();
+    sender.close();
     try { pc.close(); } catch { /* 既に閉じている */ }
-    onClose({ code: ABNORMAL_CLOSE });
+    onClose({ code: closeCode });
   }
 
   return {
     send(message) {
       if (channel.readyState !== 'open') return false;
-      channel.send(JSON.stringify(message));
-      return true;
+      return sender.send(message);
     },
     isOpen() {
       return channel.readyState === 'open';
     },
     close() {
       finish();
-    }
+    },
+    start,
+    setHost,
+    handleSignal
   };
 }

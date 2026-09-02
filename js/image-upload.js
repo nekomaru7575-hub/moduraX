@@ -1,5 +1,11 @@
 // js/image-upload.js
-// 背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。
+// 画像をサーバー経由でR2へ上げ、公開URLを受け取る。
+//
+// 【P2P卓では上げない】P2P卓（?net=rtc）では実体をこのブラウザへしまい、状態には
+// `/asset/<hash>` を載せる（js/asset-store.js / js/asset-sync.js）。R2を通らないので
+// 課金も容量も増えず、鍵をブラウザへ置く必要も無い。返す形（{url, key}）は同じなので、
+// 呼ぶ側（コマ・パネル・背景・カード）はどちらの卓かを知らなくてよい。
+// keyがnullなのはデータURLへ退避したときと同じ意味で、既存の扱いのまま通る。
 //
 // 状態にはURLだけを載せる。データURLのまま持つと、シーンの数だけ画像が部屋データに
 // 積み上がり、アクションのたびに状態まるごとRedisへ書き直されてしまう（音源が
@@ -13,6 +19,9 @@
 import { getCurrentParticipantId, getCurrentAuthToken } from './local-identity.js';
 import { entryPasswordHeaders } from './room-entry.js';
 import { pickFile, readFileAsDataUrl } from './file-uploader.js';
+import { isP2pMode } from './net-transport.js';
+import { publishAsset } from './asset-sync.js';
+import { MAX_ASSET_BYTES, dataUrlToBlob } from './asset-store.js';
 
 // 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
 function currentRoomId() {
@@ -61,6 +70,9 @@ async function fetchUpload(url, options) {
  * @returns {Promise<boolean>}
  */
 export async function isImageUploadAvailable() {
+  // P2P卓ではサーバーの設定に関係なく使える（置き場がこのブラウザなので）
+  if (isP2pMode()) return true;
+
   if (!uploadCapability) {
     try {
       uploadCapability = await fetch('/api/image').then(r => r.json());
@@ -71,8 +83,9 @@ export async function isImageUploadAvailable() {
   return !!uploadCapability.uploadEnabled;
 }
 
-/** サーバーが許す1枚あたりの上限バイト数（取得できていなければnull）。 */
+/** 1枚あたりの上限バイト数（取得できていなければnull）。 */
 export function imageUploadMaxBytes() {
+  if (isP2pMode()) return MAX_ASSET_BYTES;
   return uploadCapability?.maxBytes || null;
 }
 
@@ -95,14 +108,33 @@ export function imageUploadMaxBytes() {
 export async function adoptImageIntoRoom(image, purpose) {
   const roomId = currentRoomId();
   if (!image || typeof image !== 'string' || !roomId) return image;
+
+  // P2P卓。データURLだけをこのブラウザの持ち物へ移す。他の部屋のR2 URLは触らない——
+  // 従来卓の画像を指したままにしておけば、少なくともその部屋が在る間は見える
+  // （こちらへ複製しようにも、R2の公開ドメインはCORSを返さないので実体を読めない）。
+  if (isP2pMode()) {
+    const blob = dataUrlToBlob(image);
+    if (!blob) return image;
+    try {
+      return await publishAsset(blob);
+    } catch (error) {
+      console.warn('[image-upload] 取り込んだ画像を引き取れませんでした:', error.message);
+      return image;
+    }
+  }
+
   if (!await isImageUploadAvailable()) return image;
 
   const base = uploadCapability?.publicBaseUrl;
 
-  if (image.startsWith('data:')) {
+  // データURLはCSPのせいでfetch()では読めない（connect-srcに data: が無い。
+  // img-srcには入っているので「表示はできるのに読み取れない」）。以前はfetchしていて、
+  // 失敗は下のcatchに吸われ、**取り込んだ画像がデータURLのまま部屋に残り続けていた**。
+  // 症状は「重いだけで動いている」なので気づけない。自前で解く（js/asset-store.js）。
+  const dataBlob = dataUrlToBlob(image);
+  if (dataBlob) {
     try {
-      const blob = await (await fetch(image)).blob();
-      const file = new File([blob], 'imported', { type: blob.type || 'image/png' });
+      const file = new File([dataBlob], 'imported', { type: dataBlob.type || 'image/png' });
       const { url } = await uploadImageFile(file, purpose);
       return url;
     } catch (error) {
@@ -146,6 +178,11 @@ export async function adoptImageIntoRoom(image, purpose) {
  * @returns {Promise<{ key: string, url: string }>}
  */
 export async function uploadImageFile(file, purpose) {
+  // P2P卓。R2を通さず、このブラウザへしまってホストへ渡す。
+  if (isP2pMode()) {
+    return { url: await publishAsset(file), key: null };
+  }
+
   const headers = { 'Content-Type': file.type || 'image/png', ...entryPasswordHeaders() };
   const participantId = getCurrentParticipantId();
   const authToken = getCurrentAuthToken();

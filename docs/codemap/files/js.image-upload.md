@@ -1,18 +1,18 @@
 ---
 source: js/image-upload.js
-lines: 196
+lines: 233
 exports: 5
 imported_by: 6
 api_sha: 7b008ae3d053
 prose_sha: 7b008ae3d053
-generated: 2026-08-30
+generated: 2026-09-02
 tags: [codemap]
 ---
 
 # js/image-upload.js
 
 <!-- prose:summary -->
-背景画像をサーバー経由でR2へ上げ、公開URLを受け取る。
+画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。
 <!-- /prose:summary -->
 
 ## 役割
@@ -25,11 +25,11 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 63 | fn | isImageUploadAvailable | `async isImageUploadAvailable()` | アップロードが使える環境か。 |
-| 75 | fn | imageUploadMaxBytes | `imageUploadMaxBytes()` | サーバーが許す1枚あたりの上限バイト数（取得できていなければnull）。 |
-| 95 | fn | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | JSONから取り込んだ画像を、この部屋の持ち物にする。 |
-| 148 | fn | uploadImageFile | `async uploadImageFile(file, purpose)` | 画像をアップロードして公開URLとキーを受け取る。 |
-| 178 | fn | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。 |
+| 72 | fn | isImageUploadAvailable | `async isImageUploadAvailable()` | アップロードが使える環境か。 |
+| 87 | fn | imageUploadMaxBytes | `imageUploadMaxBytes()` | 1枚あたりの上限バイト数（取得できていなければnull）。 |
+| 108 | fn | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | JSONから取り込んだ画像を、この部屋の持ち物にする。 |
+| 180 | fn | uploadImageFile | `async uploadImageFile(file, purpose)` | 画像をアップロードして公開URLとキーを受け取る。 |
+| 215 | fn | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（7）
 
@@ -38,17 +38,17 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 18 | currentRoomId | `currentRoomId()` | 3 |  |
-| 39 | fetchUpload | `async fetchUpload(url, options)` | 18 |  |
-| 63 | isImageUploadAvailable | `async isImageUploadAvailable()` | 10 | ✓ |
-| 75 | imageUploadMaxBytes | `imageUploadMaxBytes()` | 3 | ✓ |
-| 95 | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | 45 | ✓ |
-| 148 | uploadImageFile | `async uploadImageFile(file, purpose)` | 18 | ✓ |
-| 178 | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 18 | ✓ |
+| 27 | currentRoomId | `currentRoomId()` | 3 |  |
+| 48 | fetchUpload | `async fetchUpload(url, options)` | 18 |  |
+| 72 | isImageUploadAvailable | `async isImageUploadAvailable()` | 13 | ✓ |
+| 87 | imageUploadMaxBytes | `imageUploadMaxBytes()` | 4 | ✓ |
+| 108 | adoptImageIntoRoom | `async adoptImageIntoRoom(image, purpose)` | 64 | ✓ |
+| 180 | uploadImageFile | `async uploadImageFile(file, purpose)` | 23 | ✓ |
+| 215 | pickAndUploadImage | `async pickAndUploadImage({ purpose })` | 18 | ✓ |
 
 ## 依存
 
-- import → [[js.file-uploader]], [[js.local-identity]], [[js.room-entry]]
+- import → [[js.asset-store]], [[js.asset-sync]], [[js.file-uploader]], [[js.local-identity]], [[js.net-transport]], [[js.room-entry]]
 - imported by → [[js.background-dialog]], [[js.board-data-driven]], [[js.character-dialog]], [[js.deck-editor-dialog]], [[js.deck-file]], [[js.panel-dialog]]
 
 ## 注意

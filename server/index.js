@@ -28,13 +28,18 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
+// メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
+import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
 } from '../js/game-store.js';
 // キャラクターシートの取り込み先の宣言。どのURLを取りに行ってよいかはプラグインだけが知る。
 import { getPluginSheetSource } from '../js/parameters/registry.js';
-import { adoptImportedState } from '../js/state-import.js';
+import { adoptImportedState, buildRoomStateFromImport } from '../js/state-import.js';
+import {
+  meansMissing, meansBlocked, decideCacheRead, buildUnavailableEntry, BLOCKED_COOLDOWN_MS
+} from './bcdice-cache-rules.js';
 import { parseUntrustedJson } from '../js/untrusted-json.js';
 // GM限定の判定は画面側・ホスト役と規則を1つにしてある（js/room-authority-rules.js）。
 // 画面側のjs/room-authority.jsではなくこちらを読むのは、あちらがstoreとnet-sync.jsを
@@ -73,6 +78,11 @@ const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 // 操作が途切れてから保存するまでの待ち時間と、操作が続いている場合でも必ず保存する上限。
 // 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
 // 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
+//
+// この短さでよいのは、**状態が既にこのプロセスのメモリに在る**ため。書くのはRedisへの
+// 往復だけで、回線で状態を運ぶ必要が無い。P2P卓のホストが控えを送る間隔
+// （js/net-host-rules.jsのSNAPSHOT_INTERVAL_MS、5分）とは桁が違うが、それでよい——
+// あちらは状態を丸ごと回線で送るので、頻度がそのまま通信量になる。
 const SAVE_DEBOUNCE_MS = 1000;
 const SAVE_MAX_WAIT_MS = 5000;
 // 1タブあたり、保存先に残すチャットログの件数（stateForPersist参照）。
@@ -119,6 +129,9 @@ function roomKey(roomId) {
 const COMPRESSED_PREFIX = 'B1:';
 const brotliCompress = promisify(zlib.brotliCompress);
 const brotliDecompress = promisify(zlib.brotliDecompress);
+// P2P卓のホストが送ってくる控えを解く（HOST_SNAPSHOT）。ブラウザ側がgzipしか持って
+// いないのでbrotliではなくgzip（CompressionStreamにbrotliは無い。js/host-persistence.js）。
+const gunzip = promisify(zlib.gunzip);
 // 品質5は圧縮率と速度の釣り合いが良い（q4より10%小さく、q11より桁違いに速い）。
 const BROTLI_OPTIONS = { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } };
 
@@ -198,6 +211,10 @@ function roomSummaryOf(entry) {
   // lockedは鍵マークの表示に使うだけ。ハッシュやソルトは載せない。
   return {
     name, activePlugin, bcdiceSystem, locked: !!entry.entryPassword,
+    // P2Pで開かれた卓か。一覧が入室リンクに ?net=rtc を付けるのに要る。付けずに入ると
+    // サーバーが4010で断り、ブラウザが自分で付け直す（js/net-sync.jsのhandleClose）——
+    // ここに出しておくのは、その回り道を普通の入室では踏ませないため。
+    p2p: !!entry.p2p,
     // 部屋の自動削除（sweepExpiredRooms）と、一覧の残り日数表示の唯一の根拠。
     updatedAt: Math.floor((entry.updatedAt || Date.now()) / TOUCH_GRANULARITY_MS) * TOUCH_GRANULARITY_MS
   };
@@ -510,7 +527,10 @@ const PUBLIC_FILES = new Set([
   // 利用規約・プライバシーポリシー・免責事項・問い合わせ先（部屋一覧の下から辿れる）
   'about.html',
   // 更新の記録（部屋の外の各ページの「⋯」から辿れる）
-  'release-notes.html'
+  'release-notes.html',
+  // つながり方しらべ（js/ice-probe.js）。P2P卓が自分の回線から使えるかを、
+  // 相手を用意せずに測るための道具。どこからも辿れないが、URLを配って回るので配信は要る
+  'ice-probe.html'
 ]);
 const PUBLIC_DIRS = new Set(['js', 'css', 'vendor', 'image', 'background']);
 // 拡張子もMIME_TYPESに載っているものだけに限る（載っていない＝ブラウザから使う予定の
@@ -549,6 +569,9 @@ function isPublicPath(filePath) {
 //   BCDiceを併記しているのは、ダイスを振る経路（js/BCdice.js）と、サーバー側の
 //   キャッシュが使えないときの取得（js/bcdice-catalog.js）だけはブラウザから
 //   BCDiceのAPIを直接叩くため。ここを'self'だけにするとダイスが一切振れなくなる。
+//   **サーバー側の中継はここに載っていない上流も使う**（BCDICE_UPSTREAMS）。CSPは
+//   ブラウザの通信にしか掛からないので、増やす必要は無い——増やさないこと自体が
+//   意図であって、書き忘れではない。
 // - worker-src/manifest-srcは、PWA（/sw.js と /manifest.webmanifest）のためのもの。
 //   どちらもdefault-srcの'self'で既に通るので、機能上は無くても同じ。「Service Workerを
 //   自分のファイルからだけ動かす」という意図を、後から読む人に残すために明示している。
@@ -934,6 +957,15 @@ async function getOrLoadRoom(roomId) {
       store, clients: new Set(), saveTimer: null, saveDeadline: null,
       lastPersistedJson: null, lastSummaryJson: null,
       entryPassword: meta.entryPassword || null, typing: new Map(),
+      // p2p: この卓をP2Pで開くか。入室パスワードと同じ認証情報側に持つ（部屋の状態に
+      // 入れない理由はhandleCreateRoomのコメント参照）。作成時にしか決まらない。
+      // hostPeerId: いまホスト役を務めている接続。先着1人に固定し、切れたら空ける。
+      // hostParticipantId: 誰が務めているか。**認証情報から読む**＝サーバーを再起動しても
+      //   覚えている（pinHostParticipant参照）。入室パスワード・p2pと同じ扱いで、
+      //   部屋の状態には入れない——状態はホストが送ってくるので、入れるとホスト自身に
+      //   「次のホストは自分だ」と書き換えさせることになる。
+      p2p: !!meta.p2p, hostPeerId: null,
+      hostParticipantId: meta.hostParticipantId || null,
       updatedAt,
       // activeUntil: 誰も居なくなってもこの時刻まではアクティブな卓として枠を確保する。
       // unloadTimer: そのあとメモリから降ろすためのタイマー（どちらもisRoomActive参照）。
@@ -1003,9 +1035,44 @@ function stateForPersist(state) {
 }
 
 // 実際に1回保存する。デバウンスの待ちは見ないので、呼ぶ側が頃合いを決めること。
+// 「重い部屋」とみなす大きさ。超えたら保存の間隔を空ける（止めはしない）。
+//
+// 【なぜ要るか】画像のアップロードが失敗すると、ブラウザは画像をデータURLへ退避する
+// （js/image-upload.js。「画像が使えなくなるよりマシ」という判断で、それ自体は妥当）。
+// ただしそのデータURLは状態に載り、**保存のたびに丸ごと保存先へ運ばれる**。画像は既に
+// 圧縮済みなのでbrotliがほとんど効かず、実測で8MBの画像1枚＝1回の書き込みが10.7MB。
+// サーバー配信の卓は1発言ごとに書くので（実測1,087回/時）、3時間で30GBを超える。
+//
+// 怖いのは量そのものより、**誰も気づけないこと**。画面は普通に動き、警告も出ず、
+// 請求で初めて分かる。ここで止めて、ログに理由を出す。
+//
+// 【止めない理由】書かない選択はしない。書かなければ、その部屋の操作は次の再読み込みで
+// そのまま失われる。**請求より利用者の作業の方が大事。** 代わりに間隔を空けて量を抑える
+// （HEAVY_SAVE_MAX_WAIT_MS）。1発言ごと→1分ごとなら、実測1,087回/時が60回/時になる。
+//
+// 1MBにしてあるのは、普通の卓とは桁が2つ違うため：発言1000件・コマ40個の育った卓で
+// 実測17.7KB（保存されるログは直近1000件に切り詰められるので、ここが上限）。
+// つまり1MBに届く時点で「文字ではないものが載っている」と言い切れる。
+const HEAVY_ROOM_BYTES = 1024 * 1024;
+// 重い部屋の保存間隔。普通の卓の SAVE_MAX_WAIT_MS（5秒）に対して1分。
+const HEAVY_SAVE_MAX_WAIT_MS = 60 * 1000;
+
 async function persistRoomNow(roomId, entry) {
   try {
     const json = JSON.stringify(stateForPersist(entry.store.state));
+    // 重い部屋かどうかを毎回見ておく。**書かない選択はしない**——書かなければ利用者の
+    // 操作がそのまま失われる。請求より作業の方が大事なので、止めるのではなく間隔を空ける
+    // （schedulePersistForRoom）。
+    const bytes = Buffer.byteLength(json, 'utf-8');
+    const heavy = bytes > HEAVY_ROOM_BYTES;
+    if (heavy && !entry.heavyWarned) {
+      entry.heavyWarned = true;
+      console.warn(`[server] ${roomId}: 部屋データが大きいので保存の間隔を空けます`
+        + `（${Math.floor(bytes / 1024 / 1024 * 10) / 10}MB。普通の卓は0.02MB程度）。`
+        + '画像がデータURLのまま状態に載っている可能性があります');
+    }
+    if (!heavy) entry.heavyWarned = false;
+    entry.heavy = heavy;
     // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
     // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
     // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
@@ -1023,6 +1090,82 @@ async function persistRoomNow(roomId, entry) {
   await syncRoomSummary(roomId, entry);
 }
 
+// --- ホスト役を「この人」と決めて覚える ---
+//
+// メモリだけでなく認証情報（Redis）にも書く。**サーバーの再起動をまたいで覚えるため。**
+//
+// 【なぜ必要になったか】以前はメモリだけで、その判断の根拠はgetOrLoadRoomにこう書いてある：
+// 「全員が抜けて部屋がメモリから降りれば忘れる——そのときは状態も一緒に消えているので、
+// 次の人が新しく始めてよい」。**永続化を入れた時点でこの前提が崩れた。** 状態はRedisに
+// 残るのに、誰がホストかだけ忘れる。結果、サーバーが再起動すると：
+//   ・古いホストのタブは動き続けているが、名乗り直せない
+//   ・そこへ入ってきた人が2人目のホストになれる
+//   ・**卓が2つに割れ、どちらも「接続済み」と表示されたまま誰にも知らされない**
+// 実際に再現した（docs/p2p-migration-notes.md）。4-④で塞いだはずの穴が、
+// 「サーバー再起動」という別の入り口から戻ってきていた。
+//
+// 【状態側に置かない】入室パスワード・p2pと同じ認証情報側に置く。部屋の状態はホストが
+// 丸ごと送ってくるものなので、そこに置けば**ホスト自身に「次のホストは自分だ」と
+// 書き換えさせる**ことになる。
+//
+// 【締め出しは増えない】固定した人が名乗れなくなる（表示名を変えた等）と、その卓の
+// ホストになれる人が居なくなる。ただしそれは既存のGM判定と同じ性質で（表示名を変えれば
+// participantIdが変わり、状態に記録されたGMとも一致しなくなる）、ここで新しく作った
+// 制約ではない。
+//
+// 保存の失敗は無視してよい：メモリ側は立っているので、この起動の間は今までどおり効く。
+async function pinHostParticipant(roomId, entry, participantId) {
+  if (!participantId || entry.hostParticipantId === participantId) return;
+  entry.hostParticipantId = participantId;
+  try {
+    await updateAuthMeta(roomId, { hostParticipantId: participantId });
+  } catch (error) {
+    console.warn(`[server] ${roomId}: ホスト役の記録に失敗しました:`, error.message);
+  }
+}
+
+// --- P2P卓のホストが送ってきた控えを取り込む ---
+//
+// 本文は生のJSON（message.state）か、gzipしてbase64にしたもの（message.body）のどちらか。
+// 育った卓は状態が200KBを超え、そのままではタブを閉じる瞬間に回線へ出し切れない
+// （js/host-persistence.jsに実測がある）ので、ホスト側は基本的に圧縮して送ってくる。
+async function applyHostSnapshot(roomId, entry, message, frameBytes) {
+  let state = null;
+
+  if (message.encoding === 'gzip') {
+    const compressed = Buffer.from(String(message.body || ''), 'base64');
+    // **展開後の大きさを縛る。** 縛らないと、数KBの本文が数GBに膨らむものを送るだけで
+    // このプロセスを落とせる（＝同居している全部屋が巻き添えで切断される）。
+    //
+    // 上限が「部屋データ1つぶん」（MAX_IMPORT_BYTES＝93MB）では緩すぎる。**手前の門
+    // （WS_HEAVY_FRAME_BYTES）は圧縮後の大きさしか見られない**ので、数百KBのフレームが
+    // 予算（server/memory-budget.js）の外側で93MBを確保させられる。JSON.parseがその
+    // 3〜4倍を上乗せするため、1通で数百MBまで届く。控えに実体は入らないので、
+    // 実際に要る大きさで縛る（MAX_SNAPSHOT_BYTES、js/net-host-rules.js）。
+    const json = await gunzip(compressed, { maxOutputLength: MAX_SNAPSHOT_BYTES });
+    state = parseUntrustedJson(json.toString('utf-8'));
+  } else {
+    // 圧縮していない控え。こちらはフレームの大きさがそのまま費用なので、手前の門
+    // （WS_HEAVY_FRAME_BYTES + hasRoomFor）が既に効いている。同じ上限で揃えるためだけに
+    // フレーム長で見る（JSON.parseはもう済んでいるので、ここで測り直す意味は無い）。
+    if (frameBytes > MAX_SNAPSHOT_BYTES) {
+      console.warn(`[server] ${roomId}: 大きすぎる控え（${Math.floor(frameBytes / 1024)}KB）を捨てました`);
+      return;
+    }
+    state = message.state;
+  }
+
+  if (!state || typeof state !== 'object') return;
+  // 解いている間に部屋が消えていることがある。ここを通すと、片付けたそばから
+  // 保存先へ書き戻されて消したはずの部屋が復活する。
+  if (entry.pendingDelete || rooms.get(roomId) !== entry) return;
+
+  entry.store.hydrate(state);
+  // 保存そのものは通常の卓とまったく同じ道を通る（末尾デバウンス・同内容なら書かない・
+  // 一覧用の要約の追随まで含めて）。P2P卓のためだけの保存経路を別に作らない。
+  schedulePersistForRoom(roomId, entry);
+}
+
 // 操作が続いている間は保存を先送りし、途切れてから書く（末尾デバウンス）。
 // 以前は「最初の操作から1秒ごとに書く」方式だったため、トークンをドラッグしている間は
 // mousemoveのたびに届く操作に対して毎秒フルサイズの書き込みが飛んでいた。5秒のドラッグ＝
@@ -1037,10 +1180,14 @@ function schedulePersistForRoom(roomId, entry) {
   if (entry.pendingDelete) return;
 
   const now = Date.now();
-  if (!entry.saveDeadline) entry.saveDeadline = now + SAVE_MAX_WAIT_MS;
+  // 重い部屋（データURLが載っている等。persistRoomNowが立てる）は間隔を空ける。
+  // 1回の書き込みが数MBになるので、1発言ごとに書くと保存先への通信量が桁違いになる。
+  const maxWait = entry.heavy ? HEAVY_SAVE_MAX_WAIT_MS : SAVE_MAX_WAIT_MS;
+  const debounce = entry.heavy ? HEAVY_SAVE_MAX_WAIT_MS : SAVE_DEBOUNCE_MS;
+  if (!entry.saveDeadline) entry.saveDeadline = now + maxWait;
   if (entry.saveTimer) clearTimeout(entry.saveTimer);
 
-  const delay = Math.max(0, Math.min(now + SAVE_DEBOUNCE_MS, entry.saveDeadline) - now);
+  const delay = Math.max(0, Math.min(now + debounce, entry.saveDeadline) - now);
   entry.saveTimer = setTimeout(() => {
     entry.saveTimer = null;
     entry.saveDeadline = null;
@@ -2126,8 +2273,15 @@ async function handleCreateRoom(req, res) {
   }
 
   const {
-    name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState
+    name, activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM, entryPassword, importedState,
+    p2p
   } = body;
+
+  // P2Pで開く卓か。**作るときにしか決められない。** 途中で切り替えられるようにすると、
+  // 同じ部屋にサーバー権威の参加者とホスト権威の参加者が同時に居る瞬間ができ、そこで
+  // 状態が2つに割れる（docs/p2p-migration-notes.mdの4-④）。
+  // 中継そのものが無効なサーバーでは受け付けない（作れてしまうと、誰も入れない部屋になる）。
+  const wantsP2p = ENABLE_P2P_SIGNALING && p2p === true;
 
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   if (!trimmedName) {
@@ -2181,31 +2335,15 @@ async function handleCreateRoom(req, res) {
 
   let initialState;
   if (importedState && typeof importedState === 'object') {
-    // 全データ読み込み：既存の状態をベースに、部屋名はフォーム入力で上書きするが、
-    // プラグイン・システムはインポートしたファイル側に値があればそちらを優先する
-    // （読み込んだ部屋データが前提にしていた構成を、その場のフォーム選択で誤って
-    // 上書きしないようにするため）。ファイル側に値が無い場合のみフォーム入力を使う。
-    const importedRoom = importedState.room || {};
-    const importedActivePlugin = importedRoom.activePlugin;
-    const resolvedActivePlugin = importedActivePlugin && validPluginIds.has(importedActivePlugin)
-      ? importedActivePlugin
-      : safeActivePlugin;
-    const resolvedBcdiceSystem = typeof importedRoom.bcdiceSystem === 'string' && importedRoom.bcdiceSystem
-      ? importedRoom.bcdiceSystem
-      : safeBcdiceSystem;
-
-    // 取り込みは必ずadoptImportedStateを通す（js/state-import.js）。この部屋にはまだ誰も
-    // 入っていないので参加者一覧は空で渡す＝ファイル側の参加者（GMの印を含む）を捨て、
-    // 「最初に名乗った人がGMになる」規則に戻す。
-    initialState = adoptImportedState({
-      ...importedState,
-      room: {
-        ...importedRoom,
-        name: trimmedName,
-        activePlugin: resolvedActivePlugin,
-        bcdiceSystem: resolvedBcdiceSystem
-      }
-    }, { participants: {} });
+    // 全データ読み込み。突き合わせ方（部屋名はフォーム／プラグインとシステムはファイル優先）は
+    // js/state-import.jsに置いてある——P2P卓ではブラウザ側が同じことをするため
+    // （js/room-index.js。サーバーへ大きなボディを送らないようにしてある）。
+    initialState = buildRoomStateFromImport(importedState, {
+      name: trimmedName,
+      activePlugin: safeActivePlugin,
+      bcdiceSystem: safeBcdiceSystem,
+      validPluginIds
+    });
   } else {
     initialState = createInitialGameState({ name: trimmedName, activePlugin: safeActivePlugin, bcdiceSystem: safeBcdiceSystem });
   }
@@ -2232,8 +2370,14 @@ async function handleCreateRoom(req, res) {
 
   // 認証情報はここで書いておく。書かずにおくと、次にサーバーが読み直したときに
   // getOrLoadRoomの移行処理が走り、入室パスワードごと初期化されてしまう。
+  // P2Pかどうかは入室パスワードと同じ認証情報側に置く。**部屋の状態には入れない。**
+  // P2P卓の状態はホストのタブが権威なので、状態に置くと「サーバーが接続を振り分ける根拠」を
+  // ホストに書き換えさせることになる（いまはサーバーへ書き戻さないので実害は無いが、
+  // Redisへの定期バックアップを入れた段で確実に穴になる）。
   try {
-    await updateAuthMeta(id, { version: CURRENT_AUTH_VERSION, entryPassword: entryPasswordRecord });
+    await updateAuthMeta(id, {
+      version: CURRENT_AUTH_VERSION, entryPassword: entryPasswordRecord, p2p: wantsP2p
+    });
   } catch (error) {
     console.warn(`[server] ${id} の認証情報の保存に失敗しました:`, error.message);
     sendJson(res, 500, { error: '部屋の作成に失敗しました。' });
@@ -2248,6 +2392,7 @@ async function handleCreateRoom(req, res) {
     store, clients: new Set(), saveTimer: null, saveDeadline: null,
     lastPersistedJson: null, lastSummaryJson: null,
     entryPassword: entryPasswordRecord, typing: new Map(),
+    p2p: wantsP2p, hostPeerId: null, hostParticipantId: null,
     updatedAt: Date.now(),
     activeUntil: Date.now() + ACTIVE_GRACE_MS, unloadTimer: null
   };
@@ -2257,7 +2402,9 @@ async function handleCreateRoom(req, res) {
   // 一覧用の要約もここで作っておく。作らずにいても一覧側が作り直すが（summarizeRoom）、
   // そのときは状態を丸ごと読み直すことになるので、分かっているここで書いておく。
   await syncRoomSummary(id, entry);
-  sendJson(res, 201, { id });
+  // p2pも返す。作った本人は続けて入室するので、?net=rtc を付けるかの判断に要る。
+  // 要求した値ではなくサーバーが採用した値を返すこと（中継が無効なら立たない）。
+  sendJson(res, 201, { id, p2p: wantsP2p });
 }
 
 // POST /api/rooms/<id>/export：書き出し用に、画像を埋め込んだ自己完結の状態を返す。
@@ -2488,13 +2635,29 @@ const OUTBOUND_USER_AGENT = 'mojuraX/1.0 (+https://modurax.onrender.com/)';
 // ことがあるので手書きせずAPIから取るが、部屋・端末ごとに毎回上流へ取りに行くと無駄な
 // 負荷になる。サーバーで一度取ってRedisへ置き、既定30日を過ぎた後の最初のリクエストの
 // ときだけ取り直す（定期ジョブは持たず、アクセス契機の遅延更新にする）。
-// 上のCSPで許可しているのと同じ相手（BCDICE_ORIGIN）。片方だけ変えるとダイスが
-// 振れなくなるので、住所は1つだけ持つ。
-const BCDICE_BASE_URL = BCDICE_ORIGIN;
+// --- サーバー側の中継が使う上流（順に試す） ---
+//
+// 【ブラウザとサーバーで相手が違う】ブラウザはBCDICE_ORIGIN（＝CSPで許可した相手）だけを
+// 見る。中継はそこに加えて控えの上流を持つ。**同じにできない事情がある**：
+// BCDice本体（bcdice.onlinesession.app）はCloudflareの後ろにあり、データセンターからの
+// アクセスを403で拒否する。ブラウザからは通るがRenderからは通らない、という非対称が実際に
+// 起きている（2026-09-02に本番のログで確認。同じ403は当方の検証環境からも再現した）。
+//
+// つまり中継は、いま本番で1件も仕事ができていない。控えとして置いてある層が、
+// **一番必要な「本体が不調のとき」に限って使えない**という形になっていた。
+//
+// 控えに選んだのはクリエイターズネットワークの公開サーバー。同じBCDice-APIで、
+// 応答の形もシステム数（336件）も一致することを確認済み。Cloudflareの後ろではないため
+// サーバーからも通る。CORSも開いているが、**ブラウザ側は切り替えない**——CSPを触ると
+// ダイスが一切振れなくなる事故の元になるうえ、ブラウザからは本体へ普通に届いている。
+//
+// 順番に意味がある。**先頭は必ずブラウザと同じ相手**にすること：中継の答えとブラウザの
+// 答えが食い違わないようにするため、本体が答えられる限りは本体の答えを使う。
+const BCDICE_FALLBACK_ORIGIN = 'https://bcdice.trpg.net';
+const BCDICE_UPSTREAMS = [BCDICE_ORIGIN, BCDICE_FALLBACK_ORIGIN];
 const BCDICE_CACHE_MS = (Number(process.env.BCDICE_CACHE_DAYS) || 30) * 24 * 60 * 60 * 1000;
-// 「そのシステムは無い」と分かった答えを覚えておく時間。本来のキャッシュよりずっと
-// 短くしているのは、上流にシステムが増えたときに「無い」と言い続ける時間を短くするため。
-const BCDICE_MISS_CACHE_MS = 60 * 60 * 1000;
+// 「無い」と覚える時間・休みの長さ・どの答えを「無い」とみなすかは
+// server/bcdice-cache-rules.jsに置いてある（一度間違えた判断なので、テストの効く形にした）。
 // cacheKey -> { fetchedAt, payload }。Redisへの往復すら省くためのプロセス内キャッシュ。
 // 件数に上限を設けているのは、キーがリクエストのパス（システムID）由来で、実在しない
 // IDを次々に投げられると際限なく育つため。溢れたら一番古い登録から落とす（Mapは
@@ -2502,6 +2665,16 @@ const BCDICE_MISS_CACHE_MS = 60 * 60 * 1000;
 // 普段の利用でここに触れることはない。
 const BCDICE_MEMORY_CACHE_MAX = 500;
 const bcdiceMemoryCache = new Map();
+
+// 上流に門前払いされている間の休み（bcdice-cache-rules.jsのmeansBlocked）。
+// **IDごとではなく上流まるごと**で持つ：403が言っているのは「そのIDは無い」ではなく
+// 「お前とは話さない」なので、IDを変えて試しても意味が無い。
+// 上流ごとに別々に数える——1つが拒否していても、もう1つは通るため。
+const bcdiceBlockedUntil = new Map();
+
+function bcdiceIsBlocked(origin, now) {
+  return now < (bcdiceBlockedUntil.get(origin) || 0);
+}
 
 function rememberBcdice(cacheKey, entry) {
   bcdiceMemoryCache.set(cacheKey, entry);
@@ -2527,47 +2700,103 @@ async function loadBcdiceCached(cacheKey, upstreamPath, transform) {
     }
   }
 
-  // 「そんなシステムは無い」の記録（下で覚える）。覚えている間は上流へ行かずに断る。
-  // 有効期限を本来のキャッシュよりずっと短くしているのは、上流にシステムが増えたときに
-  // 「無い」と言い続ける時間を短くするため。
-  if (cached?.missing) {
-    if (now - cached.fetchedAt < BCDICE_MISS_CACHE_MS) throw new Error('HTTP 404');
-  } else if (cached && now - cached.fetchedAt < BCDICE_CACHE_MS) {
-    return { ...cached.payload, fetchedAt: cached.fetchedAt };
+  // 覚えている記録を見て、上流へ行く前に済ませられるかを決める（bcdice-cache-rules.js）。
+  const decision = decideCacheRead({ cached, now, cacheMs: BCDICE_CACHE_MS });
+  if (decision.action === 'missing') throw new Error('HTTP 404');
+  if (decision.action === 'fresh') return { ...cached.payload, fetchedAt: cached.fetchedAt };
+  if (decision.action === 'stale') {
+    return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+  }
+  if (decision.action === 'unavailable') {
+    // **上流へ行っていないことをログに残す。** 同じ文言だと「休んでいる」のか
+    // 「毎回叩いて毎回失敗している」のか、ログから見分けられない——本番でまさに
+    // その切り分けが要る場面なので、ここで区別が付くようにしておく。
+    throw new Error(`${decision.reason || '取得できません'}（休み中。上流へは行っていません）`);
   }
 
-  try {
-    const response = await fetch(`${BCDICE_BASE_URL}${upstreamPath}`, {
-      headers: { 'User-Agent': OUTBOUND_USER_AGENT }
-    });
-    if (!response.ok) {
-      // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
-      // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
-      // 覚えるのは4xx（＝上流がはっきり「無い」と答えた場合）だけ。5xxや通信の失敗まで
-      // 覚えると、上流の一時的な不調をこちらで長引かせることになる。
-      // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
-      if (response.status >= 400 && response.status < 500) {
-        rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
+  // 上流を順に試す。**「そのIDは無い」と答えられた時点で打ち切る**——それは相手が
+  // ちゃんと答えているということなので、他所へ聞き直す意味が無い（聞き直すと、
+  // ブラウザが見ているのとは違うサーバーの答えを返すことになり、食い違いの元になる）。
+  let lastError = null;
+  for (const origin of BCDICE_UPSTREAMS) {
+    // この上流は門前払い中。飛ばして次へ
+    if (bcdiceIsBlocked(origin, now)) {
+      lastError = lastError || new Error('BCDiceから拒否されています（休み中。上流へは行っていません）');
+      continue;
+    }
+
+    let response;
+    try {
+      response = await fetch(`${origin}${upstreamPath}`, {
+        headers: { 'User-Agent': OUTBOUND_USER_AGENT }
+      });
+    } catch (error) {
+      // 通信そのものが失敗した（DNS・タイムアウト等）。次の上流を試す
+      lastError = error;
+      continue;
+    }
+
+    if (response.ok) {
+      let payload;
+      try {
+        payload = transform(await response.json());
+      } catch (error) {
+        // 200なのに読めない＝相手の形が違う。次の上流の方がまともかもしれない
+        lastError = error;
+        continue;
       }
+      const entry = { fetchedAt: now, payload };
+      rememberBcdice(cacheKey, entry);
+      // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
+      if (USE_REDIS) {
+        redis.set(`bcdice:${cacheKey}`, entry)
+          .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+      }
+      if (origin !== BCDICE_UPSTREAMS[0]) {
+        console.info(`[server] BCDiceを控えの上流から取得しました (${cacheKey}): ${origin}`);
+      }
+      return { ...payload, fetchedAt: now };
+    }
+
+    // 「無い」と分かった答えも覚えておく。覚えないと、存在しないIDを次々に投げるだけで
+    // このサーバーが上流への中継器になってしまう（回数制限と合わせて二重に止める）。
+    //
+    // **覚えてよいのは400/404/410だけ**（meansMissing。400が入るのはBCDiceが実在しない
+    // IDに400を返すため）。以前はここが4xx全部で、403（弾かれた）も429（叩きすぎ）も
+    // 「そのシステムは存在しない」として1時間覚えていた。上流の一時的な事情を、こちらで
+    // 1時間に引き伸ばす動きになっていた。
+    // Redisには書かない（間違って覚えた場合に再起動で消えるようにするため）。
+    if (meansMissing(response.status)) {
+      rememberBcdice(cacheKey, { fetchedAt: now, missing: true });
       throw new Error(`HTTP ${response.status}`);
     }
-    const payload = transform(await response.json());
-    const entry = { fetchedAt: now, payload };
-    rememberBcdice(cacheKey, entry);
-    // 保存の成否は応答に影響させない（次回また取りに行くだけで済む）
-    if (USE_REDIS) {
-      redis.set(`bcdice:${cacheKey}`, entry)
-        .catch((error) => console.warn(`[server] BCDiceキャッシュの保存に失敗しました (${cacheKey}):`, error.message));
+
+    if (meansBlocked(response.status)) {
+      // このIDの話ではないので、この上流まるごと休みにする
+      if (!bcdiceIsBlocked(origin, now)) {
+        console.warn(`[server] BCDiceに拒否されました (HTTP ${response.status}) ${origin}。`
+          + `${BLOCKED_COOLDOWN_MS / 1000 / 60}分はこの上流への問い合わせを止めます`);
+      }
+      bcdiceBlockedUntil.set(origin, now + BLOCKED_COOLDOWN_MS);
     }
-    return { ...payload, fetchedAt: now };
-  } catch (error) {
-    // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
-    if (cached && !cached.missing) {
-      console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
-      return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
-    }
-    throw error;
+    lastError = new Error(`HTTP ${response.status}`);
   }
+
+  // どの上流からも取れなかった
+  const error = lastError || new Error('BCDiceへ問い合わせできません');
+  rememberUnavailable(cacheKey, cached, now, error.message);
+  // 「無い」の記録には返せる中身が無いので、古いままの答えとしては使えない
+  if (cached?.payload && !cached.missing) {
+    console.warn(`[server] BCDiceの取得に失敗したため期限切れキャッシュを返します (${cacheKey}):`, error.message);
+    return { ...cached.payload, fetchedAt: cached.fetchedAt, stale: true };
+  }
+  throw error;
+}
+
+// 「いまは取れない」を短時間だけ覚える。中身を捨てない組み立て方はbcdice-cache-rules.js。
+function rememberUnavailable(cacheKey, cached, now, reason) {
+  const entry = buildUnavailableEntry({ cached, now, reason });
+  if (entry) rememberBcdice(cacheKey, entry);
 }
 
 // GET /api/bcdice/game_system：システム一覧（部屋作成フォーム・ルーム設定のselect用）
@@ -2852,10 +3081,22 @@ await migrateLegacySummariesIfNeeded();
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // ブラウザ側が起動時に一度だけ読む設定。今は絵の置き場だけ。
+  // ブラウザ側が起動時に一度だけ読む設定。絵の置き場と、鳴らす音のURL。
   // 秘密は載せない（誰でも叩けるので）。増やすときもその線を守ること。
+  //
+  // 音のURLをここから配るのは、P2P卓では権威がGMのタブになるため（js/net-host.js）。
+  // 従来はサーバーが入室メッセージ・送信音のACTIONにURLを載せて配っていたが、ホスト役は
+  // 環境変数を読めない。値そのものは元から全員のブラウザへ配っていた公開URLで、
+  // 「秘密は載せない」の線は動いていない。
   if (url.pathname === '/api/config' && req.method === 'GET') {
-    sendJson(res, 200, { assetBaseUrl: ASSET_BASE_URL || null });
+    sendJson(res, 200, {
+      assetBaseUrl: ASSET_BASE_URL || null,
+      entrySoundUrl: ENTRY_SOUND_URL || null,
+      chatSendSoundUrl: CHAT_SEND_SOUND_URL || null,
+      // P2Pの卓を作れるか。部屋一覧が作成フォームに選択肢を出すかの判断に使う
+      // （出しても作れないサーバーでは、誰も入れない部屋ができてしまう）。
+      p2pSignaling: ENABLE_P2P_SIGNALING
+    });
     return;
   }
 
@@ -2962,22 +3203,27 @@ const WS_HEAVY_FRAME_BYTES = 512 * 1024;
 // 1接続あたりのメッセージ流量。1操作ごとに状態の保存（Redisへの書き込み）が走るため、
 // 連打されると課金と帯域がそのまま伸びる。人間の操作としてはこれで十分足りる。
 // 溢れた分は黙って捨てる（切断はしない。取りこぼしはRESYNCで直せるほうが親切なため）。
-const WS_MESSAGE_WINDOW_MS = 10 * 1000;
-const WS_MAX_MESSAGES_PER_WINDOW = 300;
+//
+// 数字はjs/net-host-rules.jsに置いてある。P2P卓ではホスト役が同じ制限を掛ける必要があり
+// （1人の連打が部屋全員への中継に増幅される）、両方に書くと必ずどちらかがずれるため。
+// スタンプの上限をjs/stamp-catalog.jsに置いてあるのと同じ流儀。
+const WS_MESSAGE_WINDOW_MS = MESSAGE_RATE_LIMIT.windowMs;
+const WS_MAX_MESSAGES_PER_WINDOW = MESSAGE_RATE_LIMIT.max;
 
 // 同時接続数の上限。1人が何本も張ってメモリと部屋の人数表示を潰すのを防ぐ。
 const WS_MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 200;
 
 // --- P2Pのシグナリング中継を開けるか（既定は閉じる） ---
-// 下のSIGNAL_HELLO / SIGNALは、部屋にいる誰でも「同じ部屋の他の人へ任意のJSONを
-// 転送させられる」口になる。P2P（docs/p2p-migration-notes.md）を使うときには要るが、
-// 使っていない間は開けておく理由が無いので、明示的に有効化したときだけ通す。
+// 下のSIGNAL_HELLO / SIGNALは「同じ部屋の他の人へ任意のJSONを転送させられる」口になる。
+// P2P（docs/p2p-migration-notes.md）には要るが、使っていないサーバーで開けておく理由は無い。
 //
-// 実害が小さいから開けっ放しでよい、とはしない。この中継は「誰でもhost:trueを名乗れる」
-// 問題（同上ドキュメントの6節）を抱えたままで、しかも凍結中は誰も使わない。
-// 使われない機能のために本番へ口を開けない、という判断。
+// 口は2段で閉じてある：
+//   ・この環境変数           … サーバー全体。未設定ならP2Pの卓そのものを作れない
+//   ・その部屋がP2Pかどうか  … 従来卓では中継を通さない（下のsignalingOpen）
+// 「誰でもhost:trueを名乗れる」問題（同上ドキュメントの6節）は、名乗り済みのGMだけに
+// 絞ることで塞いである（下のSIGNAL_HELLO）。
 //
-// 再開するときはRenderの環境変数に ENABLE_P2P_SIGNALING=1 を足すだけでよい。
+// 本番（Render）で使うときは環境変数に ENABLE_P2P_SIGNALING=1 を足す。
 const ENABLE_P2P_SIGNALING = process.env.ENABLE_P2P_SIGNALING === '1';
 
 const wss = new WebSocketServer({ server: httpServer, maxPayload: WS_MAX_PAYLOAD_BYTES });
@@ -2998,6 +3244,10 @@ wss.on('connection', async (ws, req) => {
 
   const url = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room');
+  // この接続がP2Pのシグナリングとして来たか。ブラウザは接続先URLに location.search を
+  // そのまま引き継ぐので（js/net-transport-ws.jsのWS_URL）、繋がった時点で分かる。
+  // 分かる場所がここなのが要点で、部屋の中身を渡す前に振り分けられる。
+  const wantsSignaling = url.searchParams.get('net') === 'rtc';
 
   // 生存確認の初期値。以後はpongが返るたびに立て直す（下のheartbeatTimer参照）。
   ws.isAlive = true;
@@ -3043,11 +3293,37 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
+  // この部屋を「いまP2Pとして扱うか」。**部屋の属性（entry.p2p）だけでは決めない。**
+  // ENABLE_P2P_SIGNALINGを切ってあるなら、既に作られたP2P卓も普通の卓として開ける。
+  // 切るのは非常停止のスイッチなので、切った結果その卓が使えなくなるのでは意味がない。
+  // 状態はホストが預けた控えで残っている（docs/p2p-migration-notes.mdの0-5節）。
+  const p2pActive = ENABLE_P2P_SIGNALING && entry.p2p;
+
   // アクティブな卓の枠（2段目）。メモリには載っているが猶予も切れている部屋は、
   // 1段目を素通りしてここへ来る。読み込みを待っている間に他の卓で埋まった場合も同じ。
   if (!canActivateRoom(entry)) {
     console.warn(`[server] アクティブな卓の上限（${MAX_ACTIVE_ROOMS}）に達したため ${roomId} への接続を断りました`);
     ws.close(4009, 'too many active rooms');
+    return;
+  }
+
+  // --- P2P卓の振り分け ---
+  // P2Pで開かれた卓へ、従来のWebSocketで入ろうとした接続には**部屋の中身を渡さない**。
+  //
+  // 渡すと、その人はサーバー権威の部屋、ホストは自分が権威の部屋に居ることになり、
+  // 警告も出ないまま2つのセッションに割れる（docs/p2p-migration-notes.mdの4-④。
+  // 凍結時点で最重要の未解決事項だったもの）。**割れさせる代わりに、はっきり断る。**
+  // ブラウザは4010を受けて ?net=rtc を付け直して入り直すので、古いURLやブックマークで
+  // 来た人は自動で正しい入り方に回る（js/net-sync.jsのhandleClose）。
+  //
+  // **中継を止めているときは断らない。** ENABLE_P2P_SIGNALINGを切るのは非常停止の
+  // スイッチで、そのときP2P卓は「控えを最後に預けた時点の、普通の卓」として開ける方が
+  // よい。ここを entry.p2p だけで見ると、切った瞬間に
+  //   4010で断る → ブラウザが ?net=rtc を付け直す → 中継が無いので断られる → …
+  // という**無限のリロード**になり、非常停止が事態を悪化させる。
+  // 状態はホストが預けた控えで残っているので（0-5節）、普通の卓として成立する。
+  if (p2pActive && !wantsSignaling) {
+    ws.close(4010, 'room is p2p');
     return;
   }
 
@@ -3084,6 +3360,15 @@ wss.on('connection', async (ws, req) => {
     // 誰も記入中でなくても送る：省くと、再接続した本人の画面に切断前の古い一覧が
     // 残ったままになってしまう（空の一覧で必ず上書きする）。
     ws.send(JSON.stringify({ type: 'TYPING_USERS', users: typingUsersList(entry) }));
+
+    // P2P卓ではない部屋へ ?net=rtc で入ってきた（手で書き足したURLなど）。この接続は
+    // シグナリングの返事を待って止まってしまうので、待たせずに無いと伝える。
+    // 黙っていると、WebRTCの時間切れ（8秒）まで理由の分からない待ちになる。
+    // 中継を止めている間のP2P卓もここに含める（p2pActive）。伝えればブラウザは
+    // ?net=rtc を外して入り直し、普通の卓として繋がる。
+    if (wantsSignaling && !p2pActive) {
+      ws.send(JSON.stringify({ type: 'SIGNAL_UNAVAILABLE' }));
+    }
   }
 
   if (entryAuthorized) {
@@ -3218,23 +3503,76 @@ wss.on('connection', async (ws, req) => {
     //
     // 部屋の中でしか届かない：宛先は同じentry.clientsの中からしか探さない。入室パスワードの
     // 照合より後に置いてあるのも同じ理由で、通っていない接続はここへ来られない。
-    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL_HELLO') {
+    //
+    // 【P2P卓でしか開かない】環境変数（ENABLE_P2P_SIGNALING）だけでなく、その部屋が
+    // P2Pで開かれていることも条件にする。従来卓では誰も使わないのに、開けておくと
+    // 「同じ部屋の他人へ任意のJSONを転送させる口」だけが残る——ACTIONの検査を全部
+    // 迂回して、相手のparseUntrustedJsonへ直に入る経路になる。
+    // こちらのクライアントが読み捨てるから安全、とはしない（それは相手のコードへの
+    // 期待であって、守りではない）。従来卓の接続にはadmit()でSIGNAL_UNAVAILABLEを
+    // 返してあるので、待たされることもない。
+    const signalingOpen = p2pActive;
+
+    if (signalingOpen && message.type === 'SIGNAL_HELLO') {
       // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
       if (ws.signalPeerId) return;
       ws.signalPeerId = randomUUID();
-      ws.isSignalHost = !!message.host;
+
+      // --- ホスト役を誰が務めるか。決めるのはここ ---
+      //
+      // 【画面に決めさせない】以前は `?host=1` を付けた人がホストを名乗れた。つまり
+      // **同じ部屋の誰でもホストになりすませた**（docs/p2p-migration-notes.mdの6節）。
+      // 同期経路そのものを握られるうえ、2人が同時に名乗れば部屋が2つに割れる。
+      // 名乗りを検算できるのはサーバーだけなので、資格の判定はここでしか行えない。
+      //
+      // 規則は2つ：
+      //   ・この卓のホストが既に分かっている … その人だけ（entry.hostParticipantId）
+      //   ・まだ誰も務めていない             … 資格のある人が先着。資格の判定は
+      //     canOperateAsGm＝GMが居る部屋ならそのGM、居なければ全員（既存の
+      //     「最初に名乗った人がGM」と同じ性格）
+      // 決まったら接続に固定し、その接続が切れるまで他の人には渡さない。
+      //
+      // 【hostParticipantIdが要る理由】entry.store.stateはこの部屋を読み込んだ瞬間の姿で、
+      // P2P卓では以後サーバーへ書き戻らない＝**サーバーから見ると永遠に「GMが居ない部屋」**。
+      // これだけだと、GMがリロードした一瞬の隙に参加者がホストを名乗れてしまい、
+      // **GMのタブにしか無かった部屋の中身が、サーバーの空の種で上書きされて消える**。
+      // 実際に踏んだ。誰が務めていたかを覚えておけば、その隙が閉じる
+      // （GMが戻るまで、他の人は待つ）。
+      //
+      // **この記録はサーバーの再起動をまたぐ**（認証情報に書く。pinHostParticipant参照）。
+      // 以前はメモリだけで、「部屋がメモリから降りるときは状態も一緒に消えるのだから
+      // 忘れてよい」という理屈だった。永続化を入れた時点でその前提が崩れ、再起動のたびに
+      // **卓が2つに割れうる**状態になっていた。忘れてよいのは部屋を削除するときだけ
+      // （deleteAuthMetaが認証情報ごと消す）。
+      const wantsHost = message.wantsHost === true;
+      const hostTaken = entry.hostPeerId !== null;
+      const eligible = entry.hostParticipantId
+        ? verifiedParticipantId === entry.hostParticipantId
+        : mayOperateAsGm();
+      const isHost = wantsHost && !hostTaken && eligible;
+      if (isHost) {
+        entry.hostPeerId = ws.signalPeerId;
+        ws.isSignalHost = true;
+        // 名乗る前にホストになることもある（表示名を入れていない状態で部屋を開いた場合）。
+        // その場合はIDENTIFYの側で後から控える。**表示名を入れていないホストは固定
+        // できない**（固定する相手が無いため）ので、その卓は再起動後に割れうる。
+        // なりすましを守らないと決めている以上ここは踏み込まない（脅威モデル参照）。
+        pinHostParticipant(roomId, entry, verifiedParticipantId);
+        console.log(`[server] ${roomId}: ホスト役が決まりました（${ws.participantName || 'ゲスト'}）`);
+      }
 
       const host = Array.from(entry.clients).find((client) => client.isSignalHost);
       ws.send(JSON.stringify({
         type: 'SIGNAL_WELCOME',
         peerId: ws.signalPeerId,
+        role: isHost ? 'host' : 'guest',
         // ホスト自身にはhostPeerIdを返さない（自分に繋ぎに行かせないため）
-        hostPeerId: ws.isSignalHost ? null : (host?.signalPeerId ?? null)
+        hostPeerId: isHost ? null : (host?.signalPeerId ?? null)
       }));
 
       // ホストより先に来て待っているゲストへ「ホストが来た」と伝える。これが無いと、
       // 部屋を開くより先に参加者が入っていた場合、誰も繋ぎに行かないまま止まる。
-      if (ws.isSignalHost) {
+      if (isHost) {
         entry.clients.forEach((client) => {
           if (client === ws || !client.signalPeerId || client.isSignalHost) return;
           if (client.readyState !== WebSocket.OPEN) return;
@@ -3244,12 +3582,59 @@ wss.on('connection', async (ws, req) => {
       return;
     }
 
-    if (ENABLE_P2P_SIGNALING && message.type === 'SIGNAL') {
+    if (signalingOpen && message.type === 'SIGNAL') {
       if (!ws.signalPeerId) return;
       const target = Array.from(entry.clients)
         .find((client) => client.signalPeerId === String(message.to || ''));
       if (!target || target.readyState !== WebSocket.OPEN) return;
       target.send(JSON.stringify({ type: 'SIGNAL', from: ws.signalPeerId, payload: message.payload }));
+      return;
+    }
+
+    // --- P2P卓では、ここから下の仕事をしない ---
+    //
+    // P2P卓のこの接続は「同期の道」ではなく「シグナリングの口」で、部屋の状態を動かす
+    // のはホストのタブ（js/net-host.js）。ここで状態を触ると、**サーバー側にもう1つの
+    // 権威ができる**——しかもホストは何も知らないので、2つの部屋データが静かに食い違う。
+    //
+    // 同時に、これが「Redisへの書き込みが起きない」ことの担保でもある。ACTIONも
+    // REPLACE_STATEも通らない＝schedulePersistForRoomへ辿り着く道が無い。P2P化で
+    // 減らしたかった負荷そのものなので、悪意ある参加者がここを叩いて元に戻せないよう、
+    // 「来ないはず」ではなく明示的に閉じる。
+    //
+    // 通すのは3つだけ：
+    //   IDENTIFY      … ホスト役の資格（GMか）を検算するのに要る。ただし下で見るとおり、
+    //                   入室メッセージは出さない（出すのはホストの仕事）
+    //   DELETE_ROOM   … RedisとR2を消せるのはサーバーだけ。ホストが中継してくる
+    //   HOST_SNAPSHOT … ホストが定期的に送ってくる控え。保存先を持っているのもサーバーだけ
+    // 中継を止めているときは遮断しない。止めた以上ホストは居らず、ここを閉じたままだと
+    // **誰も何も操作できない部屋**になる。普通の卓として動かすのが非常停止の狙い。
+    if (p2pActive && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM'
+        && message.type !== 'HOST_SNAPSHOT') {
+      return;
+    }
+
+    // --- ホストからの控え（P2P卓の永続化） ---
+    //
+    // P2P卓の状態はホストのタブの中にしかない。タブを閉じればセッションが消えるので、
+    // ホストが一定間隔で丸ごと送ってきたものをここで保存する（js/host-persistence.js）。
+    //
+    // **受け取ってよいのは、いまホスト役を務めている接続だけ。** ここが空いていると、
+    // 同じ部屋の誰でも部屋の中身を好きな内容へ書き換えられる——ACTIONの権限判定を
+    // 全部迂回して、保存先を直接上書きする口になる。
+    //
+    // 状態はホストが権威なので、参加者一覧もそのまま受け取る（REPLACE_STATEのように
+    // adoptImportedStateへ通さない。あれは「よそで作られた状態を今の部屋へ迎える」ための
+    // 処理で、ここは「この部屋の今の姿」がそのまま来ている）。
+    if (message.type === 'HOST_SNAPSHOT') {
+      if (!ws.isSignalHost || entry.hostPeerId !== ws.signalPeerId) {
+        console.warn(`[server] ${roomId}: ホスト以外からの控えを拒否しました`);
+        return;
+      }
+      // 圧縮されている場合は解くのに待ちが要るので、この先は非同期にする。
+      // 待っている間に部屋が消えることがあるので、適用の直前にもう一度確かめる。
+      applyHostSnapshot(roomId, entry, message, data.length)
+        .catch((error) => console.warn(`[server] ${roomId}: 控えを取り込めませんでした:`, error.message));
       return;
     }
 
@@ -3269,6 +3654,10 @@ wss.on('connection', async (ws, req) => {
 
       if (verifyIdentity(participantId, authToken)) {
         verifiedParticipantId = participantId;
+        // P2P卓で、ホスト役が名乗ったところ。誰が務めているかをここで控える。
+        // 表示名を入れないまま部屋を開くとSIGNAL_HELLOの時点では名無しなので、
+        // 控える機会はここにしかない（上のSIGNAL_HELLOのコメント参照）。
+        if (entry.p2p && ws.isSignalHost) pinHostParticipant(roomId, entry, participantId);
         isDeveloper = isDeveloperToken(roomId, authToken);
         if (isDeveloper) {
           console.log(`[server] ${roomId}: 開発用の合言葉で名乗りました（GMと同じ操作を許可します）`);
@@ -3289,7 +3678,12 @@ wss.on('connection', async (ws, req) => {
         // チャットタブへ1件追加する（再接続・タブの複数開きでは増やさない）。この接続自身は
         // admit()で既にentry.clientsへ入っているため、自分を除いて数える
         // （client.participantIdは下でこの後に立てる。先に立てると常に1件ヒットしてしまう）。
-        if (showsEntryMessages(entry.store.state) && !entryMessageSent) {
+        //
+        // P2P卓では出さない。出すのはホスト役（js/net-host.jsのannounceEntry）で、ここでも
+        // 出すと**同じ入室が2か所で記録される**：ホストのタブに1件、サーバーの凍った部屋
+        // データにもう1件。後者は誰の画面にも出ないまま溜まり、次に部屋を読み直したときに
+        // 種として蘇る（しかもRedisへの書き込みまで起きる）。
+        if (!entry.p2p && showsEntryMessages(entry.store.state) && !entryMessageSent) {
           const alreadyConnected = Array.from(entry.clients).some(
             (client) => client !== ws && client.participantId === participantId
           );
@@ -3477,6 +3871,14 @@ wss.on('connection', async (ws, req) => {
     clearTimeout(entryTimer);
     // 入室パスワードを通らないまま切れた接続はclientsに入っていない（deleteは空振りでよい）
     entry.clients.delete(ws);
+    // ホスト役が抜けた。枠を空けておかないと、GMが繋ぎ直しても「もうホストが居ます」で
+    // 断られ、その部屋は誰もホストになれないまま終わる。
+    // （この時点で部屋の状態はホストのタブと一緒に消えている。次に誰かが入ると、
+    //   サーバーが持っている凍った状態から種を取り直すことになる。永続化は次の段）
+    if (ws.isSignalHost && entry.hostPeerId === ws.signalPeerId) {
+      entry.hostPeerId = null;
+      console.log(`[server] ${roomId}: ホスト役が抜けました`);
+    }
     // 記入中のまま切断された場合、一覧に残り続けないようここで落とす（T-013）。
     // 同じ参加者の別タブがまだ記入中なら（TYPING_STOP同様）消さない。
     if (verifiedParticipantId && entry.typing.has(verifiedParticipantId)) {

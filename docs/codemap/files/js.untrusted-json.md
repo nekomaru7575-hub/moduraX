@@ -5,7 +5,7 @@ exports: 1
 imported_by: 9
 api_sha: b23b7feae826
 prose_sha: b23b7feae826
-generated: 2026-08-30
+generated: 2026-09-02
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.character-snapshot]], [[js.deck-file]], [[js.main]], [[js.net-host]], [[js.net-signaling]], [[js.net-transport-rtc]], [[js.net-transport-ws]], [[js.room-index]], [[server.index]]
+- imported by → [[js.character-snapshot]], [[js.deck-file]], [[js.main]], [[js.net-chunk]], [[js.net-signaling]], [[js.net-transport-ws]], [[js.p2p-import-handoff]], [[js.room-index]], [[server.index]]
 
 ## 注意
 

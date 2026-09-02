@@ -1,18 +1,18 @@
 ---
 source: js/net-host.js
-lines: 263
+lines: 560
 exports: 1
 imported_by: 1
-api_sha: 939c547eebc0
-prose_sha: 939c547eebc0
-generated: 2026-08-30
+api_sha: e37cb80cb420
+prose_sha: e37cb80cb420
+generated: 2026-09-02
 tags: [codemap]
 ---
 
 # js/net-host.js
 
 <!-- prose:summary -->
-ホスト権威P2Pの「ホスト役」。
+ホスト権威P2Pの「ホスト役」。GMのタブが wss.on('connection') の仕事を引き受ける。永続化と開発用の合言葉だけは持てない。
 <!-- /prose:summary -->
 
 ## 役割
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 46 | fn | startHost | `startHost({ applyRemote, onSeeded })` | ホスト役を始める。 |
+| 72 | fn | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | ホスト役を始める。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -34,11 +34,11 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 46 | startHost | `startHost({ applyRemote, onSeeded })` | **217** | ✓ |
+| 72 | startHost | `startHost({ signaling, applyRemote, onLocal, self })` | **488** | ✓ |
 
 ## 依存
 
-- import → [[js.game-store]], [[js.local-identity]], [[js.net-signaling]], [[js.room-authority-rules]], [[js.untrusted-json]]
+- import → [[js.asset-store]], [[js.asset-sync]], [[js.game-store]], [[js.local-identity]], [[js.net-chunk]], [[js.net-host-rules]], [[js.net-signaling]], [[js.net-transport]], [[js.room-authority-rules]], [[js.sound-config]], [[js.stamp-catalog]], [[js.stamp-registry]], [[js.state-import]], [[js.store.room]]
 - imported by → [[js.net-sync]]
 
 ## 注意

@@ -26,6 +26,12 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
 <!-- 書体と色のトークン。このページの色はまだ直書きだが、書体だけは共通のものを使う -->
+<!-- 読み込み失敗の見張り（js/boot-guard.js）。
+     **必ずここ**——最初のCSS/JSより前で、かつ古典スクリプト（type="module"にしない）。
+     モジュールは遅延実行されるので、moduleにすると見張りを始める前に他の読み込みが
+     失敗しうる。1本でも届かないと画面は出たまま「接続中...」で永久に止まるため、
+     気づけるようにしておく。 -->
+<script src="/js/boot-guard.js"></script>
 <link rel="stylesheet" href="/css/tokens.css">
 
 <!-- PWA（ホーム画面／デスクトップへのインストール）。詳しくは manifest.webmanifest と sw.js。 -->

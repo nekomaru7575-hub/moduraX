@@ -1,11 +1,11 @@
 // js/net-transport.js
-// 「同期のメッセージを運ぶ道」の契約と、どの実装を使うかの選択。
+// 「同期のメッセージを運ぶ道」の契約と、切断の理由。
 //
 // js/net-sync.jsはプロトコル（INIT / ACTION / RESYNC / IDENTIFY / TYPING_USERS /
 // ENTRY_REQUIRED …）だけを担い、それをWebSocketで運ぶのかWebRTCのDataChannelで運ぶのかは
 // 知らない。P2P化の検討（docs/p2p-migration-notes.md）で分かったのは、いまの同期が
-// 「サーバー権威＋クライアントは送受信の口だけ」という形をしているおかげで、
-// **プロトコルを一切変えずにトランスポートだけ差し替えられる**ということ。その差し替え口。
+// 「権威＋クライアントは送受信の口だけ」という形をしているおかげで、**プロトコルを一切
+// 変えずにトランスポートだけ差し替えられる**ということ。その差し替え口。
 //
 // 【契約】
 //   createTransport({ onOpen, onMessage, onClose }) => {
@@ -21,9 +21,12 @@
 //
 // 実装は接続を1本だけ持ち、繋ぎ直しは行わない（再接続はjs/net-sync.jsの仕事）。
 // createTransportを呼ぶたびに新しい接続が1本できる、と考えてよい。
+//
+// 【どちらを使うかはここでは決めない】P2P卓（?net=rtc）はシグナリングで役割が決まって
+// からでないとホストかゲストかが分からないので、組み立てはjs/net-sync.jsが行う。
+// ここが両方をimportすると、CLOSE_CODESを読みたいだけのjs/net-host.jsと循環する。
 
 import { createWebSocketTransport } from './net-transport-ws.js';
-import { createRtcGuestTransport } from './net-transport-rtc.js';
 
 // 切断の理由。もともとWebSocketのcloseコード（server/index.jsのws.close(4000, ...)等）
 // だが、意味はプロトコル側にあってWebSocket固有ではない。WebRTC実装も同じ値を立てて
@@ -34,51 +37,22 @@ export const CLOSE_CODES = {
   ROOM_DELETED: 4005,  // 部屋が削除された
   ENTRY_REJECTED: 4006, // 入室パスワードを通らなかった（試行回数超過・待ち時間切れ）
   TOO_MANY_CONNECTIONS: 4008, // サーバー全体の同時接続数が上限
-  TOO_MANY_ACTIVE_ROOMS: 4009 // 同時に動いている卓が上限。この卓は今から始められない
+  TOO_MANY_ACTIVE_ROOMS: 4009, // 同時に動いている卓が上限。この卓は今から始められない
+  // P2Pで開かれている卓へ、従来のWebSocketで入ろうとした。サーバーは中身を渡さない。
+  // 断るのは、渡してしまうと**ホストと参加者が黙って2つのセッションに割れる**ため
+  // （docs/p2p-migration-notes.mdの4-④）。js/net-sync.jsが?net=rtcを足して入り直す。
+  ROOM_IS_P2P: 4010
 };
 
-// WebRTCを一度も張れなかったら、この読み込みの間はもう試さない。
-// TURNを用意していない以上、張れない相手（Symmetric NAT）とは何度やっても張れないので、
-// 繋ぎ直しのたびに8秒待たされるのが一番たちが悪い。
-let rtcGaveUp = false;
-
-// この画面がホスト役として動くか。`?net=rtc&host=1` のときだけ。
-// スパイクの間は明示指定でよい——「部屋を建てた人が自動でホスト」は部屋一覧
-// （/api/rooms）の作り替えを巻き込むので、成立性が確認できてから。
-export function isHostMode() {
-  const params = new URLSearchParams(location.search);
-  return params.get('net') === 'rtc' && params.get('host') === '1';
+/** この画面がP2P卓として振る舞うか。部屋一覧が付ける `?net=rtc` で決まる。 */
+export function isP2pMode() {
+  return new URLSearchParams(location.search).get('net') === 'rtc';
 }
 
 /**
- * このページで使うトランスポートを1本作る。
- *
- * 既定はWebSocket（今までどおり）。`?net=rtc` が付いているときだけWebRTCを試し、
- * 張れなければWebSocketへ落ちる（＝**併存**。P2Pが成立しない人だけ今までどおりになる）。
- *
- * 【2026-08-21 凍結】この経路は疎通実験の段階で止めてある。既定を入れ替える前に、
- * docs/p2p-migration-notes.md の「4-④ フォールバックを片側にしか作らなかった」を
- * 必ず読むこと——ホスト側にフォールバックが無いため、参加者がWebSocketへ落ちると
- * 黙って2つのセッションに割れる（警告も出ない）。
+ * 従来どおりのWebSocketの道を1本作る。
+ * P2P卓の組み立て（シグナリング→役割→ホスト役かRTCトランスポート）はjs/net-sync.jsにある。
  */
 export function createTransport(handlers) {
-  const wantsRtc = new URLSearchParams(location.search).get('net') === 'rtc';
-  if (!wantsRtc || rtcGaveUp) return createWebSocketTransport(handlers);
-
-  // 一度も開かないまま閉じた＝張れなかった。以後はWebSocketへ。
-  let everOpened = false;
-  return createRtcGuestTransport({
-    onOpen: () => {
-      everOpened = true;
-      handlers.onOpen();
-    },
-    onMessage: handlers.onMessage,
-    onClose: (info) => {
-      if (!everOpened) {
-        rtcGaveUp = true;
-        console.warn('[net-transport] WebRTCで繋がらなかったので、以後はWebSocketで同期します');
-      }
-      handlers.onClose(info);
-    }
-  });
+  return createWebSocketTransport(handlers);
 }

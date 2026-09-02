@@ -358,7 +358,10 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // { [id]: { id, name, url, source: 'upload'|'external', key: string|null, channel: 'bgm'|'se',
       //           loop: boolean, phrase: string|null } }
       // phraseは「発言の末尾がこの文字列と一致したら鳴らす」再生フレーズ（js/audio-phrase.js）。
-      // source:'upload' はサーバーがR2に実体を持つ（削除時にkeyで消す）。'external' は外部URL参照。
+      // source:'upload' はサーバーがR2に実体を持つ（削除時にkeyで消す）。
+      // 'external' は「R2のキーを持たない」側で、外部URLのほか、P2P卓でこのブラウザに
+      // しまった実体（/asset/<hash>。js/asset-store.js）もここに入る——どちらも
+      // サーバーが消しに行く相手ではない、という意味で同じ扱いでよい。
       audioTracks: {},
       // チャンネルごとの再生状態。BGMを流したまま効果音を重ねられるよう2枠に分けてある。
       // playIdは再生のたびに変わる値で、同じ曲を鳴らし直したことの検知に使う（再生位置は同期しない）。

@@ -137,3 +137,50 @@ export function adoptImportedState(
     infoEntries: normalizeInfoEntries(state.infoEntries).map(adoptInfoEntry)
   };
 }
+
+/**
+ * 部屋を新しく作るときの取り込み。フォームの入力とファイルの中身を突き合わせて、
+ * hydrateへ渡せる初期状態にする。
+ *
+ * 【なぜ共有するか】この突き合わせ方は元々server/index.jsのhandleCreateRoomにしか無かった。
+ * P2P卓ではファイルの読み込みをブラウザ側で行う（サーバーへ93MBのボディを送らないため。
+ * js/room-index.js）ので、同じ規則が2か所に要る。両方に書けば必ずどちらかがずれるので、
+ * ここを唯一の出どころにする。
+ *
+ * 突き合わせ方：**部屋名はフォームで上書きし、プラグインとシステムはファイル側を優先する。**
+ * 読み込んだ部屋データが前提にしていた構成を、その場のフォーム選択で誤って壊さないため。
+ * ファイル側に値が無いときだけフォームの値を使う。
+ *
+ * 参加者一覧は空で渡す＝ファイル側の参加者（GMの印を含む）を捨て、「最初に名乗った人が
+ * GMになる」規則に戻す。作ったばかりの部屋にはまだ誰もいない。
+ *
+ * @param {object} importedState 読み込んだJSON（信用しない）
+ * @param {object} options
+ * @param {string} options.name フォームで入力された部屋名
+ * @param {string|null} options.activePlugin フォームで選ばれたプラグイン（検証済み）
+ * @param {string} options.bcdiceSystem フォームで選ばれたダイスシステム
+ * @param {Set<string>} options.validPluginIds このサーバーが持っているプラグインのID
+ * @returns {object} hydrateへ渡せる状態
+ */
+export function buildRoomStateFromImport(
+  importedState, { name, activePlugin, bcdiceSystem, validPluginIds }
+) {
+  const importedRoom = (importedState && typeof importedState === 'object' && importedState.room) || {};
+  const importedPlugin = importedRoom.activePlugin;
+  const resolvedActivePlugin = importedPlugin && validPluginIds.has(importedPlugin)
+    ? importedPlugin
+    : activePlugin;
+  const resolvedBcdiceSystem = typeof importedRoom.bcdiceSystem === 'string' && importedRoom.bcdiceSystem
+    ? importedRoom.bcdiceSystem
+    : bcdiceSystem;
+
+  return adoptImportedState({
+    ...importedState,
+    room: {
+      ...importedRoom,
+      name,
+      activePlugin: resolvedActivePlugin,
+      bcdiceSystem: resolvedBcdiceSystem
+    }
+  }, { participants: {} });
+}

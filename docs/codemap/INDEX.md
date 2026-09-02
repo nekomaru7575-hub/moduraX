@@ -20,9 +20,9 @@ generated: 2026-09-02
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 150 | 673 | 1161 | 58 | 2 |
+| 151 | 673 | 1161 | 58 | 2 |
 
-エントリポイント（誰からも import されない）: `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
+エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
 ## ファイル一覧
 
@@ -39,6 +39,7 @@ generated: 2026-09-02
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
 | [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 2 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 11 | 7 |
+| [[js.boot-guard\|js/boot-guard.js]] | ページに必要なファイルが1本でも届かなかったとき、**利用者に分かる形で知らせる**。 | 0 | 0 |
 | [[js.buff-dialog\|js/buff-dialog.js]] | コマ（トークン）へのバフ/デバフの付与・一覧表示ダイアログ。 | 2 | 2 |
 | [[js.card-catalog\|js/card-catalog.js]] | 「盤面に置けるカードの束（デッキ）」の既定の中身を持つ表。 | 7 | 2 |
 | [[js.character-builder\|js/character-builder.js]] | 部屋を作らずに、外部キャラクターシートツール（ゆとシート等）のJSON、または 本アプリのコマ丸ごとスナップショットJSONを読み込んで編集し、スナップショット JSONとして書き出す「コマ作成ツール」ページのロジック。 | 0 | 0 |

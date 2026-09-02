@@ -1035,9 +1035,44 @@ function stateForPersist(state) {
 }
 
 // 実際に1回保存する。デバウンスの待ちは見ないので、呼ぶ側が頃合いを決めること。
+// 「重い部屋」とみなす大きさ。超えたら保存の間隔を空ける（止めはしない）。
+//
+// 【なぜ要るか】画像のアップロードが失敗すると、ブラウザは画像をデータURLへ退避する
+// （js/image-upload.js。「画像が使えなくなるよりマシ」という判断で、それ自体は妥当）。
+// ただしそのデータURLは状態に載り、**保存のたびに丸ごと保存先へ運ばれる**。画像は既に
+// 圧縮済みなのでbrotliがほとんど効かず、実測で8MBの画像1枚＝1回の書き込みが10.7MB。
+// サーバー配信の卓は1発言ごとに書くので（実測1,087回/時）、3時間で30GBを超える。
+//
+// 怖いのは量そのものより、**誰も気づけないこと**。画面は普通に動き、警告も出ず、
+// 請求で初めて分かる。ここで止めて、ログに理由を出す。
+//
+// 【止めない理由】書かない選択はしない。書かなければ、その部屋の操作は次の再読み込みで
+// そのまま失われる。**請求より利用者の作業の方が大事。** 代わりに間隔を空けて量を抑える
+// （HEAVY_SAVE_MAX_WAIT_MS）。1発言ごと→1分ごとなら、実測1,087回/時が60回/時になる。
+//
+// 1MBにしてあるのは、普通の卓とは桁が2つ違うため：発言1000件・コマ40個の育った卓で
+// 実測17.7KB（保存されるログは直近1000件に切り詰められるので、ここが上限）。
+// つまり1MBに届く時点で「文字ではないものが載っている」と言い切れる。
+const HEAVY_ROOM_BYTES = 1024 * 1024;
+// 重い部屋の保存間隔。普通の卓の SAVE_MAX_WAIT_MS（5秒）に対して1分。
+const HEAVY_SAVE_MAX_WAIT_MS = 60 * 1000;
+
 async function persistRoomNow(roomId, entry) {
   try {
     const json = JSON.stringify(stateForPersist(entry.store.state));
+    // 重い部屋かどうかを毎回見ておく。**書かない選択はしない**——書かなければ利用者の
+    // 操作がそのまま失われる。請求より作業の方が大事なので、止めるのではなく間隔を空ける
+    // （schedulePersistForRoom）。
+    const bytes = Buffer.byteLength(json, 'utf-8');
+    const heavy = bytes > HEAVY_ROOM_BYTES;
+    if (heavy && !entry.heavyWarned) {
+      entry.heavyWarned = true;
+      console.warn(`[server] ${roomId}: 部屋データが大きいので保存の間隔を空けます`
+        + `（${Math.floor(bytes / 1024 / 1024 * 10) / 10}MB。普通の卓は0.02MB程度）。`
+        + '画像がデータURLのまま状態に載っている可能性があります');
+    }
+    if (!heavy) entry.heavyWarned = false;
+    entry.heavy = heavy;
     // 内容が前回の保存と同じなら、保存先への往復ごと省く。同じ座標へのMOVE_TOKENや
     // 再入室時のREGISTER_PARTICIPANTなど、状態を変えない操作が無料になる。
     // 直列化は圧縮のためにどのみち1回必要なので、比較の追加コストは実質ない。
@@ -1145,10 +1180,14 @@ function schedulePersistForRoom(roomId, entry) {
   if (entry.pendingDelete) return;
 
   const now = Date.now();
-  if (!entry.saveDeadline) entry.saveDeadline = now + SAVE_MAX_WAIT_MS;
+  // 重い部屋（データURLが載っている等。persistRoomNowが立てる）は間隔を空ける。
+  // 1回の書き込みが数MBになるので、1発言ごとに書くと保存先への通信量が桁違いになる。
+  const maxWait = entry.heavy ? HEAVY_SAVE_MAX_WAIT_MS : SAVE_MAX_WAIT_MS;
+  const debounce = entry.heavy ? HEAVY_SAVE_MAX_WAIT_MS : SAVE_DEBOUNCE_MS;
+  if (!entry.saveDeadline) entry.saveDeadline = now + maxWait;
   if (entry.saveTimer) clearTimeout(entry.saveTimer);
 
-  const delay = Math.max(0, Math.min(now + SAVE_DEBOUNCE_MS, entry.saveDeadline) - now);
+  const delay = Math.max(0, Math.min(now + debounce, entry.saveDeadline) - now);
   entry.saveTimer = setTimeout(() => {
     entry.saveTimer = null;
     entry.saveDeadline = null;
@@ -3254,6 +3293,12 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
+  // この部屋を「いまP2Pとして扱うか」。**部屋の属性（entry.p2p）だけでは決めない。**
+  // ENABLE_P2P_SIGNALINGを切ってあるなら、既に作られたP2P卓も普通の卓として開ける。
+  // 切るのは非常停止のスイッチなので、切った結果その卓が使えなくなるのでは意味がない。
+  // 状態はホストが預けた控えで残っている（docs/p2p-migration-notes.mdの0-5節）。
+  const p2pActive = ENABLE_P2P_SIGNALING && entry.p2p;
+
   // アクティブな卓の枠（2段目）。メモリには載っているが猶予も切れている部屋は、
   // 1段目を素通りしてここへ来る。読み込みを待っている間に他の卓で埋まった場合も同じ。
   if (!canActivateRoom(entry)) {
@@ -3270,7 +3315,14 @@ wss.on('connection', async (ws, req) => {
   // 凍結時点で最重要の未解決事項だったもの）。**割れさせる代わりに、はっきり断る。**
   // ブラウザは4010を受けて ?net=rtc を付け直して入り直すので、古いURLやブックマークで
   // 来た人は自動で正しい入り方に回る（js/net-sync.jsのhandleClose）。
-  if (entry.p2p && !wantsSignaling) {
+  //
+  // **中継を止めているときは断らない。** ENABLE_P2P_SIGNALINGを切るのは非常停止の
+  // スイッチで、そのときP2P卓は「控えを最後に預けた時点の、普通の卓」として開ける方が
+  // よい。ここを entry.p2p だけで見ると、切った瞬間に
+  //   4010で断る → ブラウザが ?net=rtc を付け直す → 中継が無いので断られる → …
+  // という**無限のリロード**になり、非常停止が事態を悪化させる。
+  // 状態はホストが預けた控えで残っているので（0-5節）、普通の卓として成立する。
+  if (p2pActive && !wantsSignaling) {
     ws.close(4010, 'room is p2p');
     return;
   }
@@ -3312,7 +3364,9 @@ wss.on('connection', async (ws, req) => {
     // P2P卓ではない部屋へ ?net=rtc で入ってきた（手で書き足したURLなど）。この接続は
     // シグナリングの返事を待って止まってしまうので、待たせずに無いと伝える。
     // 黙っていると、WebRTCの時間切れ（8秒）まで理由の分からない待ちになる。
-    if (wantsSignaling && !entry.p2p) {
+    // 中継を止めている間のP2P卓もここに含める（p2pActive）。伝えればブラウザは
+    // ?net=rtc を外して入り直し、普通の卓として繋がる。
+    if (wantsSignaling && !p2pActive) {
       ws.send(JSON.stringify({ type: 'SIGNAL_UNAVAILABLE' }));
     }
   }
@@ -3457,7 +3511,7 @@ wss.on('connection', async (ws, req) => {
     // こちらのクライアントが読み捨てるから安全、とはしない（それは相手のコードへの
     // 期待であって、守りではない）。従来卓の接続にはadmit()でSIGNAL_UNAVAILABLEを
     // 返してあるので、待たされることもない。
-    const signalingOpen = ENABLE_P2P_SIGNALING && entry.p2p;
+    const signalingOpen = p2pActive;
 
     if (signalingOpen && message.type === 'SIGNAL_HELLO') {
       // 名乗り直しでpeerIdが変わると、繋ぎかけのやり取りが宙に浮く。1接続1回だけ。
@@ -3553,7 +3607,9 @@ wss.on('connection', async (ws, req) => {
     //                   入室メッセージは出さない（出すのはホストの仕事）
     //   DELETE_ROOM   … RedisとR2を消せるのはサーバーだけ。ホストが中継してくる
     //   HOST_SNAPSHOT … ホストが定期的に送ってくる控え。保存先を持っているのもサーバーだけ
-    if (entry.p2p && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM'
+    // 中継を止めているときは遮断しない。止めた以上ホストは居らず、ここを閉じたままだと
+    // **誰も何も操作できない部屋**になる。普通の卓として動かすのが非常停止の狙い。
+    if (p2pActive && message.type !== 'IDENTIFY' && message.type !== 'DELETE_ROOM'
         && message.type !== 'HOST_SNAPSHOT') {
       return;
     }

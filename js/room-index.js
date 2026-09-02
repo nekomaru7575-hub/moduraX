@@ -470,10 +470,24 @@ function mountCreatePanel() {
   p2pInput.type = 'checkbox';
   p2pLabel.appendChild(p2pInput);
   p2pLabel.appendChild(document.createTextNode(' P2Pで開く（同期をGMのブラウザが受け持ちます）'));
+  // 【説明文は実装に追従させること】「閉じると内容が残りません」と書いていた時期があるが、
+  // 控えをサーバーへ預けるようになって（js/host-persistence.js）事実でなくなった。
+  // 残っている制約は「GMが居ないと始まらない」と「繋がらない回線がある」の2つだけ。
   const p2pNote = document.createElement('p');
   p2pNote.className = 'field-note';
-  p2pNote.textContent = 'サーバーの負担が減りますが、GMが入室していないと始められず、'
-    + 'GMがタブを閉じるとその日の内容は残りません。回線によっては繋がらない人が出ます。';
+  p2pNote.textContent = 'サーバーの負担が減ります。内容はサーバーにも控えるので、'
+    + 'GMがタブを閉じても残ります。ただしGMが入室していないと始められず、'
+    + '回線によっては繋がらない人が出ます。';
+  // 繋がるかどうかは作る前に調べられる（js/ice-probe.js）。**部屋を作ってから
+  // 「誰も入れない」と分かるのが一番まずい**ので、決める場所のすぐ横に置く。
+  const p2pProbe = document.createElement('a');
+  p2pProbe.href = '/ice-probe.html';
+  p2pProbe.target = '_blank';
+  p2pProbe.rel = 'noopener';
+  p2pProbe.className = 'room-p2p-check';
+  p2pProbe.textContent = 'この回線で繋がるか調べる';
+  p2pNote.appendChild(document.createTextNode(' '));
+  p2pNote.appendChild(p2pProbe);
   p2pGroup.appendChild(p2pLabel);
   p2pGroup.appendChild(p2pNote);
   form.appendChild(p2pGroup);

@@ -1,6 +1,6 @@
 ---
 source: js/room-index.js
-lines: 715
+lines: 729
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -42,10 +42,10 @@ index.html（部屋一覧ページ）のエントリポイント。部屋の作�
 | 256 | visibleRooms | `visibleRooms()` | 5 |  |
 | 262 | fillRoomSelect | `fillRoomSelect()` | 39 |  |
 | 303 | renderSelectedRoom | `renderSelectedRoom()` | 67 |  |
-| 374 | mountCreatePanel | `mountCreatePanel()` | **251** |  |
-| 627 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
-| 641 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
-| 654 | loadRooms | `async loadRooms()` | 44 |  |
+| 374 | mountCreatePanel | `mountCreatePanel()` | **265** |  |
+| 641 | fillBcdiceSelect | `fillBcdiceSelect()` | 11 |  |
+| 655 | renderCreateAvailability | `renderCreateAvailability(canCreate, reason)` | 12 |  |
+| 668 | loadRooms | `async loadRooms()` | 44 |  |
 
 ## 依存
 

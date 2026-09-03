@@ -124,6 +124,9 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *   requirement?: {
  *     kind: 'match'|'sum',
  *     valueField?: string,     kind:'match' … この欄と同じ目だけ置ける。使用回数＝置いた個数
+ *     anyValue?: string,       kind:'match' … valueFieldがこの値なら、どの目でも置ける
+ *                              （ステラナイツの「0/7」）。目を選ばなくなるだけで数え方は
+ *                              一致型のまま＝1個で1回。宣言しなければ従来どおり一致のみ
  *     targetField?: string,    kind:'sum'   … 合計がこの欄の値以上で発動。使用回数＝1
  *     modifierParamId?: string kind:'sum'   … このパラメータの実効値を目標値へ足す
  *                              （ドラクルージュの「目標値修正(TB)」）。読むのは呼び出し側で、
@@ -176,6 +179,15 @@ export function createDiceDraftSpec(definition) {
 // ------------------------------------------------------------------
 // 判定（規則を足すときはこの2つだけを触る）
 // ------------------------------------------------------------------
+
+// kind:'match' の「どの目でも置ける」印（ステラナイツの「0/7」）が入っている欄か。
+// 数字に見えて数字ではない値を印にするので、readNumberFieldへ通す前にここで拾う。
+// anyValueを宣言していないシステムでは常にfalse＝従来どおり一致だけを見る。
+function acceptsAnyDie(requirement, skill) {
+  const anyValue = requirement?.anyValue;
+  if (anyValue === undefined || anyValue === null || anyValue === '') return false;
+  return String(skill?.fields?.[requirement.valueField] ?? '') === String(anyValue);
+}
 
 // スキルの欄から数値を1つ読む。未設定・数字でないものはnull（＝「決まっていない」）。
 function readNumberField(skill, fieldKey) {
@@ -279,6 +291,8 @@ export function acceptsDie(spec, skill, die) {
   if (!die) return { ok: false, reason: '' };
 
   if (requirement.kind === 'match') {
+    if (acceptsAnyDie(requirement, skill)) return { ok: true, reason: '' };
+
     const wanted = readNumberField(skill, requirement.valueField);
     if (wanted === null) return { ok: false, reason: '対応する数字が設定されていません' };
     if (die.value !== wanted) return { ok: false, reason: `${wanted}の目だけを置けます` };
@@ -321,9 +335,17 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
   if (!requirement) return no('ダイスの割り当て規則がありません');
 
   if (requirement.kind === 'match') {
-    const wanted = readNumberField(skill, requirement.valueField);
-    if (wanted === null) return no('対応する数字が設定されていません');
-    if (count === 0) return { ...no(`${wanted}の目が必要です`), supportsPartialUse: true };
+    // 「どの目でも置ける」印が入っているスキルは目を問わない。数え方は一致型のまま
+    // ＝1個で1回なので、これ以降の分岐は目の呼び名が変わるだけ。
+    const anyDie = acceptsAnyDie(requirement, skill);
+    const wanted = anyDie ? null : readNumberField(skill, requirement.valueField);
+    if (!anyDie && wanted === null) return no('対応する数字が設定されていません');
+
+    const faceLabel = anyDie ? 'どの目でも' : `${wanted}の目`;
+    if (count === 0) {
+      const needText = anyDie ? 'どの目でもいいのでダイスが必要です' : `${wanted}の目が必要です`;
+      return { ...no(needText), supportsPartialUse: true };
+    }
 
     // 1個で1回。何個乗せてもよく、乗せた数だけ使える。
     // targetOptions/targetValue は一致型には無い概念だが、**戻り値の形は必ず揃える**。
@@ -332,7 +354,7 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
     return {
       ready: true, uses: count, perUseDice: 1, supportsPartialUse: true,
       targetOptions: [], targetValue: null,
-      description: `${wanted}の目 ×${count} → ${count}回使用`
+      description: `${faceLabel} ×${count} → ${count}回使用`
     };
   }
 

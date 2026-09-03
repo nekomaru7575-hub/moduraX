@@ -35,9 +35,16 @@ const MAIN_TAB_ID = 'main';
 const FACE_NUMBERS = [1, 2, 3, 4, 5, 6];
 const FACE_LABELS = ['１', '２', '３', '４', '５', '６'];
 
+// 「対応する数字」に入れると、1〜6のどの目でも置けるようになる印。シートの表記に
+// 合わせて「0/7」と書くが、**0か7の目しか置けないという意味ではない**（d6に0も7も出ない）。
+// 数字に見えて数字ではないので、判定はdice-draft-model.jsのanyValueが拾う。
+const ANY_FACE_VALUE = '0/7';
+
+// 「なし」は置かない。対応する数字が決まっていないスキルはダイスを1個も置けず、
+// 選ぶ意味のある選択肢ではないため（そう保存された古いデータは空欄として出る）。
 const NUMBER_OPTIONS = [
-  { value: '', label: 'なし' },
-  ...FACE_NUMBERS.map(n => ({ value: String(n), label: String(n) }))
+  ...FACE_NUMBERS.map(n => ({ value: String(n), label: String(n) })),
+  { value: ANY_FACE_VALUE, label: ANY_FACE_VALUE }
 ];
 
 const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
@@ -69,7 +76,8 @@ const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
 
 // チャージで振った目は「ダイスドラフト」のプールへ入り、パネル（js/dice-draft-panel.js）で
 // スキルへドラッグして使う。スキルの「対応する数字」と同じ目だけが置け、置いた個数だけ使用できる
-// ＝ requirement の kind:'match'。
+// ＝ requirement の kind:'match'。「対応する数字」が「0/7」のスキルだけは目を問わず、
+// 1〜6どれでも置ける（anyValue）。数え方は同じで、1個で1回だ。
 //
 // かつては出目の在庫を face1..face6 というパラメータで数えていたが、ドラフトのプールが
 // その役目を引き継いだので廃止した（このシステムはコマ固有のパラメータを持たない）。
@@ -79,7 +87,7 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   diceSides: 6,
   bcdiceSystem: STELLA_KNIGHTS_BCDICE_SYSTEM,
   skillSpec: STELLA_KNIGHTS_SKILL_SPEC,
-  requirement: { kind: 'match', valueField: 'number' }
+  requirement: { kind: 'match', valueField: 'number', anyValue: ANY_FACE_VALUE }
 });
 
 // --- コマのパラメータ ---

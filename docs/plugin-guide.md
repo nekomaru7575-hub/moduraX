@@ -654,6 +654,14 @@ diceDraft: createDiceDraftSpec({
 | `'match'` | `{ valueField }` | `skill.fields[valueField]` と同じ目だけ | 1個以上 | 置いた個数 |
 | `'sum'` | `{ targetField }` | 制限なし | 合計 ≧ `skill.fields[targetField]` | 1回 |
 
+`kind: 'match'` で「このスキルはどの目でも置ける」を表したい場合は `anyValue` を足す。
+`skill.fields[valueField]` がその値と一致するスキルだけ目を問わなくなる（数え方は一致型の
+まま＝1個で1回）。印は選択肢の1つとして持たせる形で、ステラナイツは「0/7」を使っている。
+
+```js
+requirement: { kind: 'match', valueField: 'number', anyValue: '0/7' }
+```
+
 `skillSpec` を省くと「まだスキル一覧が無いシステム」として扱われ、プールに溜めるところまで動く。
 
 **`kind: 'sum'` の目標値**は数値のほか「`3～12`」と書ける。最小値の倍数（3・6・9・12）から

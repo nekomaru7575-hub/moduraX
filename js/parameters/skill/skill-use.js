@@ -154,6 +154,12 @@ function groupBuffs(spec, skills, context, expirePhaseFallback) {
  *   logDetail?: string,           ログ2行目（例 コンボに組み込まれたエフェクト名の並び）
  *   logSystem?: string,           チャットログの発言種別
  *   chatCommand?: string,         これを起こしたチャットコマンド（ログに添える）
+ *   onLog?: (log: { entry: object, title: string, body: string }) => void,
+ *     渡すとログをdispatchせず、組み立てた発言をこの関数へ渡す。
+ *     同じスキルを続けて使う側（ダイスドラフトの複数回使用・dice-draft-use.js）が、
+ *     1回ごとに出るログを1行へまとめるためにある。titleとbodyを分けて渡すのは、
+ *     まとめる側が見出しだけを「（スキル名）×（回数）」へ差し替えられるようにするため
+ *     （resultTextを文字列として切り直させると、組み立ての規則が2か所に散る）。
  *   expirePhaseFallback?: string|null,
  *   tag?: string|null,
  *   applyCosts?: boolean,
@@ -164,7 +170,7 @@ function groupBuffs(spec, skills, context, expirePhaseFallback) {
 export function runSkillUse({
   spec, targetSkills, allSkills, tokenId, dispatch, getToken,
   getEffectiveParameterValue, generateBuffId, onSaveSkills,
-  logTitle, logDetail = '', logSystem, chatCommand,
+  logTitle, logDetail = '', logSystem, chatCommand, onLog = null,
   expirePhaseFallback = null, tag = null, applyCosts = true, buffNameFallback = ''
 }) {
   const token = getToken();
@@ -238,17 +244,20 @@ export function runSkillUse({
   }
   const notice = noticeLines.length > 0 ? `\n${noticeLines.join('\n')}` : '';
 
-  dispatch('ADD_CHAT_MESSAGE', {
-    tabId: 'main',
-    entry: {
-      system: logSystem || spec.noun,
-      character: token.name || '',
-      characterId: token.id || null,
-      color: token.textColor || null,
-      command: chatCommand,
-      resultText: `${logTitle}${logDetail ? `\n${logDetail}` : ''}${noteText}${costText}${notice}`
-    }
-  });
+  // 見出し（logTitle）と残り（body）を分けて持つ。onLogでまとめる側が、見出しだけを
+  // 差し替えて1行に束ねられるようにするため。
+  const body = `${logDetail ? `\n${logDetail}` : ''}${noteText}${costText}${notice}`;
+  const entry = {
+    system: logSystem || spec.noun,
+    character: token.name || '',
+    characterId: token.id || null,
+    color: token.textColor || null,
+    command: chatCommand,
+    resultText: `${logTitle}${body}`
+  };
+
+  if (onLog) onLog({ entry, title: logTitle, body });
+  else dispatch('ADD_CHAT_MESSAGE', { tabId: 'main', entry });
 
   return true;
 }

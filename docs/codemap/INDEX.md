@@ -20,7 +20,7 @@ generated: 2026-09-04
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 154 | 690 | 1181 | 58 | 6 |
+| 154 | 690 | 1181 | 58 | 7 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -205,6 +205,7 @@ export の顔ぶれかシグネチャが変わったのに `## 役割` が書き
 - [[js.board-data-driven\|js/board-data-driven.js]]
 - [[js.card-catalog\|js/card-catalog.js]]
 - [[js.help.help-content\|js/help/help-content.js]]
+- [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]]
 - [[js.stamp-registry\|js/stamp-registry.js]]
 - [[js.store.ids\|js/store/ids.js]]
 - [[js.store.stamps\|js/store/stamps.js]]

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-use.js
-lines: 255
+lines: 264
 exports: 4
 imported_by: 8
-api_sha: ff0a6905208a
+api_sha: d604684a61c2
 prose_sha: ff0a6905208a
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -28,7 +28,7 @@ _(未記入)_
 | 27 | fn | buildUseFailureMessage | `buildUseFailureMessage(spec, blocked)` | 使用できないスキルがあったときにユーザーへ出す文面。 |
 | 57 | fn | sumSkillCosts | `sumSkillCosts(spec, skills)` | 使用時に払うコスト（specのfields[].onUseで宣言された欄）を、パラメータごとに合計する。 |
 | 92 | fn | applySkillCosts | `applySkillCosts({ costs, token, tokenId, dispatch })` | コストをパラメータの基礎値へ加算する。 |
-| 164 | fn | runSkillUse | `runSkillUse({ spec, targetSkills, allSkills, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveSkills, logTitle, logDetail = '', logSystem, chatCommand, expirePhaseFallback = null, tag = null, applyCosts = true, buffNameFallback = '' })` | スキルを使用する。 |
+| 170 | fn | runSkillUse | `runSkillUse({ spec, targetSkills, allSkills, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveSkills, logTitle, logDetail = '', logSystem, chatCommand, onLog = null, expirePhaseFallback = null, tag = null, applyCosts = true, buffNameFallback = '' })` | スキルを使用する。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（6）
 
@@ -42,7 +42,7 @@ _(未記入)_
 | 57 | sumSkillCosts | `sumSkillCosts(spec, skills)` | 28 | ✓ |
 | 92 | applySkillCosts | `applySkillCosts({ costs, token, tokenId, dispatch })` | 10 | ✓ |
 | 111 | groupBuffs | `groupBuffs(spec, skills, context, expirePhaseFallback)` | 29 |  |
-| 164 | runSkillUse | `runSkillUse({ spec, targetSkills, allSkills, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveSkills, logTitle, logDetail = '', logSystem, chatCommand, expirePhaseFallback = null, tag = null, applyCosts = true, buffNameFallback = '' })` | 91 | ✓ |
+| 170 | runSkillUse | `runSkillUse({ spec, targetSkills, allSkills, tokenId, dispatch, getToken, getEffectiveParameterValue, generateBuffId, onSaveSkills, logTitle, logDetail = '', logSystem, chatCommand, onLog = null, expirePhaseFallback = null, tag = null, applyCosts = true, buffNameFallback = '' })` | 94 | ✓ |
 
 ## 依存
 

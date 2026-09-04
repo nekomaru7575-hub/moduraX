@@ -86,7 +86,13 @@ export function runDiceDraftUse({
   // 【ここが要】次の回へ workingSkills を引き継がないと、2回目以降が「まだ0回」の
   // 古い一覧で判定され、上限をすり抜ける。runSkillUse は保存を自分ではやらず
   // onSaveSkills へ次の配列を渡してくるので、それを受け取って回す。
+  //
+  // 【ログは1行にまとめる】以前は回すたびに1行ずつ出していたため、3個まとめて使うと
+  // 同じ効果の説明が3行流れ、直前の判定結果がログの上へ押し出されていた。
+  // 各回のログはonLogで受け取るだけにして、出すのはループを抜けてから1回。
+  // 内容はどの回も同じ（効果も修正も回ごとに変わらない）ので、最後の1件を採る。
   let used = 0;
+  let lastLog = null;
   for (let i = 0; i < plannedUses; i += 1) {
     const target = findSkillByName(workingSkills, skillName);
     if (!target) break;
@@ -101,13 +107,12 @@ export function runDiceDraftUse({
       getEffectiveParameterValue,
       generateBuffId,
       onSaveSkills: (next) => { workingSkills = next; },
-      logTitle: plannedUses > 1
-        ? `${skillSpec.noun}使用: ${skillName}（${i + 1}/${plannedUses}回目）`
-        : `${skillSpec.noun}使用: ${skillName}`,
-      // 消滅の知らせは最後の1回にだけ添える（複数回使えるシステムで毎回繰り返さないため）
-      logDetail: i === plannedUses - 1 ? `${result.description}${expiredNote}` : result.description,
+      // 見出しはループを抜けてから差し替える（回数が「使えた数」で決まるため）
+      logTitle: `${skillSpec.noun}使用: ${skillName}`,
+      logDetail: `${result.description}${expiredNote}`,
       logSystem: spec.label,
-      chatCommand
+      chatCommand,
+      onLog: (log) => { lastLog = log; }
     });
 
     // 上限や使用条件で弾かれた。ここまでの分だけを確定させる
@@ -117,6 +122,18 @@ export function runDiceDraftUse({
   }
 
   if (used === 0) return none;
+
+  // 見出しは「（スキル名）×（回数）」。回数に plannedUses ではなく used を使うのは、
+  // 上限で途中まで通った場合に、実際より多い回数を書かないため。
+  if (lastLog) {
+    const title = used > 1
+      ? `${skillSpec.noun}使用: ${skillName}×${used}`
+      : `${skillSpec.noun}使用: ${skillName}`;
+    dispatch('ADD_CHAT_MESSAGE', {
+      tabId: 'main',
+      entry: { ...lastLog.entry, resultText: `${title}${lastLog.body}` }
+    });
+  }
 
   // 使えた回数ぶんだけ消費する。1回が何個を食うかは規則側（perUseDice）が知っている。
   const diceSpent = Math.min(dice.length, result.perUseDice * used);

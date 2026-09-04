@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dice-draft/dice-draft-use.js
-lines: 142
+lines: 159
 exports: 1
 imported_by: 2
 api_sha: 7cb2872b952b
 prose_sha: 7cb2872b952b
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -34,7 +34,7 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 35 | runDiceDraftUse | `runDiceDraftUse({ spec, skillName, mode = 'all', targetValue = null, token, dispatch, getToken, getEffectiveParameterValue, generateBuffId, chatCommand = '', notify = (message) => alert(message) })` | 107 | ✓ |
+| 35 | runDiceDraftUse | `runDiceDraftUse({ spec, skillName, mode = 'all', targetValue = null, token, dispatch, getToken, getEffectiveParameterValue, generateBuffId, chatCommand = '', notify = (message) => alert(message) })` | 124 | ✓ |
 
 ## 依存
 

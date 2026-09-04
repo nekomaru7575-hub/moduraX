@@ -1,11 +1,11 @@
 ---
 source: js/help/help-panel.js
-lines: 194
+lines: 211
 exports: 1
 imported_by: 1
 api_sha: 0089ce42a2a4
 prose_sha: 0089ce42a2a4
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -36,7 +36,7 @@ _(未記入)_
 |---:|---|---|---:|:-:|
 | 23 | pickGreeting | `pickGreeting()` | 9 |  |
 | 34 | fillBubble | `fillBubble(bubble, body)` | 9 |  |
-| 52 | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | 142 | ✓ |
+| 52 | createHelpPanel | `createHelpPanel({ container, getActivePlugin })` | 159 | ✓ |
 
 ## 依存
 

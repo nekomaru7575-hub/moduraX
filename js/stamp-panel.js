@@ -69,6 +69,10 @@ export function initStampPanel() {
   panel.body.appendChild(countsSection);
 
   let renderedPluginId = null;
+  // 直前に描いたときの room.stamps の**参照**。中身の比較は要らない：#commitは
+  // スライスを構造共有で凍結し、withMapEntry/withoutMapEntryは必ず新しいオブジェクトを
+  // 返すので、参照が変わるのはこのマップが変わったときだけ。
+  let renderedRoomStamps = null;
   let buttons = [];
 
   function applyAvailability() {
@@ -116,14 +120,15 @@ export function initStampPanel() {
     return button;
   }
 
-  function renderGrid(pluginId) {
-    renderedPluginId = pluginId;
+  function renderGrid(room) {
+    renderedPluginId = room?.activePlugin ?? null;
+    renderedRoomStamps = room?.stamps ?? null;
     grid.innerHTML = '';
     // 絵の置き場が無い環境では、プラグインのスタンプは url が null になる
     // （js/asset-base.js）。押しても絵が出せないので、ボタン自体を出さない。
     // 一覧から落とすのはここだけ。IDが実在するかの判定（js/stamp-registry.jsの
     // isKnownStampId）まで落とすと、送っても捨てられる側になってしまう。
-    buttons = listStamps(pluginId).filter(stamp => stamp.url).map(stamp => {
+    buttons = listStamps(room).filter(stamp => stamp.url).map(stamp => {
       const button = buildButton(stamp);
       grid.appendChild(button);
       return button;
@@ -153,7 +158,7 @@ export function initStampPanel() {
     const stampCounts = state.stampCounts || {};
     const participants = state.participants || {};
     // 並びはパネルのボタンと同じ（スタンプの宣言順）。集計側の都合で順番が入れ替わらない。
-    const stamps = listStamps(state.room?.activePlugin ?? null)
+    const stamps = listStamps(state.room)
       .filter(stamp => Object.keys(stampCounts[stamp.id] || {}).length > 0);
 
     countsList.innerHTML = '';
@@ -188,9 +193,12 @@ export function initStampPanel() {
   });
 
   EventBus.subscribe('STATE_CHANGED', (state) => {
-    // 顔ぶれが変わるのは適用プラグインが変わったときだけなので、そのときだけ組み直す
-    const pluginId = state.room?.activePlugin ?? null;
-    if (pluginId !== renderedPluginId) renderGrid(pluginId);
+    // 顔ぶれが変わるのは、適用プラグインが変わったときと、部屋のスタンプが増減した
+    // ときだけなので、そのときだけ組み直す
+    if ((state.room?.activePlugin ?? null) !== renderedPluginId
+      || (state.room?.stamps ?? null) !== renderedRoomStamps) {
+      renderGrid(state.room);
+    }
 
     renderCounts(state);
   });
@@ -201,7 +209,7 @@ export function initStampPanel() {
     renderCounts(store.state);
   });
 
-  renderGrid(store.state.room?.activePlugin ?? null);
+  renderGrid(store.state.room);
   renderCounts(store.state);
 
   // 盤外の右クリックメニューから表示/非表示を切り替えられるようにする

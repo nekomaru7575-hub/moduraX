@@ -27,6 +27,7 @@ import { Redis } from '@upstash/redis';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
+import { roomStampPublicId } from '../js/store/stamps.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
 // メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
 import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES } from '../js/net-host-rules.js';
@@ -1264,6 +1265,21 @@ function pickOwnedAudioKey(track) {
   return track && track.source === 'upload' && track.key ? track.key : null;
 }
 
+// このアクションで状態から消える「R2上の実体」のキー。無ければnull。
+// dispatchの**前**に呼ぶこと（消えてしまってからでは引けない）。
+// 実体を持つものを増やしたらここに1行足す。
+function pickRemovedMediaKey(state, message) {
+  if (message.action === 'REMOVE_AUDIO_TRACK') {
+    return pickOwnedAudioKey(state.room?.audioTracks?.[message.payload?.id]);
+  }
+  if (message.action === 'REMOVE_ROOM_STAMP') {
+    // payloadはローカルidなので、状態を引く前に公開IDへ直す（reducerと同じ導出）
+    const id = roomStampPublicId(String(message.payload?.id ?? ''));
+    return state.room?.stamps?.[id]?.key || null;
+  }
+  return null;
+}
+
 // その部屋が持ち物として置いたファイルの置き場所（R2上のフォルダに相当する接頭辞）。
 // 末尾のスラッシュは必須。これが無いと rooms/room-1 が rooms/room-10 にも一致してしまう。
 function roomObjectPrefix(roomId) {
@@ -1962,6 +1978,19 @@ async function adoptStateMedia(roomId, state) {
       : track;
   }
 
+  // 部屋のスタンプ。引き取れなかったものはレコードごと落とす（音源と同じ扱い）：
+  // スタンプはurlが無いと成立しない（js/store/stamps.jsのnormalizeRoomStampが弾く）ので、
+  // 画像だけnullにして残すことができない。
+  // keyも背景と同じく画像URLと対で書き換える。片方だけだと、部屋の削除時にキーだけが
+  // 旧部屋のものとして残る。
+  const roomStamps = {};
+  for (const [id, stamp] of Object.entries(state.room?.stamps || {})) {
+    if (!stamp || typeof stamp !== 'object') continue;
+    const image = await adoptImage(stamp.url);
+    if (!image) continue; // 落ちたぶんはadoptImageがdropped.imagesに数えている
+    roomStamps[id] = { ...stamp, url: image, key: keyFromPublicUrl(image) || null };
+  }
+
   const scenes = {};
   for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
     // 落とした音源を指したままだと、シーン遷移時に鳴らない曲を指し続ける。
@@ -1994,6 +2023,7 @@ async function adoptStateMedia(roomId, state) {
         ...(await adoptBackground(state.room)),
         audioTracks,
         audioPlayback,
+        stamps: roomStamps,
         scenes
       }
     }
@@ -2032,7 +2062,12 @@ const IMAGE_PURPOSES = {
   token: { requireGm: false },
   panel: { requireGm: false },
   // カードの裏面（js/deck-dialog.js）。デッキの配置自体がGM限定でないのと揃える。
-  card: { requireGm: false }
+  card: { requireGm: false },
+  // 部屋のスタンプ（js/room-stamp-dialog.js）。登録したスタンプは以後そのIDを送った
+  // 誰の操作でも全員の画面に出るので、背景と同じくGM限定。
+  // アクション側（js/room-authority-rules.jsのADD_ROOM_STAMP）と二重の門にしてある：
+  // 片方だけだと「登録はできないがアップロードはできる」口が残る。
+  stamp: { requireGm: true, forbiddenMessage: 'スタンプ画像の登録はGMだけが行えます' }
 };
 
 // POST /api/image?room=room-N&purpose=background|token|panel|card
@@ -3759,7 +3794,7 @@ wss.on('connection', async (ws, req) => {
       if (!verifiedParticipantId) return;
       // 使えるスタンプはその部屋に適用中のプラグインで変わる（js/stamp-registry.js）。
       // 別のシステムのスタンプを名指しで送られても、ここで落ちる。
-      if (!isKnownStampId(message.stampId, entry.store.state.room?.activePlugin ?? null)) return;
+      if (!isKnownStampId(message.stampId, entry.store.state.room)) return;
       if (!allowStamp(ws)) return;
 
       broadcastToRoom(entry, null, {
@@ -3839,11 +3874,13 @@ wss.on('connection', async (ws, req) => {
     // reducer側の想定外の状態（例: 古いエクスポートデータに無いキーへのアクセス等）で
     // 例外が投げられても、この1メッセージだけを無視する。ここで捕まえないと、wsのmessage
     // イベント内の未捕捉例外でNodeプロセスごと落ち、同居する他の全部屋も巻き添えで切断される。
-    // 音源トラックの削除は、状態から消える前にR2上のキーを控えておかないと実体が残ってしまう。
-    // 外部URL（source:'external'）はこちらの持ち物ではないので触らない。
-    const removedAudioKey = message.action === 'REMOVE_AUDIO_TRACK'
-      ? pickOwnedAudioKey(entry.store.state.room?.audioTracks?.[message.payload?.id])
-      : null;
+    // 実体を持つものの削除は、状態から消える前にR2上のキーを控えておかないと実体が残る。
+    // 音源の外部URL（source:'external'）はこちらの持ち物ではないので触らない。
+    // 部屋のスタンプのURLはアップロードかP2Pの参照のどちらかで、keyが入っているのは
+    // 前者だけ（js/store/stamps.js）。アップロードのキーは rooms/<roomId>/<uuid>.<ext> で
+    // 内容アドレスではないため、同じ画像を2度登録しても別オブジェクトになる
+    // ＝他のレコードが同じキーを指している心配は要らない。
+    const removedMediaKey = pickRemovedMediaKey(entry.store.state, message);
 
     try {
       entry.store.dispatch(message.action, message.payload);
@@ -3853,15 +3890,15 @@ wss.on('connection', async (ws, req) => {
     }
 
     // 実体の削除は状態の更新を待たせる必要がないため、awaitせず投げっぱなしにする
-    // （失敗しても再生には影響せず、残るのは孤児オブジェクトだけ）。
+    // （失敗しても表示・再生には影響せず、残るのは孤児オブジェクトだけ）。
     // キーは状態経由でクライアントが書ける値なので、自分の部屋のものだけを消す
-    if (removedAudioKey && isOwnKeyOfRoom(roomId, removedAudioKey)) {
-      deleteObject(removedAudioKey)
-        // 音源トラックは大きさを持たないので、何バイト減ったかはここでは分からない。
-        // 集計を捨てて、次のアップロードでR2から数え直させる（消したのに「上限に達して
-        // います」と言われ続けるのを防ぐ）。
+    if (removedMediaKey && isOwnKeyOfRoom(roomId, removedMediaKey)) {
+      deleteObject(removedMediaKey)
+        // 音源トラックもスタンプも大きさを持たないので、何バイト減ったかはここでは
+        // 分からない。集計を捨てて、次のアップロードでR2から数え直させる（消したのに
+        // 「上限に達しています」と言われ続けるのを防ぐ）。
         .then(() => { forgetRoomStorage(roomId); invalidateBucketUsage(); })
-        .catch((error) => console.warn(`[server] 音源の削除に失敗しました (${removedAudioKey}):`, error.message));
+        .catch((error) => console.warn(`[server] 実体の削除に失敗しました (${removedMediaKey}):`, error.message));
     }
     schedulePersistForRoom(roomId, entry);
     broadcastToRoom(entry, ws, { type: 'ACTION', action: message.action, payload: message.payload });

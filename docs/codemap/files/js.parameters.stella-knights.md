@@ -1,11 +1,11 @@
 ---
 source: js/parameters/stella-knights.js
-lines: 531
+lines: 539
 exports: 1
 imported_by: 1
 api_sha: 3241cc3cfb34
 prose_sha: 3241cc3cfb34
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 511 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
+| 519 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（13）
 
@@ -34,19 +34,19 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 117 | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` | 3 |  |
-| 141 | buildStellaKnightsRoomParameters | `buildStellaKnightsRoomParameters()` | 3 |  |
-| 145 | computeStellaKnightsDerivedRoomParameters | `computeStellaKnightsDerivedRoomParameters(parameters, context = {})` | 8 |  |
-| 154 | looksLikeStellaKnightsChatCommand | `looksLikeStellaKnightsChatCommand(rawInput)` | 9 |  |
-| 165 | readStellaKnightsSkills | `readStellaKnightsSkills(components)` | 3 |  |
-| 169 | renderStellaKnightsCharacterPanel | `renderStellaKnightsCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents })` | 89 |  |
-| 262 | resetStellaKnightsComponentsOnPhaseEnd | `resetStellaKnightsComponentsOnPhaseEnd(components, phase)` | 7 |  |
-| 276 | runPetitLucky | `runPetitLucky(input, { token, dispatch })` | 54 |  |
-| 341 | runBouquetSpend | `runBouquetSpend(input, { token, dispatch })` | 50 |  |
-| 395 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
-| 409 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters } )` | 26 |  |
-| 463 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 12 |  |
-| 482 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 28 |  |
+| 125 | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` | 3 |  |
+| 149 | buildStellaKnightsRoomParameters | `buildStellaKnightsRoomParameters()` | 3 |  |
+| 153 | computeStellaKnightsDerivedRoomParameters | `computeStellaKnightsDerivedRoomParameters(parameters, context = {})` | 8 |  |
+| 162 | looksLikeStellaKnightsChatCommand | `looksLikeStellaKnightsChatCommand(rawInput)` | 9 |  |
+| 173 | readStellaKnightsSkills | `readStellaKnightsSkills(components)` | 3 |  |
+| 177 | renderStellaKnightsCharacterPanel | `renderStellaKnightsCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents })` | 89 |  |
+| 270 | resetStellaKnightsComponentsOnPhaseEnd | `resetStellaKnightsComponentsOnPhaseEnd(components, phase)` | 7 |  |
+| 284 | runPetitLucky | `runPetitLucky(input, { token, dispatch })` | 54 |  |
+| 349 | runBouquetSpend | `runBouquetSpend(input, { token, dispatch })` | 50 |  |
+| 403 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
+| 417 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters } )` | 26 |  |
+| 471 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 12 |  |
+| 490 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 28 |  |
 
 ## 依存
 

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dice-draft/dice-draft-model.js
-lines: 519
+lines: 541
 exports: 16
 imported_by: 6
 api_sha: ad6be29f2d73
 prose_sha: ad6be29f2d73
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -31,18 +31,18 @@ _(未記入)_
 | 59 | fn | normalizeDraft | `normalizeDraft(raw, knownSkillNames = null)` | 保存済みのドラフトを正規化する。 |
 | 97 | fn | countDice | `countDice(draft)` | そのドラフトが持っているダイスの総数（プール＋配置済み）。 |
 | 104 | fn | placedDice | `placedDice(draft, skillName)` | そのスキルに乗っているダイス。 |
-| 150 | fn | createDiceDraftSpec | `createDiceDraftSpec(definition)` | ダイスドラフトの宣言。 |
-| 207 | fn | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。 |
-| 223 | fn | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。 |
-| 276 | fn | acceptsDie | `acceptsDie(spec, skill, die)` | その目をそのスキルへ置いてよいか。 |
-| 313 | fn | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 今そのスキルに乗っているダイスで発動できるか。 |
-| 390 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
-| 422 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
-| 474 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
-| 502 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
-| 516 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
+| 153 | fn | createDiceDraftSpec | `createDiceDraftSpec(definition)` | ダイスドラフトの宣言。 |
+| 219 | fn | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。 |
+| 235 | fn | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。 |
+| 288 | fn | acceptsDie | `acceptsDie(spec, skill, die)` | その目をそのスキルへ置いてよいか。 |
+| 327 | fn | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 今そのスキルに乗っているダイスで発動できるか。 |
+| 412 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
+| 444 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
+| 496 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
+| 524 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
+| 538 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（20）
+## トップレベル関数（LOCAL TASKS 候補）（21）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -55,20 +55,21 @@ _(未記入)_
 | 59 | normalizeDraft | `normalizeDraft(raw, knownSkillNames = null)` | 36 | ✓ |
 | 97 | countDice | `countDice(draft)` | 5 | ✓ |
 | 104 | placedDice | `placedDice(draft, skillName)` | 3 | ✓ |
-| 150 | createDiceDraftSpec | `createDiceDraftSpec(definition)` | 25 | ✓ |
-| 181 | readNumberField | `readNumberField(skill, fieldKey)` | 6 |  |
-| 207 | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 4 | ✓ |
-| 223 | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 7 | ✓ |
-| 235 | parseSumTarget | `parseSumTarget(raw)` | 18 |  |
-| 262 | applyTargetModifier | `applyTargetModifier(options, modifier, floor)` | 9 |  |
-| 276 | acceptsDie | `acceptsDie(spec, skill, die)` | 15 | ✓ |
-| 313 | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 71 | ✓ |
-| 390 | addDiceToPool | `addDiceToPool(draft, dice)` | 14 | ✓ |
-| 422 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
-| 444 | extractDie | `extractDie(draft, dieId)` | 24 |  |
-| 474 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
-| 502 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
-| 516 | clearDraft | `clearDraft()` | 3 | ✓ |
+| 153 | createDiceDraftSpec | `createDiceDraftSpec(definition)` | 25 | ✓ |
+| 186 | acceptsAnyDie | `acceptsAnyDie(requirement, skill)` | 5 |  |
+| 193 | readNumberField | `readNumberField(skill, fieldKey)` | 6 |  |
+| 219 | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 4 | ✓ |
+| 235 | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 7 | ✓ |
+| 247 | parseSumTarget | `parseSumTarget(raw)` | 18 |  |
+| 274 | applyTargetModifier | `applyTargetModifier(options, modifier, floor)` | 9 |  |
+| 288 | acceptsDie | `acceptsDie(spec, skill, die)` | 17 | ✓ |
+| 327 | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 79 | ✓ |
+| 412 | addDiceToPool | `addDiceToPool(draft, dice)` | 14 | ✓ |
+| 444 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
+| 466 | extractDie | `extractDie(draft, dieId)` | 24 |  |
+| 496 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
+| 524 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
+| 538 | clearDraft | `clearDraft()` | 3 | ✓ |
 
 ## 依存
 

@@ -85,8 +85,12 @@ export const PARTICIPANTS_HANDLERS = {
 
     // その部屋で使えるスタンプのうち、プラグインが足したものだけを数える。
     // Coreのスタンプ（相槌）まで数えると、集計が「OK ×132」で埋まって用を成さない。
+    // 部屋に登録したスタンプ（"room:xxx"・js/store/stamps.js）も同じ理由で数えない。
+    // 下のstartsWithがそのまま歯止めになっている（"room:"はプラグインidで始まらない）ので、
+    // ここに条件を足す必要は無い。数えたくなったら、消したスタンプのぶんが
+    // stampCountsに孤児として残る後始末から先に決めること。
     const activePluginId = prevState.room?.activePlugin ?? null;
-    const stamp = findStamp(stampId, activePluginId);
+    const stamp = findStamp(stampId, prevState.room);
     if (!stamp || !activePluginId || !stamp.id.startsWith(`${activePluginId}:`)) return;
 
     // 枚数は0以上の整数だけ。上限を設けているのは、桁数の大きい値を書き込まれても

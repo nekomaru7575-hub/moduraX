@@ -12,6 +12,7 @@ import {
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
   usesInitiativeProcess, showsEntryMessages, snapsToGrid, generateDeckId, generateDeckTemplateId,
+  generateRoomStampId,
   generateCardId, CARD_COLS, CARD_ROWS, SYSTEM_CHAT_TAB_ID
 } from './game-store.js';
 import { showDeckListDialog } from './deck-list-dialog.js';
@@ -50,6 +51,9 @@ import { looksLikeItemCommand } from './parameters/skill/item-use.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
+import { showRoomStampDialog } from './room-stamp-dialog.js';
+import { showRoomStampListDialog } from './room-stamp-list-dialog.js';
+import { roomStampPublicId } from './store/stamps.js';
 import { showSceneListDialog } from './scene-list-dialog.js';
 import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
@@ -725,6 +729,41 @@ function openOriginalTableListDialog() {
   });
 }
 
+// 部屋のスタンプの登録／編集ダイアログを開き、結果をdispatchする。stampを渡すと編集モード。
+// 登録したスタンプは「スタンプ送信」パネルと、チャットの「スタンプ(名前)」から送れる。
+function openRoomStampEditor(stamp = null) {
+  showRoomStampDialog({
+    stamp,
+    onConfirm: ({ id, label, url, key }) => {
+      // 編集は同じidで上書きするだけ。オリジナル表（キーがタイトル）と違い、
+      // 名前を変えても旧エントリを消す必要は無い。
+      store.dispatch('ADD_ROOM_STAMP', { id: id || generateRoomStampId(), label, url, key });
+      openRoomStampListDialog();
+    },
+    // 一覧は自分を閉じてからこの画面を開くので、キャンセル時は一覧へ戻す
+    onCancel: () => openRoomStampListDialog()
+  });
+}
+
+// オリジナルスタンプ一覧ダイアログ。登録・編集・削除の後は最新の一覧で開き直す。
+function openRoomStampListDialog() {
+  const stamps = store.state.room.stamps || {};
+  showRoomStampListDialog({
+    stamps,
+    onAdd: () => openRoomStampEditor(),
+    // 一覧はローカルidを返す。編集画面へはローカルidのまま渡す（保存時に同じidで上書き）
+    onSelect: (localId) => {
+      const stamp = stamps[roomStampPublicId(localId)];
+      if (!stamp) return;
+      openRoomStampEditor({ ...stamp, id: localId });
+    },
+    onRemove: (localId) => {
+      store.dispatch('REMOVE_ROOM_STAMP', { id: localId });
+      openRoomStampListDialog();
+    }
+  });
+}
+
 // --- シーン（GM限定。js/scene-list-dialog.js参照） ---
 // 盤面の見た目（背景・盤面サイズ・パネル）を場面ごとに保存し、1クリックで切り替える。
 
@@ -1083,6 +1122,15 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: 'オリジナル表一覧',
         onSelect: openOriginalTableListDialog
+      },
+      {
+        // 登録・削除はGM限定（ADD_ROOM_STAMP／REMOVE_ROOM_STAMP）。項目は残して理由を示す。
+        // 登録したスタンプは、以後そのIDを送った誰の操作でも全員の画面に出るため、
+        // 背景設定と同じ種類の判断として扱う。
+        label: 'オリジナルスタンプ一覧',
+        onSelect: openRoomStampListDialog,
+        disabled: !canOperateAsGm(),
+        title: canOperateAsGm() ? undefined : GM_ONLY_REASON
       },
       {
         label: 'ログを保存',
@@ -1768,11 +1816,10 @@ function tryHandleStampCommand(rawInput) {
   if (!match) return false;
 
   // 書式が合った時点で必ずtrueを返す。falseで抜けるとBCDiceへの判定として流れてしまう。
-  // 使えるスタンプは適用中のプラグインで変わる（js/stamp-registry.js）。
-  const activePluginId = store.state.room?.activePlugin ?? null;
-  const stamp = findStampByName(match[1], activePluginId);
+  // 使えるスタンプは適用中のプラグインと、部屋に登録したぶんで変わる（js/stamp-registry.js）。
+  const stamp = findStampByName(match[1], store.state.room);
   if (!stamp) {
-    alert(`スタンプ「${match[1].trim()}」は登録されていません。\n\n使えるスタンプ: ${listStampLabels(activePluginId).join('／')}`);
+    alert(`スタンプ「${match[1].trim()}」は登録されていません。\n\n使えるスタンプ: ${listStampLabels(store.state.room).join('／')}`);
     return true;
   }
 

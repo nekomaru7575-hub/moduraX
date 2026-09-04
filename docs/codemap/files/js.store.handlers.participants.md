@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/participants.js
-lines: 128
+lines: 132
 exports: 1
 imported_by: 1
 api_sha: 7524671cff9c
 prose_sha: 7524671cff9c
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 

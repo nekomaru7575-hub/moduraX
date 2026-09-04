@@ -1,11 +1,11 @@
 ---
 source: js/stamp-panel.js
-lines: 212
+lines: 220
 exports: 1
 imported_by: 1
 api_sha: 0b975953358f
 prose_sha: 0b975953358f
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -34,7 +34,7 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 36 | initStampPanel | `initStampPanel()` | 176 | ✓ |
+| 36 | initStampPanel | `initStampPanel()` | 184 | ✓ |
 
 ## 依存
 

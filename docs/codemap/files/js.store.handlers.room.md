@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/room.js
-lines: 178
+lines: 218
 exports: 1
 imported_by: 1
 api_sha: a1ff12e4b823
 prose_sha: a1ff12e4b823
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 15 | const | ROOM_HANDLERS | `ROOM_HANDLERS` |  |
+| 16 | const | ROOM_HANDLERS | `ROOM_HANDLERS` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 
@@ -33,7 +33,7 @@ _(未記入)_
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.parameters.registry]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]]
+- import → [[js.EventBus]], [[js.parameters.registry]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]], [[js.store.stamps]]
 - imported by → [[js.store.handlers.index]]
 
 ## 注意

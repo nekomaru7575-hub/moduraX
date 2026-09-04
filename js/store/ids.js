@@ -42,6 +42,16 @@ export function generateDeckTemplateId() {
   return `decktpl-${Date.now()}-${deckTemplateIdCounter}`;
 }
 
+let roomStampIdCounter = 0;
+
+// 部屋に登録するスタンプ（room.stamps）のid。これは**ローカルid**で、公開ID
+// （"room:<ローカルid>"）はreducer側が名前空間を冠して作る（js/store/stamps.js）。
+// 送り手に名前空間を決めさせないための分担なので、ここで'room:'を付けないこと。
+export function generateRoomStampId() {
+  roomStampIdCounter += 1;
+  return `roomstamp-${Date.now()}-${roomStampIdCounter}`;
+}
+
 let buffIdCounter = 0;
 
 export function generateBuffId() {

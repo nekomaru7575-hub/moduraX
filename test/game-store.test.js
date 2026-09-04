@@ -467,6 +467,95 @@ test('オリジナル表: 追加と削除', () => {
   assert.equal(store.state.room.originalTables['遭遇表'], undefined);
 });
 
+// --- 部屋のスタンプ（room.stamps） ---
+// 画像URLを状態に持つ唯一のスタンプなので、受け付ける形をここで固定しておく。
+
+const STAMP_URL = 'https://example.invalid/rooms/room-1/a.png';
+
+test('ADD_ROOM_STAMP: 公開IDは受け取った側が付ける', () => {
+  const store = newStore();
+  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'なるほど', url: STAMP_URL, key: 'rooms/room-1/a.png' });
+
+  const stamp = store.state.room.stamps['room:s1'];
+  assert.ok(stamp, 'キーは名前空間付きの公開ID');
+  assert.equal(stamp.id, 'room:s1');
+  assert.equal(store.state.room.stamps.s1, undefined, '素のローカルidはキーにならない');
+
+  // Coreの名前をpayloadで名乗っても、名前空間が付くので奪えない
+  store.dispatch('ADD_ROOM_STAMP', { id: 'ok', label: 'OKっぽいやつ', url: STAMP_URL });
+  assert.ok(store.state.room.stamps['room:ok']);
+  assert.equal(store.state.room.stamps.ok, undefined);
+});
+
+test('ADD_ROOM_STAMP: 受け付けないpayload', () => {
+  const store = newStore();
+
+  assertNoop(store, 'ADD_ROOM_STAMP', { label: 'a', url: STAMP_URL }, 'idが要る');
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', url: STAMP_URL }, 'labelが要る');
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: '   ', url: STAMP_URL }, '空白だけのlabel');
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a' }, 'urlが要る');
+
+  // idに名前空間の区切りやパスを混ぜられない
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 'a:b', label: 'a', url: STAMP_URL });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: '../x', label: 'a', url: STAMP_URL });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: '__proto__', label: 'a', url: STAMP_URL });
+
+  // URLは許可リスト方式。データURLを通すと状態が肥大し、P2Pのスナップショットも壊れる
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: 'data:image/png;base64,AAAA' });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: 'http://example.invalid/a.png' });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: 'image/stamps/ok.png' });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: 'javascript:alert(1)' });
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: `https://example.invalid/${'a'.repeat(500)}` });
+  // ハッシュの桁が足りない参照は受けない（js/asset-store.jsと同じ厳しさ）
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 's1', label: 'a', url: '/asset/abc' });
+
+  // P2P卓の実体参照は通る
+  store.dispatch('ADD_ROOM_STAMP', { id: 's2', label: 'ぴあ', url: `/asset/${'a'.repeat(64)}` });
+  assert.ok(store.state.room.stamps['room:s2']);
+});
+
+test('ADD_ROOM_STAMP: 長い名前は切り詰めて通す', () => {
+  const store = newStore();
+  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'あ'.repeat(50), url: STAMP_URL });
+  assert.equal(store.state.room.stamps['room:s1'].label.length, 20);
+});
+
+test('ADD_ROOM_STAMP: 上限は新規のときだけ見る', () => {
+  const store = newStore();
+  for (let i = 0; i < 24; i += 1) {
+    store.dispatch('ADD_ROOM_STAMP', { id: `s${i}`, label: `n${i}`, url: STAMP_URL });
+  }
+  assert.equal(Object.keys(store.state.room.stamps).length, 24);
+
+  assertNoop(store, 'ADD_ROOM_STAMP', { id: 'over', label: 'あふれ', url: STAMP_URL });
+
+  // 既存idの上書き（＝編集）は数が増えないので、上限に達していても通す
+  store.dispatch('ADD_ROOM_STAMP', { id: 's0', label: '書き換え', url: STAMP_URL });
+  assert.equal(store.state.room.stamps['room:s0'].label, '書き換え');
+  assert.equal(Object.keys(store.state.room.stamps).length, 24);
+});
+
+test('REMOVE_ROOM_STAMP: ローカルidで消す', () => {
+  const store = newStore();
+  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'a', url: STAMP_URL });
+
+  assertNoop(store, 'REMOVE_ROOM_STAMP', { id: '無いid' });
+  assertNoop(store, 'REMOVE_ROOM_STAMP', { id: '__proto__' });
+
+  store.dispatch('REMOVE_ROOM_STAMP', { id: 's1' });
+  assert.equal(store.state.room.stamps['room:s1'], undefined);
+});
+
+test('COUNT_STAMP: 部屋のスタンプは数えない', () => {
+  // 数える対象はプラグインのスタンプだけ（Coreの相槌と同じ扱い）。
+  // ここが通るようになると、消したスタンプのぶんがstampCountsに孤児として残る。
+  const store = newStore({ activePlugin: 'STELLA_KNIGHTS' });
+  store.dispatch('REGISTER_PARTICIPANT', { id: 'p1', nickname: 'アリス' });
+  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'なるほど', url: STAMP_URL });
+
+  assertNoop(store, 'COUNT_STAMP', { stampId: 'room:s1', participantId: 'p1', count: 1 });
+});
+
 // ===========================================================================
 // 参加者・スタンプ（participants）
 // ===========================================================================
@@ -896,6 +985,7 @@ test('hydrate: 古い形の状態に既定値が補われる', () => {
   assert.equal(state.room.name, '昔の部屋');
   assert.ok(state.room.bcdiceSystem, 'BCDiceのシステムが補われる');
   assert.deepEqual(state.room.originalTables, {});
+  assert.deepEqual(state.room.stamps, {});
   assert.deepEqual(state.room.deckTemplates, {});
   assert.deepEqual(state.room.audioTracks, {});
   assert.deepEqual(state.room.audioPlayback, { bgm: null, se: null });
@@ -903,6 +993,33 @@ test('hydrate: 古い形の状態に既定値が補われる', () => {
   assert.deepEqual(state.room.roundSettings, { useInitiativeProcess: false });
   // ルーム変数（現在のラウンド）は読み込んだ材料から計算し直される
   assert.equal(state.room.parameters['core:round'].value, 0);
+});
+
+test('hydrate: 取り込んだ部屋のスタンプに上限と形の整えが掛かる', () => {
+  // 取り込んだ部屋データはreducerを通らずここへ直接入るので、上限もURLの許可リストも
+  // hydrate側でもう一度掛かることを固定する（|| {} で済ませると素通しになる）。
+  const store = newStore();
+
+  const stamps = {};
+  for (let i = 0; i < 40; i += 1) {
+    stamps[`room:s${i}`] = { id: `room:s${i}`, label: `n${i}`, url: STAMP_URL, key: null };
+  }
+  // データURL・キーと中身の食い違い・名前空間の無いキーは、どれも通してはいけない
+  stamps['room:bad'] = { id: 'room:bad', label: 'データURL', url: 'data:image/png;base64,AAAA' };
+  stamps['room:mismatch'] = { id: 'room:other', label: 'ずれ', url: STAMP_URL };
+  stamps.naked = { id: 'naked', label: '名前空間なし', url: STAMP_URL };
+
+  store.hydrate({ room: { name: '取り込んだ部屋', stamps } });
+
+  const kept = store.state.room.stamps;
+  assert.equal(Object.keys(kept).length, 24, '上限で切られる');
+  assert.equal(kept['room:bad'], undefined);
+  assert.equal(kept['room:mismatch'], undefined);
+  assert.equal(kept.naked, undefined);
+  Object.entries(kept).forEach(([key, stamp]) => {
+    assert.equal(stamp.id, key, 'キーと中身の公開IDは必ず一致する');
+    assert.ok(key.startsWith('room:'));
+  });
 });
 
 test('hydrate: 実在しないストッカーを指したカードは、盤面へ戻る（消さない）', () => {

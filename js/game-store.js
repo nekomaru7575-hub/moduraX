@@ -22,6 +22,7 @@ import {
 import {
   MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID, SYSTEM_CHAT_TAB_NAME, withFixedChatTabs
 } from './store/chat.js';
+import { normalizeRoomStampMap } from './store/stamps.js';
 import { normalizeInfoEntries } from './store/info.js';
 import {
   fieldPatchFor, normalizeAudience, normalizeStackOrder, patchCharacter, withMapEntry
@@ -43,7 +44,7 @@ export { CARD_COLS, CARD_ROWS, DEFAULT_CARD_STACK_ORDER } from './store/cards.js
 export { MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID, SYSTEM_CHAT_TAB_NAME } from './store/chat.js';
 export {
   generateBuffId, generateCardId, generateDeckId, generateDeckTemplateId, generateInfoEntryId,
-  generateInfoSectionId, generatePanelId, generatePlotSlotId, generateTokenId
+  generateInfoSectionId, generatePanelId, generatePlotSlotId, generateRoomStampId, generateTokenId
 } from './store/ids.js';
 export {
   DEFAULT_INFO_MASK_CHAR, MAX_INFO_MASKS_PER_SECTION, MAX_INFO_MASK_CHAR_LENGTH,
@@ -203,6 +204,11 @@ export class ImmutableStore {
         bcdiceSystem: newState.room?.bcdiceSystem || DEFAULT_BCDICE_SYSTEM,
         // この機能より前に保存された状態にはroom.originalTablesが無いため、既定値を補う
         originalTables: newState.room?.originalTables || {},
+        // 部屋のスタンプ。同上で既定値を補いつつ、取り込んだ部屋データ（信用しないJSON）も
+        // ここを通るので、件数の上限とURLの許可リストもまとめて掛かる
+        // （originalTablesのように既定値を補うだけで済ませると、細工した書き出しファイルが
+        // データURLのスタンプをいくらでも持ち込める）
+        stamps: normalizeRoomStampMap(newState.room?.stamps),
         // デッキの定義。同上で既定値を補いつつ、取り込んだ部屋データ（信用しないJSON）も
         // ここを通るので形の整えと上限もまとめて掛かる
         deckTemplates: normalizeDeckTemplateMap(newState.room?.deckTemplates),
@@ -345,6 +351,16 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       showEntryMessages: true,
       bcdiceSystem, // BCDiceのシステムID（例: 'Cthulhu7th'）。ルーム単位で全員共通
       originalTables: {}, // ユーザー定義のダイス表。キーはタイトル（後述、original-table-dialog.js参照）
+
+      // 部屋に登録したスタンプ（js/room-stamp-list-dialog.js）。キーは公開ID "room:<ローカルid>"。
+      // { [id]: { id, label, url, key: string|null } }
+      //
+      // 音楽・背景と同じく、画像の実体は状態に入れずURLだけを持つ（実体を入れると
+      // アクションのたびに状態ごと保存先へ書き直される）。keyはR2のキーで、削除時の掃除に使う。
+      // 登録できるのはGMだけ（js/room-authority-rules.js）で、URLは許可リストを通ったものだけ
+      // （js/store/stamps.jsのisAllowedRoomStampUrl）。
+      // 集計（stampCounts）には数えない：Coreのスタンプと同じ相槌の扱い（COUNT_STAMP参照）。
+      stamps: {},
 
       // ユーザー定義のデッキ（js/deck-editor-dialog.js）。盤面に置いた山札（state.decks）とは
       // 別の「作り置きの設計図」で、1行＝1種類のカード＋枚数。キーはid（名前は変わりうるため）。

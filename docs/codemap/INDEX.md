@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-02
+generated: 2026-09-04
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-02
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 151 | 673 | 1165 | 58 | 2 |
+| 154 | 687 | 1178 | 61 | 5 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -55,7 +55,7 @@ generated: 2026-09-02
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
-| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 35 |
+| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 37 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-draft-panel\|js/dice-draft-panel.js]] | 「ダイスドラフト」：振ってプールに溜めた目を1個ずつドラッグし、スキルの上に乗せて発動する 浮動パネル。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
@@ -64,7 +64,7 @@ generated: 2026-09-02
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 7 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
 | [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 16 |
-| [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 6 | 1 |
+| [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 8 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.host-persistence\|js/host-persistence.js]] | P2P卓の永続化。 | 1 | 1 |
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
@@ -73,7 +73,7 @@ generated: 2026-09-02
 | [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 3 |
-| [[js.image-upload\|js/image-upload.js]] | 画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。 | 5 | 6 |
+| [[js.image-upload\|js/image-upload.js]] | 画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。 | 5 | 7 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
 | [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 14 |
@@ -133,12 +133,14 @@ generated: 2026-09-02
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |
 | [[js.room-authority-rules\|js/room-authority-rules.js]] | 「部屋そのものを左右する操作をしてよいのは誰か」の規則そのもの。 | 2 | 3 |
-| [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 5 |
+| [[js.room-authority\|js/room-authority.js]] | 「部屋そのものを左右する操作（部屋の削除、システム/プラグインの変更、音源の追加、 セッションデータの読み込み、ラウンド進行）をしてよいのは誰か」の判定を1か所にまとめる。 | 4 | 6 |
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
 | [[js.room-entry-dialog\|js/room-entry-dialog.js]] | 入室パスワードの入力ダイアログ。 | 2 | 1 |
 | [[js.room-entry\|js/room-entry.js]] | 部屋の入室パスワードを、このブラウザに覚えておくところ。 | 4 | 5 |
 | [[js.room-index\|js/room-index.js]] | 部屋一覧ページ（index.html）のロジック。 | 0 | 0 |
 | [[js.room-parameters-dialog\|js/room-parameters-dialog.js]] | ルーム変数（room.parameters）専用の一覧編集ダイアログ。 | 1 | 1 |
+| [[js.room-stamp-dialog\|js/room-stamp-dialog.js]] | 部屋のスタンプ1件の登録・編集ダイアログ。 | 1 | 1 |
+| [[js.room-stamp-list-dialog\|js/room-stamp-list-dialog.js]] | 部屋に登録したスタンプ（room.stamps）の一覧ダイアログ。 | 1 | 1 |
 | [[js.round-panel\|js/round-panel.js]] | ラウンド進行の状態バー。 | 2 | 1 |
 | [[js.round-setup-dialog\|js/round-setup-dialog.js]] | ラウンド進行の参加者選択ダイアログ。 | 1 | 1 |
 | [[js.scene-dialog\|js/scene-dialog.js]] | シーンの作成・編集ダイアログ（一覧はscene-list-dialog.js）。 | 1 | 1 |
@@ -165,12 +167,13 @@ generated: 2026-09-02
 | [[js.store.handlers.room\|js/store/handlers/room.js]] | 部屋そのものの設定（名前・システム・プラグイン・背景・盤面の振る舞い）と、 部屋に置いておくもの（ルーム変数・オリジナル表）。 | 1 | 1 |
 | [[js.store.handlers.round\|js/store/handlers/round.js]] | ラウンド進行（Core機能）。 | 1 | 1 |
 | [[js.store.handlers.scenes\|js/store/handlers/scenes.js]] | シーン（GMが場面ごとに盤面の見た目を保存し、1クリックで切り替えるための入れ物）。 | 1 | 1 |
-| [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 9 | 1 |
+| [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 10 | 1 |
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
+| [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 9 | 7 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.bcdice-cache-rules\|server/bcdice-cache-rules.js]] | BCDiceの中継キャッシュ（server/index.jsのloadBcdiceCached）の判断そのもの。 | 7 | 1 |
@@ -184,7 +187,7 @@ generated: 2026-09-02
 
 | ファイル | 被import |
 |---|---:|
-| [[js.dialog-host\|js/dialog-host.js]] | 35 |
+| [[js.dialog-host\|js/dialog-host.js]] | 37 |
 | [[js.EventBus\|js/EventBus.js]] | 17 |
 | [[js.game-store\|js/game-store.js]] | 16 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 16 |
@@ -201,3 +204,6 @@ export の顔ぶれかシグネチャが変わったのに `## 役割` が書き
 
 - [[js.board-data-driven\|js/board-data-driven.js]]
 - [[js.card-catalog\|js/card-catalog.js]]
+- [[js.help.help-content\|js/help/help-content.js]]
+- [[js.stamp-registry\|js/stamp-registry.js]]
+- [[js.store.ids\|js/store/ids.js]]

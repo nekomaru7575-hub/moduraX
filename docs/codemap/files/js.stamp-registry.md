@@ -1,11 +1,11 @@
 ---
 source: js/stamp-registry.js
-lines: 134
+lines: 188
 exports: 5
 imported_by: 6
-api_sha: e8f7d415d1a8
+api_sha: ab6e49a988af
 prose_sha: e8f7d415d1a8
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -25,30 +25,31 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 77 | fn | listStamps | `listStamps(pluginId)` | その部屋で使えるスタンプの一覧（Coreの分＋適用中プラグインの分）。 |
-| 97 | fn | findStamp | `findStamp(stampId, pluginId)` | IDからスタンプを引く。 |
-| 103 | fn | isKnownStampId | `isKnownStampId(stampId, pluginId)` | サーバーが受け取ったIDを検証するための判定。 |
-| 113 | fn | findStampByName | `findStampByName(rawName, pluginId)` | チャットコマンド「スタンプ(拍手)」の引数からスタンプを引く。 |
-| 131 | fn | listStampLabels | `listStampLabels(pluginId)` | 「使えるスタンプ: OK／No／…」の案内文に使う。 |
+| 133 | fn | listStamps | `listStamps(room)` | その部屋で使えるスタンプの一覧（Coreの分＋適用中プラグインの分＋部屋に登録された分）。 |
+| 149 | fn | findStamp | `findStamp(stampId, room)` | IDからスタンプを引く。 |
+| 155 | fn | isKnownStampId | `isKnownStampId(stampId, room)` | サーバーが受け取ったIDを検証するための判定。 |
+| 166 | fn | findStampByName | `findStampByName(rawName, room)` | チャットコマンド「スタンプ(拍手)」の引数からスタンプを引く。 |
+| 185 | fn | listStampLabels | `listStampLabels(room)` | 「使えるスタンプ: OK／No／…」の案内文に使う。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（8）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 33 | isPlainPathSegment | `isPlainPathSegment(name)` | 4 |  |
-| 52 | normalizeStamp | `normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {})` | 14 |  |
-| 77 | listStamps | `listStamps(pluginId)` | 18 | ✓ |
-| 97 | findStamp | `findStamp(stampId, pluginId)` | 4 | ✓ |
-| 103 | isKnownStampId | `isKnownStampId(stampId, pluginId)` | 3 | ✓ |
-| 113 | findStampByName | `findStampByName(rawName, pluginId)` | 16 | ✓ |
-| 131 | listStampLabels | `listStampLabels(pluginId)` | 3 | ✓ |
+| 59 | isPlainPathSegment | `isPlainPathSegment(name)` | 4 |  |
+| 78 | normalizeStamp | `normalizeStamp(stamp, { idPrefix = '', dirSegment = '' } = {})` | 14 |  |
+| 104 | listStaticStamps | `listStaticStamps(pluginId)` | 18 |  |
+| 133 | listStamps | `listStamps(room)` | 14 | ✓ |
+| 149 | findStamp | `findStamp(stampId, room)` | 4 | ✓ |
+| 155 | isKnownStampId | `isKnownStampId(stampId, room)` | 3 | ✓ |
+| 166 | findStampByName | `findStampByName(rawName, room)` | 17 | ✓ |
+| 185 | listStampLabels | `listStampLabels(room)` | 3 | ✓ |
 
 ## 依存
 
-- import → [[js.asset-base]], [[js.parameters.registry]], [[js.stamp-catalog]]
+- import → [[js.asset-base]], [[js.parameters.registry]], [[js.stamp-catalog]], [[js.store.stamps]]
 - imported by → [[js.main]], [[js.net-host]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.participants]], [[server.index]]
 
 ## 注意

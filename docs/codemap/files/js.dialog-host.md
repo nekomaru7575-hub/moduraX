@@ -2,10 +2,10 @@
 source: js/dialog-host.js
 lines: 80
 exports: 2
-imported_by: 35
+imported_by: 37
 api_sha: dae529f9b791
 prose_sha: dae529f9b791
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -41,7 +41,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.audience-picker]], [[js.audio-dialog]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.chat-tab-dialog]], [[js.deck-dialog]], [[js.deck-editor-dialog]], [[js.deck-list-dialog]], [[js.identity-dialog]], [[js.info-entry-dialog]], [[js.log-clear-dialog]], [[js.log-edit-dialog]], [[js.log-export-dialog]], [[js.original-table-dialog]], [[js.original-table-list-dialog]], [[js.panel-dialog]], [[js.parameters.arianrhod-ability-box]], [[js.parameters.arianrhod-action-set-box]], [[js.parameters.dracurouge-bond-box]], [[js.parameters.dx3-ability-box]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.futarisousa-skill-box]], [[js.parameters.gcrest-ability-box]], [[js.parameters.gcrest-unit-box]], [[js.parameters.saikoro-fiction.skill-table-box]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.skill.skill-box]], [[js.room-delete-dialog]], [[js.room-entry-dialog]], [[js.room-parameters-dialog]], [[js.round-setup-dialog]], [[js.scene-dialog]], [[js.scene-list-dialog]]
+- imported by → [[js.audience-picker]], [[js.audio-dialog]], [[js.background-dialog]], [[js.buff-dialog]], [[js.character-dialog]], [[js.chat-tab-dialog]], [[js.deck-dialog]], [[js.deck-editor-dialog]], [[js.deck-list-dialog]], [[js.identity-dialog]], [[js.info-entry-dialog]], [[js.log-clear-dialog]], [[js.log-edit-dialog]], [[js.log-export-dialog]], [[js.original-table-dialog]], [[js.original-table-list-dialog]], [[js.panel-dialog]], [[js.parameters.arianrhod-ability-box]], [[js.parameters.arianrhod-action-set-box]], [[js.parameters.dracurouge-bond-box]], [[js.parameters.dx3-ability-box]], [[js.parameters.dx3-combo-box]], [[js.parameters.dx3-lois-box]], [[js.parameters.futarisousa-skill-box]], [[js.parameters.gcrest-ability-box]], [[js.parameters.gcrest-unit-box]], [[js.parameters.saikoro-fiction.skill-table-box]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.skill.skill-box]], [[js.room-delete-dialog]], [[js.room-entry-dialog]], [[js.room-parameters-dialog]], [[js.room-stamp-dialog]], [[js.room-stamp-list-dialog]], [[js.round-setup-dialog]], [[js.scene-dialog]], [[js.scene-list-dialog]]
 
 ## 注意
 

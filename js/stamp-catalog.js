@@ -12,6 +12,13 @@
 // 送受信するのはこの表（とプラグインの表）に載っているIDだけにして、実際のURLは
 // 受け取った側が組み立てる。
 //
+// 【部屋のスタンプ（room.stamps）とこの約束の関係】
+// GMが部屋の中から登録するスタンプ（js/store/stamps.js）はURLを状態に持つが、
+// **この約束は破っていない**。通信路（SEND_STAMP）が運ぶのは今もIDだけで、URLは
+// 受け取った側が自分の同期済みの状態から引く。状態へURLを書けるのはGM限定の
+// reducer（js/room-authority-rules.jsのADD_ROOM_STAMP）を通ったときだけで、
+// 形も許可リストで絞ってある（isAllowedRoomStampUrl）。背景画像と同じ素性の値。
+//
 // 【画像の差し替え】
 // image/stamps/<file> に置く。fileに書いた名前をそのまま使うので、拡張子は
 // .png / .svg / .webp / .gif のどれでもよい（server/index.jsのMIME_TYPESにある拡張子）。

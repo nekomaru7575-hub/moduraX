@@ -69,6 +69,16 @@ export const GM_ONLY_ACTIONS = new Set([
   // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
   // 画像のアップロード側（server/index.jsのIMAGE_PURPOSES.background）も同じくGM限定。
   'SET_BOARD_BACKGROUND',
+  // 部屋のスタンプの登録・削除（js/room-stamp-list-dialog.js）。登録したスタンプは、
+  // 以後そのIDを送った誰の操作でも全員の画面に出る。つまり「どの絵が全員の画面に出うるか」
+  // を決める操作で、背景と同じ種類の判断なのでGM限定。
+  // 画像のアップロード側（server/index.jsのIMAGE_PURPOSES.stamp）も同じくGM限定。
+  //
+  // 【この2つが本当の制御】画面側でメニュー項目を無効にしているのは案内であって制限ではない。
+  // 部屋のスタンプはURLを状態に持つ唯一のスタンプなので、ここが空くと誰でも
+  // 「全員のブラウザに任意のURLを読ませる」ことができてしまう。
+  'ADD_ROOM_STAMP',
+  'REMOVE_ROOM_STAMP',
   // シーン（js/scene-list-dialog.js）。作成・遷移・編集・削除はすべてGM限定。
   'SAVE_SCENE',
   'UPDATE_SCENE_META',

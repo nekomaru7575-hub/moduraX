@@ -336,7 +336,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     // 使えるスタンプはその部屋に適用中のプラグインで変わる。別のシステムのスタンプを
     // 名指しで送られても、ここで落ちる。URLではなくIDだけを受けるのも同じ理由
     // （js/stamp-catalog.js冒頭）。
-    if (!isKnownStampId(message.stampId, store.state.room?.activePlugin ?? null)) return;
+    if (!isKnownStampId(message.stampId, store.state.room)) return;
     if (!peer.stampLimiter.allow()) return;
 
     broadcastToAll({
@@ -532,7 +532,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     sendStamp(stampId) {
       const me = self();
       if (!me.participantId) return;
-      if (!isKnownStampId(stampId, store.state.room?.activePlugin ?? null)) return;
+      if (!isKnownStampId(stampId, store.state.room)) return;
       if (!ownStampLimiter.allow()) return;
       broadcastToAll({
         type: 'ACTION',

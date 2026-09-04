@@ -127,7 +127,7 @@ function buildStampElement(stamp, name) {
 function showStamp({ stampId, participantId, name }) {
   if (!layerEl) return;
   // 「この部屋で使えるスタンプ」は適用中のプラグインで変わる（js/stamp-registry.js）。
-  const stamp = findStamp(stampId, store.state.room?.activePlugin ?? null);
+  const stamp = findStamp(stampId, store.state.room);
   // 知らないIDは黙って捨てる（相手が新しいカタログを持っている場合など）
   if (!stamp) return;
 

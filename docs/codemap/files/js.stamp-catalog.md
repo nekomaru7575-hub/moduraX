@@ -1,11 +1,11 @@
 ---
 source: js/stamp-catalog.js
-lines: 41
+lines: 48
 exports: 3
 imported_by: 3
 api_sha: 874d7c25ac62
 prose_sha: 874d7c25ac62
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -25,9 +25,9 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 23 | const | STAMP_IMAGE_DIR | `STAMP_IMAGE_DIR` | プラグインが宣言する絵を置く、外部の置き場（js/asset-base.js）の中の階層名。 |
-| 25 | const | STAMPS | `STAMPS` |  |
-| 40 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
+| 30 | const | STAMP_IMAGE_DIR | `STAMP_IMAGE_DIR` | プラグインが宣言する絵を置く、外部の置き場（js/asset-base.js）の中の階層名。 |
+| 32 | const | STAMPS | `STAMPS` |  |
+| 47 | const | STAMP_RATE_LIMIT | `STAMP_RATE_LIMIT` | スタンプの連打よけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 

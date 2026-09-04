@@ -1,6 +1,6 @@
 // js/store/handlers/room.js
 // 部屋そのものの設定（名前・システム・プラグイン・背景・盤面の振る舞い）と、
-// 部屋に置いておくもの（ルーム変数・オリジナル表）。
+// 部屋に置いておくもの（ルーム変数・オリジナル表・スタンプ）。
 //
 // この節の多くはGM限定（server/index.js の GM_ONLY_ACTIONS）。誰が呼んでよいかは
 // ここでは見ず、js/room-authority.js とサーバー側が決める。
@@ -10,6 +10,7 @@ import { applyPluginDerivedParameters, buildRoomParameters } from '../../paramet
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
 import { patchCharacter, withMapEntry, withoutMapEntry } from '../patch.js';
 import { showsEntryMessages, snapsToGrid, withDerivedRoomParameters } from '../room.js';
+import { MAX_ROOM_STAMPS, normalizeRoomStamp, roomStampPublicId } from '../stamps.js';
 import { buildDerivedContext } from '../round-state.js';
 
 export const ROOM_HANDLERS = {
@@ -112,6 +113,45 @@ export const ROOM_HANDLERS = {
     commit({
       room: { ...room, originalTables: withoutMapEntry(room.originalTables, title) }
     });
+  },
+
+  // 部屋に登録するスタンプ（js/room-stamp-list-dialog.js）。GM限定
+  // （js/room-authority-rules.jsのGM_ONLY_ACTIONS）。
+  //
+  // payloadで受け取るのはローカルidで、公開ID（"room:xxx"）は normalizeRoomStamp が付ける。
+  // 名前空間を送り手に決めさせないためで、これがCoreの'ok'やプラグインのスタンプを
+  // 名乗られないための歯止めになっている（js/store/stamps.js）。
+  //
+  // 【ここがサーバー側の検証でもある】reducerはサーバーでも同じものが走るので
+  // （server/index.jsが同じImmutableStoreをdispatchする）、ここに書いた上限とURLの
+  // 許可リストがそのまま権威側の検証になる。server/index.jsに別途手当ては要らない
+  // （COUNT_STAMPと同じ立て付け）。
+  ADD_ROOM_STAMP({ prevState, payload, commit }) {
+    const stamp = normalizeRoomStamp(payload);
+    if (!stamp) return;
+
+    const room = prevState.room;
+    const stamps = room.stamps || {};
+
+    // 数を見るのは新規のときだけ。同じidでの上書き（＝編集）は数が増えないので、
+    // 上限に達していても通す（SAVE_DECK_TEMPLATEと同じ）。
+    if (!Object.prototype.hasOwnProperty.call(stamps, stamp.id)
+      && Object.keys(stamps).length >= MAX_ROOM_STAMPS) return;
+
+    commit({ room: { ...room, stamps: withMapEntry(stamps, stamp.id, stamp) } });
+  },
+
+  // 部屋のスタンプをローカルid指定で削除する（一覧の×ボタンから）。
+  // 実体（R2のオブジェクト）の掃除はサーバー側が行う（server/index.jsのremovedStampKey）。
+  REMOVE_ROOM_STAMP({ prevState, payload, commit }) {
+    // 追加と同じ導出を通す。ここで自前に組み立てると、追加側と食い違ったときに
+    // 「消したのに残る」が起きる。
+    const id = roomStampPublicId(String(payload?.id ?? ''));
+    const room = prevState.room;
+    const stamps = room.stamps || {};
+    if (!Object.prototype.hasOwnProperty.call(stamps, id)) return;
+
+    commit({ room: { ...room, stamps: withoutMapEntry(stamps, id) } });
   },
 
   // 背景設定（js/background-dialog.js）。画像・盤面サイズ・シーンチェンジでの扱いを

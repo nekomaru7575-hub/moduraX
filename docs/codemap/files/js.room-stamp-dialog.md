@@ -1,6 +1,6 @@
 ---
 source: js/room-stamp-dialog.js
-lines: 159
+lines: 187
 exports: 1
 imported_by: 1
 api_sha: 53ff0ce67b44
@@ -27,7 +27,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 28 | fn | showRoomStampDialog | `showRoomStampDialog({ stamp = null, onConfirm, onCancel })` | stamp?: {id:string, label:string, url:string, key:string\|null} \| null, 編集するスタンプ。 |
+| 30 | fn | showRoomStampDialog | `showRoomStampDialog({ stamp = null, onConfirm, onCancel })` | stamp?: {id:string, label:string, url:string, key:string\|null, counted:boolean} \| null, 編集するスタンプ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -36,7 +36,7 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 28 | showRoomStampDialog | `showRoomStampDialog({ stamp = null, onConfirm, onCancel })` | 131 | ✓ |
+| 30 | showRoomStampDialog | `showRoomStampDialog({ stamp = null, onConfirm, onCancel })` | 157 | ✓ |
 
 ## 依存
 

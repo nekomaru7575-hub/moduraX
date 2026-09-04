@@ -92,11 +92,28 @@ export function createHelpPanel({ container, getActivePlugin }) {
   // 選択肢の並びを1ブロック積む。itemsは { label, isBack, icon, onSelect } の配列。
   // 積んだブロックは押されたら消す（過去の選択肢が残っていると、どれが「今の問い」か
   // 分からなくなるため）。
+  //
+  // 選択肢は横へ流れて折り返る（css/board.cssの.help-choices）。そのままだと戻る導線が
+  // 話題の選択肢の隣に並んでしまうので、戻るぶんだけは専用の入れ物へ入れて行を分ける。
+  // 入れ物を分けても外側のboxは1つのままなので、押されたときの後片付け（box.remove）は
+  // 変わらない。
   function appendChoices(items) {
     if (items.length === 0) return;
 
     const box = document.createElement('div');
     box.className = 'help-choices';
+
+    // 戻るぶんの行。1つ目の戻る導線が来たときに初めて作る（無い階層では出さない）。
+    let backRow = null;
+    const rowFor = (item) => {
+      if (!item.isBack) return box;
+      if (!backRow) {
+        backRow = document.createElement('div');
+        backRow.className = 'help-choices-back';
+        box.appendChild(backRow);
+      }
+      return backRow;
+    };
 
     items.forEach(item => {
       const btn = document.createElement('button');
@@ -112,7 +129,7 @@ export function createHelpPanel({ container, getActivePlugin }) {
         appendUserRow(item.label);
         item.onSelect();
       });
-      box.appendChild(btn);
+      rowFor(item).appendChild(btn);
     });
 
     container.appendChild(box);

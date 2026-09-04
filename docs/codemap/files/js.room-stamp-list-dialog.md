@@ -1,6 +1,6 @@
 ---
 source: js/room-stamp-list-dialog.js
-lines: 138
+lines: 144
 exports: 1
 imported_by: 1
 api_sha: 2b55aefaf222
@@ -27,7 +27,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 30 | fn | showRoomStampListDialog | `showRoomStampListDialog({ stamps, onAdd, onSelect, onRemove })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
+| 32 | fn | showRoomStampListDialog | `showRoomStampListDialog({ stamps, onAdd, onSelect, onRemove })` | 追加・削除は「適用」を挟まず即時反映のため、この画面の確定ボタンは無く「閉じる」だけ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -36,7 +36,7 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 30 | showRoomStampListDialog | `showRoomStampListDialog({ stamps, onAdd, onSelect, onRemove })` | 108 | ✓ |
+| 32 | showRoomStampListDialog | `showRoomStampListDialog({ stamps, onAdd, onSelect, onRemove })` | 112 | ✓ |
 
 ## 依存
 

@@ -20,7 +20,7 @@ generated: 2026-09-04
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 154 | 687 | 1178 | 61 | 5 |
+| 154 | 690 | 1181 | 58 | 6 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -173,7 +173,7 @@ generated: 2026-09-04
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 8 | 15 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
-| [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 9 | 7 |
+| [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 12 | 8 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.bcdice-cache-rules\|server/bcdice-cache-rules.js]] | BCDiceの中継キャッシュ（server/index.jsのloadBcdiceCached）の判断そのもの。 | 7 | 1 |
@@ -207,3 +207,4 @@ export の顔ぶれかシグネチャが変わったのに `## 役割` が書き
 - [[js.help.help-content\|js/help/help-content.js]]
 - [[js.stamp-registry\|js/stamp-registry.js]]
 - [[js.store.ids\|js/store/ids.js]]
+- [[js.store.stamps\|js/store/stamps.js]]

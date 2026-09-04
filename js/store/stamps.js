@@ -29,6 +29,26 @@ export function roomStampPublicId(localId) {
   return `${ROOM_STAMP_NAMESPACE}:${localId}`;
 }
 
+// 「集計する」を選んだスタンプの合計を入れるルーム変数の出自。
+// パラメータIDは "roomStampTotal:<ローカルid>" になる（paramIdの source:key と同じ流儀）。
+// スタンプの公開IDと別の名前空間にしてあるのは、状態の別々の棚に並ぶ2つを同じ文字列で
+// 指すと、片方を消すもう片方を探すときに取り違えるため。
+export const ROOM_STAMP_TOTAL_SOURCE = 'roomStampTotal';
+
+/**
+ * そのスタンプの合計を入れるルーム変数のID。スタンプの公開ID（"room:xxx"）から導く。
+ * 作る側（js/store/room.jsのwithRoomStampTotals）と消す側が同じ導出を通すために置く。
+ */
+export function roomStampTotalParamId(stampPublicId) {
+  const id = String(stampPublicId ?? '');
+  return `${ROOM_STAMP_TOTAL_SOURCE}:${id.slice(id.indexOf(':') + 1)}`;
+}
+
+/** ルーム変数に出す名前。「（スタンプ名）合計」。 */
+export function roomStampTotalLabel(label) {
+  return `${label}合計`;
+}
+
 // 1部屋あたりの登録数。スタンプ送信パネルの既定幅（280px）に並べて見られる数として置いた。
 // Coreが8枚、プラグインが数枚を先に使うので、合計はもう少し増える。
 //
@@ -86,8 +106,12 @@ export function isAllowedRoomStampUrl(url) {
 /**
  * payload 1件を、状態に載せてよい形へ均す。受け付けられなければ null。
  *
- * @param {{id?:string, label?:string, url?:string, key?:string|null}} raw
- * @returns {{id:string, label:string, url:string, key:string|null}|null}
+ * countedは「誰が何枚押したかを数えるか」（js/store/handlers/participants.jsのCOUNT_STAMP）。
+ * 既定はfalse＝Coreのスタンプと同じ相槌の扱い。trueにすると集計に載り、合計が
+ * ルーム変数「（スタンプ名）合計」に出る（js/store/room.jsのwithRoomStampTotals）。
+ *
+ * @param {{id?:string, label?:string, url?:string, key?:string|null, counted?:boolean}} raw
+ * @returns {{id:string, label:string, url:string, key:string|null, counted:boolean}|null}
  *   idは公開ID（'room:xxx'）。渡されたローカルidのままにはしない。
  */
 export function normalizeRoomStamp(raw) {
@@ -109,7 +133,11 @@ export function normalizeRoomStamp(raw) {
   const key = typeof raw.key === 'string' && raw.key !== ''
     && raw.key.length <= MAX_ROOM_STAMP_KEY_LENGTH ? raw.key : null;
 
-  return Object.freeze({ id: roomStampPublicId(localId), label, url, key });
+  // 真偽値だけを受ける。'yes'のような値で集計が勝手に始まらないように
+  // （伏せた語のrevealedと同じ扱い）。
+  return Object.freeze({
+    id: roomStampPublicId(localId), label, url, key, counted: raw.counted === true
+  });
 }
 
 /**

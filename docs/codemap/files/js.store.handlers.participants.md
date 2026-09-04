@@ -1,6 +1,6 @@
 ---
 source: js/store/handlers/participants.js
-lines: 132
+lines: 138
 exports: 1
 imported_by: 1
 api_sha: 7524671cff9c

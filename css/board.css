@@ -2236,13 +2236,28 @@ select:focus, input[type="text"]:focus, textarea:focus {
   margin-bottom: 0;
 }
 
-/* 選択肢。アバターぶん下げてボットの発言にぶら下がって見えるようにする */
+/* 選択肢。アバターぶん下げてボットの発言にぶら下がって見えるようにする。
+   【横へ流して折り返す】以前は縦一列に積んでいた。選択肢が11件並ぶ階層（本体機能のこと）
+   では高さ478pxとパネルをほぼ埋め、右側は常に110〜206px空いたままだった。
+   等幅の段組みにしないのは、ラベルが4字（「情報」）から17字（「パラメータを増やしたい・
+   減らしたい」）まで4倍の開きがあるため——幅を揃えると短いものが間延びし、長いものが折れる。
+   中身なりの幅のまま横へ流すと、短い選択肢は2〜3個が1行に収まり、長いものは1行を占める。 */
 .help-choices {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  flex-wrap: wrap;
+  /* 横に並ぶぶん、隣を押し間違えないよう6px→8pxへ広げる */
+  gap: 8px;
   margin: 0 0 10px 48px;
+}
+
+/* 戻る導線は必ず行を改める（flex-basis:100%が折り返しを強制する）。
+   本題の選択肢と同じ行へ流れると、「最初にもどる」が話題の1つに見える。
+   下のis-backで色を落としてはいるが、隣り合うと色だけでは弱い。 */
+.help-choices-back {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .help-choice {
@@ -2254,10 +2269,19 @@ select:focus, input[type="text"]:focus, textarea:focus {
   font-size: 0.85rem;
   cursor: pointer;
   text-align: left;
+  /* 最長のラベルでも入れ物からはみ出さない。はみ出すとパネルに横スクロールが出て、
+     折り返した意味が無くなる（入り切らないときは中で2行になるだけ）。 */
+  max-width: 100%;
 }
 
 .help-choice:hover {
   background-color: var(--surface-control);
+}
+
+/* 押した手応え。transitionを掛けないのは、押下と復帰は即座が正しいため
+   （キーボードの目印リングをフェードさせないのと同じ考え方。css/tokens.css参照）。 */
+.help-choice:active {
+  transform: translateY(1px);
 }
 
 /* 戻る導線は本題の選択肢と区別が付くよう色を落とす */
@@ -2370,6 +2394,14 @@ select:focus, input[type="text"]:focus, textarea:focus {
     padding: 8px 12px;
   }
 
+  /* ヘルプの選択肢は横に並ぶようになった（.help-choices）ので、隣との押し間違いが
+     起きうる。縦のpaddingだけでは38pxにしかならず上の44pxに届かないため、
+     キャラクター一覧のタブと同じくmin-heightで持ち上げる。
+     横方向は上のpaddingと8pxのgapで足りている。 */
+  .help-choice {
+    min-height: 44px;
+  }
+
   /* キャラクター一覧の「盤面／バックヤード」タブと「盤面に戻す」。
      狭幅ではこのパネルが中央スペース全体になり、指で触る主要な導線がここになるが、
      既定では高さ25pxしかなく、上の44pxの基準から漏れていた。
@@ -2389,6 +2421,13 @@ select:focus, input[type="text"]:focus, textarea:focus {
    DOMの組み替えはjs/mobile-layout.jsが行い、ここは見た目だけを持つ。
    ====================================================================== */
 @media (max-width: 900px) {
+  /* 選択肢の字下げを詰める。狭幅ではヘルプがほぼ画面幅になり、48pxの字下げが
+     折り返しの余地を削って最長のラベルが2行に折れる。この幅ではアバターに揃える
+     見た目より、1つの選択肢が1行に収まることを採る。 */
+  .help-choices {
+    margin-left: 16px;
+  }
+
   body {
     padding: 0;
     /* 横向きのiPhoneではノッチが画面の左右に来る。上下（padding-top/bottom）を

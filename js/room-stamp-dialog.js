@@ -19,9 +19,11 @@ const NO_UPLOAD_REASON = 'この環境では画像をアップロードできな
 
 /**
  * @param {{
- *   stamp?: {id:string, label:string, url:string, key:string|null} | null,
+ *   stamp?: {id:string, label:string, url:string, key:string|null, counted:boolean} | null,
  *     編集するスタンプ。nullなら新規。idは公開ID（"room:xxx"）ではなくローカルid
- *   onConfirm: (result: {id:string, label:string, url:string, key:string|null}) => void,
+ *   onConfirm: (result: {
+ *     id:string|null, label:string, url:string, key:string|null, counted:boolean
+ *   }) => void,
  *   onCancel: () => void
  * }} options
  */
@@ -115,6 +117,29 @@ export function showRoomStampDialog({ stamp = null, onConfirm, onCancel }) {
   imageGroup.appendChild(pickBtn);
   form.appendChild(imageGroup);
 
+  // --- 集計 ---
+  // 既定は「数えない」（Coreのスタンプと同じ相槌の扱い）。ここを入れると、誰が何枚
+  // 押したかがスタンプ送信パネルの集計に並び、全員ぶんの合計がルーム変数
+  // 「（スタンプ名）合計」に出る。ダイス式から {なるほど合計} のように参照できる。
+  const countGroup = document.createElement('div');
+  countGroup.className = 'dialog-form-group';
+
+  const countLabel = document.createElement('label');
+  const countInput = document.createElement('input');
+  countInput.type = 'checkbox';
+  countInput.checked = stamp?.counted === true;
+  countLabel.appendChild(countInput);
+  countLabel.appendChild(document.createTextNode(' 押された数を集計する'));
+  countGroup.appendChild(countLabel);
+
+  const countNote = document.createElement('p');
+  countNote.className = 'audio-note';
+  countNote.textContent = 'スタンプ送信パネルに「誰が何枚」の集計が出て、'
+    + 'ルーム変数「（スタンプ名）合計」に全員ぶんの合計が入ります。'
+    + 'この変数は自動で計算されるので、手では変えられません。';
+  countGroup.appendChild(countNote);
+  form.appendChild(countGroup);
+
   appendConfirmRow(form, {
     confirmLabel: stamp ? '保存' : '登録',
     onCancel: closeWithCancel
@@ -136,7 +161,10 @@ export function showRoomStampDialog({ stamp = null, onConfirm, onCancel }) {
     settled = true;
     dialog.close();
     // idは編集なら据え置き（＝上書き）。新規は呼び出し側が採番する。
-    onConfirm({ id: stamp?.id ?? null, label, url: currentUrl, key: currentKey });
+    onConfirm({
+      id: stamp?.id ?? null, label, url: currentUrl, key: currentKey,
+      counted: countInput.checked
+    });
   });
 
   dialog.appendChild(form);

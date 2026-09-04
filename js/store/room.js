@@ -7,6 +7,9 @@
 
 import { buildDefaultRoomParameters } from '../parameters/core.js';
 import { applyPluginDerivedRoomParameters } from '../parameters/registry.js';
+import {
+  ROOM_STAMP_TOTAL_SOURCE, roomStampTotalLabel, roomStampTotalParamId
+} from './stamps.js';
 
 // Core自身のルーム変数「現在のラウンド」（js/parameters/core.js）のID。
 export const ROUND_ROOM_PARAM_ID = 'core:round';
@@ -29,25 +32,90 @@ export function withCoreRoomParameters(parameters, round) {
 }
 
 /**
+ * 「集計する」を選んだ部屋のスタンプ（room.stamps）の合計を、ルーム変数へ反映する。
+ *
+ * 変数はスタンプ1件につき1つで、名前は「（スタンプ名）合計」、値は全参加者ぶんの総和
+ * （ステラナイツのブーケ合計と同じ数え方）。**この関数が唯一の作り手であり消し手**で、
+ * 「集計するスタンプが在る」ことだけが変数が在ってよい理由になる。だから：
+ *   ・集計をやめた／スタンプを消した → 変数も消える（残しても更新されない値になるだけ）
+ *   ・スタンプの名前を変えた → 変数の名前も追随する
+ *   ・取り込んだ部屋データに知らない合計が入っていた → 裏付けが無いので落ちる
+ * 手で書き換えられないよう editable:false、消せないよう locked:true にしてあるのは
+ * 「現在のラウンド」（withCoreRoomParameters）と同じ理由。
+ *
+ * 【名前がぶつかりうる】スタンプ名は利用者が決める文字列なので、「ブーケ合計」のように
+ * 他のルーム変数と同じ名前になることがある。IDは別なので状態は壊れないが、チャットの
+ * {ブーケ合計} は先に見つかったほうを拾う。名前を分けてもらうしかない。
+ *
+ * 変化が無ければ同じ参照を返す（呼び出し側が差分検知に使う）。
+ */
+function withRoomStampTotals(parameters, stamps, stampCounts) {
+  const wanted = new Map();
+  Object.values(stamps || {}).forEach(stamp => {
+    if (!stamp?.counted) return;
+    const perParticipant = stampCounts?.[stamp.id] || {};
+    // 壊れた値（保存データを手で書き換えられた等）が混ざっていても合計を壊さない
+    const total = Object.values(perParticipant)
+      .reduce((sum, count) => sum + (Number.isInteger(count) && count > 0 ? count : 0), 0);
+    wanted.set(roomStampTotalParamId(stamp.id), {
+      label: roomStampTotalLabel(stamp.label), value: total
+    });
+  });
+
+  const existing = Object.keys(parameters)
+    .filter(paramId => parameters[paramId]?.source === ROOM_STAMP_TOTAL_SOURCE);
+
+  const stale = existing.filter(paramId => !wanted.has(paramId));
+  const changed = [...wanted].filter(([paramId, next]) => {
+    const current = parameters[paramId];
+    return !current || current.value !== next.value || current.label !== next.label;
+  });
+  if (stale.length === 0 && changed.length === 0) return parameters;
+
+  const nextParameters = { ...parameters };
+  stale.forEach(paramId => { delete nextParameters[paramId]; });
+  changed.forEach(([paramId, next]) => {
+    nextParameters[paramId] = Object.freeze({
+      key: paramId.slice(paramId.indexOf(':') + 1),
+      label: next.label,
+      value: next.value,
+      source: ROOM_STAMP_TOTAL_SOURCE,
+      locked: true,
+      editable: false,
+      visible: true,
+      roundOnly: false
+    });
+  });
+  return nextParameters;
+}
+
+/**
  * 「部屋全体から決まるルーム変数」を計算し直したroomを返す（Coreの現在のラウンド、
- * ステラナイツのブーケ合計）。プラグイン側の分は何を計算するかをプラグイン
- * （computeDerivedRoomParameters）が決め、Coreは材料を渡すだけで中身を解釈しない。
+ * 集計するスタンプの合計、ステラナイツのブーケ合計）。プラグイン側の分は何を計算するかを
+ * プラグイン（computeDerivedRoomParameters）が決め、Coreは材料を渡すだけで中身を解釈しない。
  * 変化が無ければ同じroomの参照を返す。
  *
  * 呼ぶのは「材料が変わりうるところ」すべて：ラウンド進行（ROUND_PROGRESSION_START・
  * ROUND_ADVANCE_PHASE・ROUND_PROGRESSION_END）、スタンプの集計（COUNT_STAMP・
- * RESET_STAMP_COUNTS）、システムの切り替え（SET_ACTIVE_PLUGIN）、そして状態の丸ごと
- * 差し替え（hydrate）。hydrateでも通すのが肝で、こうしておくとルーム変数は常に
- * 材料から導かれた値になり、単独でズレたまま残ることがない。
+ * RESET_STAMP_COUNTS）、部屋のスタンプの増減と編集（ADD_ROOM_STAMP・REMOVE_ROOM_STAMP）、
+ * システムの切り替え（SET_ACTIVE_PLUGIN）、そして状態の丸ごと差し替え（hydrate）。
+ * hydrateでも通すのが肝で、こうしておくとルーム変数は常に材料から導かれた値になり、
+ * 単独でズレたまま残ることがない。
+ *
+ * 【roomは「これから入る値」を渡すこと】スタンプを足したり消したりする側は、
+ * 更新後のroom（新しいstamps）を渡す。prevStateのroomを渡すと、変数だけが1手遅れる。
  */
 export function withDerivedRoomParameters(room, stampCounts, round) {
+  const counts = stampCounts || {};
   const parameters = applyPluginDerivedRoomParameters(
     room?.activePlugin ?? null,
-    withCoreRoomParameters(room?.parameters || {}, round),
-    { stampCounts: stampCounts || {} }
+    withRoomStampTotals(
+      withCoreRoomParameters(room?.parameters || {}, round), room?.stamps, counts
+    ),
+    { stampCounts: counts }
   );
   // プラグイン未適用のときはapplyPluginDerivedRoomParametersが素通しで返すので、
-  // withCoreRoomParametersが作った新しいオブジェクトはここで凍らせる。
+  // 手前で作った新しいオブジェクトはここで凍らせる。
   return parameters === room.parameters ? room : { ...room, parameters: Object.freeze(parameters) };
 }
 

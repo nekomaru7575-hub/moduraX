@@ -1,6 +1,6 @@
 ---
 source: js/store/handlers/room.js
-lines: 218
+lines: 237
 exports: 1
 imported_by: 1
 api_sha: a1ff12e4b823

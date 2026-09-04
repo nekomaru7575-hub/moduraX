@@ -8,7 +8,7 @@
 
 import { createDialogHost } from './dialog-host.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
-import { MAX_ROOM_STAMPS } from './store/stamps.js';
+import { MAX_ROOM_STAMPS, roomStampTotalLabel } from './store/stamps.js';
 
 const ensureDialog = createDialogHost();
 
@@ -18,7 +18,9 @@ const ensureDialog = createDialogHost();
  * （js/original-table-list-dialog.jsと同じ約束）。
  *
  * @param {{
- *   stamps: Record<string, {id:string, label:string, url:string, key:string|null}>,
+ *   stamps: Record<string, {
+ *     id:string, label:string, url:string, key:string|null, counted:boolean
+ *   }>,
  *     キーは公開ID（"room:<ローカルid>"）
  *   onAdd: () => void,
  *   onSelect: (localId: string) => void,
@@ -80,8 +82,12 @@ export function showRoomStampListDialog({ stamps, onAdd, onSelect, onRemove }) {
     const nameBtn = document.createElement('button');
     nameBtn.type = 'button';
     nameBtn.className = 'dialog-table-name-btn';
-    // 名前は登録した人が決めた文字列なので、必ずtextContentで入れる
-    nameBtn.textContent = stamp.label;
+    // 名前は登録した人が決めた文字列なので、必ずtextContentで入れる。
+    // 集計するスタンプは、ルーム変数の名前をそのまま添えて見分けられるようにする
+    // （どの変数がこのスタンプのものか、一覧だけで分かるように）。
+    nameBtn.textContent = stamp.counted
+      ? `${stamp.label} 〔集計：${roomStampTotalLabel(stamp.label)}〕`
+      : stamp.label;
     nameBtn.disabled = !gm;
     nameBtn.title = gm ? '' : GM_ONLY_REASON;
     nameBtn.addEventListener('click', () => {

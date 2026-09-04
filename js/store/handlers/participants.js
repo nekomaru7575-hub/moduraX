@@ -83,15 +83,21 @@ export const PARTICIPANTS_HANDLERS = {
     const participants = prevState.participants || {};
     if (!participantId || !Object.prototype.hasOwnProperty.call(participants, participantId)) return;
 
-    // その部屋で使えるスタンプのうち、プラグインが足したものだけを数える。
-    // Coreのスタンプ（相槌）まで数えると、集計が「OK ×132」で埋まって用を成さない。
-    // 部屋に登録したスタンプ（"room:xxx"・js/store/stamps.js）も同じ理由で数えない。
-    // 下のstartsWithがそのまま歯止めになっている（"room:"はプラグインidで始まらない）ので、
-    // ここに条件を足す必要は無い。数えたくなったら、消したスタンプのぶんが
-    // stampCountsに孤児として残る後始末から先に決めること。
+    // 数えるのは2種類だけ。
+    //   ・プラグインが足したスタンプ（ステラナイツのブーケ等）
+    //   ・部屋に登録したスタンプのうち「集計する」を選んだもの（js/store/stamps.jsのcounted）
+    // Coreのスタンプ（相槌）は数えない。数えると集計が「OK ×132」で埋まって用を成さない。
+    // 部屋のスタンプを既定で数えないのも同じ理由で、数えるかどうかは登録した人が決める。
+    //
+    // 消したスタンプのぶんの後始末はREMOVE_ROOM_STAMP側で行う（集計ごと落とす）。
+    // ここが緩むと、もう名前を引けない数がstampCountsに残り続ける。
     const activePluginId = prevState.room?.activePlugin ?? null;
     const stamp = findStamp(stampId, prevState.room);
-    if (!stamp || !activePluginId || !stamp.id.startsWith(`${activePluginId}:`)) return;
+    if (!stamp) return;
+
+    const isPluginStamp = !!activePluginId && stamp.id.startsWith(`${activePluginId}:`);
+    const isCountedRoomStamp = prevState.room?.stamps?.[stamp.id]?.counted === true;
+    if (!isPluginStamp && !isCountedRoomStamp) return;
 
     // 枚数は0以上の整数だけ。上限を設けているのは、桁数の大きい値を書き込まれても
     // 表示が壊れないようにするため（人ごとに1つの数なので、資源としては軽い）。

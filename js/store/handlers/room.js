@@ -138,7 +138,13 @@ export const ROOM_HANDLERS = {
     if (!Object.prototype.hasOwnProperty.call(stamps, stamp.id)
       && Object.keys(stamps).length >= MAX_ROOM_STAMPS) return;
 
-    commit({ room: { ...room, stamps: withMapEntry(stamps, stamp.id, stamp) } });
+    // 「（スタンプ名）合計」のルーム変数は、集計するスタンプが在ることだけを裏付けに
+    // 作られる（js/store/room.jsのwithRoomStampTotals）。**更新後の**roomを渡すこと：
+    // prevState.roomを渡すと、変数の追加・改名が1手遅れる。
+    const nextRoom = { ...room, stamps: withMapEntry(stamps, stamp.id, stamp) };
+    commit({
+      room: withDerivedRoomParameters(nextRoom, prevState.stampCounts, prevState.round)
+    });
   },
 
   // 部屋のスタンプをローカルid指定で削除する（一覧の×ボタンから）。
@@ -151,7 +157,20 @@ export const ROOM_HANDLERS = {
     const stamps = room.stamps || {};
     if (!Object.prototype.hasOwnProperty.call(stamps, id)) return;
 
-    commit({ room: { ...room, stamps: withoutMapEntry(stamps, id) } });
+    // 集計も一緒に捨てる。残しても、もう誰も名前を引けない数がstampCountsに居座り、
+    // 部屋データとして保存され続けるだけになる（＝孤児）。
+    // 「集計をやめる」だけなら残す（後でまた集計する気になったときのため）。消すのは
+    // スタンプそのものが無くなるここだけ。
+    const stampCounts = prevState.stampCounts || {};
+    const nextStampCounts = Object.prototype.hasOwnProperty.call(stampCounts, id)
+      ? withoutMapEntry(stampCounts, id)
+      : stampCounts;
+
+    const nextRoom = { ...room, stamps: withoutMapEntry(stamps, id) };
+    commit({
+      room: withDerivedRoomParameters(nextRoom, nextStampCounts, prevState.round),
+      ...(nextStampCounts === stampCounts ? {} : { stampCounts: nextStampCounts })
+    });
   },
 
   // 背景設定（js/background-dialog.js）。画像・盤面サイズ・シーンチェンジでの扱いを

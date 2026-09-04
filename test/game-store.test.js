@@ -546,14 +546,84 @@ test('REMOVE_ROOM_STAMP: ローカルidで消す', () => {
   assert.equal(store.state.room.stamps['room:s1'], undefined);
 });
 
-test('COUNT_STAMP: 部屋のスタンプは数えない', () => {
-  // 数える対象はプラグインのスタンプだけ（Coreの相槌と同じ扱い）。
-  // ここが通るようになると、消したスタンプのぶんがstampCountsに孤児として残る。
-  const store = newStore({ activePlugin: 'STELLA_KNIGHTS' });
+test('COUNT_STAMP: 部屋のスタンプは「集計する」を選んだものだけ数える', () => {
+  const store = newStore();
   store.dispatch('REGISTER_PARTICIPANT', { id: 'p1', nickname: 'アリス' });
-  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'なるほど', url: STAMP_URL });
+  store.dispatch('ADD_ROOM_STAMP', { id: 'plain', label: 'なるほど', url: STAMP_URL });
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: '拍手', url: STAMP_URL, counted: true });
 
-  assertNoop(store, 'COUNT_STAMP', { stampId: 'room:s1', participantId: 'p1', count: 1 });
+  // 既定は数えない（Coreの相槌と同じ扱い）
+  assertNoop(store, 'COUNT_STAMP', { stampId: 'room:plain', participantId: 'p1', count: 1 });
+
+  store.dispatch('COUNT_STAMP', { stampId: 'room:tally', participantId: 'p1', count: 3 });
+  assert.equal(store.state.stampCounts['room:tally'].p1, 3);
+});
+
+test('集計するスタンプにはルーム変数「（スタンプ名）合計」が付く', () => {
+  const store = newStore();
+  store.dispatch('REGISTER_PARTICIPANT', { id: 'p1', nickname: 'アリス' });
+  store.dispatch('REGISTER_PARTICIPANT', { id: 'p2', nickname: 'ボブ' });
+
+  // 集計しないスタンプでは作られない
+  store.dispatch('ADD_ROOM_STAMP', { id: 'plain', label: 'なるほど', url: STAMP_URL });
+  assert.equal(store.state.room.parameters['roomStampTotal:plain'], undefined);
+
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: '拍手', url: STAMP_URL, counted: true });
+  const param = store.state.room.parameters['roomStampTotal:tally'];
+  assert.ok(param, '登録した時点で変数ができる');
+  assert.equal(param.label, '拍手合計');
+  assert.equal(param.value, 0);
+  assert.equal(param.editable, false, '自動計算なので手では変えられない');
+  assert.equal(param.locked, true, '消せない');
+
+  // 全参加者ぶんの総和になる（ブーケ合計と同じ数え方）
+  store.dispatch('COUNT_STAMP', { stampId: 'room:tally', participantId: 'p1', count: 3 });
+  store.dispatch('COUNT_STAMP', { stampId: 'room:tally', participantId: 'p2', count: 2 });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].value, 5);
+
+  // 名前を変えると変数の名前も追随する
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: 'いいね', url: STAMP_URL, counted: true });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].label, 'いいね合計');
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].value, 5, '数はそのまま');
+
+  // 集計をやめると変数は消える（集計そのものは残す）
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: 'いいね', url: STAMP_URL, counted: false });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'], undefined);
+  assert.equal(store.state.stampCounts['room:tally'].p1, 3, '集計は残る');
+
+  // 集計し直すと、残っていた数がそのまま戻る
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: 'いいね', url: STAMP_URL, counted: true });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].value, 5);
+});
+
+test('スタンプを消すと、変数も集計も残らない', () => {
+  const store = newStore();
+  store.dispatch('REGISTER_PARTICIPANT', { id: 'p1', nickname: 'アリス' });
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: '拍手', url: STAMP_URL, counted: true });
+  store.dispatch('COUNT_STAMP', { stampId: 'room:tally', participantId: 'p1', count: 4 });
+
+  store.dispatch('REMOVE_ROOM_STAMP', { id: 'tally' });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'], undefined);
+  // 残すと、もう誰も名前を引けない数が部屋データに居座り続ける（孤児）
+  assert.equal(store.state.stampCounts['room:tally'], undefined);
+});
+
+test('RESET_STAMP_COUNTS: 部屋のスタンプの合計も0に戻る', () => {
+  const store = newStore();
+  store.dispatch('REGISTER_PARTICIPANT', { id: 'p1', nickname: 'アリス' });
+  store.dispatch('ADD_ROOM_STAMP', { id: 'tally', label: '拍手', url: STAMP_URL, counted: true });
+  store.dispatch('COUNT_STAMP', { stampId: 'room:tally', participantId: 'p1', count: 4 });
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].value, 4);
+
+  store.dispatch('RESET_STAMP_COUNTS', {});
+  assert.equal(store.state.room.parameters['roomStampTotal:tally'].value, 0);
+});
+
+test('ADD_ROOM_STAMP: countedは真偽値だけを受ける', () => {
+  const store = newStore();
+  store.dispatch('ADD_ROOM_STAMP', { id: 's1', label: 'a', url: STAMP_URL, counted: 'yes' });
+  assert.equal(store.state.room.stamps['room:s1'].counted, false, '文字列で集計は始まらない');
+  assert.equal(store.state.room.parameters['roomStampTotal:s1'], undefined);
 });
 
 // ===========================================================================
@@ -1020,6 +1090,38 @@ test('hydrate: 取り込んだ部屋のスタンプに上限と形の整えが�
     assert.equal(stamp.id, key, 'キーと中身の公開IDは必ず一致する');
     assert.ok(key.startsWith('room:'));
   });
+});
+
+test('hydrate: 裏付けの無い「（スタンプ名）合計」は落ちる', () => {
+  // 合計の変数は「集計するスタンプが在る」ことだけを裏付けに作られる。取り込んだ
+  // 部屋データが変数だけを持っていても、更新されない数として残してはいけない。
+  const store = newStore();
+
+  store.hydrate({
+    room: {
+      name: '取り込んだ部屋',
+      stamps: {
+        'room:live': { id: 'room:live', label: '拍手', url: STAMP_URL, counted: true }
+      },
+      parameters: {
+        'roomStampTotal:live': {
+          key: 'live', label: '古い名前合計', value: 99, source: 'roomStampTotal',
+          locked: true, editable: false, visible: true, roundOnly: false
+        },
+        'roomStampTotal:ghost': {
+          key: 'ghost', label: '居ないスタンプ合計', value: 42, source: 'roomStampTotal',
+          locked: true, editable: false, visible: true, roundOnly: false
+        }
+      }
+    },
+    participants: { p1: { id: 'p1', nickname: 'アリス' } },
+    stampCounts: { 'room:live': { p1: 7 } }
+  });
+
+  const params = store.state.room.parameters;
+  assert.equal(params['roomStampTotal:ghost'], undefined, '裏付けの無い変数は消える');
+  assert.equal(params['roomStampTotal:live'].label, '拍手合計', '名前は今のスタンプ名から');
+  assert.equal(params['roomStampTotal:live'].value, 7, '値は集計から計算し直される');
 });
 
 test('hydrate: 実在しないストッカーを指したカードは、盤面へ戻る（消さない）', () => {

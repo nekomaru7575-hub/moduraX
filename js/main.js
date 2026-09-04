@@ -734,10 +734,13 @@ function openOriginalTableListDialog() {
 function openRoomStampEditor(stamp = null) {
   showRoomStampDialog({
     stamp,
-    onConfirm: ({ id, label, url, key }) => {
+    onConfirm: ({ id, label, url, key, counted }) => {
       // 編集は同じidで上書きするだけ。オリジナル表（キーがタイトル）と違い、
       // 名前を変えても旧エントリを消す必要は無い。
-      store.dispatch('ADD_ROOM_STAMP', { id: id || generateRoomStampId(), label, url, key });
+      // 「（スタンプ名）合計」のルーム変数も、reducer側が追随して作り直す。
+      store.dispatch('ADD_ROOM_STAMP', {
+        id: id || generateRoomStampId(), label, url, key, counted
+      });
       openRoomStampListDialog();
     },
     // 一覧は自分を閉じてからこの画面を開くので、キャンセル時は一覧へ戻す

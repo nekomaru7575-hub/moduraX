@@ -2,7 +2,7 @@
 // グランクレスト戦記RPGのプラグイン記述子。
 //
 // このシステム固有の知識だけを持つ：
-//   - 属性（PC/NPC/国/簡易エネミー）と、PCが持つパラメータの並び
+//   - 属性（PC/NPC/国/モブ）と、属性ごとに持つパラメータ・ボックスの並び
 //   - 能力判定値6種と、その下にぶら下がる技能の対応
 //   - 特技・魔法・部隊特技・アイテム・因縁・誓いの形
 //   - 部隊（マスコンバット）のデータと、そこから自分へ掛かる修正
@@ -32,16 +32,21 @@ const BCDICE_SYSTEM = 'GranCrest';
 // ------------------------------------------------------------------
 // 属性
 // ------------------------------------------------------------------
-// PC以外は「枠だけ用意して中身はこれから」の状態。ドラクルージュのNPCと同じ構えで、
-// パラメータの並びを配列で持ち、属性を切り替えたらキャラクター一覧への出し入れだけを行う
-// （js/parameters/dracurouge.jsのsyncTypeVisibility）。中身が決まったら、その属性の
-// 配列へ足すだけで表示も切り替えも付いてくる。
+// 属性ごとに持ち物が違う。差はすべて下の対応表（TYPE_VISIBLE_PARAM_IDS /
+// TYPE_INPUT_PARAM_IDS / TYPE_READONLY_PARAM_IDS / TYPE_COMBAT_PARAM_IDS / TYPE_BOXES）
+// だけで表し、パネルはその表を描くだけにしてある。属性を足すときは各表へ1行ずつ足す。
+//
+// モブの内部表記が'ENEMY'のままなのは、「簡易エネミー」という名前で保存されたコマが
+// あるため。表示名だけを改めてある（値を変えると既存のコマの属性が読めなくなる）。
 const CHAR_TYPE_PC = 'PC';
+const CHAR_TYPE_NPC = 'NPC';
+const CHAR_TYPE_COUNTRY = 'COUNTRY';
+const CHAR_TYPE_MOB = 'ENEMY';
 export const GCREST_CHAR_TYPES = [
   { value: CHAR_TYPE_PC, label: 'PC' },
-  { value: 'NPC', label: 'NPC' },
-  { value: 'COUNTRY', label: '国' },
-  { value: 'ENEMY', label: '簡易エネミー' }
+  { value: CHAR_TYPE_NPC, label: 'NPC' },
+  { value: CHAR_TYPE_COUNTRY, label: '国' },
+  { value: CHAR_TYPE_MOB, label: 'モブ' }
 ];
 const CHAR_TYPE_VALUES = new Set(GCREST_CHAR_TYPES.map(type => type.value));
 const CHAR_TYPE_PARAM_ID = paramId('charType');
@@ -137,8 +142,11 @@ const DEFENSES = [
   { key: 'defInner', label: '防御力（体内）', shortLabel: '体内' }
 ];
 
+const DEFENCE_PARAM_IDS = DEFENSES.map(def => paramId(def.key));
+
 const MP_PARAM_ID = paramId('MP');
 const LUCK_PARAM_ID = paramId('luck');
+const REACTION_PARAM_ID = paramId('reaction');
 const MORALE_PARAM_ID = paramId('morale');
 const ATTACK_PARAM_ID = paramId('atk');
 const MOVE_PARAM_ID = paramId('move');
@@ -166,6 +174,10 @@ export const GCREST_PARAMETERS = [
   //    （バフは効く。docs/plugin-guide.mdの4章「バフはeditableを見ない」）。
   { key: 'atk', label: '攻撃力', value: 0, editable: false, visible: false },
   ...DEFENSES.map(({ key, label }) => ({ key, label, value: 0, editable: false, visible: false })),
+  // モブだけが持つ受け身の値。モブのときだけキャラクター一覧へ出す（TYPE_VISIBLE_PARAM_IDS）。
+  // 宣言時のvisibleはfalseにすること：新規コマの既定はPCなので、ここをtrueにすると
+  // PCの一覧にも出てしまう。モブへ切り替えたときにsyncTypeVisibilityが出す。
+  { key: 'reaction', label: 'リアクション', value: 0, editable: false, visible: false },
   ...ABILITIES.map(ability => ({ ...ability, value: 0, editable: false, visible: false })),
   ...FIXED_SKILLS.map(skill => ({
     ...skill, value: SKILL_BASE_VALUE, editable: false, visible: false
@@ -195,13 +207,59 @@ export function buildGcrestRoomParameters() {
 // 属性ごとに、キャラクター一覧へ出すパラメータ。
 // 士気はここに入れない：出す・出さないを決めるのは属性ではなく部隊のMCで、両方が同じ
 // パラメータの見え方を触ると、片方の都合でもう片方が上書きされてしまう。
-const TYPE_VISIBLE_PARAM_IDS = {
-  PC: [MP_PARAM_ID, LUCK_PARAM_ID],
-  NPC: [],
-  COUNTRY: [],
-  ENEMY: []
+// HPと行動値もここに入れない（core側の値で、属性によらず同じ扱い）。
+export const GCREST_TYPE_VISIBLE_PARAM_IDS = {
+  [CHAR_TYPE_PC]: [MP_PARAM_ID, LUCK_PARAM_ID],
+  [CHAR_TYPE_NPC]: [MP_PARAM_ID],
+  [CHAR_TYPE_COUNTRY]: [],
+  [CHAR_TYPE_MOB]: [MP_PARAM_ID, REACTION_PARAM_ID]
 };
+const TYPE_VISIBLE_PARAM_IDS = GCREST_TYPE_VISIBLE_PARAM_IDS;
 const TYPED_PARAM_IDS = [...new Set(Object.values(TYPE_VISIBLE_PARAM_IDS).flat())];
+
+// 属性ごとに、パネルへ並べる手入力の行（editable:trueの値だけ）。
+// ここの値はダイアログの「更新」でまとめて保存される（getValues → SET_PARAMETER）。
+export const GCREST_TYPE_INPUT_PARAM_IDS = {
+  [CHAR_TYPE_PC]: [MP_PARAM_ID, LUCK_PARAM_ID],
+  [CHAR_TYPE_NPC]: [MP_PARAM_ID],
+  [CHAR_TYPE_COUNTRY]: [],
+  [CHAR_TYPE_MOB]: [MP_PARAM_ID]
+};
+const TYPE_INPUT_PARAM_IDS = GCREST_TYPE_INPUT_PARAM_IDS;
+
+// 属性ごとに、パネルへ並べる editable:false の値。部屋の中では表示だけで、部屋の外の
+// コマ作成ツールでだけ入力欄になる（書き込みはIMPORT_CHARACTER_DATA。能力ボックスと同じ経路）。
+// モブは能力ボックスを持たないので、ここがモブの数値の唯一の入力口になる。
+export const GCREST_TYPE_READONLY_PARAM_IDS = {
+  [CHAR_TYPE_PC]: [],
+  [CHAR_TYPE_NPC]: [],
+  [CHAR_TYPE_COUNTRY]: [],
+  [CHAR_TYPE_MOB]: [MOVE_PARAM_ID, ...DEFENCE_PARAM_IDS, REACTION_PARAM_ID]
+};
+const TYPE_READONLY_PARAM_IDS = GCREST_TYPE_READONLY_PARAM_IDS;
+
+// 能力ボックスの「戦闘・移動」に出す行。nullは絞らない（＝宣言どおり全部）。
+// NPCは攻撃力と重量を持たないので、移動力と防御力4種だけに絞る。
+const TYPE_COMBAT_PARAM_IDS = {
+  [CHAR_TYPE_PC]: null,
+  [CHAR_TYPE_NPC]: [MOVE_PARAM_ID, ...DEFENCE_PARAM_IDS],
+  [CHAR_TYPE_COUNTRY]: null,
+  [CHAR_TYPE_MOB]: null
+};
+
+// 属性ごとに出すボックス。国はPCと同じまま（中身がこれからなので、ここでは減らさない）。
+export const GCREST_TYPE_BOXES = {
+  [CHAR_TYPE_PC]: { ability: true, arts: true, equipment: true, items: true, unit: true, bonds: true },
+  [CHAR_TYPE_NPC]: { ability: true, arts: true, equipment: false, items: false, unit: false, bonds: false },
+  [CHAR_TYPE_COUNTRY]: { ability: true, arts: true, equipment: true, items: true, unit: true, bonds: true },
+  [CHAR_TYPE_MOB]: { ability: false, arts: true, equipment: false, items: false, unit: false, bonds: false }
+};
+const TYPE_BOXES = GCREST_TYPE_BOXES;
+
+// パラメータの表示名の既定（コマ側のラベルが読めないときの落とし先）。
+const PARAM_FALLBACK_LABELS = new Map(
+  GCREST_PARAMETERS.map(def => [paramId(def.key), def.label])
+);
 
 export function readGcrestCharType(parameters) {
   const value = parameters?.[CHAR_TYPE_PARAM_ID]?.value;
@@ -717,9 +775,11 @@ function buildAbilityGroups(parameters) {
 // 見出し1つ＋短い名前の横一列にする（「防御力」を4回前置しない）。
 // ここでのlabelは表示だけに使うので、防御力は短い名前をそのまま渡してよい
 // （部隊の修正値と違い、バフ名の材料にはならない）。
-function buildCombatGroups(parameters) {
+function buildCombatGroups(parameters, charType = CHAR_TYPE_PC) {
   const valueOf = (id) => Number(parameters[id]?.value) || 0;
   const labelOf = (id, fallback) => parameters[id]?.label ?? fallback;
+  // その属性が持たない行をここで落とす（NPCの攻撃力・所持重量）。nullなら絞らない。
+  const allowed = TYPE_COMBAT_PARAM_IDS[charType] ?? null;
 
   return [
     {
@@ -738,8 +798,10 @@ function buildCombatGroups(parameters) {
     }
   ].map(group => ({
     ...group,
-    rows: group.rows.map(row => ({ ...row, value: valueOf(row.paramId) }))
-  }));
+    rows: group.rows
+      .filter(row => !allowed || allowed.includes(row.paramId))
+      .map(row => ({ ...row, value: valueOf(row.paramId) }))
+  })).filter(group => group.rows.length > 0);
 }
 
 /**
@@ -796,6 +858,11 @@ function renderGcrestCharacterPanel({
   const readComponents = () => (getComponents ? getComponents() : components) ?? {};
   const readParameters = () => (getToken ? getToken()?.parameters : null) ?? parameters;
 
+  // editable:falseの値（能力・技能・攻撃力・防御力・移動力・リアクション）は、部屋の外の
+  // コマ作成ツール（allowParameterEdit:true）でだけ書き換えられる。書き込みは
+  // IMPORT_CHARACTER_DATAのvalueOverrides（js/parameters/arianrhod-ability-box.jsと同じ経路）。
+  const canEditAbilityValues = allowParameterEdit && canWrite;
+
   if (canWrite) renameInitiativeToAction({ readParameters, dispatch, tokenId });
 
   const title = document.createElement('h4');
@@ -803,24 +870,28 @@ function renderGcrestCharacterPanel({
   title.textContent = 'グランクレスト戦記RPG';
   container.appendChild(title);
 
-  const list = document.createElement('div');
-  list.className = 'dialog-custom-list';
-  container.appendChild(list);
+  const typeList = document.createElement('div');
+  typeList.className = 'dialog-custom-list';
+  container.appendChild(typeList);
 
-  const addRow = (labelText) => {
+  const addRow = (parent, labelText) => {
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
     const label = document.createElement('label');
     label.className = 'dialog-param-label gcrest-row-label';
     label.textContent = labelText;
     row.appendChild(label);
-    list.appendChild(row);
+    parent.appendChild(row);
     return row;
   };
 
+  // 表示名はコマが実際に持っているものを優先する（利用者が付け替えていたら、それを尊重する）
+  const labelOf = (current, rowParamId) =>
+    current[rowParamId]?.label ?? PARAM_FALLBACK_LABELS.get(rowParamId) ?? rowParamId;
+
   // --- 属性 ---
   let charType = readGcrestCharType(readParameters());
-  const typeRow = addRow('属性');
+  const typeRow = addRow(typeList, '属性');
   const typeSelect = document.createElement('select');
   GCREST_CHAR_TYPES.forEach(type => {
     const option = document.createElement('option');
@@ -831,6 +902,13 @@ function renderGcrestCharacterPanel({
   typeSelect.value = charType;
   typeSelect.disabled = !canWrite;
   typeRow.appendChild(typeSelect);
+
+  // 属性で中身が変わるところ。ここだけ描き直せば、属性の切り替えに値もボックスも追従する。
+  const typedArea = document.createElement('div');
+  container.appendChild(typedArea);
+
+  // getValues()が読む入力欄。描き直すたびに作り替える。
+  let valueRows = [];
 
   // 現在の属性に合わせて、キャラクター一覧へ出すかどうかを揃える。
   // 実際に変わるものだけdispatchする（js/character-dialog.jsのapplyCharacterEditResultと同じ規約）。
@@ -846,85 +924,122 @@ function renderGcrestCharacterPanel({
     });
   }
 
-  typeSelect.addEventListener('change', () => {
-    charType = CHAR_TYPE_VALUES.has(typeSelect.value) ? typeSelect.value : CHAR_TYPE_PC;
-    // 属性の保存と見え方の切り替えは、ダイアログの「更新」を待たずここで済ませる。
-    // 待つと、キャンセルしたときに見え方だけが変わって残ってしまう。
-    if (canWrite) {
-      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: CHAR_TYPE_PARAM_ID, value: charType });
-      syncTypeVisibility();
-    }
-  });
+  function renderTypedArea() {
+    typedArea.innerHTML = '';
+    valueRows = [];
 
-  // --- 手で動かす値 ---
-  const valueRows = [
-    { paramId: MP_PARAM_ID, label: 'MP' },
-    { paramId: LUCK_PARAM_ID, label: '天運' }
-  ].map(({ paramId: rowParamId, label: fallbackLabel }) => {
-    const row = addRow(parameters[rowParamId]?.label ?? fallbackLabel);
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.step = '1';
-    input.value = Number(parameters[rowParamId]?.value) || 0;
-    input.disabled = !canEdit;
-    row.appendChild(input);
-    return { paramId: rowParamId, input };
-  });
+    const current = readParameters();
+    const boxes = TYPE_BOXES[charType] ?? TYPE_BOXES[CHAR_TYPE_PC];
 
-  // --- 能力・技能ボックス ---
-  // 値はeditable:falseなので、部屋の外のコマ作成ツール（allowParameterEdit:true）でだけ
-  // 入力欄になる。書き込みはIMPORT_CHARACTER_DATAのvalueOverrides
-  // （js/parameters/arianrhod-ability-box.jsと同じ経路）。
-  // 能力・技能はキャラクターの数値そのものなので、脇の一覧より重い見た目にする（is-primary）。
-  const canEditAbilityValues = allowParameterEdit && canWrite;
-  const abilityGroup = document.createElement('div');
-  abilityGroup.className = 'gcrest-group';
+    const valueList = document.createElement('div');
+    valueList.className = 'dialog-custom-list';
+    typedArea.appendChild(valueList);
 
-  const abilityBtn = document.createElement('button');
-  abilityBtn.type = 'button';
-  abilityBtn.className = 'dialog-add-row-btn gcrest-open-btn is-primary';
-  const abilityBtnLabel = document.createElement('span');
-  abilityBtnLabel.textContent = canEditAbilityValues ? '能力・技能を編集' : '能力・技能';
-  abilityBtn.appendChild(abilityBtnLabel);
-  abilityBtn.addEventListener('click', () => {
-    showGcrestAbilityBox({
-      // 開いた後に枠を足しても巻き戻らないよう、ボックスから都度最新のparametersを読ませる
-      readData: () => {
-        const current = readParameters();
-        return {
-          groups: buildAbilityGroups(current),
-          combatGroups: buildCombatGroups(current)
-        };
-      },
-      editable: canEditAbilityValues,
-      onSave: canEditAbilityValues
-        ? (valueOverrides) => dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, valueOverrides })
-        : undefined,
-      onAddFreeSkill: canEditAbilityValues
-        ? (free, label) => {
-          const newParameters = buildFreeSkillParameter(readParameters(), free, label);
-          if (!newParameters) return false;
-          dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, newParameters });
-          return true;
-        }
-        : undefined,
-      onRemoveFreeSkill: canEditAbilityValues
-        ? (freeParamId) => dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId: freeParamId })
-        : undefined
+    // --- 手で動かす値 ---
+    (TYPE_INPUT_PARAM_IDS[charType] ?? []).forEach(rowParamId => {
+      const row = addRow(valueList, labelOf(current, rowParamId));
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = '1';
+      input.value = Number(current[rowParamId]?.value) || 0;
+      input.disabled = !canEdit;
+      row.appendChild(input);
+      valueRows.push({ paramId: rowParamId, input });
     });
-  });
-  abilityGroup.appendChild(abilityBtn);
-  container.appendChild(abilityGroup);
 
-  // --- 各種一覧 ---
-  // 既存のコマの更新時のみ開ける（新規作成時はまだcomponentsを持たないため対象外）。
-  if (mode === 'edit' && onComponentChange) {
+    // --- 能力ボックス側の値を、パネルへ直接出す属性（モブ）---
+    // モブは能力ボックスを持たないので、移動力・防御力・リアクションの入力口がここにしかない。
+    // SET_PARAMETERはeditable:falseを弾くため、ダイアログの「更新」を待たずその場で書く
+    // （他のボックスと同じ「開いている画面の中で保存が完結する」振る舞い）。
+    const readOnlyParamIds = TYPE_READONLY_PARAM_IDS[charType] ?? [];
+    readOnlyParamIds.forEach(rowParamId => {
+      const row = addRow(valueList, labelOf(current, rowParamId));
+      const value = Number(current[rowParamId]?.value) || 0;
+
+      if (!canEditAbilityValues) {
+        const view = document.createElement('span');
+        view.className = 'gcrest-row-value';
+        view.textContent = String(value);
+        row.appendChild(view);
+        return;
+      }
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = '1';
+      input.value = value;
+      input.addEventListener('change', () => {
+        dispatch('IMPORT_CHARACTER_DATA', {
+          id: tokenId,
+          valueOverrides: { [rowParamId]: Math.trunc(Number(input.value) || 0) }
+        });
+      });
+      row.appendChild(input);
+    });
+
+    // 部屋の中では手入力できないことを断っておく（能力ボックスの同じ注記と同じ理由。
+    // こちらは開く先が無いので、行のすぐ下に置く）。
+    if (readOnlyParamIds.length > 0 && !canEditAbilityValues) {
+      const note = document.createElement('p');
+      note.className = 'gcrest-note';
+      note.textContent = 'これらの値は部屋の中では編集できません。'
+        + 'コマ作成ツール（キャラクター作成）で入力してから部屋へ持ち込んでください。';
+      typedArea.appendChild(note);
+    }
+
+    // --- 能力・技能ボックス ---
+    // 能力・技能はキャラクターの数値そのものなので、脇の一覧より重い見た目にする（is-primary）。
+    if (boxes.ability) {
+      const abilityGroup = document.createElement('div');
+      abilityGroup.className = 'gcrest-group';
+
+      const abilityBtn = document.createElement('button');
+      abilityBtn.type = 'button';
+      abilityBtn.className = 'dialog-add-row-btn gcrest-open-btn is-primary';
+      const abilityBtnLabel = document.createElement('span');
+      abilityBtnLabel.textContent = canEditAbilityValues ? '能力・技能を編集' : '能力・技能';
+      abilityBtn.appendChild(abilityBtnLabel);
+      abilityBtn.addEventListener('click', () => {
+        showGcrestAbilityBox({
+          // 開いた後に枠を足しても巻き戻らないよう、ボックスから都度最新のparametersを読ませる
+          readData: () => {
+            const latest = readParameters();
+            return {
+              groups: buildAbilityGroups(latest),
+              combatGroups: buildCombatGroups(latest, charType)
+            };
+          },
+          editable: canEditAbilityValues,
+          onSave: canEditAbilityValues
+            ? (valueOverrides) => dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, valueOverrides })
+            : undefined,
+          onAddFreeSkill: canEditAbilityValues
+            ? (free, label) => {
+              const newParameters = buildFreeSkillParameter(readParameters(), free, label);
+              if (!newParameters) return false;
+              dispatch('IMPORT_CHARACTER_DATA', { id: tokenId, newParameters });
+              return true;
+            }
+            : undefined,
+          onRemoveFreeSkill: canEditAbilityValues
+            ? (freeParamId) => dispatch('REMOVE_PARAMETER', { characterId: tokenId, paramId: freeParamId })
+            : undefined
+        });
+      });
+      abilityGroup.appendChild(abilityBtn);
+      typedArea.appendChild(abilityGroup);
+    }
+
+    // --- 各種一覧 ---
+    // 既存のコマの更新時のみ開ける（新規作成時はまだcomponentsを持たないため対象外）。
+    if (mode !== 'edit' || !onComponentChange) return;
+
     // ボタンのまとまり。同じ見た目で縦に並べ切ると「どれが本体でどれが脇か」が
     // 読めないので、意味ごとに空きで区切る（見出しは置かない）。
     const addGroup = () => {
       const group = document.createElement('div');
       group.className = 'gcrest-group';
-      container.appendChild(group);
+      typedArea.appendChild(group);
       return group;
     };
 
@@ -959,7 +1074,7 @@ function renderGcrestCharacterPanel({
       sync();
 
       btn.addEventListener('click', () => onClick(sync));
-      (parent ?? container).appendChild(btn);
+      (parent ?? typedArea).appendChild(btn);
       return btn;
     };
 
@@ -987,69 +1102,95 @@ function renderGcrestCharacterPanel({
     });
 
     const learnedGroup = addGroup();
-    addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
-
-    addListButton(learnedGroup, GCREST_EQUIPMENT_SPEC, () => readGcrestEquipment(readComponents()));
-    addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
+    if (boxes.arts) {
+      addListButton(learnedGroup, GCREST_ART_SPEC, () => readGcrestArts(readComponents()));
+    }
+    if (boxes.equipment) {
+      addListButton(learnedGroup, GCREST_EQUIPMENT_SPEC, () => readGcrestEquipment(readComponents()));
+    }
+    if (boxes.items) {
+      addListButton(learnedGroup, GCREST_ITEM_SPEC, () => readGcrestItems(readComponents()));
+    }
+    if (!learnedGroup.firstChild) learnedGroup.remove();
 
     // --- 部隊 ---
     // MCの状態はバッジで出す。件数と違って「今どちらか」で使える特技が変わるので、
     // ONのときだけ浮かせて、ボックスを開かなくても読めるようにしてある。
-    const unitGroup = addGroup();
-    addBoxButton({
-      parent: unitGroup,
-      label: () => {
-        const unit = readGcrestUnit(readComponents());
-        return unit.name ? `部隊 ${unit.name}` : '部隊';
-      },
-      badge: () => {
-        const unit = readGcrestUnit(readComponents());
-        return unit.mc ? { text: `MC ${unit.position}`, on: true } : { text: 'MC オフ' };
-      },
-      onClick: (sync) => {
-        const current = readParameters();
-        showGcrestUnitBox({
-          unit: readGcrestUnit(readComponents()),
-          modGroups: GCREST_UNIT_MOD_GROUPS,
-          morale: {
-            label: current[MORALE_PARAM_ID]?.label ?? '士気',
-            value: Number(current[MORALE_PARAM_ID]?.value) || 0
-          },
-          readOnly: !canWrite,
-          // 部隊特技は部隊の持ち物なので、部隊ボックスの中から開く。
-          // 一覧そのものは共通の枠組み（showSkillBox）のままで、部隊ボックスは
-          // 「開く口」だけを持つ（あちらはstoreを触らない）。
-          unitArts: {
-            noun: GCREST_UNIT_ART_SPEC.noun,
-            count: () => readGcrestUnitArts(readComponents()).length,
-            open: (onSaved) => openSkillBox(
-              GCREST_UNIT_ART_SPEC,
-              () => readGcrestUnitArts(readComponents()),
-              onSaved
-            )
-          },
-          onSave: ({ unit, morale }) => {
-            onComponentChange(UNIT_COMPONENT_KEY, unit);
-            dispatch('SET_PARAMETER', { characterId: tokenId, paramId: MORALE_PARAM_ID, value: morale });
-            syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId });
-            syncMoraleVisibility({ parameters: readParameters(), unit, tokenId, dispatch });
-            sync();
-          }
-        });
-      }
-    });
+    if (boxes.unit) {
+      const unitGroup = addGroup();
+      addBoxButton({
+        parent: unitGroup,
+        label: () => {
+          const unit = readGcrestUnit(readComponents());
+          return unit.name ? `部隊 ${unit.name}` : '部隊';
+        },
+        badge: () => {
+          const unit = readGcrestUnit(readComponents());
+          return unit.mc ? { text: `MC ${unit.position}`, on: true } : { text: 'MC オフ' };
+        },
+        onClick: (sync) => {
+          const latest = readParameters();
+          showGcrestUnitBox({
+            unit: readGcrestUnit(readComponents()),
+            modGroups: GCREST_UNIT_MOD_GROUPS,
+            morale: {
+              label: latest[MORALE_PARAM_ID]?.label ?? '士気',
+              value: Number(latest[MORALE_PARAM_ID]?.value) || 0
+            },
+            readOnly: !canWrite,
+            // 部隊特技は部隊の持ち物なので、部隊ボックスの中から開く。
+            // 一覧そのものは共通の枠組み（showSkillBox）のままで、部隊ボックスは
+            // 「開く口」だけを持つ（あちらはstoreを触らない）。
+            unitArts: {
+              noun: GCREST_UNIT_ART_SPEC.noun,
+              count: () => readGcrestUnitArts(readComponents()).length,
+              open: (onSaved) => openSkillBox(
+                GCREST_UNIT_ART_SPEC,
+                () => readGcrestUnitArts(readComponents()),
+                onSaved
+              )
+            },
+            onSave: ({ unit, morale }) => {
+              onComponentChange(UNIT_COMPONENT_KEY, unit);
+              dispatch('SET_PARAMETER', { characterId: tokenId, paramId: MORALE_PARAM_ID, value: morale });
+              syncGcrestUnitBuffs({ unit, tokenId, dispatch, generateBuffId });
+              syncMoraleVisibility({ parameters: readParameters(), unit, tokenId, dispatch });
+              sync();
+            }
+          });
+        }
+      });
+    }
 
-    const bondGroup = addGroup();
-    addListButton(bondGroup, GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
+    if (boxes.bonds) {
+      const bondGroup = addGroup();
+      addListButton(bondGroup, GCREST_BOND_SPEC, () => readGcrestBonds(readComponents()));
 
-    // 誓いは枠が3つで固定なので件数は数えない（常に3）。
-    addBoxButton({
-      parent: bondGroup,
-      label: () => GCREST_OATH_SPEC.noun,
-      badge: () => ({ text: `${GCREST_OATH_SPEC.defaultSkills.length}枠` }),
-      onClick: () => openSkillBox(GCREST_OATH_SPEC, () => readGcrestOaths(readComponents()))
-    });
+      // 誓いは枠が3つで固定なので件数は数えない（常に3）。
+      addBoxButton({
+        parent: bondGroup,
+        label: () => GCREST_OATH_SPEC.noun,
+        badge: () => ({ text: `${GCREST_OATH_SPEC.defaultSkills.length}枠` }),
+        onClick: () => openSkillBox(GCREST_OATH_SPEC, () => readGcrestOaths(readComponents()))
+      });
+    }
   }
+
+  // 開いた時にも見え方を揃える。ここで揃えないと、後から足したパラメータ（リアクション）が
+  // 既存のコマでは属性を選び直すまで一覧に出てこない（js/parameters/dracurouge.jsと同じ）。
+  if (canWrite) syncTypeVisibility();
+  renderTypedArea();
+
+  typeSelect.addEventListener('change', () => {
+    charType = CHAR_TYPE_VALUES.has(typeSelect.value) ? typeSelect.value : CHAR_TYPE_PC;
+    // 属性の保存と見え方の切り替えは、ダイアログの「更新」を待たずここで済ませる。
+    // 待つと、キャンセルしたときに見え方だけが変わって残ってしまう。
+    if (canWrite) {
+      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: CHAR_TYPE_PARAM_ID, value: charType });
+      syncTypeVisibility();
+    }
+    renderTypedArea();
+  });
 
   return {
     getValues: () => Object.fromEntries(valueRows.map(({ paramId: rowParamId, input }) => [

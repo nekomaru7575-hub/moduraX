@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-04
+generated: 2026-09-05
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-04
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 156 | 701 | 1204 | 60 | 8 |
+| 156 | 706 | 1205 | 58 | 9 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -114,7 +114,7 @@ generated: 2026-09-04
 | [[js.parameters.futarisousa\|js/parameters/futarisousa.js]] | バディサスペンスTRPG フタリソウサ のプラグイン記述子。 | 2 | 1 |
 | [[js.parameters.gcrest-ability-box\|js/parameters/gcrest-ability-box.js]] | グランクレストの能力判定値6種と技能をまとめて表示する「ボックス」。 | 1 | 1 |
 | [[js.parameters.gcrest-unit-box\|js/parameters/gcrest-unit-box.js]] | グランクレストの「部隊」（マスコンバット）を編集するボックス。 | 1 | 1 |
-| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 28 | 1 |
+| [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 32 | 1 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 23 | 17 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
@@ -175,7 +175,7 @@ generated: 2026-09-04
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
 | [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 12 | 8 |
 | [[js.token-library-dialog\|js/token-library-dialog.js]] | 「保存したコマから追加」——部屋の外のコマ作成ツールで作って棚（js/token-library.js）に 残したコマを、この部屋のバックヤードへ引き込む。 | 1 | 1 |
-| [[js.token-library\|js/token-library.js]] | 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに 取っておく置き場。 | 10 | 2 |
+| [[js.token-library\|js/token-library.js]] | 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに 取っておく置き場。 | 11 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
 | [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
 | [[server.bcdice-cache-rules\|server/bcdice-cache-rules.js]] | BCDiceの中継キャッシュ（server/index.jsのloadBcdiceCached）の判断そのもの。 | 7 | 1 |
@@ -212,3 +212,4 @@ export の顔ぶれかシグネチャが変わったのに `## 役割` が書き
 - [[js.stamp-registry\|js/stamp-registry.js]]
 - [[js.store.ids\|js/store/ids.js]]
 - [[js.store.stamps\|js/store/stamps.js]]
+- [[js.token-library\|js/token-library.js]]

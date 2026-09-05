@@ -134,6 +134,26 @@ export function buildLibraryEntry(token, pluginId, { id = null, savedAt = null }
 }
 
 /**
+ * 棚の1件を、この部屋へ持ち込んでよいか。
+ *
+ * 別のシステムで作ったコマを入れても、そのパラメータを読める相手が部屋にいない
+ * （Coreは値を運ぶが、意味は解釈しない）。侵蝕率やエフェクトが数字と文字列のまま並び、
+ * 判定にも使えないコマができあがるだけなので、選ばせる前に外す。
+ *
+ * プラグインなし（pluginId: null）はどの部屋でも通す。中身が本体機能のパラメータだけで、
+ * どのシステムでも同じに扱えるからだ。名前と絵だけのNPCを1体作って使い回す、という
+ * 持ち方を塞がないため。
+ *
+ * @param {{pluginId: string|null}} entry 棚の1件（normalizeLibraryEntryを通ったもの）
+ * @param {string|null} roomPluginId 部屋の適用プラグイン（room.activePlugin）
+ */
+export function canBringIntoRoom(entry, roomPluginId) {
+  const entryPluginId = entry?.pluginId ?? null;
+  if (entryPluginId === null) return true;
+  return entryPluginId === (roomPluginId ?? null);
+}
+
+/**
  * 棚の中身。新しくさわった順。読めない行は落とす。
  * 置き場が使えない環境では空配列（画面は「まだ無い」と同じ見た目になる）。
  */

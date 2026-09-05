@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_LIBRARY_ENTRY_BYTES, buildLibraryEntry, estimateEntryBytes, normalizeLibraryEntry
+  MAX_LIBRARY_ENTRY_BYTES, buildLibraryEntry, canBringIntoRoom, estimateEntryBytes, normalizeLibraryEntry
 } from '../js/token-library.js';
 import { TOKEN_SNAPSHOT_FORMAT, buildTokenSnapshot } from '../js/character-snapshot.js';
 
@@ -120,4 +120,29 @@ test('大きさの見積もりは測れないものを通さない側に倒す',
 test('1件の上限はサーバーの画像の上限と揃っている', () => {
   // ここが緩いと「棚には入るのに部屋へ持ち込めない」コマができる
   assert.equal(MAX_LIBRARY_ENTRY_BYTES, 8 * 1024 * 1024);
+});
+
+// --- 部屋との相性（バックヤードへ引き込む候補の絞り込み） ---
+// ここを間違えても画面はエラーを出さない。出るはずのコマが出ない／出てはいけない
+// コマが出る、という形でしか現れないので、境目を固定しておく。
+
+test('同じシステムのコマは持ち込める', () => {
+  assert.equal(canBringIntoRoom(entryOf({ pluginId: 'DX3' }), 'DX3'), true);
+});
+
+test('違うシステムのコマは候補に出さない', () => {
+  assert.equal(canBringIntoRoom(entryOf({ pluginId: 'DX3' }), 'SHINOBIGAMI'), false);
+  assert.equal(canBringIntoRoom(entryOf({ pluginId: 'DX3' }), null), false,
+    'プラグインなしの部屋も「違うシステム」に含める');
+});
+
+test('プラグインなしのコマはどの部屋でも持ち込める', () => {
+  // 本体機能のパラメータしか持たないので、どのシステムでも同じに扱える
+  assert.equal(canBringIntoRoom(entryOf({ pluginId: null }), 'DX3'), true);
+  assert.equal(canBringIntoRoom(entryOf({ pluginId: null }), null), true);
+});
+
+test('壊れた行を渡してもプラグインなし扱いで落ちない', () => {
+  assert.equal(canBringIntoRoom(null, 'DX3'), true);
+  assert.equal(canBringIntoRoom({}, 'DX3'), true);
 });

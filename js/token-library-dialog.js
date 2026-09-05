@@ -5,6 +5,11 @@
 // 【入室時に自動で入れない理由】バックヤードのコマも部屋の状態として全員へ配られ、
 // 保存先へも書き戻る（js/visibility.js冒頭）。棚に十数体あるのを部屋へ入るたび自動で
 // 注ぐと、その卓に関係のないコマまで全員の手元へ流れ続ける。使うものだけを選ばせる。
+//
+// 【この部屋で使えるものだけ並べる】棚は全部屋で共通だが、コマは作ったときのシステムを
+// 抱えている。別のシステムの部屋へ入れても解釈する相手がいないので、候補の段階で外す
+// （js/token-library.js の canBringIntoRoom）。外した数は画面に出す——黙って消すと、
+// 保存したはずのコマが失われたように見える。
 
 import { store } from './board-data-driven.js';
 import { generateTokenId } from './game-store.js';
@@ -12,7 +17,7 @@ import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 import { adoptImageIntoRoom } from './image-upload.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 import { listPlugins } from './parameters/registry.js';
-import { listTokenLibrary } from './token-library.js';
+import { canBringIntoRoom, listTokenLibrary } from './token-library.js';
 
 const ensureDialog = createDialogHost();
 
@@ -60,7 +65,12 @@ async function bringIntoRoom(entry) {
  * @param {{ onDone?: (count: number) => void }} [options]
  */
 export async function showTokenLibraryPickerDialog({ onDone } = {}) {
-  const entries = await listTokenLibrary();
+  const shelf = await listTokenLibrary();
+  // 棚は全部屋で共通なので、この部屋で意味を持たないコマまで並ぶ。選ばせてから
+  // 「入れても使えない」と気づかせるより、候補の段階で外す（canBringIntoRoom）。
+  const roomPluginId = store.state.room?.activePlugin ?? null;
+  const entries = shelf.filter(entry => canBringIntoRoom(entry, roomPluginId));
+  const hiddenCount = shelf.length - entries.length;
 
   const dialog = ensureDialog();
   if (dialog.open) dialog.close();
@@ -81,8 +91,13 @@ export async function showTokenLibraryPickerDialog({ onDone } = {}) {
   if (entries.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'dialog-empty-note';
-    empty.textContent = 'このブラウザにはまだ保存したコマがありません。'
-      + '部屋の外の「コマ作成ツール」で作ると、ここに並びます。';
+    // 棚に何体かあるのに1体も出せないときは、そう言う。「まだありません」で済ませると、
+    // 保存したはずのコマが消えたように見えて、不具合として報告が返ってくる。
+    empty.textContent = shelf.length === 0
+      ? 'このブラウザにはまだ保存したコマがありません。'
+        + '部屋の外の「コマ作成ツール」で作ると、ここに並びます。'
+      : `保存したコマは${shelf.length}体ありますが、どれもこの部屋（${pluginLabelOf(roomPluginId)}）とは`
+        + '違うシステムのものです。同じシステムのコマを作ると、ここに並びます。';
     form.appendChild(empty);
 
     // 選ぶものが無いので確定は要らない（appendConfirmRowは使わない）
@@ -98,6 +113,16 @@ export async function showTokenLibraryPickerDialog({ onDone } = {}) {
     dialog.appendChild(form);
     dialog.showModal();
     return;
+  }
+
+  // 何体か隠したなら黙って隠さない。棚に入れたはずのコマが見当たらない理由が
+  // 画面に無いと、探し回った末に不具合として報告されることになる。
+  if (hiddenCount > 0) {
+    const filtered = document.createElement('p');
+    filtered.className = 'audio-note';
+    filtered.textContent = `この部屋（${pluginLabelOf(roomPluginId)}）で使えるコマだけを並べています。`
+      + `別のシステムで作った${hiddenCount}体は出していません。`;
+    form.appendChild(filtered);
   }
 
   const listEl = document.createElement('div');

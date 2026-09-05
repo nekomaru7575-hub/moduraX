@@ -33,11 +33,14 @@ const BCDICE_SYSTEM = 'GranCrest';
 // 属性
 // ------------------------------------------------------------------
 // 属性ごとに持ち物が違う。差はすべて下の対応表（TYPE_VISIBLE_PARAM_IDS /
-// TYPE_INPUT_PARAM_IDS / TYPE_READONLY_PARAM_IDS / TYPE_COMBAT_PARAM_IDS / TYPE_BOXES）
+// TYPE_INPUT_PARAM_IDS / TYPE_READONLY_GROUPS / TYPE_COMBAT_PARAM_IDS / TYPE_BOXES）
 // だけで表し、パネルはその表を描くだけにしてある。属性を足すときは各表へ1行ずつ足す。
 //
 // モブの内部表記が'ENEMY'のままなのは、「簡易エネミー」という名前で保存されたコマが
 // あるため。表示名だけを改めてある（値を変えると既存のコマの属性が読めなくなる）。
+//
+// 「国」は選択肢から外してある（下のGCREST_CHAR_TYPESでコメントアウト）。対応表の行は
+// 残してあるので、分類が決まったら選択肢の1行を戻すだけでよい。
 const CHAR_TYPE_PC = 'PC';
 const CHAR_TYPE_NPC = 'NPC';
 const CHAR_TYPE_COUNTRY = 'COUNTRY';
@@ -143,6 +146,8 @@ const DEFENSES = [
 ];
 
 const DEFENCE_PARAM_IDS = DEFENSES.map(def => paramId(def.key));
+// 「防御力」の見出しが既に付いている場所で使う短い名前。paramIdで引けるようにしたもの。
+const PARAM_SHORT_LABELS = new Map(DEFENSES.map(def => [paramId(def.key), def.shortLabel]));
 
 const MP_PARAM_ID = paramId('MP');
 const LUCK_PARAM_ID = paramId('luck');
@@ -230,13 +235,27 @@ const TYPE_INPUT_PARAM_IDS = GCREST_TYPE_INPUT_PARAM_IDS;
 // 属性ごとに、パネルへ並べる editable:false の値。部屋の中では表示だけで、部屋の外の
 // コマ作成ツールでだけ入力欄になる（書き込みはIMPORT_CHARACTER_DATA。能力ボックスと同じ経路）。
 // モブは能力ボックスを持たないので、ここがモブの数値の唯一の入力口になる。
-export const GCREST_TYPE_READONLY_PARAM_IDS = {
+//
+// 並べ方は能力ボックスの「戦闘・移動」と同じ考え方にしてある。単発の値は縦の行のまま、
+// 4つで1組の防御力は見出し1つ＋短い名前の横一列（layout:'flow'）にする
+// （「防御力」を4回前置しない）。見出しを持たない群は行として並べる。
+export const GCREST_TYPE_READONLY_GROUPS = {
   [CHAR_TYPE_PC]: [],
   [CHAR_TYPE_NPC]: [],
   [CHAR_TYPE_COUNTRY]: [],
-  [CHAR_TYPE_MOB]: [MOVE_PARAM_ID, ...DEFENCE_PARAM_IDS, REACTION_PARAM_ID]
+  [CHAR_TYPE_MOB]: [
+    { rows: [MOVE_PARAM_ID, REACTION_PARAM_ID] },
+    { label: '防御力', layout: 'flow', rows: DEFENCE_PARAM_IDS }
+  ]
 };
-const TYPE_READONLY_PARAM_IDS = GCREST_TYPE_READONLY_PARAM_IDS;
+const TYPE_READONLY_GROUPS = GCREST_TYPE_READONLY_GROUPS;
+
+// 上の表を平らにしたもの（属性 → paramId[]）。「一覧に出るのに入力口が無い」を
+// 見つけるための点検に使う（test/gcrest-type.test.js）。
+export const GCREST_TYPE_READONLY_PARAM_IDS = Object.fromEntries(
+  Object.entries(GCREST_TYPE_READONLY_GROUPS)
+    .map(([type, groups]) => [type, groups.flatMap(group => group.rows)])
+);
 
 // 能力ボックスの「戦闘・移動」に出す行。nullは絞らない（＝宣言どおり全部）。
 // NPCは攻撃力と重量を持たないので、移動力と防御力4種だけに絞る。
@@ -910,6 +929,11 @@ function renderGcrestCharacterPanel({
   // getValues()が読む入力欄。描き直すたびに作り替える。
   let valueRows = [];
 
+  // まだ「更新」していない手入力を持ち越すための控え。属性を切り替えると行を作り直すので、
+  // これが無いと、選び直した拍子に打ちかけのMPが保存済みの値へ戻ってしまう
+  // （editable:falseの行は入力のたびに書くので、こちらには載せない）。
+  const pendingValues = new Map();
+
   // 現在の属性に合わせて、キャラクター一覧へ出すかどうかを揃える。
   // 実際に変わるものだけdispatchする（js/character-dialog.jsのapplyCharacterEditResultと同じ規約）。
   function syncTypeVisibility() {
@@ -941,8 +965,9 @@ function renderGcrestCharacterPanel({
       const input = document.createElement('input');
       input.type = 'number';
       input.step = '1';
-      input.value = Number(current[rowParamId]?.value) || 0;
+      input.value = pendingValues.get(rowParamId) ?? (Number(current[rowParamId]?.value) || 0);
       input.disabled = !canEdit;
+      input.addEventListener('input', () => pendingValues.set(rowParamId, input.value));
       row.appendChild(input);
       valueRows.push({ paramId: rowParamId, input });
     });
@@ -951,9 +976,10 @@ function renderGcrestCharacterPanel({
     // モブは能力ボックスを持たないので、移動力・防御力・リアクションの入力口がここにしかない。
     // SET_PARAMETERはeditable:falseを弾くため、ダイアログの「更新」を待たずその場で書く
     // （他のボックスと同じ「開いている画面の中で保存が完結する」振る舞い）。
-    const readOnlyParamIds = TYPE_READONLY_PARAM_IDS[charType] ?? [];
-    readOnlyParamIds.forEach(rowParamId => {
-      const row = addRow(valueList, labelOf(current, rowParamId));
+    const readOnlyGroups = TYPE_READONLY_GROUPS[charType] ?? [];
+
+    // 1件ぶんの中身。部屋の中では数字だけ、コマ作成ツールでは入力欄になる。
+    const fillReadOnlyRow = (row, rowParamId) => {
       const value = Number(current[rowParamId]?.value) || 0;
 
       if (!canEditAbilityValues) {
@@ -975,11 +1001,41 @@ function renderGcrestCharacterPanel({
         });
       });
       row.appendChild(input);
+    };
+
+    readOnlyGroups.forEach(group => {
+      // 見出しの無い群は、MPと同じ縦の行のまま上の一覧へ続ける。
+      if (!group.label) {
+        group.rows.forEach(rowParamId => {
+          fillReadOnlyRow(addRow(valueList, labelOf(current, rowParamId)), rowParamId);
+        });
+        return;
+      }
+
+      // 見出しを持つ群（防御力）は、能力ボックスの「戦闘・移動」と同じ形に畳む。
+      // 見出しが既に「防御力」と言っているので、行の名前は短い名前を使う。
+      const groupEl = document.createElement('div');
+      groupEl.className = 'gcrest-mod-group';
+
+      const groupTitle = document.createElement('div');
+      groupTitle.className = 'gcrest-mod-group-title';
+      groupTitle.textContent = group.label;
+      groupEl.appendChild(groupTitle);
+
+      const body = document.createElement('div');
+      body.className = group.layout === 'flow' ? 'gcrest-mod-row-flow' : 'gcrest-mod-grid';
+      group.rows.forEach(rowParamId => {
+        const rowLabel = PARAM_SHORT_LABELS.get(rowParamId) ?? labelOf(current, rowParamId);
+        fillReadOnlyRow(addRow(body, rowLabel), rowParamId);
+      });
+      groupEl.appendChild(body);
+
+      typedArea.appendChild(groupEl);
     });
 
     // 部屋の中では手入力できないことを断っておく（能力ボックスの同じ注記と同じ理由。
     // こちらは開く先が無いので、行のすぐ下に置く）。
-    if (readOnlyParamIds.length > 0 && !canEditAbilityValues) {
+    if (readOnlyGroups.length > 0 && !canEditAbilityValues) {
       const note = document.createElement('p');
       note.className = 'gcrest-note';
       note.textContent = 'これらの値は部屋の中では編集できません。'

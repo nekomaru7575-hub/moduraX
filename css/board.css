@@ -249,6 +249,26 @@ h1 {
   color: var(--text-emphasis);
 }
 
+/* 「保存したコマから追加」（バックヤードタブの先頭）。行ではなく導線なので、
+   一覧の行（.character-list-item）と同じ見た目にはしない。幅いっぱいの破線で、
+   「ここから足せる」ことを示す。 */
+.character-panel-bring-btn {
+  width: 100%;
+  background: none;
+  color: var(--text-body);
+  border: 1px dashed var(--border-default);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.character-panel-bring-btn:hover {
+  background-color: var(--surface-raised);
+  color: var(--text-emphasis);
+}
+
 /* 盤面＋コントロールのコンテナ */
 .main-area {
   position: relative;

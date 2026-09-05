@@ -1,11 +1,11 @@
 ---
 source: js/character-dialog.js
-lines: 1101
+lines: 1106
 exports: 5
 imported_by: 2
-api_sha: 14bcbd0e5a8f
+api_sha: 4a25cd663546
 prose_sha: 14bcbd0e5a8f
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -29,7 +29,7 @@ tags: [codemap]
 | 25 | fn | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | トリミング設定(crop)を<img>のCSSへ反映する。 |
 | 48 | fn | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | showCharacterEditDialogのonConfirmが返す結果を、Store（部屋のstore、または js/character-builder.jsが使う部屋に紐づかない使い捨てのImmutableS… |
 | 453 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
-| 727 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
+| 727 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（16）
 
@@ -53,7 +53,7 @@ tags: [codemap]
 | 435 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
 | 453 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, onConfirm })` | **228** | ✓ |
 | 684 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
-| 727 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false })` | **375** | ✓ |
+| 727 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | **380** | ✓ |
 
 ## 依存
 

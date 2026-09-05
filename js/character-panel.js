@@ -19,6 +19,7 @@ import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { canView, HIDDEN_VALUE_MASK } from './visibility.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
+import { showTokenLibraryPickerDialog } from './token-library-dialog.js';
 
 // パラメータのラベルは列幅に収まらないので頭だけ見せる（全文はtitleで出す）
 function truncateLabel(label, maxLength = 4) {
@@ -236,6 +237,18 @@ export function initCharacterPanel() {
 
   function renderList(tokens, myId) {
     listEl.innerHTML = '';
+
+    // 棚（部屋の外のコマ作成ツールで作って、このブラウザに保存したコマ）からの引き込み。
+    // バックヤードは「盤面に出していない自分のコマ」の置き場なので、外から持ち込んだ
+    // コマが最初に着く場所もここになる。空のときこそ要る導線なので、一覧より前に置く。
+    if (mode === 'backyard') {
+      const bringBtn = document.createElement('button');
+      bringBtn.type = 'button';
+      bringBtn.className = 'character-panel-bring-btn';
+      bringBtn.textContent = '保存したコマから追加';
+      bringBtn.addEventListener('click', () => { showTokenLibraryPickerDialog(); });
+      listEl.appendChild(bringBtn);
+    }
 
     if (tokens.length === 0) {
       const empty = document.createElement('p');

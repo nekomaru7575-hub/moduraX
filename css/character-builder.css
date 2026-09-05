@@ -120,3 +120,153 @@ body {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* ======================================================================
+   棚：保存したコマの一覧。このページの主。
+   ====================================================================== */
+
+.builder-shelf-section {
+  margin-top: 20px;
+}
+
+.builder-shelf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.builder-shelf-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-bright);
+}
+
+.builder-shelf-count {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.builder-empty-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.builder-resume-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+/* 中身なりの幅ではなく段組みにする。カードは名前とアバターだけの同じ形をしていて、
+   幅が揃っているほうが数を見渡しやすい。
+   min()が狭幅で1列へ落とす：bare 1fr だと画像を持つ列が縮まず横スクロールが出る。 */
+.builder-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 10px;
+}
+
+/* カード全体がボタン。押すと操作のメニューが出る（編集・複製・書き出し・削除）。
+   4つをボタンで並べると狭い画面で文字が2行に折れるため、部屋のコマと同じ
+   右クリックメニューの作法へ寄せてある（js/context-menu.js）。 */
+.builder-shelf-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-default);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.builder-shelf-card:hover {
+  background-color: var(--surface-raised);
+  border-color: var(--border-default);
+}
+
+/* 押した手応え。transitionを掛けないのは、押下と復帰は即座が正しいため
+   （キーボードの目印リングをフェードさせないのと同じ考え方。css/tokens.css参照）。 */
+.builder-shelf-card:active {
+  transform: translateY(1px);
+}
+
+.builder-shelf-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background-color: var(--surface-sunken);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* 画像を持たないコマは、コマの色をそのまま出す。色は1件ごとに違うので、CSSではなく
+   JS側からカスタムプロパティで渡す（HTMLのstyle属性はCSPで効かない。css/tokens.css参照）。 */
+.builder-shelf-avatar.is-color {
+  background-color: var(--shelf-avatar-color, var(--surface-sunken));
+}
+
+.builder-shelf-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* min-width:0 が無いと、長い名前がグリッドの列を押し広げて横スクロールが出る */
+.builder-shelf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.builder-shelf-name {
+  color: var(--text-bright);
+  /* 名前は利用者が決める文字列。区切りの無い長い名前でも列からはみ出させない */
+  overflow-wrap: anywhere;
+}
+
+.builder-shelf-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* ======================================================================
+   狭幅。以前このファイルにはブレークポイントが1つも無く、狭い画面での見え方は
+   すべて css/character-dialog.css 側の指定に任せきりだった。
+   ====================================================================== */
+@media (max-width: 480px) {
+  body {
+    padding: 12px;
+  }
+
+  /* 棚は1列。上のmin(100%, 200px)でも1列にはなるが、余白まで詰めて
+     カード1枚あたりの横幅を稼ぐ。 */
+  .builder-shelf {
+    gap: 8px;
+  }
+}
+
+/* 指で操作する環境。並んだカードは隣を押し間違えやすいので、当たり判定を広げる
+   （css/board.css の同名のブロックと同じ 44px の基準）。 */
+@media (pointer: coarse) {
+  .builder-shelf-card {
+    min-height: 60px;
+  }
+
+  .builder-primary-btn,
+  .builder-secondary-btn {
+    min-height: 44px;
+  }
+}

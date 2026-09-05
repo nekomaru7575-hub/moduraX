@@ -2324,3 +2324,23 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 棚から引き込むダイアログ（js/token-library-dialog.js）の1行。
+   行全体が<label>なので、名前を押してもチェックが入る。 */
+.token-library-row {
+  cursor: pointer;
+}
+
+.token-library-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* min-width:0 が無いと、長い名前が行を押し広げてダイアログに横スクロールが出る */
+.token-library-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

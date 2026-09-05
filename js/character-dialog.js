@@ -727,7 +727,11 @@ function ensureEditDialog() {
 export function showCharacterEditDialog({
   character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
   dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice,
-  tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false
+  tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false,
+  // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。
+  // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、
+  // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。
+  dialogTitle = null, confirmLabel = null
 }) {
   const myParticipantId = getCurrentParticipantId();
   const dialog = ensureEditDialog();
@@ -736,8 +740,9 @@ export function showCharacterEditDialog({
   const form = document.createElement('form');
 
   const title = document.createElement('h3');
-  // 持ち主・GM以外も同じ画面を開ける。中身は同じで、編集操作だけを封じる（canEdit）
-  title.textContent = canEdit ? 'キャラクターを更新' : 'キャラクターを表示';
+  // 持ち主・GM以外も同じ画面を開ける。中身は同じで、編集操作だけを封じる（canEdit）。
+  // 表示だけのときは、渡された見出しより「表示」を優先する（編集できないため）。
+  title.textContent = canEdit ? (dialogTitle || 'キャラクターを更新') : 'キャラクターを表示';
   form.appendChild(title);
 
   if (!canEdit && readOnlyReason) {
@@ -1025,7 +1030,7 @@ export function showCharacterEditDialog({
 
   // --- ボタン行 ---
   const { row: btnRow, cancelBtn, confirmBtn } = appendConfirmRow(form, {
-    confirmLabel: '更新',
+    confirmLabel: confirmLabel || '更新',
     onCancel: () => dialog.close()
   });
 

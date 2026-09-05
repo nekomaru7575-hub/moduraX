@@ -2,10 +2,10 @@
 source: js/context-menu.js
 lines: 87
 exports: 1
-imported_by: 6
+imported_by: 7
 api_sha: 9aac9452f08f
 prose_sha: 9aac9452f08f
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -42,7 +42,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.icons]]
-- imported by → [[js.board-data-driven]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.round-panel]], [[js.site-nav]]
+- imported by → [[js.board-data-driven]], [[js.character-builder]], [[js.info-panel]], [[js.main]], [[js.mobile-layout]], [[js.round-panel]], [[js.site-nav]]
 
 ## 注意
 

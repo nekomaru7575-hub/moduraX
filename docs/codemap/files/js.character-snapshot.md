@@ -2,10 +2,10 @@
 source: js/character-snapshot.js
 lines: 62
 exports: 5
-imported_by: 4
+imported_by: 5
 api_sha: 2a7d1ad3ea43
 prose_sha: 2a7d1ad3ea43
-generated: 2026-09-02
+generated: 2026-09-04
 tags: [codemap]
 ---
 
@@ -46,7 +46,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.untrusted-json]]
-- imported by → [[js.board-data-driven]], [[js.character-builder]], [[js.chat-palette]], [[js.main]]
+- imported by → [[js.board-data-driven]], [[js.character-builder]], [[js.chat-palette]], [[js.main]], [[js.token-library]]
 
 ## 注意
 

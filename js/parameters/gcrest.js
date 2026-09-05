@@ -45,7 +45,7 @@ const CHAR_TYPE_MOB = 'ENEMY';
 export const GCREST_CHAR_TYPES = [
   { value: CHAR_TYPE_PC, label: 'PC' },
   { value: CHAR_TYPE_NPC, label: 'NPC' },
-  { value: CHAR_TYPE_COUNTRY, label: '国' },
+ // { value: CHAR_TYPE_COUNTRY, label: '国' },
   { value: CHAR_TYPE_MOB, label: 'モブ' }
 ];
 const CHAR_TYPE_VALUES = new Set(GCREST_CHAR_TYPES.map(type => type.value));

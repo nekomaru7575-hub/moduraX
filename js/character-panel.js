@@ -19,7 +19,9 @@ import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { canView, HIDDEN_VALUE_MASK } from './visibility.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
-import { showTokenLibraryPickerDialog } from './token-library-dialog.js';
+import {
+  showTokenLibraryPickerDialog, showTokenLibrarySaveDialog
+} from './token-library-dialog.js';
 
 // パラメータのラベルは列幅に収まらないので頭だけ見せる（全文はtitleで出す）
 function truncateLabel(label, maxLength = 4) {
@@ -168,19 +170,37 @@ function buildBoardRow(tokenData, myId) {
 
 // 「盤面に戻す」は適用を挟まず即時反映。位置(x,y)はしまっている間も保たれているので、
 // 元いた場所へそのまま戻る。
+//
+// 「保存したコマへ」は棚（部屋の外のコマ作成ツールの置き場）への写し。バックヤードは
+// 棚から引き込んだコマが最初に着く場所でもあるので、戻す道も同じ行に置く。
+// 行は260pxしか無く、2つ横に並べるとアバターごと潰れるので縦に積む。
 function buildBackyardRow(tokenData) {
   const item = document.createElement('div');
   item.className = 'character-list-item';
   item.appendChild(buildAvatarColumn(tokenData, { withInitiative: false }));
 
+  const actions = document.createElement('div');
+  actions.className = 'character-panel-row-actions';
+
   const restoreBtn = document.createElement('button');
   restoreBtn.type = 'button';
-  restoreBtn.className = 'character-panel-restore-btn';
+  restoreBtn.className = 'character-panel-row-btn';
   restoreBtn.textContent = '盤面に戻す';
   restoreBtn.addEventListener('click', () => {
     store.dispatch('RESTORE_FROM_BACKYARD', { id: tokenData.id });
   });
-  item.appendChild(restoreBtn);
+  actions.appendChild(restoreBtn);
+
+  const shelveBtn = document.createElement('button');
+  shelveBtn.type = 'button';
+  shelveBtn.className = 'character-panel-row-btn';
+  shelveBtn.textContent = '保存したコマへ';
+  shelveBtn.addEventListener('click', () => {
+    showTokenLibrarySaveDialog({ tokenId: tokenData.id });
+  });
+  actions.appendChild(shelveBtn);
+
+  item.appendChild(actions);
 
   return item;
 }

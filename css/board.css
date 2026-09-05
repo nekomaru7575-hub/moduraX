@@ -231,10 +231,17 @@ h1 {
   margin: 4px 2px;
 }
 
-/* バックヤードタブの「盤面に戻す」。行の右端へ寄せる */
-.character-panel-restore-btn {
+/* バックヤードの行の右端。出し先が2つ（盤面／棚）あるので縦に積む。
+   行の幅は260pxしかなく、横に並べるとアバターと名前が潰れる。 */
+.character-panel-row-actions {
   margin-left: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.character-panel-row-btn {
   background-color: var(--surface-control);
   color: var(--text-body);
   border: 1px solid var(--border-default);
@@ -244,7 +251,7 @@ h1 {
   cursor: pointer;
 }
 
-.character-panel-restore-btn:hover {
+.character-panel-row-btn:hover {
   background-color: var(--surface-hover);
   color: var(--text-emphasis);
 }
@@ -2422,14 +2429,14 @@ select:focus, input[type="text"]:focus, textarea:focus {
     min-height: 44px;
   }
 
-  /* キャラクター一覧の「盤面／バックヤード」タブと「盤面に戻す」。
+  /* キャラクター一覧の「盤面／バックヤード」タブと、バックヤードの行のボタン。
      狭幅ではこのパネルが中央スペース全体になり、指で触る主要な導線がここになるが、
      既定では高さ25pxしかなく、上の44pxの基準から漏れていた。
      paddingではなくmin-heightで持ち上げているのは、この2つが0.75remと小さく、
      paddingだけでは32px前後にしか届かないため（buttonは中身を天地中央に置くので
      min-heightだけで文字は中央に来る）。 */
   .character-panel-tab,
-  .character-panel-restore-btn {
+  .character-panel-row-btn {
     min-height: 44px;
     padding: 4px 14px;
   }

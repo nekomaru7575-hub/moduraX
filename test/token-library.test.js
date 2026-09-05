@@ -12,7 +12,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_LIBRARY_ENTRY_BYTES, buildLibraryEntry, canBringIntoRoom, estimateEntryBytes, normalizeLibraryEntry
+  MAX_LIBRARY_ENTRY_BYTES, buildLibraryEntry, canBringIntoRoom, estimateEntryBytes,
+  findOverwritableLibraryEntries, normalizeLibraryEntry, toLibraryName
 } from '../js/token-library.js';
 import { TOKEN_SNAPSHOT_FORMAT, buildTokenSnapshot } from '../js/character-snapshot.js';
 
@@ -145,4 +146,66 @@ test('プラグインなしのコマはどの部屋でも持ち込める', () =>
 test('壊れた行を渡してもプラグインなし扱いで落ちない', () => {
   assert.equal(canBringIntoRoom(null, 'DX3'), true);
   assert.equal(canBringIntoRoom({}, 'DX3'), true);
+});
+
+// --- 棚へ戻すときの突き合わせ ---
+// バックヤードのコマを棚へ入れる道（js/token-library-dialog.js の showTokenLibrarySaveDialog）が、
+// 「これは前に保存したあのコマだ」と言えるかの判定。ここが緩いと知らないコマを上書きし、
+// 厳しすぎると遊ぶたびに同名が増えて30体の枠が埋まる。どちらも取り返しがつかない側。
+
+test('名前とシステムが揃った1件だけを上書きの相手にする', () => {
+  const shelf = [
+    entryOf({ id: 'a', name: 'アリス', pluginId: 'DX3' }),
+    entryOf({ id: 'b', name: 'アリス', pluginId: 'SHINOBIGAMI' }),
+    entryOf({ id: 'c', name: 'ボブ', pluginId: 'DX3' })
+  ];
+  assert.deepEqual(
+    findOverwritableLibraryEntries(shelf, 'アリス', 'DX3').map(entry => entry.id),
+    ['a']
+  );
+});
+
+test('同名が複数あればすべて返す（どれに重ねるかは利用者が選ぶ）', () => {
+  const shelf = [
+    entryOf({ id: 'a', name: 'アリス', pluginId: 'DX3' }),
+    entryOf({ id: 'b', name: 'アリス', pluginId: 'DX3' })
+  ];
+  assert.deepEqual(
+    findOverwritableLibraryEntries(shelf, 'アリス', 'DX3').map(entry => entry.id),
+    ['a', 'b']
+  );
+});
+
+test('プラグインなしどうしも突き合わせる', () => {
+  const shelf = [entryOf({ id: 'a', name: 'アリス', pluginId: null })];
+  assert.equal(findOverwritableLibraryEntries(shelf, 'アリス', null).length, 1);
+  assert.equal(findOverwritableLibraryEntries(shelf, 'アリス', 'DX3').length, 0);
+});
+
+test('部屋のコマの名前は、棚と同じ均し方をしてから突き合わせる', () => {
+  // 棚のnameはtoLibraryNameを通った後の形。部屋のコマの名前をそのまま比べると、
+  // 前後の空白や61文字目以降のせいで「別のコマ」に見えて、静かに増えていく。
+  const shelf = [entryOf({ id: 'a', name: 'アリス', pluginId: 'DX3' })];
+  assert.equal(findOverwritableLibraryEntries(shelf, '  アリス  ', 'DX3').length, 1);
+
+  const long = 'あ'.repeat(70);
+  const longShelf = [entryOf({ id: 'b', name: toLibraryName(long), pluginId: 'DX3' })];
+  assert.equal(findOverwritableLibraryEntries(longShelf, long, 'DX3').length, 1);
+});
+
+test('棚が空でも壊れた行が混じっても落ちない', () => {
+  assert.deepEqual(findOverwritableLibraryEntries([], 'アリス', 'DX3'), []);
+  assert.deepEqual(findOverwritableLibraryEntries(undefined, 'アリス', 'DX3'), []);
+  assert.deepEqual(findOverwritableLibraryEntries([null], 'アリス', 'DX3'), []);
+});
+
+test('名前の均し方は、保存と読み出しの両方で同じ', () => {
+  assert.equal(toLibraryName('  アリス  '), 'アリス');
+  assert.equal(toLibraryName(''), '名称未設定');
+  assert.equal(toLibraryName(null), '名称未設定');
+  assert.equal(toLibraryName('あ'.repeat(70)).length, 60);
+  // 名前が無いコマを保存すると、棚でも読み直しても同じ「名称未設定」になる
+  const built = buildLibraryEntry({ name: '   ', ...snapshotOf('   ') }, null);
+  assert.equal(built.name, '名称未設定');
+  assert.equal(normalizeLibraryEntry(built).name, '名称未設定');
 });

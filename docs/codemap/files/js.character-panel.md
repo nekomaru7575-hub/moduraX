@@ -1,11 +1,11 @@
 ---
 source: js/character-panel.js
-lines: 298
+lines: 318
 exports: 2
 imported_by: 1
 api_sha: 65b467f5f737
 prose_sha: 65b467f5f737
-generated: 2026-09-04
+generated: 2026-09-05
 tags: [codemap]
 ---
 
@@ -25,8 +25,8 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 46 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
-| 188 | fn | initCharacterPanel | `initCharacterPanel()` |  |
+| 48 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
+| 208 | fn | initCharacterPanel | `initCharacterPanel()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（8）
 
@@ -35,14 +35,14 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 25 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
-| 32 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
-| 46 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
-| 59 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 32 |  |
-| 99 | bindTokenMenu | `bindTokenMenu(element, tokenId)` | 12 |  |
-| 112 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
-| 171 | buildBackyardRow | `buildBackyardRow(tokenData)` | 16 |  |
-| 188 | initCharacterPanel | `initCharacterPanel()` | 110 | ✓ |
+| 27 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
+| 34 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
+| 48 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
+| 61 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 32 |  |
+| 101 | bindTokenMenu | `bindTokenMenu(element, tokenId)` | 12 |  |
+| 114 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
+| 177 | buildBackyardRow | `buildBackyardRow(tokenData)` | 30 |  |
+| 208 | initCharacterPanel | `initCharacterPanel()` | 110 | ✓ |
 
 ## 依存
 

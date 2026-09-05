@@ -1,7 +1,8 @@
 // js/token-library.js
 // 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに
 // 取っておく置き場。作ったものが部屋を作らないと残せない、という状態を解消するためにある。
-// 部屋の中からは js/token-library-dialog.js が引き出して、バックヤードへ入れる。
+// 部屋との行き来はどちらも js/token-library-dialog.js が持つ（棚→バックヤードと、
+// バックヤード→棚）。
 //
 // 【なぜIndexedDBか】部屋の外では画像のアップロード先が決まらないので、
 // pickAndUploadImage はデータURLをそのまま返す（js/image-upload.js）。写真1枚で数MBに
@@ -40,6 +41,35 @@ export const MAX_LIBRARY_ENTRY_BYTES = 8 * 1024 * 1024;
 
 // 棚に並べる名前の上限。長い名前で一覧が崩れるのを防ぐだけの歯止め。
 const MAX_NAME_LENGTH = 60;
+
+/**
+ * 棚に並べる名前へ均す。**保存するときも読み出すときも必ずここを通すこと。**
+ * 突き合わせ（findOverwritableLibraryEntries）が、同じ均し方を前提にしている。
+ */
+export function toLibraryName(raw) {
+  return String(raw ?? '').trim().slice(0, MAX_NAME_LENGTH) || '名称未設定';
+}
+
+/**
+ * 棚の中から「同じコマの前の版」とみなせるものを探す。名前とシステムが揃うものだけ。
+ *
+ * 部屋のコマは棚のidを持たない（持ち込むときに部屋のidを振り直すため。
+ * js/token-library-dialog.js の bringIntoRoom）。遊んだコマを棚へ戻すたびに別の1件が
+ * 増えると、30体の枠がすぐ埋まる。上書きを選ばせるための材料がこれ。
+ *
+ * **idで結び付けない。** 棚のidを部屋の状態へ持たせると全員へ配られるが、棚は
+ * このブラウザだけのものなので、他の人の手元では何も指さないidになる。
+ *
+ * @param {{name:string, pluginId:string|null}[]} entries 棚の中身
+ * @param {string} name 部屋のコマの名前（均す前でよい）
+ * @param {string|null} pluginId 部屋の適用プラグイン
+ */
+export function findOverwritableLibraryEntries(entries, name, pluginId) {
+  const target = toLibraryName(name);
+  return (entries ?? []).filter(entry => entry
+    && entry.name === target
+    && (entry.pluginId ?? null) === (pluginId ?? null));
+}
 
 let dbPromise = null;
 
@@ -100,8 +130,7 @@ export function normalizeLibraryEntry(raw) {
   if (!isTokenSnapshot(raw.snapshot)) return null;
 
   // 表示名は棚の一覧用の控え。中身（snapshot.name）が正で、こちらが空なら拾い直す。
-  const name = String(raw.name ?? raw.snapshot.name ?? '').trim().slice(0, MAX_NAME_LENGTH)
-    || '名称未設定';
+  const name = toLibraryName(raw.name ?? raw.snapshot.name);
 
   const savedAt = Number.isFinite(raw.savedAt) ? raw.savedAt : 0;
   const updatedAt = Number.isFinite(raw.updatedAt) ? raw.updatedAt : savedAt;
@@ -125,7 +154,7 @@ export function buildLibraryEntry(token, pluginId, { id = null, savedAt = null }
   return {
     id: id || generateLibraryTokenId(),
     // 一覧のたびにスナップショットを開いて中を見なくて済むよう、名前とシステムは外へ出す
-    name: String(token.name ?? '').trim().slice(0, MAX_NAME_LENGTH) || '名称未設定',
+    name: toLibraryName(token.name),
     pluginId: pluginId || null,
     savedAt: savedAt ?? now,
     updatedAt: now,

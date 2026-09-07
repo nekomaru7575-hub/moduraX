@@ -7,7 +7,7 @@
 
 import { AUDIO_CHANNELS } from '../audio.js';
 import { withBgmLog } from '../chat.js';
-import { withMapEntry, withoutMapEntry } from '../patch.js';
+import { ownEntry, withMapEntry, withoutMapEntry } from '../patch.js';
 
 export const AUDIO_HANDLERS = {
   // --- 音楽（BGM／効果音） ---
@@ -82,7 +82,10 @@ export const AUDIO_HANDLERS = {
     const { channel, trackId, playId } = payload;
     if (!AUDIO_CHANNELS.includes(channel)) return;
     const room = prevState.room;
-    if (!trackId || !room.audioTracks?.[trackId]) return;
+    // 素の audioTracks?.[trackId] だと '__proto__' がObject.prototypeに当たって
+    // 「実在する音源」を通ってしまう（ownEntryのコメント参照）。trackIdは部屋データ経由で
+    // 外から来る（パネルのクリックオプション）ので、ここは持ち物として引く
+    if (!ownEntry(room.audioTracks, trackId)) return;
 
     const playback = room.audioPlayback || { bgm: null, se: null };
 

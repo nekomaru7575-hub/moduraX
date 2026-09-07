@@ -28,7 +28,7 @@ import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
 import { renderChatPalette, loadChatPaletteState, parseChatPaletteLines, isChatPaletteHeading } from './chat-palette.js';
 import { createFloatingPanel } from './floating-panel.js';
-import { setChatPaletteController } from './board-data-driven.js';
+import { setChatPaletteController, setPanelClickSenders } from './board-data-driven.js';
 import {
   initNetSync, replaceState, requestRoomDeletion, sendIdentify, requestChatSendSound,
   sendTypingStart, sendTypingStop
@@ -2079,6 +2079,21 @@ EventBus.subscribe('STATE_CHANGED', () => chatPalette.refreshNameStatus());
 // 盤外の右クリックメニューから表示/非表示を切り替えられるようにする
 setChatPaletteController(chatPalettePanel);
 
+// 「いま選択されているコマ」に当たる状態は無く、チャット欄の参照キャラクター
+// （combined_layout.htmlのcharacterParamSelect）の選択がそれに当たる。パレットのタブ名とは独立。
+// メイン欄とパネルのクリックオプションの両方から使うので、決め方はここ1か所に置く。
+function selectedChatCharacter() {
+  return characterParamSelect?.value ? store.state.tokens[characterParamSelect.value] : null;
+}
+
+// パネルのクリックオプションが外へ出ていくときの送り口（js/board-data-driven.js）。
+// 発言はメインの入力欄と同じ関門（submitChatText）を通す：ダイスもパラメータ増減も
+// オリジナル表も、入力欄に打ったときと同じに解釈させるため。
+setPanelClickSenders({
+  sendChat: (text) => submitChatText({ rawInput: text, character: selectedChatCharacter() }),
+  sendStamp: (stampId) => requestStamp(stampId)
+});
+
 if (sendBtn) {
   sendBtn.addEventListener('click', () => {
     const rawInput = commandInput.value.trim();
@@ -2088,14 +2103,9 @@ if (sendBtn) {
       return;
     }
 
-    // メイン欄の発言者は参照キャラクター欄の選択で決まる（パレットのタブ名とは独立）
-    const selectedCharacter = characterParamSelect?.value
-      ? store.state.tokens[characterParamSelect.value]
-      : null;
-
     submitChatText({
       rawInput,
-      character: selectedCharacter,
+      character: selectedChatCharacter(),
       onSent: () => {
         commandInput.value = "";
         hideCommandInputSuggestions();

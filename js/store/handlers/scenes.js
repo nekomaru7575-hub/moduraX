@@ -8,7 +8,7 @@ import { SCENE_BGM_STOP } from '../audio.js';
 import { applyPhaseEnd } from '../buffs.js';
 import { releaseStockerCards } from '../cards.js';
 import { withBgmLog, withSystemLog, withSystemTabLog } from '../chat.js';
-import { freezePanelMap, withMapEntry, withoutMapEntry } from '../patch.js';
+import { freezePanelMap, ownEntry, withMapEntry, withoutMapEntry } from '../patch.js';
 
 export const SCENES_HANDLERS = {
   // --- シーン（js/scene-list-dialog.js） ---
@@ -90,7 +90,9 @@ export const SCENES_HANDLERS = {
   APPLY_SCENE({ prevState, payload, activePlugin, nextTokensState, commit }) {
     const { id, playId } = payload;
     const room = prevState.room;
-    const scene = room.scenes?.[id];
+    // 素の room.scenes?.[id] だと '__proto__' がObject.prototypeに当たって通ってしまう
+    // （ownEntryのコメント参照。パネルのクリックオプションから実際に踏めた）
+    const scene = ownEntry(room.scenes, id);
     if (!scene) return;
 
     // BGM: null=変えない / SCENE_BGM_STOP=止める / id指定=その曲。

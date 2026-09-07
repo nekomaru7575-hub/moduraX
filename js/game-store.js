@@ -22,6 +22,7 @@ import {
 import {
   MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID, SYSTEM_CHAT_TAB_NAME, withFixedChatTabs
 } from './store/chat.js';
+import { normalizePanelClickActions } from './store/panels.js';
 import { normalizeRoomStampMap } from './store/stamps.js';
 import { normalizeInfoEntries } from './store/info.js';
 import {
@@ -177,7 +178,10 @@ export class ImmutableStore {
     const normalized = {
       ...newState,
       tokens: newState.tokens || {},
-      panels: newState.panels || {},
+      // パネルのクリックオプションだけは形を検証する。取り込んだ部屋データ（信用しないJSON）も
+      // ここを通り、押すと何かが起きる項目なので、細工された形を状態へ入れない
+      // （panelsの他の項目に検証が無いのは別の穴。js/store/panels.js冒頭を参照）
+      panels: normalizePanelClickActions(newState.panels),
       // この機能より前に保存された状態にはカード・デッキが無いため、既定値を補う。
       // 取り込んだ部屋データ（信用しないJSON）もここを通るので、形の整えと上限も
       // まとめて掛かる（normalizeCardMap／normalizeDeckMap）。

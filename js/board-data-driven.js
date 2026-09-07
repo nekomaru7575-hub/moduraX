@@ -22,9 +22,13 @@ import { canView, isGm } from './visibility.js';
 import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
+import { findStamp, listStamps } from './stamp-registry.js';
+import { MAX_PANEL_CHAT_TEXT_LENGTH } from './store/panels.js';
+import { ownEntry } from './store/patch.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
-  getEffectiveParameterValue, BUFF_PHASE_LABELS, normalizeStackOrder, snapsToGrid
+  getEffectiveParameterValue, BUFF_PHASE_LABELS, normalizeStackOrder, snapsToGrid,
+  AUDIO_CHANNEL_LABELS
 } from './game-store.js';
 export {
   store, generateTokenId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
@@ -42,6 +46,20 @@ let chatPaletteController = null;
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
 export function setChatPaletteController(controller) {
   chatPaletteController = controller;
+}
+
+// パネルのクリックオプションのうち、このファイルの外へ出ていく2つ。
+// - 発言 … ダイスもパラメータ増減も解釈させたいので、3つの発言経路が集まる
+//          js/main.js の submitChatText を通す
+// - スタンプ … 送信と集計をまとめてある js/stamp-layer.js の requestStamp を通す
+// どちらも同じ理由で直接importできない：main.jsはこのファイルをimportしており、
+// stamp-layer.jsもこのファイルからstoreをimportしているので、逆向きは循環になる。
+// シーン変更と音楽変更はstoreへのdispatchだけで済むので、ここには要らない。
+let panelClickSenders = { sendChat: null, sendStamp: null };
+
+/** @param {{ sendChat: (text: string) => void, sendStamp: (stampId: string) => void }} senders */
+export function setPanelClickSenders(senders) {
+  panelClickSenders = senders;
 }
 
 let infoPanelController = null;
@@ -679,6 +697,112 @@ function actingUserPayload() {
   return { participantId: getCurrentParticipantId(), localUserId: getLocalUserId() };
 }
 
+// --- パネルのクリックオプション ---
+// 設定の形と検証は js/store/panels.js。ここは「押されたときに何を呼ぶか」だけを持つ。
+
+// GM限定の操作（シーン適用・演奏停止）をGMでない人が押したときは、**dispatchしない**。
+// 楽観適用してしまうと、自分の画面だけ一瞬シーンが変わってサーバーのRESYNCで戻る、
+// という分かりにくいちらつきになる。押しても何も起きない代わりに、
+// マウスオーバーへ理由を出しておく（panelClickActionLabel）。
+function runPanelClickAction(panel) {
+  const action = panel?.clickAction;
+  if (!action) return;
+
+  switch (action.type) {
+    case 'chat':
+      panelClickSenders.sendChat?.(action.text);
+      return;
+
+    case 'scene': {
+      if (!canOperateAsGm()) return;
+      // 指し先が消えていれば何もしない（reducer側も見るが、無駄な同期を起こさない）。
+      // ownEntryで引くのは、素の [id] だと '__proto__' がObject.prototypeに当たって
+      // 「実在するシーン」を通ってしまうため（js/store/patch.jsのownEntry参照）
+      if (!ownEntry(store.state.room.scenes, action.sceneId)) return;
+      // payloadはjs/main.jsのopenSceneListDialogと同じ形にそろえる。
+      // playIdはリデューサーの中で採番してはいけない（各クライアントとサーバーで
+      // 値がずれて再生検知が壊れる。js/store/handlers/scenes.js参照）
+      store.dispatch('APPLY_SCENE', { id: action.sceneId, playId: `${Date.now()}` });
+      return;
+    }
+
+    case 'audio': {
+      if (!action.trackId) {
+        if (!canOperateAsGm()) return; // 停止だけGM限定（再生は誰でもできる）
+        store.dispatch('STOP_AUDIO_PLAYBACK', { channel: action.channel });
+        return;
+      }
+      if (!ownEntry(store.state.room.audioTracks, action.trackId)) return;
+      // playIdを毎回変えることで、同じ音を続けて鳴らし直せる（js/audio-player.js）
+      store.dispatch('SET_AUDIO_PLAYBACK', {
+        channel: action.channel, trackId: action.trackId, playId: `${Date.now()}`
+      });
+      return;
+    }
+
+    case 'stamp':
+      panelClickSenders.sendStamp?.(action.stampId);
+      return;
+
+    default:
+      // 知らない種類は何もしない（正規化を通っていれば来ないが、塞ぐ側に倒す）
+  }
+}
+
+// 編集ダイアログへ渡す候補。ダイアログはstoreを知らない部品なので、ここで作って渡す。
+function buildClickActionChoices() {
+  const room = store.state.room;
+  return {
+    scenes: Object.values(room.scenes || {}).map((scene) => ({ id: scene.id, name: scene.name })),
+    audioTracks: Object.values(room.audioTracks || {}).map((track) => ({
+      id: track.id,
+      name: track.name,
+      channel: track.channel,
+      channelLabel: AUDIO_CHANNEL_LABELS[track.channel] || track.channel
+    })),
+    // 画像の無いスタンプも候補には残す（送れはするので。js/stamp-panel.jsと同じ判断）
+    stamps: listStamps(room).map((stamp) => ({ id: stamp.id, label: stamp.label }))
+  };
+}
+
+// 差分dispatchの判定。中身が同じなら投げない（無駄な同期を全員へ配らない）。
+function sameClickAction(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.type === b.type
+    && a.text === b.text && a.sceneId === b.sceneId
+    && a.channel === b.channel && a.trackId === b.trackId && a.stampId === b.stampId;
+}
+
+// マウスオーバーに出す1行。何が起きるパネルなのか、なぜ効かないのかを読めるようにする。
+function panelClickActionLabel(action) {
+  if (!action) return '';
+  const room = store.state.room;
+  const gmOnly = (text) => (canOperateAsGm() ? text : `${text}（${GM_ONLY_REASON}）`);
+
+  switch (action.type) {
+    case 'chat':
+      return `クリック: 「${action.text}」と発言`;
+    case 'scene': {
+      const scene = ownEntry(room.scenes, action.sceneId);
+      return gmOnly(scene ? `クリック: シーン「${scene.name}」へ` : 'クリック: シーンへ（削除されています）');
+    }
+    case 'audio': {
+      if (!action.trackId) {
+        return gmOnly(`クリック: ${AUDIO_CHANNEL_LABELS[action.channel] || action.channel}を止める`);
+      }
+      const track = ownEntry(room.audioTracks, action.trackId);
+      return track ? `クリック: 「${track.name}」を鳴らす` : 'クリック: 音楽（削除されています）';
+    }
+    case 'stamp': {
+      const stamp = findStamp(action.stampId, room);
+      return `クリック: スタンプ「${stamp?.label || action.stampId}」を送る`;
+    }
+    default:
+      return '';
+  }
+}
+
 function applyPanelAppearance(el, panelData) {
   el.style.width = `${panelData.cols * GRID_SIZE}px`;
   el.style.height = `${panelData.rows * GRID_SIZE}px`;
@@ -717,7 +841,10 @@ function applyPanelAppearance(el, panelData) {
   const bodyText = (panelData.text && canView(panelData.textAudience, getCurrentParticipantId()))
     ? panelData.text
     : '';
-  const title = [stockerTitle, bodyText].filter(Boolean).join('\n');
+  // 押すと何かが起きるパネルは、それを最後の行に出す（公開先の指定はテキストだけに掛かる
+  // ものなので、クリックの説明は誰にでも出す：押せば分かることを隠しても意味がない）
+  const clickTitle = panelClickActionLabel(panelData.clickAction);
+  const title = [stockerTitle, bodyText, clickTitle].filter(Boolean).join('\n');
 
   if (title) {
     el.title = title;
@@ -727,6 +854,9 @@ function applyPanelAppearance(el, panelData) {
 
   // 固定中はカーソル・枠線で見分けられるようにする（CSSは.panel-object.lockedで定義）
   el.classList.toggle('locked', !!panelData.locked);
+  // 押せるパネルは指カーソルにする。固定していると既定が default になるので、
+  // 「動かせないが押せる」ことがカーソルだけで分かるようにしておく
+  el.classList.toggle('clickable', !!panelData.clickAction);
 }
 
 // パネル・カード・デッキに共通のドラッグ移動。ドロップ時にグリッドへ吸着させるだけで、
@@ -735,7 +865,9 @@ function applyPanelAppearance(el, panelData) {
 // アクション名、openMenu＝右クリックと長押しの共通の入口。
 // onDrag/onDropは落とし先を持つもの（カード）だけが渡す。onDropがtrueを返したら
 // 「落とし先が引き取った」としてグリッド吸着を行わない。
-function bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag = null, onDrop = null }) {
+function bindBoardObjectDrag(element, {
+  readState, moveAction, openMenu, onDrag = null, onDrop = null, onClick = null
+}) {
   const gesture = bindDragGesture(element, {
     stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
@@ -782,7 +914,12 @@ function bindBoardObjectDrag(element, { readState, moveAction, openMenu, onDrag 
       });
     },
 
-    onLongPress: (event) => openMenu(event)
+    onLongPress: (event) => openMenu(event),
+
+    // 押して、ほとんど動かさずに離したとき（js/drag-gesture.js）。
+    // 固定したパネルはonStartがLONG_PRESS_ONLYを返すのでonEndを通らないが、
+    // クリックだけは別経路で拾えるようになっている。
+    ...(onClick ? { onClick: () => onClick() } : {})
   });
 
   element.addEventListener('contextmenu', openMenu);
@@ -908,8 +1045,14 @@ function bindPanelDrag(element) {
             initialStockerOwned: !!(current.stockerOwnerId || current.stockerOwnerLocalId),
             // 他人のものになっている箱では、誰のものかを画面に出す（自分の箱なら出さない）
             stockerOwnerLabel: canUseStocker(current) ? '' : stockerOwnerName(current),
+            initialClickAction: current.clickAction || null,
+            clickActionChoices: buildClickActionChoices(),
+            maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
             gridSize: GRID_SIZE,
-            onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
+            onConfirm: ({
+              image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned,
+              clickAction
+            }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
               if (image !== (latest.image || null)) {
@@ -941,6 +1084,13 @@ function bindPanelDrag(element) {
                   localUserId: stockerOwned ? localUserId : null,
                   gridSize: GRID_SIZE
                 });
+              }
+
+              // クリックオプション。ストッカーへの切り替えより後に投げる：
+              // SET_PANEL_STOCKERは箱にするときclickActionを落とすので、逆順だと
+              // 「箱をやめてクリックを設定した」場合に設定が消える。
+              if (!sameClickAction(clickAction, latest.clickAction)) {
+                store.dispatch('SET_PANEL_CLICK_ACTION', { id: panelId, clickAction });
               }
             }
           });
@@ -983,7 +1133,10 @@ function bindPanelDrag(element) {
   bindBoardObjectDrag(element, {
     readState: (id) => store.state.panels[id],
     moveAction: 'MOVE_PANEL',
-    openMenu: openPanelMenu
+    openMenu: openPanelMenu,
+    // クリックオプションを持つパネルだけが押しに反応する。持たないパネルは従来どおり、
+    // 固定してあれば下の盤面パンへ素通しされる（js/drag-gesture.jsのLONG_PRESS_ONLY）
+    onClick: () => runPanelClickAction(store.state.panels[element.id])
   });
 }
 
@@ -1550,8 +1703,13 @@ export function buildAddPanelMenuItem(dropX, dropY) {
 
       showPanelDialog({
         title: 'パネルを追加',
+        clickActionChoices: buildClickActionChoices(),
+        maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
         gridSize: GRID_SIZE,
-        onConfirm: ({ image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned }) => {
+        onConfirm: ({
+          image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned,
+          clickAction
+        }) => {
           const panelId = generatePanelId();
           store.dispatch('ADD_PANEL', {
             id: panelId,
@@ -1562,7 +1720,8 @@ export function buildAddPanelMenuItem(dropX, dropY) {
             cols,
             rows,
             stackOrder,
-            keepOnSceneChange
+            keepOnSceneChange,
+            clickAction
           });
 
           // ストッカー化は所有者を決める必要があるので専用のアクションで続ける

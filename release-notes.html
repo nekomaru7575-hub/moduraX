@@ -81,7 +81,7 @@
     <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo） -->
     <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
     <span>リリースノート</span>
-    <!-- 他のページ（部屋入口・コマ作成ツール・このサービスについて）への行き先。中身はjs/site-nav.js -->
+    <!-- 他のページ（部屋入口・コマ作成ツール・部屋データの取り込み・このサービスについて）への行き先。中身はjs/site-nav.js -->
     <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
   </div>
 
@@ -94,6 +94,28 @@
   </p>
 
   <!-- ▼ここから下が版のかたまり。新しい版は、このコメントのすぐ下に section ごと足す。▼ -->
+
+  <section class="release">
+
+    <h2>2026年9月9日</h2>
+
+    <h3>追加</h3>
+    <ul>
+      <li>
+        <strong>ココフォリアの部屋を持ち込めるようになりました。</strong>
+        右上の「⋯」から「部屋データの取り込み」を開き、ココフォリアの部屋書き出しZIPを選ぶと、
+        部屋を作るときに読み込めるJSONに変換します。変換はブラウザの中だけで行われ、
+        ZIPも画像もどこへも送信しません。
+      </li>
+      <li>
+        背景・盤面の飾り・シーンに加えて、<strong>押すとシーンが切り替わるボタンも移ります</strong>。
+        ただしシーンを切り替えられるのはGMだけなので、GM以外が押しても何も起きません。
+        BGMと効果音は、ココフォリアのZIPに音源が入らないため移りません。
+        コマも取り込みません（もじゅらXでは各自が自分のコマを作ります）。
+      </li>
+    </ul>
+
+  </section>
 
   <section class="release">
 

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<!--
+  room-import.html — 他のツールで作った部屋データを、もじゅらXの部屋データへ変換するページ。
+
+  【今はココフォリアのZIPだけ】URLに製品名を入れていないのは、あとから別の形式を足すときに
+  ページを分けずに済ませるため。増やすときは、このページの中で選ばせる形にする。
+
+  【中身はブラウザの中だけで動く】ZIPの展開も画像の焼き直しも js/room-import.js が行い、
+  サーバーへは何も送らない。出来上がったJSONは利用者が保存して、部屋一覧の「部屋を作る」で
+  自分で読み込む。
+-->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>もじゅらX - 部屋データの取り込み</title>
+
+<!-- 読み込みに失敗したファイルがあれば知らせる。**必ずここ**——最初のCSS/JSより前で、
+     かつ古典スクリプト（type="module"は遅延実行されるので、見張りが間に合わない）。
+     このページはJSが動かないとボタンが並ぶだけの箱になるので、黙って死ぬと分からない。 -->
+<script src="/js/boot-guard.js"></script>
+
+<!-- SNSに貼られたときのカード（OGP / Twitter Card）。
+     クローラは相対パスを解決しないので、og:imageとog:urlは絶対URLで書くこと。
+     画像はimage/配下に置く。docs/配下はserver/index.jsのPUBLIC_DIRSに無く、
+     ブラウザでは見えても配信されず404になる（READMEのスクショを直に指すと事故る）。 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="もじゅらX">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="もじゅらX - 部屋データの取り込み">
+<meta property="og:description" content="ココフォリアの部屋書き出しZIPを、もじゅらXの部屋データへ変換します。ブラウザの中だけで動き、どこへも送信しません。">
+<meta property="og:url" content="https://modurax.onrender.com/room-import.html">
+<meta property="og:image" content="https://modurax.onrender.com/image/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="もじゅらXの盤面。コマとキャラクター一覧、秘匿つきHOのパネル、スタンプが並んでいる。">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/image/iconDediDevi.ico">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/room-import.css">
+</head>
+<body>
+<div class="doc">
+
+  <div class="app-header">
+    <!-- ロゴはfaviconと同じ画像（見た目の指定は css/tokens.css の .app-logo） -->
+    <h1 class="app-title"><img class="icon-lead app-logo" src="/image/iconDediDevi.ico" alt="">もじゅらX</h1>
+    <span>部屋データの取り込み</span>
+    <!-- 他のページ（部屋入口・コマ作成ツール・リリースノート・このサービスについて）への
+         行き先。中身はjs/site-nav.js -->
+    <button id="siteMenuBtn" class="app-menu-btn" type="button" title="メニュー" aria-label="メニュー"></button>
+  </div>
+
+  <p class="lead">
+    ココフォリアの部屋書き出しZIPを、もじゅらXの「部屋を作る」で読み込めるJSONへ変換します。<br>
+    変換はこのブラウザの中だけで行われます。ZIPも画像も、どこへも送信しません。
+  </p>
+
+  <fieldset>
+    <legend>1. ZIPを選ぶ</legend>
+    <input type="file" id="zipInput" accept=".zip,application/zip">
+    <p class="note" id="zipInfo">ココフォリアの部屋メニューから書き出したZIPです。</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. 画像の焼き直し</legend>
+    <label>
+      解像度の余裕（盤面での表示サイズの何倍まで持たせるか）
+      <input type="range" id="scale" min="1" max="3" step="0.5" value="1.5">
+      <span class="val" id="scaleVal">1.5倍</span>
+    </label>
+    <label>
+      WebPの品質
+      <input type="range" id="quality" min="0.5" max="0.95" step="0.01" value="0.82">
+      <span class="val" id="qualityVal">0.82</span>
+    </label>
+    <label>
+      出来上がりの上限
+      <input type="range" id="budget" min="5" max="60" step="5" value="20">
+      <span class="val" id="budgetVal">20MB</span>
+    </label>
+    <p class="note">
+      アニメーションしている画像（アニメWebP・GIF）は、焼き直すと1コマに潰れて演出が死ぬため、
+      <strong>できるかぎり元のまま素通しします</strong>。上の2つは静止画にだけ効きます。
+      <strong>上限に収まらないぶんは、重いアニメーションから順に静止画へ潰します</strong>
+      （どれを潰したかは下に出ます）。<br>
+      形式上の限界は約93MBですが、実際に通るのはもっと小さい値です。サーバーは取り込みに
+      <strong>ボディの約4倍</strong>のメモリを見積もって先に予約し、足りなければ読まずに断ります。
+      いくつ通るかは、<a href="/">部屋入口</a>が出している
+      <strong>「取り込みの余裕」</strong>の値で分かります。既定の20MBは、その余裕が
+      30MBほどの平常時に通る大きさです。<br>
+      <strong>アニメーションを残したいときは「解像度の余裕」を1.0倍まで下げてください。</strong>
+      静止画に使う量が減って、そのぶんアニメーションが生き残ります。
+    </p>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. 変換する</legend>
+    <button id="run" class="btn" disabled>変換する</button>
+    <button id="save" class="btn btn-secondary" disabled>JSONを保存する</button>
+    <div class="bar"><i id="bar"></i></div>
+    <div id="summary"></div>
+  </fieldset>
+
+  <pre id="log"></pre>
+
+  <h2>使いかた</h2>
+  <ol class="note">
+    <li>上でZIPを選び、「変換する」→「JSONを保存する」。</li>
+    <li><a href="/">部屋入口</a>で「部屋を作る」を開き、部屋名を入れて、
+        ファイル選択に保存したJSONを指定する。</li>
+    <li>入室すると、シーンも盤面の飾りも入った状態で始まります。</li>
+  </ol>
+
+  <h2>移るもの</h2>
+  <ul class="note">
+    <li>盤面の背景・飾り・シーン。ココフォリアの前景は、コマより下・飾りより上に敷き直します。</li>
+    <li><strong>クリックでシーンが切り替わるボタンも移ります。</strong>
+        ただし<strong>シーンを切り替えられるのはGMだけ</strong>なので、GM以外が押しても何も起きません
+        （マウスを乗せると理由が出ます）。</li>
+    <li>ココフォリアの「押すと発言する」ボタンは、そのまま発言するボタンになります。</li>
+  </ul>
+
+  <h2>移らないもの</h2>
+  <ul class="note">
+    <li><strong>全画面の演出はコマの下</strong>に入ります。もじゅらXではパネルがコマより上へ行けません。</li>
+    <li><strong>BGM・効果音は移りません。</strong>ココフォリアのZIPに音源の実体が入らないためです。</li>
+    <li><strong>コマ（キャラクター）は取り込みません。</strong>もじゅらXでは各自が自分のコマを作ります。</li>
+    <li><code>/scene</code> 以外のチャットコマンドを送るボタンは写しません。
+        もじゅらXが解釈できない文字列を、押した人が卓に流してしまうためです。</li>
+    <li>ココフォリアの<code>.token</code>（部屋の資格情報）は読みません。</li>
+  </ul>
+
+</div>
+
+<script type="module" src="/js/room-import.js"></script>
+<script type="module" src="/js/site-nav.js"></script>
+</body>
+</html>

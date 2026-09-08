@@ -1,135 +1,20 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<title>ココフォリアの部屋 → もじゅらXの部屋データ</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
-    line-height: 1.7; margin: 0 auto; padding: 24px 20px 80px; max-width: 760px;
-  }
-  h1 { font-size: 1.3rem; margin: 0 0 4px; }
-  h2 { font-size: 1.05rem; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(128,128,128,.35); }
-  .lead { margin: 0 0 20px; opacity: .8; font-size: .9rem; }
-  fieldset { border: 1px solid rgba(128,128,128,.4); border-radius: 6px; padding: 14px 16px; margin: 0 0 16px; }
-  legend { padding: 0 6px; font-weight: bold; font-size: .9rem; }
-  label { display: block; margin: 8px 0; font-size: .9rem; }
-  input[type=range] { width: 220px; vertical-align: middle; }
-  .val { display: inline-block; min-width: 3.5em; font-variant-numeric: tabular-nums; }
-  button {
-    font: inherit; padding: 8px 18px; border-radius: 5px; cursor: pointer;
-    border: 1px solid rgba(128,128,128,.5); background: rgba(128,128,128,.12);
-  }
-  button:disabled { opacity: .45; cursor: default; }
-  button.primary { font-weight: bold; }
-  #log {
-    white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: .8rem;
-    background: rgba(128,128,128,.1); border-radius: 5px; padding: 12px 14px;
-    max-height: 340px; overflow-y: auto; margin: 12px 0 0;
-  }
-  #log:empty { display: none; }
-  .bar { height: 6px; background: rgba(128,128,128,.25); border-radius: 3px; overflow: hidden; margin: 10px 0; }
-  .bar > i { display: block; height: 100%; width: 0; background: currentColor; opacity: .6; transition: width .15s; }
-  .warn { color: #b45309; font-weight: bold; }
-  .bad  { color: #b91c1c; font-weight: bold; }
-  .ok   { color: #15803d; font-weight: bold; }
-  table { border-collapse: collapse; font-size: .85rem; margin: 10px 0; }
-  td, th { border: 1px solid rgba(128,128,128,.35); padding: 4px 10px; text-align: left; }
-  code { background: rgba(128,128,128,.15); padding: 1px 5px; border-radius: 3px; font-size: .85em; }
-  .note { font-size: .85rem; opacity: .85; }
-</style>
-</head>
-<body>
-
-<h1>ココフォリアの部屋 → もじゅらXの部屋データ</h1>
-<p class="lead">
-  ココフォリアの部屋書き出しZIPを、もじゅらXの「部屋を作る」で読み込めるJSONへ変換します。<br>
-  この道具はブラウザの中だけで動きます。どこへも送信しません。
-</p>
-
-<fieldset>
-  <legend>1. ZIPを選ぶ</legend>
-  <input type="file" id="zipInput" accept=".zip,application/zip">
-  <p class="note" id="zipInfo">ココフォリアの部屋メニューから書き出したZIPです。</p>
-</fieldset>
-
-<fieldset>
-  <legend>2. 画像の焼き直し</legend>
-  <label>
-    解像度の余裕（盤面での表示サイズの何倍まで持たせるか）
-    <input type="range" id="scale" min="1" max="3" step="0.5" value="1.5">
-    <span class="val" id="scaleVal">1.5倍</span>
-  </label>
-  <label>
-    WebPの品質
-    <input type="range" id="quality" min="0.5" max="0.95" step="0.01" value="0.82">
-    <span class="val" id="qualityVal">0.82</span>
-  </label>
-  <label>
-    出来上がりの上限
-    <input type="range" id="budget" min="5" max="60" step="5" value="20">
-    <span class="val" id="budgetVal">20MB</span>
-  </label>
-  <p class="note">
-    アニメーションしている画像（アニメWebP・GIF）は、焼き直すと1コマに潰れて演出が死ぬため、
-    <strong>できるかぎり元のまま素通しします</strong>。上の2つは静止画にだけ効きます。
-    <strong>上限に収まらないぶんは、重いアニメーションから順に静止画へ潰します</strong>
-    （どれを潰したかは下に出ます）。<br>
-    形式上の限界は約93MBですが、実際に通るのはもっと小さい値です。サーバーは取り込みに
-    <strong>ボディの約4倍</strong>のメモリを見積もって先に予約し、足りなければ読まずに断ります
-    （<code>server/memory-budget.js</code>）。いくつ通るかは、もじゅらXの部屋一覧が出している
-    <strong>「取り込みの余裕」</strong>の値で分かります。既定の20MBは、その余裕が
-    30MBほどの平常時に通る大きさです。<br>
-    <strong>アニメーションを残したいときは「解像度の余裕」を1.0倍まで下げてください。</strong>
-    静止画に使う量が減って、そのぶんアニメーションが生き残ります。
-  </p>
-</fieldset>
-
-<fieldset>
-  <legend>3. 変換する</legend>
-  <button id="run" class="primary" disabled>変換する</button>
-  <button id="save" disabled>JSONを保存する</button>
-  <div class="bar"><i id="bar"></i></div>
-  <div id="summary"></div>
-</fieldset>
-
-<pre id="log"></pre>
-
-<h2>使いかた</h2>
-<ol class="note">
-  <li>上でZIPを選び、「変換する」→「JSONを保存する」。</li>
-  <li>もじゅらXの部屋一覧で「部屋を作る」を開き、部屋名を入れて、
-      ファイル選択に保存したJSONを指定する。</li>
-  <li>入室すると、シーンも盤面の飾りも入った状態で始まります。</li>
-</ol>
-
-<h2>移らないもの</h2>
-<ul class="note">
-  <li><strong>クリックでシーンが切り替わるボタン</strong>は効きません。絵としては置かれますが、
-      もじゅらXのパネルにクリック動作が無いためです。シーンの切り替えはシーン一覧から行います。</li>
-  <li><strong>全画面の演出はコマの下</strong>に入ります。もじゅらXではパネルがコマより上へ行けません。</li>
-  <li><strong>BGM・効果音は移りません。</strong>ココフォリアのZIPに音源の実体が入らないためです。</li>
-  <li><strong>コマ（キャラクター）は取り込みません。</strong>もじゅらXでは各自が自分のコマを作ります。</li>
-  <li>ココフォリアの<code>.token</code>（部屋の資格情報）は読みません。</li>
-</ul>
-
-<script>
-'use strict';
-
-// =====================================================================
-// tools/ccfolia-import.html
-// ココフォリアの部屋書き出し（__data.json ＋ 画像）を、もじゅらXの部屋データへ写す。
+// js/room-import.js
+// 部屋データの取り込み（room-import.html）。ココフォリアの部屋書き出し
+// （__data.json ＋ 画像）を、もじゅらXの部屋データへ写す。
 //
-// この道具はローカル専用で、サーバーからは配られない（server/index.js の PUBLIC_DIRS に
-// tools/ が無い）。file:// で開いて使う。
+// 【全部ブラウザの中で終わる】ZIPを開くのも画像を焼き直すのもここで、サーバーへは
+// 何も送らない。出来上がったJSONは利用者が保存し、部屋一覧の「部屋を作る」で
+// 自分で読み込む。取り込みの経路をこのページに持たせないのは、外部ファイルの展開という
+// 攻撃面をサーバーの手前に増やさないため。
 //
-// 【なぜアプリ本体を触らずに済むか】
+// 【なぜ既存の取り込み口にそのまま乗るか】
 // もじゅらXには既に「JSONから部屋を作る」経路があり、その途中の adoptStateMedia
 // （server/index.js）が、状態に埋まったデータURLの画像をR2へ複製し直してくれる。
 // 背景・panels・tokens・scenes[].panels・scenes[].backgroundImage をすべて歩くので、
-// こちらは「データURL入りの状態」を作れば済む。ZIPの展開をアプリへ持ち込むと、
-// 外部ファイルの展開という攻撃面をサーバーの手前に増やすことになるため、そうしない。
+// こちらは「データURL入りの状態」を作れば済む。
+//
+// 【このファイルはモジュール】インラインの <script> はCSP（script-src 'self'）で
+// 動かないので、HTMLから切り離してある。トップレベルの束縛はモジュールに閉じる。
 // =====================================================================
 
 const GRID = 25;                              // 1マス = 25px（js/store/room.js の BOARD_GRID_SIZE）
@@ -313,7 +198,7 @@ function buildStackRanks(data) {
  *   ココフォリア … 単位はマス、原点は盤面の中央
  *   もじゅらX   … 位置はpxで原点は盤面の左上、大きさだけがマス数（js/store/room.js）
  */
-function toPanel(id, src, field, stackOrder, keepOnSceneChange) {
+function toPanel(id, src, field, stackOrder, keepOnSceneChange, clickAction = null) {
   return {
     id,
     imageName: src.imageUrl || null,
@@ -326,10 +211,56 @@ function toPanel(id, src, field, stackOrder, keepOnSceneChange) {
     textAudience: null,
     keepOnSceneChange,
     stackOrder,
+    clickAction,
     isStocker: false,
     stockerOwnerId: null,
     stockerOwnerLocalId: null
   };
+}
+
+// ココフォリアの「押すとこの文字列をチャットへ送る」。type は message しか見たことがない
+const CCFOLIA_SCENE_COMMAND = /^\/scene\s+(.+)$/;
+
+/**
+ * ココフォリアのclickActionを、もじゅらXのクリックオプションへ写す
+ * （js/store/panels.js の normalizeClickAction が受け取る形）。
+ *
+ * ココフォリアは「押すとこの文字列をチャットへ送る」の1種類しか持たず、シーンの切り替えも
+ * `/scene <名前>` というチャットコマンドとして表す。もじゅらXは種類で分かれているので、
+ * 文字列を見て振り分ける。
+ *
+ * 【写さないもの】`/scene` 以外のコマンドは写さない。もじゅらXが解釈できない文字列を
+ * 「発言する」として持ち込むと、押した人が意味の無い一行を卓に流すことになる。
+ * 指し先のシーンが見つからないときも同じで、黙って別のシーンへ繋がない。
+ *
+ * @param {object} src ココフォリアのアイテム／マーカー
+ * @param {Map<string, string>} sceneIdByName シーン名 → もじゅらX側のシーンid
+ * @param {{missing: Set<string>, skipped: Set<string>}} report 写せなかったものの控え
+ */
+function toClickAction(src, sceneIdByName, report) {
+  const action = src?.clickAction;
+  if (!action || action.type !== 'message') return null;
+
+  const text = typeof action.text === 'string' ? action.text.trim() : '';
+  if (text === '') return null;
+
+  const scene = CCFOLIA_SCENE_COMMAND.exec(text);
+  if (scene) {
+    const name = scene[1].trim();
+    const sceneId = sceneIdByName.get(name);
+    if (!sceneId) {
+      report.missing.add(name);
+      return null;
+    }
+    return { type: 'scene', sceneId };
+  }
+
+  if (text.startsWith('/')) {
+    report.skipped.add(text);
+    return null;
+  }
+
+  return { type: 'chat', text };
 }
 
 /**
@@ -458,6 +389,19 @@ async function convert(zipBytes, options) {
   let seq = 0;
   const nextPanelId = () => `panel-user-${base}-${++seq}`;
 
+  // シーンのidは並び順だけで決まる（下のscenesSrc.forEachと同じ式）ので、シーンを組む前に
+  // 対応表を作れる。ココフォリアの「/scene <名前>」を写すのに、パネルを組む時点で要る。
+  // 同じ名前のシーンが複数あれば先に出てきた方を採る（後勝ちにすると、押したときに
+  // どちらへ飛ぶかが並び順で変わってしまう）。
+  const sceneIdByName = new Map();
+  scenesSrc.forEach(([, src], i) => {
+    const name = String(src?.name || '').trim();
+    if (name && !sceneIdByName.has(name)) sceneIdByName.set(name, `scene-${base + i}`);
+  });
+  // 写せなかったクリック動作の控え。同じマーカーが44シーンに出ると同じ警告が44回積まれるので、
+  // Setで種類ごとにまとめる
+  const clickReport = { missing: new Set(), skipped: new Set() };
+
   // マーカーのIDはシーンをまたいで同じものを指す（同じ枠の絵がシーンごとに差し替わる）。
   // もじゅらX側でも同じパネルIDに揃えておくと、シーン遷移が「差し替え」として素直に効く。
   const markerIds = new Map();
@@ -477,7 +421,9 @@ async function convert(zipBytes, options) {
       const hasText = typeof src?.memo === 'string' && src.memo.trim() !== '';
       if (!hasImage && !hasText) return;
       const id = idFor(key);
-      panels[id] = toPanel(id, src, field, rankOf(src.z), keep);
+      panels[id] = toPanel(
+        id, src, field, rankOf(src.z), keep, toClickAction(src, sceneIdByName, clickReport)
+      );
     });
     return panels;
   };
@@ -487,7 +433,10 @@ async function convert(zipBytes, options) {
   const hoistedPanels = {};
   hoisted.forEach((info, key) => {
     const id = panelIdForMarker(key);
-    hoistedPanels[id] = toPanel(id, info.src, field, rankOf(info.src.z), true);
+    hoistedPanels[id] = toPanel(
+      id, info.src, field, rankOf(info.src.z), true,
+      toClickAction(info.src, sceneIdByName, clickReport)
+    );
   });
   if (hoisted.size) {
     log(`シーンをまたいで同じ見た目のマーカー${hoisted.size}個を、盤面へ固定しました`
@@ -531,6 +480,7 @@ async function convert(zipBytes, options) {
     textAudience: null,
     keepOnSceneChange: false,
     stackOrder: rankOf.top,
+    clickAction: null,
     isStocker: false,
     stockerOwnerId: null,
     stockerOwnerLocalId: null
@@ -689,11 +639,31 @@ async function convert(zipBytes, options) {
     panels: finishPanels(boardPanels)
   };
 
+  // --- クリックで動くボタンの報告 ---
+  // 数えるのは出来上がった状態から。同じマーカーが何十シーンにも出るので、
+  // 写した回数ではなくパネルidの種類で数える。
+  const clickableIds = new Set();
+  const countClickable = (panels) => Object.values(panels)
+    .forEach((p) => { if (p.clickAction) clickableIds.add(p.id); });
+  countClickable(state.panels);
+  Object.values(finalScenes).forEach((s) => countClickable(s.panels));
+
+  if (clickableIds.size) {
+    log(`クリックで動くボタン: ${clickableIds.size}個`);
+  }
+  clickReport.missing.forEach((name) => {
+    log(`  シーン「${name}」が見つからないので、そこへ飛ぶボタンは写しませんでした`, 'warn');
+  });
+  clickReport.skipped.forEach((text) => {
+    log(`  もじゅらXで解釈できないコマンドなので写しませんでした: ${text}`, 'warn');
+  });
+
   const json = JSON.stringify(state);
   return {
     json,
     stats: {
       ...stats,
+      clickable: clickableIds.size,
       after: [...encoded.values()].reduce((n, e) => n + e.size, 0),
       images: encoded.size,
       passthrough: [...encoded.values()].filter((e) => e.animated).length,
@@ -753,6 +723,9 @@ $('run').addEventListener('click', async () => {
         <tr><th>シーン</th><td>${s.sceneCount}個</td></tr>
         <tr><th>パネル</th><td>盤面に${s.panelCount}個 ／ シーンの中に延べ${s.scenePanelCount}個
           ${s.hoisted ? ` ／ うち${s.hoisted}個は全シーン共通として盤面へ固定` : ''}</td></tr>
+        <tr><th>クリックで動くボタン</th><td>${s.clickable
+          ? `${s.clickable}個 ／ シーンを切り替えるボタンを押せるのはGMだけです`
+          : 'なし'}</td></tr>
         <tr><th>画像</th><td>${s.images}枚を${s.refs}か所で使用（アニメのまま${s.passthrough}枚 ／
           静止画${s.shrunk}枚${s.flattened ? ` ／ <span class="warn">重くて静止画にしたアニメ${s.flattened}枚</span>` : ''}${
           s.failed ? ` ／ <span class="warn">取り込めず${s.failed}枚</span>` : ''}）</td></tr>
@@ -781,6 +754,3 @@ $('save').addEventListener('click', () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 });
-</script>
-</body>
-</html>

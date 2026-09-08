@@ -1,0 +1,250 @@
+/* css/room-import.css
+   部屋データの取り込み（room-import.html）。ココフォリアの部屋書き出しZIPを、
+   もじゅらXの部屋データへ変換する道具のページ。
+
+   色はすべて css/tokens.css のトークンで書く。このページは元々 file:// で開く
+   単独のHTMLで、OSの明暗どちらでも読めるよう rgba(128,128,128,.x) で逃げていたが、
+   アプリの一部になったので固定ダークへ寄せた。 */
+
+/* フォーム部品（ファイル選択・スライダー）の地色。
+   アプリ全体では color-scheme を指定していないため、UAが描く部品は明るいままになる。
+   このページはスライダーとファイル選択が主役なので、そこだけ暗いほうへ揃える。
+   tokens.css へ入れないのは、全ページのフォーム部品の見た目が一斉に変わる変更になり、
+   このページの都合で決めてよい話ではないため。 */
+body {
+  color-scheme: dark;
+  background-color: var(--surface-page);
+  color: var(--text-default);
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 24px 20px 64px;
+  line-height: 1.8;
+}
+
+.doc {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 28px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+p,
+li {
+  font-size: 0.9rem;
+}
+
+a {
+  color: var(--text-link);
+}
+
+.lead {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* 補足の文。本文より一段落として読み飛ばせるようにする */
+.note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* 部屋の外の各ページと同じヘッダー行。
+   各ページが自分のCSSへコピーしていて、共通CSSにはしていない（css/about.css と同内容）。
+   あちらを直したらこちらも合わせること。 */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 2px solid var(--surface-control);
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.app-header span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* --- 手順の枠 --- */
+fieldset {
+  border: 1px solid var(--border-subtle);
+  background-color: var(--surface-base);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+}
+
+legend {
+  padding: 0 6px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: var(--text-body-strong);
+}
+
+label {
+  display: block;
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+
+input[type=range] {
+  width: 220px;
+  vertical-align: middle;
+  /* つまみと目盛りの色。チェックボックスで同じ手を使っている（css/character-dialog.css） */
+  accent-color: var(--accent);
+}
+
+input[type=file] {
+  font: inherit;
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+/* スライダーの現在値。桁が変わっても右の文字が動かないよう幅と字送りを固定する */
+.val {
+  display: inline-block;
+  min-width: 3.5em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body-strong);
+}
+
+/* --- ボタン ---
+   部屋入口の .btn と同じ形（css/room-index.css）。あちらを直したらこちらも合わせること。 */
+.btn {
+  background-color: var(--accent);
+  color: var(--text-emphasis);
+  font-weight: bold;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn:hover {
+  background-color: #0090f0;
+}
+
+.btn-secondary {
+  background-color: var(--surface-raised-2);
+}
+
+.btn-secondary:hover {
+  background-color: #555;
+}
+
+.btn:disabled,
+.btn:disabled:hover {
+  background-color: var(--surface-control);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* --- 進み具合 --- */
+.bar {
+  height: 6px;
+  background-color: var(--surface-control);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background-color: var(--accent);
+  transition: width 0.15s;
+}
+
+/* --- 変換の記録 ---
+   1枚ずつの結果が積まれる。等幅にして、桁とファイル名の頭を揃える。 */
+#log {
+  white-space: pre-wrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  background-color: var(--surface-well);
+  color: var(--text-body);
+  border-radius: 5px;
+  padding: 12px 14px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 12px 0 0;
+}
+
+/* 空のうちは枠ごと出さない（変換前に空の箱が居座らないように） */
+#log:empty {
+  display: none;
+}
+
+/* --- 結果の表 --- */
+table {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 10px 0;
+}
+
+td,
+th {
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  text-align: left;
+}
+
+th {
+  color: var(--text-body-strong);
+  white-space: nowrap;
+}
+
+code {
+  background-color: var(--surface-sunken);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+/* --- 結果の色分け --- */
+.ok {
+  color: var(--text-success);
+  font-weight: bold;
+}
+
+.warn {
+  color: var(--text-warn);
+  font-weight: bold;
+}
+
+.bad {
+  color: var(--text-danger);
+  font-weight: bold;
+}
+
+/* 狭い画面ではスライダーが枠からはみ出す。行を折って幅も詰める */
+@media (max-width: 480px) {
+  input[type=range] {
+    width: 100%;
+    max-width: 220px;
+    display: block;
+    margin: 4px 0;
+  }
+
+  .val {
+    min-width: 0;
+  }
+}

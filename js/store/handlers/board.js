@@ -11,6 +11,7 @@ import {
   MAX_ROOM_DECKS, buildCard, buildDeck, buildDeckTemplate, findFreeCardSpot, nextStockerSeq,
   releaseStockerCards, stockerAllowsUser
 } from '../cards.js';
+import { normalizeClickAction } from '../panels.js';
 import { normalizeAudience, normalizeStackOrder, withMapEntry, withoutMapEntry } from '../patch.js';
 
 export const BOARD_HANDLERS = {
@@ -54,7 +55,7 @@ export const BOARD_HANDLERS = {
   ADD_PANEL({ prevState, payload, commit }) {
     const {
       id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,
-      textAudience = null, keepOnSceneChange = false, stackOrder = 0
+      textAudience = null, keepOnSceneChange = false, stackOrder = 0, clickAction = null
     } = payload;
     if (!id) return;
     if (prevState.panels[id]) return;
@@ -71,6 +72,9 @@ export const BOARD_HANDLERS = {
       keepOnSceneChange: !!keepOnSceneChange,
       // パネル同士の重なり順。同値のパネル同士はこのマップの並び（＝追加順）で決まる
       stackOrder: normalizeStackOrder(stackOrder),
+      // クリックしたときの振る舞い（発言・シーン変更・音楽変更・スタンプ送信）。
+      // null＝押しても何も起きない従来のパネル。形の検証はjs/store/panels.js
+      clickAction: normalizeClickAction(clickAction),
       // カードストッカー（カードを収納できる箱）。既定は普通のパネル。
       // 切り替えとその所有者はSET_PANEL_STOCKERで決める
       isStocker: false,
@@ -79,6 +83,31 @@ export const BOARD_HANDLERS = {
     });
 
     commit({ panels: withMapEntry(prevState.panels, id, panel) });
+  },
+
+  // クリックオプションを設定する／外す（js/panel-dialog.js）。
+  //
+  // PANEL_FIELD_PATCHESに混ぜないのは、共通処理がパッチ関数へpayloadしか渡さず
+  // （js/game-store.jsのdispatch参照）、「今ストッカーなら受け付けない」の判定に必要な
+  // panel.isStockerを見られないため。SET_PANEL_STOCKERがここに居るのと同じ事情。
+  //
+  // ストッカーとクリックオプションを同時に持たせないのは、どちらも「押したときの意味」を
+  // 奪い合うため（箱の口を開けるつもりで押したらシーンが変わる、が起きる）。
+  SET_PANEL_CLICK_ACTION({ prevState, payload, commit }) {
+    const { id, clickAction } = payload;
+    const panel = prevState.panels[id];
+    if (!panel) return;
+    // 箱にクリックオプションは付けられない。UI側でも選べないようにしてあるが、
+    // 経路が増えても崩れないようここでも断る
+    if (panel.isStocker) return;
+
+    const next = normalizeClickAction(clickAction);
+    // 値が変わらないなら状態を作り直さない（差分検知に使っているため）
+    if (next === null && panel.clickAction === null) return;
+
+    commit({
+      panels: withMapEntry(prevState.panels, id, Object.freeze({ ...panel, clickAction: next }))
+    });
   },
 
   // パネルをカードストッカーにする／やめる。所有者を決めるのもここ（PANEL_FIELD_PATCHESに
@@ -92,6 +121,8 @@ export const BOARD_HANDLERS = {
     const nextPanel = Object.freeze({
       ...panel,
       isStocker: !!isStocker,
+      // 箱にするならクリックオプションは落とす（両立させない。SET_PANEL_CLICK_ACTION参照）
+      ...(isStocker ? { clickAction: null } : {}),
       // 所有者を付けないときは両方null（＝誰でも使える箱）。表示名を設定している人は
       // 参加者IDで持ち、ゲストはブラウザ単位のIDへ退避する（MOVE_TO_BACKYARDと同じ）
       stockerOwnerId: isStocker ? (ownerId || null) : null,

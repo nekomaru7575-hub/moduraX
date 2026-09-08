@@ -3,7 +3,7 @@
    雛形は css/about.css と同じ。あちらを直したらこちらも合わせること。 */
 
 /* 見た目は about.html と同じ雛形。あちらを直したらこちらも合わせること
-   （3ページとも各自コピーしていて、共通CSSにはしていない）。 */
+   （各ページが自分のCSSへコピーしていて、共通CSSにはしていない）。 */
 body {
   background-color: var(--surface-page);
   color: var(--text-default);
@@ -82,8 +82,8 @@ a {
   margin: 0 0 4px;
 }
 
-/* 部屋入口・コマ作成ツール・このサービスについてと同じヘッダー行。値もその3ページに
-   合わせてある（部屋の画面だけは align-items などが違うので共通CSSにしていない）。 */
+/* 部屋の外の各ページと同じヘッダー行。値もそちらに合わせてある
+   （部屋の画面だけは align-items などが違うので共通CSSにしていない）。 */
 .app-header {
   display: flex;
   align-items: baseline;

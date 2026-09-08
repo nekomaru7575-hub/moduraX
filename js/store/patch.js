@@ -28,6 +28,23 @@ export function withoutMapEntry(map, key) {
   return Object.freeze(next);
 }
 
+/**
+ * マップから自分の持ち物としての1件を引く。無ければundefined。
+ *
+ * 【素の map?.[id] を使わないこと】idが外から来る場合、'__proto__' や 'constructor' は
+ * Object.prototype 上の値に当たってしまい、「実在しないのに真」になる。
+ * 実際、パネルのクリックオプションに sceneId:'__proto__' を仕込んだ部屋データを読ませると、
+ * APPLY_SCENEの `room.scenes?.[id]` が Object.prototype を拾って処理が続き、
+ * 盤面のパネルが全部消えた（名前も undefined のままログに出た）。
+ *
+ * COUNT_STAMP（js/store/handlers/participants.js）が participantId に対して
+ * 同じ理由で hasOwnProperty を使っている。そちらと同じ守り方をここへ寄せる。
+ */
+export function ownEntry(map, id) {
+  if (!map || typeof id !== 'string') return undefined;
+  return Object.prototype.hasOwnProperty.call(map, id) ? map[id] : undefined;
+}
+
 // パネルのマップを入れ子まで凍らせて写し取る（シーンの保存・適用で使う）。
 // 通信やhydrate（JSON復元）を経た値は凍っていないので、状態へ入れる前にここを通す。
 export function freezePanelMap(panels) {

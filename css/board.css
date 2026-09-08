@@ -1227,6 +1227,13 @@ h1 {
   cursor: grabbing;
 }
 
+/* クリックオプションを持つパネル：押すと何かが起きることをカーソルで示す。
+   固定してあると既定が default になるので、これが無いと「動かないただの絵」に見える */
+.panel-object.clickable,
+.panel-object.locked.clickable {
+  cursor: pointer;
+}
+
 /* 固定中のパネル：ドラッグ移動できない（背景タイル扱い）。実線枠と通常カーソルで示す */
 .panel-object.locked {
   cursor: default;

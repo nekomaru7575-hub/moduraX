@@ -524,6 +524,9 @@ const ASSET_BASE_URL = (process.env.ASSET_BASE_URL || '').trim().replace(/\/+$/,
 // 制御できないため。/以下すべてを見せたいので、ルートに置くしかない。
 const PUBLIC_FILES = new Set([
   'index.html', 'combined_layout.html', 'character-builder.html',
+  // 他のツールの部屋データを、この部屋データへ変換する道具（js/room-import.js）。
+  // 変換はブラウザの中だけで終わり、サーバーは何も受け取らない
+  'room-import.html',
   'manifest.webmanifest', 'sw.js', 'offline.html',
   // 利用規約・プライバシーポリシー・免責事項・問い合わせ先（部屋一覧の下から辿れる）
   'about.html',

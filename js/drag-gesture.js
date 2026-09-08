@@ -40,6 +40,12 @@ export const LONG_PRESS_ONLY = Symbol('longPressOnly');
  *   onLongPress?: (event: PointerEvent, context: any) => void,
  *     タッチ・ペンのみ。マウスは右クリックがあるので対象外。
  *     発火時点でドラッグは終了扱い（onEndを呼んでから来る）。
+ *   onClick?: (event: PointerEvent, context: any) => void,
+ *     押してから、LONG_PRESS_TOLERANCE_PX以内しか動かずに離したとき。
+ *     長押しが発火した場合は呼ばない（メニューを出しつつクリックもする、を防ぐ）。
+ *     LONG_PRESS_ONLY（固定したパネル等）でも呼ぶ——「動かせないが押せる」ものが要るため。
+ *     このときcontextはnull（ドラッグを始めていないので文脈が無い）。
+ *     通常モードではonEndの後に呼ぶ（onEndでの位置確定を先に済ませるため）。
  *   capture?: boolean,
  *     pointerdownをキャプチャ段階で受ける。子要素がstopPropagationしていても
  *     開始判定を通したい場合に使う。
@@ -54,6 +60,7 @@ export function bindDragGesture(element, {
   onMove,
   onEnd,
   onLongPress,
+  onClick,
   capture = false,
   stopPropagation = false
 } = {}) {
@@ -64,6 +71,16 @@ export function bindDragGesture(element, {
   let downEvent = null;
   let startClientX = 0;
   let startClientY = 0;
+  // 長押しが発火したか。クリックと二重に鳴らさないための印
+  let longPressFired = false;
+
+  // 押した場所からの距離が、クリックとみなせる範囲に収まっているか。
+  // しきい値は長押しの取り消しと同じものを使う（同じ「指がぶれた」の判定なので、
+  // 別の値にすると「長押しは取り消されたのにクリックにはなる」隙間ができる）。
+  function withinClickTolerance(event) {
+    return Math.abs(event.clientX - startClientX) <= LONG_PRESS_TOLERANCE_PX
+      && Math.abs(event.clientY - startClientY) <= LONG_PRESS_TOLERANCE_PX;
+  }
 
   function clearLongPressTimer() {
     if (longPressTimer !== null) {
@@ -106,7 +123,13 @@ export function bindDragGesture(element, {
 
   function onPointerUp(event) {
     if (event.pointerId !== activePointerId) return;
+    // finishがcontextを捨てるので、クリックの判定材料を先に取っておく
+    const clicked = onClick && !longPressFired
+      && event.type === 'pointerup' && withinClickTolerance(event);
+    const clickContext = context;
     finish(event, true);
+    // onEndの後に呼ぶ：先に位置の確定（グリッド吸着など）を済ませてから振る舞いを起こす
+    if (clicked) onClick(event, clickContext);
   }
 
   // 長押しでメニューを出した直後、AndroidのブラウザがさらにcontextmenuをあげてくるとMenuが
@@ -134,6 +157,11 @@ export function bindDragGesture(element, {
     const fromX = pressEvent.clientX;
     const fromY = pressEvent.clientY;
     let timer = null;
+    let firedLongPress = false;
+    // 長押しを見るのはタッチ・ペンだけ（マウスには右クリックがある）。onClickのために
+    // マウスもここへ通すようになったので、この線引きを明示的に引き直す——引かないと、
+    // 固定パネルを左ボタンで押したまま500ms待っただけでメニューが開いてしまう。
+    const watchesLongPress = !!onLongPress && pressEvent.pointerType !== 'mouse';
 
     const stop = () => {
       if (timer !== null) { clearTimeout(timer); timer = null; }
@@ -153,7 +181,15 @@ export function bindDragGesture(element, {
 
     const onDocEnd = (endEvent) => {
       if (endEvent.pointerId !== pointerId) return;
+      // 長押しでメニューを出したあとはクリックにしない。
+      // 動いた場合はonDocMoveがstop()して購読を外しているので、ここへは来ない。
+      // それでも距離を見るのは、pointermoveを1度も挟まずに離れる端末があるため。
+      const clicked = onClick && !firedLongPress && endEvent.type === 'pointerup'
+        && Math.abs(endEvent.clientX - fromX) <= LONG_PRESS_TOLERANCE_PX
+        && Math.abs(endEvent.clientY - fromY) <= LONG_PRESS_TOLERANCE_PX;
       stop();
+      // 文脈は無い（ドラッグを始めていない）のでnullを渡す
+      if (clicked) onClick(endEvent, null);
     };
 
     // 2本目の指が触れたらピンチへ操作を明け渡す。触れたまま止まっているとメニューが
@@ -168,8 +204,13 @@ export function bindDragGesture(element, {
     document.addEventListener('pointercancel', onDocEnd, true);
     document.addEventListener('pointerdown', onOtherPointerDown, true);
 
+    // マウスのときはタイマーを張らない。張ってしまうと、ゆっくり押しただけの
+    // クリック（500ms以上）が「長押し」に化けてクリックが鳴らなくなる。
+    if (!watchesLongPress) return;
+
     timer = setTimeout(() => {
       timer = null;
+      firedLongPress = true;
       stop();
       suppressNextContextMenu();
       onLongPress(pressEvent, null);
@@ -187,9 +228,15 @@ export function bindDragGesture(element, {
     const started = onStart ? onStart(event) : true;
     if (started === false || started === null || started === undefined) return;
 
+    longPressFired = false;
+
     // 動かせないが長押しには応じるもの。イベントは握らずに親へ流したままにする。
+    //
+    // onClickがあるときはマウスでも見張る。固定したパネルはこの枝しか通らないので、
+    // ここをタッチ・ペンだけにしておくと「固定したボタンをマウスで押しても何も起きない」
+    // になる（クリックオプションの本命は固定パネルなので、それでは意味がない）。
     if (started === LONG_PRESS_ONLY) {
-      if (onLongPress && event.pointerType !== 'mouse') watchLongPressOnly(event);
+      if (onClick || (onLongPress && event.pointerType !== 'mouse')) watchLongPressOnly(event);
       return;
     }
 
@@ -210,6 +257,7 @@ export function bindDragGesture(element, {
     if (onLongPress && event.pointerType !== 'mouse') {
       longPressTimer = setTimeout(() => {
         longPressTimer = null;
+        longPressFired = true; // このあとのpointerupをクリックとして鳴らさない
         const pressEvent = downEvent;
         const pressContext = context;
         // 先にドラッグを畳んで状態を確定させてからメニューを出す

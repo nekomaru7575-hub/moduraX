@@ -20,10 +20,21 @@ const ensureDialog = createDialogHost();
  *   initialRows?: number,
  *   initialStackOrder?: number,
  *   initialKeepOnSceneChange?: boolean,
+ *   initialIsStocker?: boolean,
+ *   initialStockerOwned?: boolean,
+ *   stockerOwnerLabel?: string,
+ *   initialClickAction?: object | null,
+ *   clickActionChoices?: {
+ *     scenes: {id: string, name: string}[],
+ *     audioTracks: {id: string, name: string, channel: string, channelLabel: string}[],
+ *     stamps: {id: string, label: string}[]
+ *   },
+ *   maxChatTextLength?: number,
  *   gridSize: number,
  *   onConfirm: (result: {
  *     image: string | null, text: string, cols: number, rows: number,
- *     stackOrder: number, keepOnSceneChange: boolean
+ *     stackOrder: number, keepOnSceneChange: boolean,
+ *     isStocker: boolean, stockerOwned: boolean, clickAction: object | null
  *   }) => void
  * }} options
  */
@@ -31,6 +42,9 @@ export function showPanelDialog({
   title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
   initialStackOrder = 0, initialKeepOnSceneChange = false,
   initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '',
+  initialClickAction = null,
+  clickActionChoices = { scenes: [], audioTracks: [], stamps: [] },
+  maxChatTextLength = 500,
   gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
@@ -234,6 +248,176 @@ export function showPanelDialog({
 
   form.appendChild(stockerGroup);
 
+  // --- クリックオプション ---
+  // 押したときの振る舞いを1つだけ持たせる（js/store/panels.js）。
+  // 候補（シーン・音源・スタンプ）は呼び出し側が渡す：このダイアログは状態を知らない部品で、
+  // storeを直接触らない約束になっている（js/scene-list-dialog.jsと同じ作り）。
+  const clickGroup = document.createElement('div');
+  clickGroup.className = 'dialog-form-group';
+
+  const clickLabel = document.createElement('label');
+  clickLabel.textContent = 'クリックオプション';
+  clickLabel.title = 'このパネルを押したときの動きです。カードストッカーとは同時に設定できません。';
+  clickGroup.appendChild(clickLabel);
+
+  const clickTypeSelect = document.createElement('select');
+  [
+    ['', 'なし'],
+    ['chat', '発言する'],
+    ['scene', 'シーンを変更する'],
+    ['audio', '音楽を変更する'],
+    ['stamp', 'スタンプを送る']
+  ].forEach(([value, text]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    clickTypeSelect.appendChild(option);
+  });
+  clickGroup.appendChild(clickTypeSelect);
+
+  // 発言の本文。チャット入力欄と同じに解釈されるので、ダイスもパラメータ増減も書ける
+  const chatWrap = document.createElement('div');
+  chatWrap.style.marginTop = '6px';
+  const chatInput = document.createElement('textarea');
+  chatInput.rows = 2;
+  chatInput.maxLength = maxChatTextLength;
+  chatInput.placeholder = '例: 2d6+3 ／ +HP(1d6) ／ こんにちは';
+  chatInput.title = 'チャット入力欄に打つのと同じに扱われます（ダイス・{HP}・パラメータ増減も使えます）。'
+    + '発言者は、チャット欄で選んでいる参照キャラクターになります。';
+  chatWrap.appendChild(chatInput);
+  clickGroup.appendChild(chatWrap);
+
+  // シーン・音楽・スタンプは、その時点で選べる候補から選ぶ
+  const targetWrap = document.createElement('div');
+  targetWrap.style.marginTop = '6px';
+  const targetSelect = document.createElement('select');
+  targetWrap.appendChild(targetSelect);
+  clickGroup.appendChild(targetWrap);
+
+  // 種類ごとの候補。value は確定時にそのまま clickAction へ組み直す
+  function targetOptionsFor(type) {
+    if (type === 'scene') {
+      return clickActionChoices.scenes.map((scene) => [scene.id, scene.name]);
+    }
+    if (type === 'audio') {
+      return [
+        ...clickActionChoices.audioTracks.map((track) => [
+          `play:${track.channel}:${track.id}`,
+          `${track.channelLabel}「${track.name}」を鳴らす`
+        ]),
+        // 停止はチャンネルごと。STOP_AUDIO_PLAYBACKがチャンネルを要求するため
+        ['stop:bgm', 'BGMを止める'],
+        ['stop:se', '効果音を止める']
+      ];
+    }
+    if (type === 'stamp') {
+      return clickActionChoices.stamps.map((stamp) => [stamp.id, stamp.label]);
+    }
+    return [];
+  }
+
+  // 今の設定を value 表現へ直す（種類の選び直しで候補を作り直しても選択を保てるように）
+  function initialTargetValue() {
+    const action = initialClickAction;
+    if (!action) return '';
+    if (action.type === 'scene') return action.sceneId;
+    if (action.type === 'stamp') return action.stampId;
+    if (action.type === 'audio') {
+      return action.trackId ? `play:${action.channel}:${action.trackId}` : `stop:${action.channel}`;
+    }
+    return '';
+  }
+
+  function fillTargetOptions(type, keepValue) {
+    targetSelect.innerHTML = '';
+    const options = targetOptionsFor(type);
+    if (options.length === 0) {
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = type === 'scene'
+        ? '（シーンがまだありません）'
+        : type === 'audio' ? '（音源がまだありません）' : '（スタンプがまだありません）';
+      targetSelect.appendChild(empty);
+      return;
+    }
+    options.forEach(([value, text]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      targetSelect.appendChild(option);
+    });
+    // 元々指していた先が消えている（シーンを削除した等）場合、黙って別のものへ
+    // すり替わると「押しても違うことが起きる」になる。消えたことが読めるようにしておく。
+    if (keepValue && !options.some(([value]) => value === keepValue)) {
+      const missing = document.createElement('option');
+      missing.value = keepValue;
+      missing.textContent = '（削除されたため、選び直してください）';
+      targetSelect.insertBefore(missing, targetSelect.firstChild);
+    }
+    if (keepValue) targetSelect.value = keepValue;
+  }
+
+  function syncClickFields() {
+    const type = clickTypeSelect.value;
+    chatWrap.style.display = type === 'chat' ? '' : 'none';
+    targetWrap.style.display = (type === 'scene' || type === 'audio' || type === 'stamp') ? '' : 'none';
+  }
+
+  // ストッカーとクリックオプションは同時に持てない（押したときの意味を奪い合うため）。
+  // 上のsyncStockerOwnedと同じ形で、片方が入っていれば他方を選べなくする。
+  function syncStockerVsClick() {
+    const clickChosen = clickTypeSelect.value !== '';
+    stockerInput.disabled = clickChosen;
+    stockerLabel.style.opacity = clickChosen ? '0.5' : '';
+    if (clickChosen && stockerInput.checked) {
+      stockerInput.checked = false;
+      syncStockerOwned();
+    }
+
+    clickTypeSelect.disabled = stockerInput.checked;
+    clickLabel.style.opacity = stockerInput.checked ? '0.5' : '';
+    if (stockerInput.checked && clickTypeSelect.value !== '') {
+      clickTypeSelect.value = '';
+      syncClickFields();
+    }
+  }
+
+  clickTypeSelect.addEventListener('change', () => {
+    fillTargetOptions(clickTypeSelect.value, '');
+    syncClickFields();
+    syncStockerVsClick();
+  });
+  stockerInput.addEventListener('change', syncStockerVsClick);
+
+  clickTypeSelect.value = initialClickAction?.type || '';
+  chatInput.value = initialClickAction?.type === 'chat' ? initialClickAction.text : '';
+  fillTargetOptions(clickTypeSelect.value, initialTargetValue());
+  syncClickFields();
+  syncStockerVsClick();
+
+  form.appendChild(clickGroup);
+
+  // フォームの入力から clickAction を組み立てる。形が揃わないものはnull（＝設定なし）。
+  // ここで潰しておくと、UIの連動が壊れても矛盾した値は出ていかない。
+  function buildClickAction() {
+    if (stockerInput.checked) return null;
+    const type = clickTypeSelect.value;
+    if (type === 'chat') {
+      const text = chatInput.value.trim();
+      return text ? { type: 'chat', text } : null;
+    }
+    const value = targetSelect.value;
+    if (!value) return null;
+    if (type === 'scene') return { type: 'scene', sceneId: value };
+    if (type === 'stamp') return { type: 'stamp', stampId: value };
+    if (type === 'audio') {
+      const [mode, channel, trackId] = value.split(':');
+      if (mode === 'stop') return { type: 'audio', channel, trackId: null };
+      if (mode === 'play' && trackId) return { type: 'audio', channel, trackId };
+    }
+    return null;
+  }
+
   // --- ボタン行 ---
   appendConfirmRow(form, {
     confirmLabel: '適用',
@@ -254,7 +438,8 @@ export function showPanelDialog({
       image: currentImage, text: textInput.value, cols, rows, stackOrder,
       keepOnSceneChange: keepInput.checked,
       isStocker: stockerInput.checked,
-      stockerOwned: stockerInput.checked && ownedInput.checked
+      stockerOwned: stockerInput.checked && ownedInput.checked,
+      clickAction: buildClickAction()
     });
   });
 

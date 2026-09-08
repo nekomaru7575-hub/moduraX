@@ -1,6 +1,6 @@
 // js/site-nav.js
-// 部屋の外にある3ページ（部屋入口・コマ作成ツール・このサービスについて）の行き来。
-// 各ページのヘッダー右上に置いた「⋯」に、3つの行き先をまとめる。
+// 部屋の外にあるページ（部屋入口・コマ作成ツール・部屋データの取り込み・リリースノート・
+// このサービスについて）の行き来。各ページのヘッダー右上に置いた「⋯」に行き先をまとめる。
 //
 // 【なぜまとめたか】以前はページごとに導線がばらばらで、コマ作成ツールからは
 // 「このサービスについて」へ行けず、その逆も同じだった。置き場所も見た目も
@@ -20,6 +20,7 @@ import { showContextMenu } from './context-menu.js';
 const PAGES = [
   { id: 'index', label: '部屋入口', href: '/' },
   { id: 'builder', label: 'コマ作成ツール', href: '/character-builder.html' },
+  { id: 'import', label: '部屋データの取り込み', href: '/room-import.html' },
   { id: 'notes', label: 'リリースノート', href: '/release-notes.html' },
   { id: 'about', label: 'このサービスについて', href: '/about.html' }
 ];
@@ -30,6 +31,7 @@ function currentPageId() {
   const path = window.location.pathname;
   if (path === '/' || path === '/index.html') return 'index';
   if (path === '/character-builder.html') return 'builder';
+  if (path === '/room-import.html') return 'import';
   if (path === '/release-notes.html') return 'notes';
   if (path === '/about.html') return 'about';
   return '';
@@ -48,7 +50,7 @@ function init() {
     // 画面端からはみ出したときの寄せ直しは showContextMenu 側が持っている
     showContextMenu(rect.left, rect.bottom + 4, PAGES.map(page => ({
       label: page.label,
-      // 今いるページには印を付けて押せなくする。項目ごと消さないのは、3つの並びが
+      // 今いるページには印を付けて押せなくする。項目ごと消さないのは、同じ並びが
       // どのページでも同じ位置に出る方が覚えやすいため。印の無い行にも同じ幅の
       // 場所取り（blank）を置いて、名前の頭を揃える（js/mobile-layout.jsと同じ）。
       icon: page.id === here ? 'check' : 'blank',

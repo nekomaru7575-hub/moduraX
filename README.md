@@ -104,6 +104,7 @@ Upstash も R2 も未設定なら、部屋のデータは `server/rooms/*.json` 
 | `index.html` | 部屋一覧。部屋を探して入る／新しく作る |
 | `combined_layout.html` | 盤面本体。`?room=room-XXXX` で開く |
 | `character-builder.html` | コマ作成ツール |
+| `room-import.html` | 他のツールの部屋データ（今はココフォリアのZIP）を取り込む形へ変換する |
 | `about.html` | 利用規約・プライバシーポリシー・免責事項・連絡先 |
 | `release-notes.html` | 更新の記録 |
 | `offline.html` | 通信が死んでいるときにService Workerが返す控えのページ |

@@ -860,6 +860,149 @@ test('ADD_PANEL / REMOVE_PANEL', () => {
   assertNoop(store, 'REMOVE_PANEL', { id: 'pn1' });
 });
 
+// --- パネルのクリックオプション（js/store/panels.js） ---
+
+test('クリックオプション: 4種類とも設定できる', () => {
+  const store = newStore();
+
+  store.dispatch('ADD_PANEL', { id: 'p-chat', clickAction: { type: 'chat', text: ' 2d6+3 ' } });
+  assert.deepEqual(store.state.panels['p-chat'].clickAction,
+    { type: 'chat', text: '2d6+3' }, '前後の空白は落とす');
+
+  store.dispatch('ADD_PANEL', { id: 'p-scene', clickAction: { type: 'scene', sceneId: 'sc1' } });
+  assert.deepEqual(store.state.panels['p-scene'].clickAction, { type: 'scene', sceneId: 'sc1' });
+
+  store.dispatch('ADD_PANEL', {
+    id: 'p-play', clickAction: { type: 'audio', channel: 'bgm', trackId: 'audio-1' }
+  });
+  assert.deepEqual(store.state.panels['p-play'].clickAction,
+    { type: 'audio', channel: 'bgm', trackId: 'audio-1' });
+
+  store.dispatch('ADD_PANEL', {
+    id: 'p-stop', clickAction: { type: 'audio', channel: 'se', trackId: null }
+  });
+  assert.equal(store.state.panels['p-stop'].clickAction.trackId, null, 'trackId null＝演奏停止');
+
+  store.dispatch('ADD_PANEL', { id: 'p-stamp', clickAction: { type: 'stamp', stampId: 'room:s1' } });
+  assert.deepEqual(store.state.panels['p-stamp'].clickAction, { type: 'stamp', stampId: 'room:s1' });
+
+  // 既定は「押しても何も起きない」
+  store.dispatch('ADD_PANEL', { id: 'p-none' });
+  assert.equal(store.state.panels['p-none'].clickAction, null);
+});
+
+test('クリックオプション: 形の合わないものはnullに落ちる', () => {
+  const store = newStore();
+
+  const rejected = {
+    'p1': { type: 'なにか', text: 'x' },            // 知らない種類
+    'p2': { type: 'constructor' },                  // プロトタイプ上の名前
+    'p3': { type: '__proto__' },
+    'p4': 'chat',                                   // オブジェクトでない
+    'p5': ['chat'],                                 // 配列
+    'p6': 42,
+    'p7': { type: 'chat', text: '   ' },            // 空白だけ
+    'p8': { type: 'chat' },                         // 本文が無い
+    'p9': { type: 'scene' },                        // 指し先が無い
+    'p10': { type: 'scene', sceneId: 123 },         // 文字列でない
+    'p11': { type: 'stamp', stampId: '' },
+    'p12': { type: 'audio', trackId: 'audio-1' },   // チャンネルが無い
+    'p13': { type: 'audio', channel: 'とつぜん', trackId: 'audio-1' }
+  };
+
+  for (const [id, clickAction] of Object.entries(rejected)) {
+    store.dispatch('ADD_PANEL', { id, clickAction });
+    assert.equal(store.state.panels[id].clickAction, null, `${id}: ${JSON.stringify(clickAction)}`);
+  }
+
+  // プロトタイプを汚していない
+  assert.equal({}.type, undefined);
+});
+
+test('クリックオプション: 発言の本文は上限で切る', () => {
+  const store = newStore();
+  store.dispatch('ADD_PANEL', { id: 'p1', clickAction: { type: 'chat', text: 'あ'.repeat(900) } });
+  assert.equal(store.state.panels.p1.clickAction.text.length, 500);
+});
+
+test('SET_PANEL_CLICK_ACTION: 設定・変更・解除', () => {
+  const store = newStore();
+  store.dispatch('ADD_PANEL', { id: 'p1' });
+
+  store.dispatch('SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: { type: 'chat', text: 'やあ' } });
+  assert.deepEqual(store.state.panels.p1.clickAction, { type: 'chat', text: 'やあ' });
+
+  store.dispatch('SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: { type: 'scene', sceneId: 'sc1' } });
+  assert.deepEqual(store.state.panels.p1.clickAction, { type: 'scene', sceneId: 'sc1' });
+
+  store.dispatch('SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: null });
+  assert.equal(store.state.panels.p1.clickAction, null);
+
+  // 既にnullなら状態を作り直さない（差分検知に使っているため）
+  assertNoop(store, 'SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: null });
+  assertNoop(store, 'SET_PANEL_CLICK_ACTION', { id: 'いない', clickAction: { type: 'chat', text: 'x' } });
+});
+
+test('クリックオプションとカードストッカーは同時に持てない', () => {
+  const store = newStore();
+
+  // 箱にするとクリックオプションは落ちる
+  store.dispatch('ADD_PANEL', { id: 'p1', clickAction: { type: 'chat', text: 'やあ' } });
+  store.dispatch('SET_PANEL_STOCKER', { id: 'p1', isStocker: true });
+  assert.equal(store.state.panels.p1.isStocker, true);
+  assert.equal(store.state.panels.p1.clickAction, null, '箱にしたら設定は消える');
+
+  // 箱にはクリックオプションを付けられない
+  assertNoop(store, 'SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: { type: 'chat', text: 'やあ' } });
+
+  // 箱をやめれば付けられる
+  store.dispatch('SET_PANEL_STOCKER', { id: 'p1', isStocker: false });
+  store.dispatch('SET_PANEL_CLICK_ACTION', { id: 'p1', clickAction: { type: 'chat', text: 'やあ' } });
+  assert.deepEqual(store.state.panels.p1.clickAction, { type: 'chat', text: 'やあ' });
+});
+
+test('__proto__ を指すidで、実在しないシーン・音源を通してしまわない', () => {
+  // 【実際に踏めた不具合】パネルのクリックオプションに sceneId:'__proto__' を仕込んだ
+  // 部屋データを読ませると、APPLY_SCENEの room.scenes?.[id] が Object.prototype を拾って
+  // 真になり、盤面のパネルが全部消えた（js/store/patch.jsのownEntry）。
+  const store = newStore();
+  store.dispatch('ADD_PANEL', { id: 'keep', text: '残るはずのパネル' });
+
+  store.dispatch('APPLY_SCENE', { id: '__proto__', playId: '1' });
+  assert.equal(store.state.panels.keep?.text, '残るはずのパネル', 'パネルが消えていない');
+
+  store.dispatch('APPLY_SCENE', { id: 'constructor', playId: '1' });
+  assert.equal(store.state.panels.keep?.text, '残るはずのパネル');
+
+  // 音源も同じ。実在しない音源を鳴らしたことにしない
+  store.dispatch('SET_AUDIO_PLAYBACK', { channel: 'bgm', trackId: '__proto__', playId: '1' });
+  assert.equal(store.state.room.audioPlayback.bgm, null);
+
+  // 「シーン「undefined」を開始しました。」のような嘘のログも出ない
+  const logs = (store.state.chatLogs.main || []).map(e => e.resultText).filter(Boolean);
+  assert.equal(logs.some(t => t.includes('undefined')), false, JSON.stringify(logs));
+});
+
+test('hydrate: 取り込んだパネルのクリックオプションを検証する', () => {
+  const store = newStore();
+
+  store.hydrate({
+    panels: {
+      ok: { id: 'ok', cols: 2, rows: 2, clickAction: { type: 'scene', sceneId: 'sc1' } },
+      // 細工された部屋データ。押すと何かが起きる項目なので、形の合わないものは入れない
+      bad: { id: 'bad', cols: 2, rows: 2, clickAction: { type: 'constructor', text: 'x' } },
+      huge: { id: 'huge', cols: 2, rows: 2, clickAction: { type: 'chat', text: 'あ'.repeat(9000) } },
+      old: { id: 'old', cols: 2, rows: 2 } // この機能より前に書き出されたパネル
+    }
+  });
+
+  assert.deepEqual(store.state.panels.ok.clickAction, { type: 'scene', sceneId: 'sc1' });
+  assert.equal(store.state.panels.bad.clickAction, null);
+  assert.equal(store.state.panels.huge.clickAction.text.length, 500);
+  assert.equal(store.state.panels.old.clickAction, null, '無い場合は既定値を補う');
+  assert.equal({}.type, undefined);
+});
+
 test('ADD_CARD / ADD_DECK: 重複とid欠落は何もしない', () => {
   const store = newStore();
 

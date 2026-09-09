@@ -2,10 +2,10 @@
 source: js/store/stamps.js
 lines: 171
 exports: 12
-imported_by: 8
+imported_by: 9
 api_sha: 696cff058238
 prose_sha: b873d8a7d79b
-generated: 2026-09-04
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -57,7 +57,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.game-store]], [[js.main]], [[js.room-stamp-dialog]], [[js.room-stamp-list-dialog]], [[js.stamp-registry]], [[js.store.handlers.room]], [[js.store.room]], [[server.index]]
+- imported by → [[js.game-store]], [[js.main]], [[js.room-stamp-dialog]], [[js.room-stamp-list-dialog]], [[js.stamp-registry]], [[js.store.handlers.room]], [[js.store.images]], [[js.store.room]], [[server.index]]
 
 ## 注意
 

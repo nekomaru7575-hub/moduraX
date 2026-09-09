@@ -2,10 +2,10 @@
 source: js/store/audio.js
 lines: 17
 exports: 3
-imported_by: 4
+imported_by: 5
 api_sha: 1e0581007e69
 prose_sha: 1e0581007e69
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -36,7 +36,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.game-store]], [[js.store.chat]], [[js.store.handlers.audio]], [[js.store.handlers.scenes]]
+- imported by → [[js.game-store]], [[js.store.chat]], [[js.store.handlers.audio]], [[js.store.handlers.scenes]], [[js.store.panels]]
 
 ## 注意
 

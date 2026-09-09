@@ -2,10 +2,10 @@
 source: js/file-uploader.js
 lines: 113
 exports: 4
-imported_by: 7
+imported_by: 8
 api_sha: b4dcd29cfefc
 prose_sha: b4dcd29cfefc
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -45,7 +45,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.audio-dialog]], [[js.board-data-driven]], [[js.character-builder]], [[js.chat-palette]], [[js.deck-editor-dialog]], [[js.image-upload]], [[js.main]]
+- imported by → [[js.audio-dialog]], [[js.board-data-driven]], [[js.character-builder]], [[js.chat-palette]], [[js.deck-editor-dialog]], [[js.image-selector-dialog]], [[js.image-upload]], [[js.main]]
 
 ## 注意
 

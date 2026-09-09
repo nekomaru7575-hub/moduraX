@@ -2,10 +2,10 @@
 source: js/stamp-registry.js
 lines: 188
 exports: 5
-imported_by: 6
+imported_by: 7
 api_sha: ab6e49a988af
 prose_sha: e8f7d415d1a8
-generated: 2026-09-04
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -50,7 +50,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.asset-base]], [[js.parameters.registry]], [[js.stamp-catalog]], [[js.store.stamps]]
-- imported by → [[js.main]], [[js.net-host]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.participants]], [[server.index]]
+- imported by → [[js.board-data-driven]], [[js.main]], [[js.net-host]], [[js.stamp-layer]], [[js.stamp-panel]], [[js.store.handlers.participants]], [[server.index]]
 
 ## 注意
 

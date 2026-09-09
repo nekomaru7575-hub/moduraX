@@ -1,11 +1,11 @@
 ---
 source: js/game-store.js
-lines: 449
+lines: 456
 exports: 4
 imported_by: 17
 api_sha: a787e28853cd
 prose_sha: a787e28853cd
-generated: 2026-09-04
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -25,10 +25,10 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 137 | class | ImmutableStore | `ImmutableStore` |  |
-| 313 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 317 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 448 | const | store | `store` |  |
+| 141 | class | ImmutableStore | `ImmutableStore` |  |
+| 320 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 324 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 455 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -37,11 +37,11 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 317 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 130 | ✓ |
+| 324 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 130 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.handlers.index]], [[js.store.ids]], [[js.store.info]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]], [[js.store.stamps]]
+- import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.handlers.index]], [[js.store.ids]], [[js.store.images]], [[js.store.info]], [[js.store.panels]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]], [[js.store.stamps]]
 - imported by → [[js.audio-dialog]], [[js.audio-player]], [[js.board-data-driven]], [[js.buff-dialog]], [[js.character-builder]], [[js.host-persistence]], [[js.info-entry-dialog]], [[js.info-panel]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-authority]], [[js.round-panel]], [[js.scene-dialog]], [[js.state-import]], [[js.token-library-dialog]], [[server.index]]
 
 ## 注意

@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/characters.js
-lines: 293
+lines: 294
 exports: 1
 imported_by: 1
 api_sha: 7fef7672ac8c
 prose_sha: 7fef7672ac8c
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 21 | const | CHARACTERS_HANDLERS | `CHARACTERS_HANDLERS` |  |
+| 22 | const | CHARACTERS_HANDLERS | `CHARACTERS_HANDLERS` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 
@@ -33,7 +33,7 @@ _(未記入)_
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]]
+- import → [[js.EventBus]], [[js.parameters.core]], [[js.parameters.registry]], [[js.store.images]], [[js.store.params]], [[js.store.patch]], [[js.store.room]], [[js.store.round-state]]
 - imported by → [[js.store.handlers.index]]
 
 ## 注意

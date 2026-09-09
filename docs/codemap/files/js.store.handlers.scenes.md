@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/scenes.js
-lines: 163
+lines: 170
 exports: 1
 imported_by: 1
 api_sha: fb28cc2fa9f5
 prose_sha: fb28cc2fa9f5
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 13 | const | SCENES_HANDLERS | `SCENES_HANDLERS` |  |
+| 14 | const | SCENES_HANDLERS | `SCENES_HANDLERS` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 
@@ -33,7 +33,7 @@ _(未記入)_
 
 ## 依存
 
-- import → [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.patch]]
+- import → [[js.store.audio]], [[js.store.buffs]], [[js.store.cards]], [[js.store.chat]], [[js.store.images]], [[js.store.patch]]
 - imported by → [[js.store.handlers.index]]
 
 ## 注意

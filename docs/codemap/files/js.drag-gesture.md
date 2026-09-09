@@ -1,11 +1,11 @@
 ---
 source: js/drag-gesture.js
-lines: 231
+lines: 279
 exports: 2
 imported_by: 4
-api_sha: a9b5d3f67438
+api_sha: cdaa343aa8b6
 prose_sha: a9b5d3f67438
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -26,7 +26,7 @@ Pointer Events を使ったドラッグと長押しの入口を1つにまとめ�
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 29 | const | LONG_PRESS_ONLY | `LONG_PRESS_ONLY` | onStartがこれを返すと、ドラッグは始めずに長押しだけを見る。 |
-| 52 | fn | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, capture = false, stopPropagation = false } = {})` | onStart?: (event: PointerEvent) => any, ドラッグを始めてよければ任意の値（＝以降のコールバックへ渡す文脈）を返す。 |
+| 58 | fn | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, onClick, capture = false, stopPropagation = false } = {})` | onStart?: (event: PointerEvent) => any, ドラッグを始めてよければ任意の値（＝以降のコールバックへ渡す文脈）を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -35,7 +35,7 @@ Pointer Events を使ったドラッグと長押しの入口を1つにまとめ�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 52 | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, capture = false, stopPropagation = false } = {})` | 179 | ✓ |
+| 58 | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, onClick, capture = false, stopPropagation = false } = {})` | **221** | ✓ |
 
 ## 依存
 

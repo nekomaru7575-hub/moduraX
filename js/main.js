@@ -77,7 +77,7 @@ import { initStampPanel } from './stamp-panel.js';
 import { initDiceDraftPanel } from './dice-draft-panel.js';
 import { findStampByName, listStampLabels } from './stamp-registry.js';
 import { initInfoPanel } from './info-panel.js';
-import { initCharacterPanel, listMyBackyardTokens } from './character-panel.js';
+import { initCharacterPanel, listBackyardTokens } from './character-panel.js';
 import { initMobileLayout } from './mobile-layout.js';
 import { initNoBrowserZoom } from './no-browser-zoom.js';
 import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
@@ -1209,9 +1209,12 @@ const EXPORT_EMBED_LIMIT_BYTES = 64 * 1024 * 1024;
 //
 // state.tokensには盤面・バックヤードのコマが両方入っているが、バックヤードのコマは
 // ownerId（またはbackyardOwnerId）が今この部屋限りの値なので、別の部屋・別のタイミングで
-// 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。保存した本人のぶんだけは
-// myBackyardTokenIdsとしてIDを別に記録しておき、読み込み側（state-import.js）で
-// 読み込んだ利用者の棚へ付け替える。
+// 読み込むと誰の棚とも一致しなくなり、事実上誰にも見えなくなる。そこで**誰の棚にあったかを
+// 問わず**バックヤードのコマのIDをbackyardTokenIdsとして別に記録しておき、読み込み側
+// （state-import.js）でGMの棚へまとめて入れ直す。
+// 持ち主で絞らないのは、絞ると「保存した人以外の棚にあったコマ」がファイルの中で行き先を
+// 失い、二度と誰にも見えなくなるため。棚は隠す仕組みではない（js/token-library-dialog.js）
+// ので、全部をGMが預かる方が失うより軽い。
 // 画像はサーバーに頼んでデータURLとして埋め込んでもらう（サーバー側のhandleExportRoom）。
 // ブラウザからR2の画像を読むことはできないため（公開ドメインがCORSヘッダを返さない）、
 // ここで埋め込みを自前でやることはできない。
@@ -1219,10 +1222,10 @@ const EXPORT_EMBED_LIMIT_BYTES = 64 * 1024 * 1024;
 // 画像が戻る。サーバーに繋がらない・R2が無い場合は、今までどおり手元の状態から書き出す
 // （書き出せなくなるくらいなら、画像がURL参照のままでも書き出せた方がよい）。
 async function exportStateToFile() {
-  const myBackyardTokenIds = listMyBackyardTokens(store.state).map(token => token.id);
+  const backyardTokenIds = listBackyardTokens(store.state).map(token => token.id);
   const roomId = new URLSearchParams(location.search).get('room') || '';
 
-  let exportedState = { ...store.state, myBackyardTokenIds };
+  let exportedState = { ...store.state, backyardTokenIds };
 
   // P2P卓はサーバーに頼まない。**サーバーが持っているのはこの部屋を開いた瞬間の姿**で、
   // 以後の中身はホストのタブにしか無いため、頼むと空の部屋が書き出される。
@@ -1247,7 +1250,7 @@ async function exportStateToFile() {
       const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...entryPasswordHeaders() },
-        body: JSON.stringify({ myBackyardTokenIds })
+        body: JSON.stringify({ backyardTokenIds })
       });
       if (response.ok) {
         const result = await response.json();

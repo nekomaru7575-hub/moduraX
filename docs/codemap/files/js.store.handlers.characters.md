@@ -1,6 +1,6 @@
 ---
 source: js/store/handlers/characters.js
-lines: 294
+lines: 318
 exports: 1
 imported_by: 1
 api_sha: 7fef7672ac8c

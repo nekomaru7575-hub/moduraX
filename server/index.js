@@ -2446,7 +2446,9 @@ async function handleCreateRoom(req, res) {
 }
 
 // POST /api/rooms/<id>/export：書き出し用に、画像を埋め込んだ自己完結の状態を返す。
-// body: { myBackyardTokenIds }　… どのコマが自分のバックヤードかはブラウザしか知らない
+// body: { backyardTokenIds }　… バックヤードのコマのID一覧。サーバーの状態にもinBackyardは
+// 入っているが、書き出しの規則を持っているのはブラウザ側（js/main.jsのexportStateToFile）
+// なので、ここでは数え直さずそのまま受け取って載せる。
 //
 // 画像の埋め込みをサーバーで行う理由：R2の公開ドメインはAccess-Control-Allow-Originを
 // 返さないため、ブラウザからfetchして実体を読むことができない（server/r2.jsの方針どおり、
@@ -2500,14 +2502,17 @@ async function handleExportRoom(req, res, roomId) {
   } catch {
     // バックヤードの情報が無くても書き出し自体はできる（付け替えができなくなるだけ）
   }
-  const myBackyardTokenIds = Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : [];
+  // 旧フィールド名(myBackyardTokenIds)も受ける。ブラウザが古いまま繋がっている間に
+  // 書き出しても、バックヤードのコマが落ちないようにするため。
+  const backyardTokenIds = Array.isArray(body?.backyardTokenIds) ? body.backyardTokenIds
+    : (Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : []);
 
   // 埋め込んでよい量は、設定した上限と「今の残りメモリ」の小さいほう。混んでいるときは
   // 埋め込みを減らして書き出し自体は通す（超えたぶんはURLのまま残る＝skippedに数えられ、
   // 呼び出し側が「一部の画像は入っていない」と伝えられる）。
   const embedLimit = Math.min(MAX_EXPORT_EMBED_BYTES, maxBodyBytesFor('export'));
   const { state, embedded, skipped } = await embedStateImages(roomId, entry.store.state, embedLimit);
-  sendJson(res, 200, { state: { ...state, myBackyardTokenIds }, embedded, skipped });
+  sendJson(res, 200, { state: { ...state, backyardTokenIds }, embedded, skipped });
 }
 
 /**

@@ -1,6 +1,6 @@
 ---
 source: server/index.js
-lines: 4042
+lines: 4047
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -123,25 +123,25 @@ _(未記入)_
 | 2237 | serverLoadSnapshot | `serverLoadSnapshot()` | 40 |  |
 | 2286 | summarizeRoom | `summarizeRoom(summary)` | 11 |  |
 | 2303 | handleCreateRoom | `async handleCreateRoom(req, res)` | 144 |  |
-| 2479 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 33 |  |
-| 2525 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
-| 2599 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
-| 2713 | bcdiceIsBlocked | `bcdiceIsBlocked(origin, now)` | 3 |  |
-| 2717 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
-| 2727 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 106 |  |
-| 2835 | rememberUnavailable | `rememberUnavailable(cacheKey, cached, now, reason)` | 4 |  |
-| 2841 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
-| 2857 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
-| 2891 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2914 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
-| 2990 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 3000 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 3018 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 3035 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 3063 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 3078 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 3087 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 3983 | shutdown | `shutdown(signal)` | 23 |  |
+| 2481 | handleExportRoom | `async handleExportRoom(req, res, roomId)` | 36 |  |
+| 2530 | embedStateImages | `async embedStateImages(roomId, state, limitBytes = MAX_EXPORT_EMBED_BYTES)` | 70 |  |
+| 2604 | handleSetEntryPassword | `async handleSetEntryPassword(req, res, roomId)` | 58 |  |
+| 2718 | bcdiceIsBlocked | `bcdiceIsBlocked(origin, now)` | 3 |  |
+| 2722 | rememberBcdice | `rememberBcdice(cacheKey, entry)` | 6 |  |
+| 2732 | loadBcdiceCached | `async loadBcdiceCached(cacheKey, upstreamPath, transform)` | 106 |  |
+| 2840 | rememberUnavailable | `rememberUnavailable(cacheKey, cached, now, reason)` | 4 |  |
+| 2846 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
+| 2862 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
+| 2896 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
+| 2919 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
+| 2995 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 3005 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 3023 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 3040 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 3068 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 3083 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 3092 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 3988 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

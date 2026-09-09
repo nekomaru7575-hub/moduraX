@@ -17,11 +17,18 @@ import {
 import { EventBus } from './EventBus.js';
 import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { createFloatingPanel } from './floating-panel.js';
-import { canView, HIDDEN_VALUE_MASK } from './visibility.js';
+import { canView, isGm, HIDDEN_VALUE_MASK } from './visibility.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 import {
   showTokenLibraryPickerDialog, showTokenLibrarySaveDialog
 } from './token-library-dialog.js';
+
+// 引き取り（下のclaimRestoredTokens）の連続失敗を数える。サーバーに断られるとRESYNCで
+// 印の付いた状態が戻ってくるため、無条件に撃ち直すと往復し続けてしまう。引き取れたら
+// 0に戻すので、入室中に続けて読み込んだ場合もその都度やり直せる（情報のclaimRestoredEntries
+// ・js/info-panel.jsと同じ作り）。
+const MAX_CLAIM_ATTEMPTS = 3;
+let claimAttempts = 0;
 
 // パラメータのラベルは列幅に収まらないので頭だけ見せる（全文はtitleで出す）
 function truncateLabel(label, maxLength = 4) {
@@ -39,6 +46,14 @@ function listBoardTokens(state) {
       const initiativeB = b.parameters?.['core:initiative'] ? getEffectiveParameterValue(b, 'core:initiative') : 0;
       return initiativeB - initiativeA;
     });
+}
+
+// 部屋の誰かのバックヤードに入っているコマを、持ち主を問わず全部返す。
+// 「部屋の全データ保存」で書き出す対象がこれ（js/main.jsのexportStateToFile）。棚の分け方は
+// その部屋限りのIDに依存していて別の部屋へは持ち越せないので、保存では持ち主で絞らず、
+// 読み込んだ側でGMの棚へまとめて入れ直す（js/state-import.js）。
+export function listBackyardTokens(state) {
+  return Object.values(state.tokens).filter(t => t.inBackyard);
 }
 
 // バックヤードに入っているコマのうち、自分の棚のものだけを返す。
@@ -232,6 +247,7 @@ export function initCharacterPanel() {
   // 'board' | 'backyard'。位置/サイズと違って永続化はせず、毎回「盤面」から始める。
   let mode = 'board';
   let lastRenderedTokensRef = null;
+  let lastRenderedParticipantsRef = null;
 
   function renderTabs(backyardCount) {
     tabRow.innerHTML = '';
@@ -287,8 +303,28 @@ export function initCharacterPanel() {
     });
   }
 
+  // 部屋データの読み込みで復元されたバックヤードのコマ（restoredFromImport）を、GMのものと
+  // して引き取る。読み込んだファイルの棚の分け方は、部屋が変われば誰も名乗れないIDになって
+  // いる。部屋の中からの読み込みなら取り込みの時点で読み込んだGMの棚へ入るが、部屋の作成と
+  // 同時の読み込みではまだ誰も居ないので印だけが付いている（js/state-import.js）。
+  // ここで引き取って初めて、GMのバックヤードのタブに出る。
+  function claimRestoredTokens(state, myId) {
+    if (!Object.values(state.tokens).some(token => token?.restoredFromImport)) {
+      claimAttempts = 0; // 引き取り済み。次の読み込みに備えて数え直す
+      return false;
+    }
+    if (claimAttempts >= MAX_CLAIM_ATTEMPTS) return false;
+    if (!myId || !isGm(state.participants, myId)) return false;
+
+    claimAttempts += 1;
+    store.dispatch('CLAIM_RESTORED_BACKYARD', { participantId: myId });
+    return true;
+  }
+
   function render(state) {
     const myId = getCurrentParticipantId();
+    // 引き取ると状態が変わり、その通知で描き直されるので、ここでは描かずに譲る
+    if (claimRestoredTokens(state, myId)) return;
     const backyardTokens = listMyBackyardTokens(state);
 
     renderTabs(backyardTokens.length);
@@ -299,16 +335,25 @@ export function initCharacterPanel() {
 
   // tokensスライスはコマが変わったときだけ新しい参照になる（game-store.jsの#commit）ので、
   // 参照比較で他スライスだけの変更（チャットログ等）による全描画を避ける。
+  // participantsも見るのは引き取り（claimRestoredTokens）のため：部屋の作成と同時に読み込むと
+  // 「印の付いたコマは既にあるが、GMがまだ居ない」状態で始まるので、最初の1人がGMになった
+  // 参加者一覧の変化で撃ち直せないと、印が付いたまま誰の棚にも出ない。
   EventBus.subscribe('STATE_CHANGED', (state) => {
-    if (state.tokens === lastRenderedTokensRef) return;
+    if (state.tokens === lastRenderedTokensRef
+      && state.participants === lastRenderedParticipantsRef) return;
     lastRenderedTokensRef = state.tokens;
+    lastRenderedParticipantsRef = state.participants;
     render(state);
   });
 
   // 名乗る人が変わると、見えるパラメータも「自分の棚」の中身も変わる
-  // （状態自体は変わらないためSTATE_CHANGEDでは拾えない）
+  // （状態自体は変わらないためSTATE_CHANGEDでは拾えない）。
+  // 引き取りの失敗数もここで0に戻す：サーバーは名乗りが通っていない接続からのGM限定操作を
+  // 断るので、名乗りが通った（IDENTITY_ACCEPTED）この機会に必ずやり直す。
   EventBus.subscribe('IDENTITY_CHANGED', () => {
+    claimAttempts = 0;
     lastRenderedTokensRef = null;
+    lastRenderedParticipantsRef = null;
     render(store.state);
   });
 

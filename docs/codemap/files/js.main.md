@@ -1,6 +1,6 @@
 ---
 source: js/main.js
-lines: 2776
+lines: 2779
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -72,42 +72,42 @@ _(未記入)_
 | 994 | importDeckFromFile | `async importDeckFromFile()` | 27 |  |
 | 1022 | openDeckListDialog | `openDeckListDialog()` | 46 |  |
 | 1190 | downloadBlob | `downloadBlob(blob, filename)` | 10 |  |
-| 1221 | exportStateToFile | `async exportStateToFile()` | 48 |  |
-| 1271 | downloadStateJson | `downloadStateJson(exportedState)` | 6 |  |
-| 1280 | openLogExportDialog | `openLogExportDialog()` | 21 |  |
-| 1304 | openLogClearDialog | `openLogClearDialog()` | 5 |  |
-| 1491 | substituteCharacterParameters | `substituteCharacterParameters(text, character, depth = 0)` | 28 |  |
-| 1531 | parseFinalDiceNumber | `parseFinalDiceNumber(resultText)` | 7 |  |
-| 1541 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 |  |
-| 1553 | shouldMaskParameterValue | `shouldMaskParameterValue(param)` | 3 |  |
-| 1560 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId })` | 21 |  |
-| 1582 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character, tabId = activeTabId)` | 82 |  |
-| 1696 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character, tabId = activeTabId)` | 101 |  |
-| 1809 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
-| 1826 | tryHandleStampCommand | `tryHandleStampCommand(rawInput)` | 22 |  |
-| 1849 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
-| 1890 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 17 |  |
-| 1914 | findTokenByName | `findTokenByName(name)` | 3 |  |
-| 1918 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 51 |  |
-| 1974 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
-| 2013 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
-| 2055 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
-| 2094 | selectedChatCharacter | `selectedChatCharacter()` | 3 |  |
-| 2143 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
-| 2149 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
-| 2199 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
-| 2245 | describeTypingUsers | `describeTypingUsers(others)` | 5 |  |
-| 2297 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
-| 2424 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
-| 2432 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
-| 2481 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
-| 2485 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
-| 2502 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
-| 2616 | splitForSpace | `splitForSpace(string)` | 8 |  |
-| 2638 | splitRepeatPrefix | `splitRepeatPrefix(string)` | 7 |  |
-| 2660 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null, secret = false, revealed = false }, { hideSystem = false, hideTime = false } = {})` | 36 |  |
-| 2703 | applyLogNameColor | `applyLogNameColor(item, color)` | 6 |  |
-| 2713 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
+| 1224 | exportStateToFile | `async exportStateToFile()` | 48 |  |
+| 1274 | downloadStateJson | `downloadStateJson(exportedState)` | 6 |  |
+| 1283 | openLogExportDialog | `openLogExportDialog()` | 21 |  |
+| 1307 | openLogClearDialog | `openLogClearDialog()` | 5 |  |
+| 1494 | substituteCharacterParameters | `substituteCharacterParameters(text, character, depth = 0)` | 28 |  |
+| 1534 | parseFinalDiceNumber | `parseFinalDiceNumber(resultText)` | 7 |  |
+| 1544 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 |  |
+| 1556 | shouldMaskParameterValue | `shouldMaskParameterValue(param)` | 3 |  |
+| 1563 | applyParameterChanges | `applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId })` | 21 |  |
+| 1585 | tryHandleParameterCommand | `tryHandleParameterCommand(rawInput, character, tabId = activeTabId)` | 82 |  |
+| 1699 | tryHandleBuffCommand | `tryHandleBuffCommand(rawInput, character, tabId = activeTabId)` | 101 |  |
+| 1812 | tryHandlePhaseEndCommand | `tryHandlePhaseEndCommand(rawInput)` | 7 |  |
+| 1829 | tryHandleStampCommand | `tryHandleStampCommand(rawInput)` | 22 |  |
+| 1852 | tryHandleAudioStopCommand | `tryHandleAudioStopCommand(rawInput)` | 36 |  |
+| 1893 | triggerAudioPhrase | `triggerAudioPhrase(text)` | 17 |  |
+| 1917 | findTokenByName | `findTokenByName(name)` | 3 |  |
+| 1921 | tryHandlePluginChatCommand | `tryHandlePluginChatCommand(rawInput, character)` | 51 |  |
+| 1977 | tryHandleOriginalTableCommand | `tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)` | 28 |  |
+| 2016 | submitChatText | `submitChatText({ rawInput, character = null, characterName, tabId = activeTabId, onSent })` | 39 |  |
+| 2058 | submitFromPalette | `submitFromPalette({ text, name, onSent })` | 14 |  |
+| 2097 | selectedChatCharacter | `selectedChatCharacter()` | 3 |  |
+| 2146 | hideCommandInputSuggestions | `hideCommandInputSuggestions()` | 5 |  |
+| 2152 | updateCommandInputSuggestions | `updateCommandInputSuggestions()` | 44 |  |
+| 2202 | updateTypingIndicatorState | `updateTypingIndicatorState()` | 7 |  |
+| 2248 | describeTypingUsers | `describeTypingUsers(others)` | 5 |  |
+| 2300 | updateCurrentChatPortrait | `updateCurrentChatPortrait()` | 8 |  |
+| 2427 | ensureGameSystemOption | `ensureGameSystemOption(systemId)` | 7 |  |
+| 2435 | syncGameSystemSelect | `syncGameSystemSelect(state)` | 9 |  |
+| 2484 | hideGameSystemHelp | `hideGameSystemHelp()` | 3 |  |
+| 2488 | showGameSystemHelp | `async showGameSystemHelp()` | 16 |  |
+| 2505 | refreshGameSystemHelpIfOpen | `refreshGameSystemHelpIfOpen()` | 3 |  |
+| 2619 | splitForSpace | `splitForSpace(string)` | 8 |  |
+| 2641 | splitRepeatPrefix | `splitRepeatPrefix(string)` | 7 |  |
+| 2663 | buildLogHtml | `buildLogHtml({ system = "", character = "", comment = "", command = "", resultText, diceDetail = "", time, editedAt = null, secret = false, revealed = false }, { hideSystem = false, hideTime = false } = {})` | 36 |  |
+| 2706 | applyLogNameColor | `applyLogNameColor(item, color)` | 6 |  |
+| 2716 | applyLog | `applyLog(entry, tabId = activeTabId)` | 3 |  |
 
 ## 依存
 

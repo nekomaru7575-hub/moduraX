@@ -1,6 +1,6 @@
 ---
 source: js/state-import.js
-lines: 187
+lines: 228
 exports: 2
 imported_by: 4
 api_sha: 252d8b773c56
@@ -25,21 +25,22 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 125 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
-| 165 | fn | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 部屋を新しく作るときの取り込み。 |
+| 157 | fn | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 取り込んだ状態を、この部屋で使える形へ均す。 |
+| 206 | fn | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 部屋を新しく作るときの取り込み。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（5）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 52 | adoptInfoEntry | `adoptInfoEntry(entry)` | 19 |  |
-| 79 | restoreMyBackyardTokens | `restoreMyBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 18 |  |
-| 101 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
-| 125 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 15 | ✓ |
-| 165 | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 22 | ✓ |
+| 60 | adoptInfoEntry | `adoptInfoEntry(entry)` | 19 |  |
+| 88 | backyardIdsToRestore | `backyardIdsToRestore(tokens, recordedIds, hasDestination)` | 5 |  |
+| 101 | restoreBackyardTokens | `restoreBackyardTokens(tokens, backyardTokenIds, ownerId, localUserId)` | 26 |  |
+| 131 | forgetCardViewers | `forgetCardViewers(cards)` | 9 |  |
+| 157 | adoptImportedState | `adoptImportedState( importedState, { participants = {}, myBackyardOwnerId = null, myBackyardOwnerLocalId = null } = {} )` | 24 | ✓ |
+| 206 | buildRoomStateFromImport | `buildRoomStateFromImport( importedState, { name, activePlugin, bcdiceSystem, validPluginIds } )` | 22 | ✓ |
 
 ## 依存
 

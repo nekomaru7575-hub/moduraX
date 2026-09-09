@@ -96,7 +96,11 @@ export const GM_ONLY_ACTIONS = new Set([
   // 読み込んだ部屋データの情報をGMが引き取る操作（js/state-import.js）。情報系で唯一の
   // GM限定アクション：ここが空いていると、誰でも「読み込んだ限定公開の情報」を丸ごと
   // 自分宛てにして読めてしまう。
-  'CLAIM_RESTORED_INFO'
+  'CLAIM_RESTORED_INFO',
+  // 読み込んだ部屋データのバックヤードのコマをGMが引き取る操作（js/state-import.js）。
+  // 同じ理由でGM限定：ここが空いていると、誰でも「読み込んだ部屋のバックヤード」を
+  // 丸ごと自分の棚にできてしまう。
+  'CLAIM_RESTORED_BACKYARD'
   // 情報（js/info-panel.js）のADD/UPDATE/REMOVE_INFO_ENTRY・SET_INFO_SECTION_AUDIENCE・
   // 伏せた語を開く SET_INFO_MASK_REVEALED は、GM以外も作成・開示できる機能なので入れない
   // （入れると、GMのいない部屋でPLが自分で作った情報を開示できなくなる）。「編集・削除できるのは作成者とGM」は

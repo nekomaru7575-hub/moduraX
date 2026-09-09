@@ -20,7 +20,7 @@ generated: 2026-09-09
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 162 | 737 | 1258 | 56 | 0 |
+| 162 | 738 | 1260 | 56 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -45,7 +45,7 @@ generated: 2026-09-09
 | [[js.character-builder\|js/character-builder.js]] | 部屋を作らずに、外部キャラクターシートツール（ゆとシート等）のJSON、または 本アプリのコマ丸ごとスナップショットJSONを読み込んで編集し、スナップショット JSONとして書き出す「コマ作成ツール」ページのロジック。 | 0 | 0 |
 | [[js.character-dialog\|js/character-dialog.js]] | キャラクター登録時に、名前・デフォルトパラメータ・カスタムパラメータを まとめて入力するためのモーダルダイアログ。 | 5 | 2 |
 | [[js.character-json-import\|js/character-json-import.js]] | 汎用（プラグイン未適用時）のキャラクターJSON読み込み。 | 1 | 2 |
-| [[js.character-panel\|js/character-panel.js]] | 「キャラクター一覧」：盤面にいるコマと、バックヤード（盤面からしまったコマの個人保管場所）を タブで切り替えて並べる浮動パネル。 | 2 | 1 |
+| [[js.character-panel\|js/character-panel.js]] | 「キャラクター一覧」：盤面にいるコマと、バックヤード（盤面からしまったコマの個人保管場所）を タブで切り替えて並べる浮動パネル。 | 3 | 1 |
 | [[js.character-sheet-import\|js/character-sheet-import.js]] | 「キャラクターシートのURLから取り込む」の共通部分。 | 3 | 2 |
 | [[js.character-snapshot\|js/character-snapshot.js]] | コマ丸ごとの保存/復元（バックアップ用途）に使うJSON形式のマーカー・組み立て・ ファイルI/Oをまとめた共有モジュール。 | 5 | 5 |
 | [[js.chat-palette\|js/chat-palette.js]] | チャットパレット：ユーザ(ブラウザ)ごとによく使うフレーズを保存し、選ぶだけで送れるようにする機能。 | 6 | 1 |

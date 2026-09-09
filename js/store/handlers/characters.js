@@ -96,6 +96,30 @@ export const CHARACTERS_HANDLERS = {
     EventBus.emit('CharacterDeleted', { id });
   },
 
+  // 読み込んだ部屋データのバックヤードのコマを、GMが自分のものとして引き取る
+  // （js/state-import.js）。取り込みの時点ではまだGMが決まっていないことがある
+  // （部屋の作成と同時の読み込み）ため、引き取りは取り込みと分けてこのアクションにしてある。
+  // 発火はjs/character-panel.js。情報のCLAIM_RESTORED_INFOと対になる仕組み。
+  CLAIM_RESTORED_BACKYARD({ payload, nextTokensState, commit }) {
+    const { participantId } = payload;
+    if (!participantId) return;
+
+    // 印はファイル由来の値（信用しない）。盤面のコマまで引き取ってしまわないよう、
+    // バックヤードにいるコマだけを対象にする。キーは自分で持ち、コマ側のidは見ない。
+    const claimed = Object.entries(nextTokensState)
+      .filter(([, token]) => token?.restoredFromImport && token.inBackyard);
+    if (claimed.length === 0) return;
+
+    claimed.forEach(([id, token]) => {
+      const { restoredFromImport, ...rest } = token;
+      nextTokensState[id] = Object.freeze({
+        ...rest, inBackyard: true, ownerId: participantId, backyardOwnerId: null
+      });
+    });
+
+    commit({ tokens: nextTokensState });
+  },
+
   // 外部JSON（汎用/プラグイン拡張どちらも）の取り込み結果をまとめて適用する。
   // Core側はvalueOverrides/labelOverrides/newParametersの意味を解釈せず、
   // 既存paramIdへの反映・新規paramIdの追加という機械的な処理のみ行う。

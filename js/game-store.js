@@ -22,6 +22,7 @@ import {
 import {
   MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID, SYSTEM_CHAT_TAB_NAME, withFixedChatTabs
 } from './store/chat.js';
+import { normalizeImageRef } from './store/images.js';
 import { normalizePanelClickActions } from './store/panels.js';
 import { normalizeRoomStampMap } from './store/stamps.js';
 import { normalizeInfoEntries } from './store/info.js';
@@ -74,7 +75,9 @@ const CHARACTER_FIELD_PATCHES = {
   SET_CHARACTER_TEXT_COLOR: ({ textColor }) => ({ textColor: textColor || null }),
   // キャラクター一覧への表示/非表示（コマ自体は盤面に表示されたまま）
   SET_CHARACTER_VISIBLE: ({ visible }) => ({ visible: !!visible }),
-  SET_CHARACTER_IMAGE: ({ image }) => ({ image: image || null }),
+  // 文字列でない値を落とす（js/store/images.js）。プールの中だけで使う参照が
+  // 状態へ入ると、それを持つ本人だけ絵が見える状態が全員へ配られる。
+  SET_CHARACTER_IMAGE: ({ image }) => ({ image: normalizeImageRef(image) }),
   // コマ画像のトリミング（ズーム・表示位置）。中身は{zoom,posX,posY}だがCoreは解釈せず、
   // そのまま保持・同期する（描画側が解釈する）。
   SET_CHARACTER_IMAGE_CROP: ({ crop }) => ({ imageCrop: crop ? Object.freeze({ ...crop }) : null }),
@@ -104,7 +107,7 @@ const PANEL_FIELD_PATCHES = {
   SET_PANEL_LOCKED: ({ locked }) => ({ locked: !!locked }),
   MOVE_PANEL: ({ x, y }) => ({ x, y }),
   SET_PANEL_SIZE: ({ cols, rows }) => ({ cols: Math.max(1, Math.round(cols)), rows: Math.max(1, Math.round(rows)) }),
-  SET_PANEL_IMAGE: ({ image }) => ({ image: image || null }),
+  SET_PANEL_IMAGE: ({ image }) => ({ image: normalizeImageRef(image) }),
   SET_PANEL_TEXT: ({ text }) => ({ text: text || '' }),
   // パネルのテキストを誰に見せるか（null＝全員。js/visibility.js参照）。画像は対象外で、
   // 「絵は見えるがメモはGMだけが読める」という使い方を想定している。

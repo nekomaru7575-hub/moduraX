@@ -11,6 +11,7 @@ import {
   MAX_ROOM_DECKS, buildCard, buildDeck, buildDeckTemplate, findFreeCardSpot, nextStockerSeq,
   releaseStockerCards, stockerAllowsUser
 } from '../cards.js';
+import { normalizeImageRef } from '../images.js';
 import { normalizeClickAction } from '../panels.js';
 import { normalizeAudience, normalizeStackOrder, withMapEntry, withoutMapEntry } from '../patch.js';
 
@@ -61,7 +62,7 @@ export const BOARD_HANDLERS = {
     if (prevState.panels[id]) return;
 
     const panel = Object.freeze({
-      id, image: image || null, text: text || '', x, y,
+      id, image: normalizeImageRef(image), text: text || '', x, y,
       cols: Math.max(1, Math.round(cols)),
       rows: Math.max(1, Math.round(rows)),
       locked: !!locked, // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）

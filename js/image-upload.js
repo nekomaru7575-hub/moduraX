@@ -24,7 +24,9 @@ import { publishAsset } from './asset-sync.js';
 import { MAX_ASSET_BYTES, dataUrlToBlob } from './asset-store.js';
 
 // 現在の部屋ID。アップロード先の指定に使う（サーバー側で実在する部屋か検証される）。
-function currentRoomId() {
+// 外へ出しているのは、上げ済みの記憶を部屋ごとに持つため（js/image-pool.js）と、
+// 部屋の外ではプールを通さない判断のため（js/image-selector-dialog.js）。
+export function currentRoomId() {
   return new URLSearchParams(location.search).get('room') || '';
 }
 
@@ -172,7 +174,7 @@ export async function adoptImageIntoRoom(image, purpose) {
 
 /**
  * 画像をアップロードして公開URLとキーを受け取る。
- * @param {File} file
+ * @param {Blob|File} file 実体。プール経由のときはFileではなくBlobが来る（js/image-pool.js）
  * @param {'background'|'token'|'panel'|'card'} purpose 用途。サーバーが要求する権限が変わる
  *   （背景はGM限定、コマ・パネルは誰でも。server/index.jsのIMAGE_PURPOSES）
  * @returns {Promise<{ key: string, url: string }>}
@@ -202,25 +204,24 @@ export async function uploadImageFile(file, purpose) {
 }
 
 /**
- * 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。
- * 画像を扱う画面（コマ・パネル・盤面の背景）が同じ手順を書き写さずに済むようまとめてある。
+ * 手元のBlobを、この環境で表示に使える文字列にする。「選ぶ」と切り離した「しまう」の側。
  *
- * R2が使えない環境（server/dev-local.js）や、権限が無くて断られた場合は、従来どおり
- * データURLへ退避する。表示側はどちらも文字列をそのままsrc/url()に入れるだけなので
- * 区別せずに扱える（移行前に保存されたデータURLの画像がそのまま出せるのもこのため）。
+ * pickAndUploadImageの後半（選んだ後）をそのまま切り出したもので、分岐は3つとも従来のまま。
+ * 切り出す理由は、画像プール（js/image-pool.js）が「選ぶ」と「しまう」の間に入ること——
+ * プールに溜めた画像は、実際に使われると決まった時点で初めてここへ来る
+ * （js/image-selector-dialog.js）。ファイルを選ぶ手続きを通らないので、
+ * pickAndUploadImageでは呼べない。
  *
- * @param {{ purpose: 'background'|'token'|'panel'|'card' }} options
- * @returns {Promise<{ url: string, key: string|null } | null>} キャンセルならnull
+ * @param {Blob} blob 画像の実体（Fileでもよい）
+ * @param {'background'|'token'|'panel'|'card'|'stamp'} purpose
+ * @returns {Promise<{ url: string, key: string|null }>}
  */
-export async function pickAndUploadImage({ purpose }) {
-  const file = await pickFile({ accept: 'image/*' });
-  if (!file) return null;
-
+export async function commitImageBlob(blob, purpose) {
   // 部屋の外（character-builder.html）では置き場所が決まらないのでデータURLにする。
   // あちらはJSONを書き出す道具で、取り込んだ先の部屋が保存先を持つため。
   if (currentRoomId() && await isImageUploadAvailable()) {
     try {
-      const { url, key } = await uploadImageFile(file, purpose);
+      const { url, key } = await uploadImageFile(blob, purpose);
       return { url, key };
     } catch (error) {
       // 上げられなかった理由は伝えつつ、画像自体は使えるようにデータURLで続行する
@@ -228,5 +229,25 @@ export async function pickAndUploadImage({ purpose }) {
     }
   }
 
-  return { url: await readFileAsDataUrl(file), key: null };
+  return { url: await readFileAsDataUrl(blob), key: null };
+}
+
+/**
+ * 画像を選ばせて、R2へ上げたうえで表示に使える文字列を返す。
+ * 画像を扱う画面（コマ・パネル・盤面の背景）が同じ手順を書き写さずに済むようまとめてある。
+ *
+ * R2が使えない環境（server/dev-local.js）や、権限が無くて断られた場合は、従来どおり
+ * データURLへ退避する。表示側はどちらも文字列をそのままsrc/url()に入れるだけなので
+ * 区別せずに扱える（移行前に保存されたデータURLの画像がそのまま出せるのもこのため）。
+ *
+ * プールを経由する画面（js/image-selector-dialog.js）はこれを使わない。まだ差し替えて
+ * いない画面と、部屋の外（character-builder.html）のための従来どおりの口。
+ *
+ * @param {{ purpose: 'background'|'token'|'panel'|'card' }} options
+ * @returns {Promise<{ url: string, key: string|null } | null>} キャンセルならnull
+ */
+export async function pickAndUploadImage({ purpose }) {
+  const file = await pickFile({ accept: 'image/*' });
+  if (!file) return null;
+  return commitImageBlob(file, purpose);
 }

@@ -8,6 +8,7 @@ import { SCENE_BGM_STOP } from '../audio.js';
 import { applyPhaseEnd } from '../buffs.js';
 import { releaseStockerCards } from '../cards.js';
 import { withBgmLog, withSystemLog, withSystemTabLog } from '../chat.js';
+import { normalizeImageRef } from '../images.js';
 import { freezePanelMap, ownEntry, withMapEntry, withoutMapEntry } from '../patch.js';
 
 export const SCENES_HANDLERS = {
@@ -33,7 +34,7 @@ export const SCENES_HANDLERS = {
       name,
       text: text || '',
       bgmTrackId: bgmTrackId || null,
-      backgroundImage: background.imageUrl || null,
+      backgroundImage: normalizeImageRef(background.imageUrl),
       backgroundImageKey: background.imageKey || null,
       boardWidth: background.boardWidth || null,
       boardHeight: background.boardHeight || null,

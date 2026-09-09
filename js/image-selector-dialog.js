@@ -60,7 +60,7 @@ function formatBytes(bytes) {
  * @returns {Promise<null>}
  */
 export function showImageStockDialog({ usedImages = new Set() } = {}) {
-  return showImageSelectorDialog({ usedImages, mode: 'stock', title: '画像の溜め置き' });
+  return showImageSelectorDialog({ usedImages, mode: 'stock', title: '画像ストッカー' });
 }
 
 /**

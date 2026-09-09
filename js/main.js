@@ -1095,7 +1095,7 @@ if (addMenuBtn) {
       // ブラウザの中だけで、置き場へ送るのは実際に使うときだから
       // （背景に使えるのはGMだけ、という門はそちらのセレクタが持つ）。
       {
-        label: '画像の溜め置き',
+        label: '画像ストッカー',
         onSelect: () => showImageStockDialog({ usedImages: collectImageUrls(store.state) })
       },
       {

@@ -2,10 +2,10 @@
 source: js/image-dimensions.js
 lines: 17
 exports: 1
-imported_by: 3
+imported_by: 4
 api_sha: 3c616af0e350
 prose_sha: 3c616af0e350
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.background-dialog]], [[js.board-data-driven]], [[js.panel-dialog]]
+- imported by → [[js.background-dialog]], [[js.board-data-driven]], [[js.image-selector-dialog]], [[js.panel-dialog]]
 
 ## 注意
 

@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/audio.js
-lines: 122
+lines: 125
 exports: 1
 imported_by: 1
 api_sha: a6147c34faa7
 prose_sha: a6147c34faa7
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 

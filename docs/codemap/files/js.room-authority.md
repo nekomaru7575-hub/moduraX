@@ -2,10 +2,10 @@
 source: js/room-authority.js
 lines: 76
 exports: 4
-imported_by: 6
+imported_by: 7
 api_sha: d50dece78adf
 prose_sha: d50dece78adf
-generated: 2026-09-04
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -44,7 +44,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.game-store]], [[js.local-identity]], [[js.net-sync]], [[js.room-authority-rules]], [[js.visibility]]
-- imported by → [[js.board-data-driven]], [[js.dice-draft-panel]], [[js.main]], [[js.room-stamp-list-dialog]], [[js.round-panel]], [[js.stamp-panel]]
+- imported by → [[js.board-data-driven]], [[js.dice-draft-panel]], [[js.image-selector-dialog]], [[js.main]], [[js.room-stamp-list-dialog]], [[js.round-panel]], [[js.stamp-panel]]
 
 ## 注意
 

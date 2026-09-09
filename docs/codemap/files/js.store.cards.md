@@ -2,10 +2,10 @@
 source: js/store/cards.js
 lines: 325
 exports: 36
-imported_by: 3
+imported_by: 4
 api_sha: 4a004b02f4a1
 prose_sha: 4a004b02f4a1
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -93,7 +93,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.store.patch]]
-- imported by → [[js.game-store]], [[js.store.handlers.board]], [[js.store.handlers.scenes]]
+- imported by → [[js.game-store]], [[js.store.handlers.board]], [[js.store.handlers.scenes]], [[js.store.images]]
 
 ## 注意
 

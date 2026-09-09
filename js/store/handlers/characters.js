@@ -14,6 +14,7 @@ import {
 import {
   buildUserParam, withEditableParamFields, withNewUserParam, withParamFields, withoutParam
 } from '../params.js';
+import { normalizeImageRef } from '../images.js';
 import { normalizeAudience, patchCharacter, withMapEntry } from '../patch.js';
 import { DEFAULT_TOKEN_COLOR } from '../room.js';
 import { buildDerivedContext } from '../round-state.js';
@@ -65,7 +66,7 @@ export const CHARACTERS_HANDLERS = {
     );
 
     nextTokensState[id] = Object.freeze({
-      id, name, x, y, color, image, size: Math.max(1, Math.round(size)),
+      id, name, x, y, color, image: normalizeImageRef(image), size: Math.max(1, Math.round(size)),
       imageCrop: imageCrop ? Object.freeze({ ...imageCrop }) : null, // コマ画像のトリミング（非破壊）
       textColor, // チャット欄でのキャラ名・発言テキストの色（未設定nullなら既定色）
       visible: !!visible, // false ならキャラクター一覧に表示しない（盤面上のコマ自体は表示されたまま）
@@ -161,7 +162,7 @@ export const CHARACTERS_HANDLERS = {
     patchCharacter(nextTokensState, id, {
       name: snapshot.name || character.name,
       color: snapshot.color || character.color,
-      image: snapshot.image ?? null,
+      image: normalizeImageRef(snapshot.image),
       imageCrop: snapshot.imageCrop ? Object.freeze({ ...snapshot.imageCrop }) : null,
       size: Math.max(1, Math.round(snapshot.size || character.size || 1)),
       textColor: snapshot.textColor ?? null,

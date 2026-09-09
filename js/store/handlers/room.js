@@ -8,6 +8,7 @@
 import { EventBus } from '../../EventBus.js';
 import { applyPluginDerivedParameters, buildRoomParameters } from '../../parameters/registry.js';
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
+import { normalizeImageRef } from '../images.js';
 import { patchCharacter, withMapEntry, withoutMapEntry } from '../patch.js';
 import { showsEntryMessages, snapsToGrid, withDerivedRoomParameters } from '../room.js';
 import { MAX_ROOM_STAMPS, normalizeRoomStamp, roomStampPublicId } from '../stamps.js';
@@ -183,11 +184,16 @@ export const ROOM_HANDLERS = {
       showGrid = true, keepOnSceneChange = false
     } = payload;
 
+    // 画像とキーは対で扱う（キーだけが残ると、部屋を消すときの掃除が実在しない
+    // オブジェクトを指す）。均した後の値で揃えること——生のimageUrlの真偽で見ると、
+    // 画像として通らなかった値でもキーだけ残る。
+    const backgroundImage = normalizeImageRef(imageUrl);
+
     commit({
       room: {
         ...prevState.room,
-        backgroundImage: imageUrl || null,
-        backgroundImageKey: imageUrl ? (imageKey || null) : null,
+        backgroundImage,
+        backgroundImageKey: backgroundImage ? (imageKey || null) : null,
         // マス目（グリッド線）を敷くか。既定はあり（applyBoardBackground参照）
         showGrid: showGrid !== false,
         // 画像とサイズは独立して決める（画像なしで盤面だけ広げる／画像を消しても

@@ -1,11 +1,11 @@
 ---
 source: js/site-nav.js
-lines: 64
+lines: 66
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -32,8 +32,8 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 29 | currentPageId | `currentPageId()` | 8 |  |
-| 38 | init | `init()` | 24 |  |
+| 30 | currentPageId | `currentPageId()` | 9 |  |
+| 40 | init | `init()` | 24 |  |
 
 ## 依存
 

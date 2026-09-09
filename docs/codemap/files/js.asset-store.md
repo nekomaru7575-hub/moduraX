@@ -2,10 +2,10 @@
 source: js/asset-store.js
 lines: 473
 exports: 19
-imported_by: 9
+imported_by: 10
 api_sha: d3c98bc5f4df
 prose_sha: d3c98bc5f4df
-generated: 2026-09-05
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -78,7 +78,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.host-persistence]], [[js.image-upload]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-index]], [[js.token-library-dialog]]
+- imported by → [[js.asset-sync]], [[js.audio-dialog]], [[js.host-persistence]], [[js.image-pool]], [[js.image-upload]], [[js.main]], [[js.net-host]], [[js.net-sync]], [[js.room-index]], [[js.token-library-dialog]]
 
 ## 注意
 

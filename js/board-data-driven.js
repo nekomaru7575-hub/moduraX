@@ -1,4 +1,4 @@
-﻿// js/board-data-driven.js
+// js/board-data-driven.js
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
@@ -23,6 +23,7 @@ import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authorit
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import { findStamp, listStamps } from './stamp-registry.js';
+import { collectImageUrls } from './store/images.js';
 import { MAX_PANEL_CHAT_TEXT_LENGTH } from './store/panels.js';
 import { ownEntry } from './store/patch.js';
 import {
@@ -452,6 +453,7 @@ export function openTokenContextMenu(tokenId, clientX, clientY) {
 
         showCharacterEditDialog({
           character: current,
+          usedImages: collectImageUrls(store.state),
           canEdit: canOperate,
           readOnlyReason: denyReason,
           activePluginId: store.state.room?.activePlugin ?? null,
@@ -1046,6 +1048,7 @@ function bindPanelDrag(element) {
             // 他人のものになっている箱では、誰のものかを画面に出す（自分の箱なら出さない）
             stockerOwnerLabel: canUseStocker(current) ? '' : stockerOwnerName(current),
             initialClickAction: current.clickAction || null,
+            usedImages: collectImageUrls(store.state),
             clickActionChoices: buildClickActionChoices(),
             maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
             gridSize: GRID_SIZE,
@@ -1657,6 +1660,7 @@ export function buildAddCharacterMenuItem(x, y) {
       showCharacterDialog({
         activePluginId: store.state.room?.activePlugin ?? null,
         participants: store.state.participants ?? {},
+        usedImages: collectImageUrls(store.state),
         onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters }) => {
           store.dispatch('ADD_CHARACTER', {
             id: generateTokenId(),
@@ -1703,6 +1707,7 @@ export function buildAddPanelMenuItem(dropX, dropY) {
 
       showPanelDialog({
         title: 'パネルを追加',
+        usedImages: collectImageUrls(store.state),
         clickActionChoices: buildClickActionChoices(),
         maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
         gridSize: GRID_SIZE,
@@ -1767,6 +1772,7 @@ export function buildBackgroundSettingsMenuItem() {
         fallbackRows: Math.max(1, Math.round((board?.offsetHeight || 0) / GRID_SIZE)),
         initialShowGrid: room.showGrid !== false,
         initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
+        usedImages: collectImageUrls(store.state),
         gridSize: GRID_SIZE,
         onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)
       });

@@ -2344,3 +2344,123 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* --- 画像セレクタ（js/image-selector-dialog.js） --- */
+
+/* 溜めてある画像とこの部屋の画像を見比べる画面なので、他のダイアログより広く取る。
+   vwで抑えるのは、狭い画面（携帯）で画面外へはみ出さないため。 */
+.image-selector-dialog {
+  width: min(560px, 92vw);
+}
+
+/* サムネイルの格子。枚数は決まらないので、行数ではなく高さで抑えて中でスクロールさせる
+   （ダイアログ自体が伸びると、下の「この画像にする」が画面外へ出て押せなくなる）。 */
+.image-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--surface-well);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+}
+
+/* 空のときの説明は格子の中に1つだけ置くので、列に切られないよう全幅を取る */
+.image-selector-grid > .dialog-empty-note {
+  grid-column: 1 / -1;
+}
+
+/* 札1つ分の枠。消すボタンを札（button）の中に入れられないので、枠で包んで角へ重ねる。
+   選択の印はこの枠が持つ（付け先が1つに決まっていないと、選ばれた札が2つ見える）。 */
+.image-selector-cell {
+  position: relative;
+  display: flex;
+}
+
+.image-selector-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  background: var(--surface-base);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.image-selector-tile:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+/* 選んだ札。枠の色だけで示す（背景を変えると、絵の見え方まで変わってしまう） */
+.image-selector-cell.selected .image-selector-tile {
+  border-color: var(--accent);
+}
+
+.image-selector-tile img {
+  width: 100%;
+  height: 72px;
+  object-fit: contain;
+  background: var(--surface-deepest);
+  border-radius: 2px;
+}
+
+/* 絵が読めなかった札。札は残すので、絵の場所が空いたことが分かるようにしておく */
+.image-selector-tile.broken::before {
+  content: '画像を読めません';
+  display: block;
+  height: 72px;
+  line-height: 72px;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-danger);
+  background: var(--surface-deepest);
+  border-radius: 2px;
+}
+
+/* この用途には使えない札。隠さずに理由を見せる（隠すと「上げたのに無い」になる） */
+.image-selector-tile.unusable {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ファイル名。長い名前で列が広がらないよう、はみ出す前に折る */
+.image-selector-name {
+  font-size: 0.7rem;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.image-selector-detail {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* 溜め置きから消すボタン。札の右上へ重ねる */
+.image-selector-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+/* 溜め置きの管理として開いたときの札（js/image-selector-dialog.js の mode:'stock'）。
+   選ぶ相手がいないので押せない。押せそうに見えないよう、hoverもカーソルも消す。
+   使えない札（.unusable）と違って薄くはしない——理由があって選べないのではなく、
+   この画面では最初から選ぶ操作が無いだけなので。 */
+.image-selector-tile.static {
+  cursor: default;
+}
+
+.image-selector-tile.static:hover {
+  background: var(--surface-base);
+}

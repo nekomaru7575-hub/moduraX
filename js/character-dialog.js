@@ -3,7 +3,8 @@
 // まとめて入力するためのモーダルダイアログ。
 
 import { CORE_DEFAULT_PARAMETERS } from './parameters/core.js';
-import { pickAndUploadImage } from './image-upload.js';
+import { currentRoomId, pickAndUploadImage } from './image-upload.js';
+import { showImageSelectorDialog } from './image-selector-dialog.js';
 import { buildCharacterParametersForPlugin, pluginHasCharacterPanel, renderCharacterPanel } from './parameters/registry.js';
 import { showAudienceDialog } from './audience-picker.js';
 import { showAddBuffDialog, showBuffListDialog } from './buff-dialog.js';
@@ -160,7 +161,7 @@ function buildPluginPanel({
 // その結果を非破壊のトリミング設定(crop)として返す。作成/更新どちらのダイアログからも使う。
 // readOnly: 表示だけの時。ボタン・スライダーはlockFormControlsで止まるが、枠へのドラッグと
 // ホイールはdisabledの対象外なので、リスナー自体を張らないことで止める。
-function buildImagePicker(initialImage, initialCrop, { readOnly = false } = {}) {
+function buildImagePicker(initialImage, initialCrop, { readOnly = false, usedImages = new Set() } = {}) {
   let currentImage = initialImage || null;
   const crop = { ...defaultImageCrop(), ...(initialCrop || {}) };
 
@@ -269,9 +270,16 @@ function buildImagePicker(initialImage, initialCrop, { readOnly = false } = {}) 
   pickBtn.className = 'dialog-add-row-btn';
   pickBtn.style.marginBottom = '0';
   pickBtn.addEventListener('click', async () => {
-    // R2へ上げてURLだけを状態に持つ（立ち絵をデータURLで持つと、その部屋のデータが
-    // 画像ぶん重くなり、操作のたびに丸ごと保存し直される。js/image-upload.js参照）
-    const picked = await pickAndUploadImage({ purpose: 'token' });
+    // 状態に載るのはURLだけ（立ち絵をデータURLで持つと、その部屋のデータが画像ぶん
+    // 重くなり、操作のたびに丸ごと保存し直される。js/image-upload.js参照）
+    //
+    // 部屋の中ではセレクタ（js/image-selector-dialog.js）を通す。溜め置きから選べて、
+    // この部屋で既に使っている画像も選び直せる。
+    // 部屋の外（character-builder.html）では従来どおりファイル選択を開く：置き場が
+    // 決まらないので溜めても上げ先が無く、選び直す相手（部屋の状態）も無い。
+    const picked = currentRoomId()
+      ? await showImageSelectorDialog({ purpose: 'token', usedImages, title: 'コマの画像を選ぶ' })
+      : await pickAndUploadImage({ purpose: 'token' });
     if (!picked) return;
     currentImage = picked.url;
     Object.assign(crop, defaultImageCrop()); // 新しい画像は中央・等倍から始める
@@ -450,7 +458,9 @@ const ensureDialog = createDialogHost('character-form-dialog');
  *   onConfirm: (result: { name: string, image: string | null, imageCrop: {zoom:number,posX:number,posY:number} | null, size: number, textColor: string, visible: boolean, parameterOverrides: Record<string, number>, parameterVisibility: Record<string, boolean>, customParameters: {key:string,label:string,value:number|string,visible:boolean}[] }) => void
  * }} options
  */
-export function showCharacterDialog({ activePluginId = null, participants = {}, onConfirm }) {
+export function showCharacterDialog({
+  activePluginId = null, participants = {}, usedImages = new Set(), onConfirm
+}) {
   const myParticipantId = getCurrentParticipantId();
   const dialog = ensureDialog();
   dialog.innerHTML = '';
@@ -483,7 +493,7 @@ export function showCharacterDialog({ activePluginId = null, participants = {}, 
   mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
-  const imagePicker = buildImagePicker(null, null);
+  const imagePicker = buildImagePicker(null, null, { usedImages });
   mainColumn.appendChild(imagePicker.element);
 
   // --- サイズ ---
@@ -727,7 +737,7 @@ function ensureEditDialog() {
 export function showCharacterEditDialog({
   character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm,
   dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice,
-  tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false,
+  tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, usedImages = new Set(),
   // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。
   // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、
   // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。
@@ -775,7 +785,8 @@ export function showCharacterEditDialog({
   mainColumn.appendChild(nameGroup);
 
   // --- 画像 ---
-  const imagePicker = buildImagePicker(character.image, character.imageCrop, { readOnly: !canEdit });
+  const imagePicker = buildImagePicker(character.image, character.imageCrop,
+    { readOnly: !canEdit, usedImages });
   mainColumn.appendChild(imagePicker.element);
 
   // --- サイズ ---

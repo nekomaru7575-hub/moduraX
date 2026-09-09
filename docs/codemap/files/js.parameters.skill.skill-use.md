@@ -4,8 +4,8 @@ lines: 264
 exports: 4
 imported_by: 8
 api_sha: d604684a61c2
-prose_sha: ff0a6905208a
-generated: 2026-09-04
+prose_sha: d604684a61c2
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-_(未記入)_
+スキルの「使用」を、システムに依存しない形で1本にまとめた場所。使用制限の判定 → 修正値を自身へのバフとして付与 → コスト（DX3の上昇侵蝕率のような、使用時にパラメータへ加算される値）の反映 → 使用回数を進める → ログを出す、までを runSkillUse が通しで行う。1件だけ使う場合も複数をまとめて使う場合（コンボ発動）も同じ関数を通り、違いは引数（`expirePhaseFallback` / `applyCosts` / `tag`）で吸収する。判定と正規化そのものは [[js.parameters.skill.skill-model]] が持ち、ここは手順の組み立てだけ。
 <!-- /prose:role -->
 
 ## export（4）
@@ -52,5 +52,9 @@ _(未記入)_
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+store 操作（`dispatch` / `getToken` など）は import せず引数で受け取る。ここから [[js.game-store]] を import すると game-store → [[js.parameters.registry]] → プラグイン → ここ の循環 import になるため。
+
+コストは「今払うか」を呼び出し側が決める。コンボは発動時ではなくダメージロール後に払うので `applyCosts: false` で呼ばれる。ここを既定の true のままにすると二重に払う。
+
+使えないスキルがあったときは黙って何も起きないようにしない（buildUseFailureMessage が「なぜ使えないか」まで文にする）。押したのに反応が無いようにしか見えないため。
 <!-- /prose:notes -->

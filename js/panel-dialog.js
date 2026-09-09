@@ -5,7 +5,10 @@
 // すでに画像があるパネルの編集では、画像を差し替えてもサイズは変えない。
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
-import { pickAndUploadImage } from './image-upload.js';
+// 画像はセレクタ（js/image-selector-dialog.js）で選ぶ。選んだ時点で置き場へ送られて
+// いるので、ここへ返ってくるのは常に確定した文字列URL——溜め置きの参照は入ってこない。
+
+import { buildImageField } from './image-field.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
@@ -24,6 +27,7 @@ const ensureDialog = createDialogHost();
  *   initialStockerOwned?: boolean,
  *   stockerOwnerLabel?: string,
  *   initialClickAction?: object | null,
+ *   usedImages?: Set<string>, この部屋で使っている画像（セレクタの再利用一覧に並べる）
  *   clickActionChoices?: {
  *     scenes: {id: string, name: string}[],
  *     audioTracks: {id: string, name: string, channel: string, channelLabel: string}[],
@@ -43,6 +47,7 @@ export function showPanelDialog({
   initialStackOrder = 0, initialKeepOnSceneChange = false,
   initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '',
   initialClickAction = null,
+  usedImages = new Set(),
   clickActionChoices = { scenes: [], audioTracks: [], stamps: [] },
   maxChatTextLength = 500,
   gridSize, onConfirm
@@ -50,11 +55,11 @@ export function showPanelDialog({
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
-  let currentImage = initialImage || null;
-
   // すでに画像を持つパネルの編集では、画像を選び直してもサイズ欄へは自動反映しない
   // （＝盤面上のパネルの大きさを変えない）。サイズを変えたいときは手で入力する。
-  const autoSizeFromImage = !currentImage;
+  // 判断は開いた時点の値で決める（選び直した後の値で見ると、1枚目を選んだ直後から
+  // 反映されなくなる）。
+  const autoSizeFromImage = !initialImage;
 
   const form = document.createElement('form');
 
@@ -63,58 +68,29 @@ export function showPanelDialog({
   form.appendChild(heading);
 
   // --- 画像 ---
-  const imageGroup = document.createElement('div');
-  imageGroup.className = 'dialog-form-group';
-  const imageLabel = document.createElement('label');
-  imageLabel.textContent = '画像';
-  imageGroup.appendChild(imageLabel);
-
-  const preview = document.createElement('img');
-  preview.className = 'dialog-image-preview';
-  preview.style.display = currentImage ? 'block' : 'none';
-  if (currentImage) preview.src = currentImage;
-  imageGroup.appendChild(preview);
-
-  const imageBtnRow = document.createElement('div');
-  imageBtnRow.className = 'dialog-custom-row';
-
-  const pickBtn = document.createElement('button');
-  pickBtn.type = 'button';
-  pickBtn.textContent = '画像を選択';
-  pickBtn.className = 'dialog-add-row-btn';
-  pickBtn.style.marginBottom = '0';
-  pickBtn.addEventListener('click', async () => {
-    // R2へ上げてURLだけを状態に持つ（データURLのままだと、シーンがパネルを写し取る都合で
-    // シーンの数だけ画像が部屋データに積み上がる。js/image-upload.js参照）
-    const picked = await pickAndUploadImage({ purpose: 'panel' });
-    if (!picked) return;
-    currentImage = picked.url;
-    preview.src = currentImage;
-    preview.style.display = 'block';
-
-    // 画像の実サイズをマス換算してサイズ欄へ自動反映（新規追加時のみ）
-    if (!autoSizeFromImage) return;
-    const dim = await loadImageDimensions(currentImage);
-    if (dim) {
-      colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
-      rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+  // 状態に載るのはURLだけ（データURLのままだと、シーンがパネルを写し取る都合で
+  // シーンの数だけ画像が部屋データに積み上がる。js/image-upload.js参照）
+  const imageField = buildImageField({
+    label: '画像',
+    purpose: 'panel',
+    initialImage: initialImage || null,
+    usedImages,
+    selectorTitle: 'パネルの画像を選ぶ',
+    onPicked: async (picked) => {
+      // 画像の実サイズをマス換算してサイズ欄へ自動反映（新規追加時のみ）。
+      // 寸法はセレクタが持って返す（溜めるときに測ってある）ので、多くの場合は
+      // 画像を取り直さずに済む。使い回した画像など分からないときだけ測る。
+      if (!autoSizeFromImage) return;
+      const dim = (picked.width && picked.height)
+        ? { width: picked.width, height: picked.height }
+        : await loadImageDimensions(picked.url);
+      if (dim) {
+        colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
+        rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+      }
     }
   });
-  imageBtnRow.appendChild(pickBtn);
-
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.textContent = '画像を削除';
-  clearBtn.className = 'dialog-remove-row';
-  clearBtn.addEventListener('click', () => {
-    currentImage = null;
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
-  });
-  imageBtnRow.appendChild(clearBtn);
-
-  imageGroup.appendChild(imageBtnRow);
-  form.appendChild(imageGroup);
+  form.appendChild(imageField.element);
 
   // --- マウスオーバーテキスト ---
   const textGroup = document.createElement('div');
@@ -435,7 +411,7 @@ export function showPanelDialog({
     ));
     dialog.close();
     onConfirm({
-      image: currentImage, text: textInput.value, cols, rows, stackOrder,
+      image: imageField.getImage(), text: textInput.value, cols, rows, stackOrder,
       keepOnSceneChange: keepInput.checked,
       isStocker: stockerInput.checked,
       stockerOwned: stockerInput.checked && ownedInput.checked,

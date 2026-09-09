@@ -1,11 +1,11 @@
 ---
 source: js/drag-gesture.js
-lines: 231
+lines: 279
 exports: 2
 imported_by: 4
-api_sha: a9b5d3f67438
-prose_sha: a9b5d3f67438
-generated: 2026-09-02
+api_sha: cdaa343aa8b6
+prose_sha: cdaa343aa8b6
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-Pointer Events を使ったドラッグと長押しの入口を1つにまとめたヘルパー。要素に `bindDragGesture` を貼ると、マウス・タッチ・ペンのどれでも同じコールバック（onStart / onMove / onEnd / onLongPress）が呼ばれる。長押しはタッチ・ペンのときだけ見る（マウスには右クリックがあるため）。ポインタの捕捉、移動量による長押しの取り消し、Android が長押しの後に上げてくる contextmenu の握り潰しもここが持つ。何を動かすか・どんなメニューを出すかは一切知らず、それは呼び出し元（[[js.board-data-driven]] の盤面、[[js.floating-panel]]、[[js.dice-draft-panel]]）の仕事。
+Pointer Events を使ったドラッグ・長押し・クリックの入口を1つにまとめたヘルパー。要素に `bindDragGesture` を貼ると、マウス・タッチ・ペンのどれでも同じコールバック（onStart / onMove / onEnd / onLongPress / onClick）が呼ばれる。長押しはタッチ・ペンのときだけ見る（マウスには右クリックがあるため）。onClick は長押しが起きず、押した場所からほとんど動かずに離したときだけ鳴る——パネルのクリックオプションがこれで動く。ポインタの捕捉、移動量による長押しの取り消し、Android が長押しの後に上げてくる contextmenu の握り潰しもここが持つ。何を動かすか・どんなメニューを出すかは一切知らず、それは呼び出し元（[[js.board-data-driven]] の盤面、[[js.floating-panel]]、[[js.dice-draft-panel]]）の仕事。
 <!-- /prose:role -->
 
 ## export（2）
@@ -26,7 +26,7 @@ Pointer Events を使ったドラッグと長押しの入口を1つにまとめ�
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 29 | const | LONG_PRESS_ONLY | `LONG_PRESS_ONLY` | onStartがこれを返すと、ドラッグは始めずに長押しだけを見る。 |
-| 52 | fn | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, capture = false, stopPropagation = false } = {})` | onStart?: (event: PointerEvent) => any, ドラッグを始めてよければ任意の値（＝以降のコールバックへ渡す文脈）を返す。 |
+| 58 | fn | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, onClick, capture = false, stopPropagation = false } = {})` | onStart?: (event: PointerEvent) => any, ドラッグを始めてよければ任意の値（＝以降のコールバックへ渡す文脈）を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -35,7 +35,7 @@ Pointer Events を使ったドラッグと長押しの入口を1つにまとめ�
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 52 | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, capture = false, stopPropagation = false } = {})` | 179 | ✓ |
+| 58 | bindDragGesture | `bindDragGesture(element, { onStart, onMove, onEnd, onLongPress, onClick, capture = false, stopPropagation = false } = {})` | **221** | ✓ |
 
 ## 依存
 

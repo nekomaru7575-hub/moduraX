@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/board.js
-lines: 380
+lines: 412
 exports: 1
 imported_by: 1
 api_sha: 1fc9b2f89527
 prose_sha: 1fc9b2f89527
-generated: 2026-09-02
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 16 | const | BOARD_HANDLERS | `BOARD_HANDLERS` |  |
+| 18 | const | BOARD_HANDLERS | `BOARD_HANDLERS` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 
@@ -33,7 +33,7 @@ _(未記入)_
 
 ## 依存
 
-- import → [[js.store.cards]], [[js.store.patch]]
+- import → [[js.store.cards]], [[js.store.images]], [[js.store.panels]], [[js.store.patch]]
 - imported by → [[js.store.handlers.index]]
 
 ## 注意

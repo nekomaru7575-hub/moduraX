@@ -4,8 +4,8 @@ lines: 154
 exports: 7
 imported_by: 2
 api_sha: 9ea68ff87dc2
-prose_sha: 4aee9a6ab821
-generated: 2026-09-02
+prose_sha: 9ea68ff87dc2
+generated: 2026-09-09
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-組み込みの簡易トランプ（4スート×13枚＋ジョーカー）の中身と、カード画像のURLの組み立て、そしてユーザーが作ったデッキ定義（room.deckTemplates）を実際の札へ展開する expandDeckTemplate を持つ純データ層。[[js.stamp-catalog]]と同じくDOM/windowには触れない。画像パスは規則（card_<スート>_<2桁>.png）から組み立てるだけで、表の側にパス文字列を書かせない（[[js.stamp-registry]]の「URLは受け取った側が組み立てる」と同じ約束）。
+盤面に置けるカードの束（デッキ）の既定の中身を持つ純データ層。組み込みのトランプ（4スート×13枚＋ジョーカー）と裏面、組み込みデッキの一覧（DECK_TEMPLATES・findDeckTemplate）、そしてユーザーが作ったデッキ定義（room.deckTemplates の1件）を実際の札の並びへ展開する expandDeckTemplate と、展開せずに枚数だけ数える countDeckTemplateCards を持つ。[[js.stamp-catalog]] と同じくDOM/windowには触れない（サーバーでも読み込める）。画像パスは規則（card_<スート>_<2桁>.png）から組み立てるだけで、表の側にパス文字列を書かせない（[[js.stamp-registry]] の「URLは受け取った側が組み立てる」と同じ約束）。上限や正規化は持たず、それは [[js.store.cards]] の仕事。
 <!-- /prose:role -->
 
 ## export（7）
@@ -57,5 +57,7 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+リポジトリにトランプの画像は入っていない（フリー素材の再配布を避けるため。[[js.asset-base]]）。画像が1枚も無くても、カードは名前と色で描かれて機能としては成立する。
+
+フォルダ名は本番のLinuxで大文字小文字が区別される。手元のWindowsでだけ正しく見えて本番で404、という事故が起きる場所。
 <!-- /prose:notes -->

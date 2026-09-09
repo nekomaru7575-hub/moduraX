@@ -4,7 +4,7 @@ lines: 92
 exports: 9
 imported_by: 16
 api_sha: 618acb12243d
-prose_sha: 7358b35fc536
+prose_sha: 618acb12243d
 generated: 2026-09-09
 tags: [codemap]
 ---
@@ -18,7 +18,7 @@ dispatch 内で繰り返し現れる更新パターンの共通処理。
 ## 役割
 
 <!-- prose:role -->
-_(未記入)_
+dispatch の中で繰り返し現れる更新パターンを畳んだ道具立て。case 側が「どのスライスをどう変えるか」だけを書けるようにするためのもので、凍結（Object.freeze）はここが面倒を見るので case 側は原則 freeze を書かない。マップの1件追加・更新・削除（withMapEntry / withoutMapEntry）、コマ1件の差し替え（patchCharacter）、シーンで使うパネルマップの深い凍結（freezePanelMap）、公開先と重なり順の正規化（normalizeAudience / normalizeStackOrder）、undefined のキー落とし（definedFields）、そしてアクション名でテーブルを引く fieldPatchFor と、自分の持ち物としてマップを引く ownEntry。個々のアクションの意味は知らず、それは [[js.game-store]] と js/store/handlers/ の各ファイルが持つ。
 <!-- /prose:role -->
 
 ## export（9）
@@ -60,5 +60,9 @@ _(未記入)_
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+`ownEntry` と `fieldPatchFor` は、素の `map[id]` / `TABLE[action]` で引いてはいけないために在る。`'__proto__'` や `'toString'` を渡されると Object.prototype 上の値に当たって「実在しないのに真」になる。実際、パネルのクリックオプションに `sceneId:'__proto__'` を仕込んだ部屋データを読ませたところ、APPLY_SCENE が処理を続けて盤面のパネルが全部消えた。**必ずここを通すこと。**
+
+`normalizeStackOrder` は描画側（[[js.board-data-driven]]）も読むときに同じ関数を通す。片方だけ変えると、状態に入っている値と画面上の重なりがずれる。
+
+`normalizeAudience` は空配列を「全員に公開」へ丸めない。呼び出し側が配列を渡した以上は限定公開の意図なので、不具合が情報漏れの側へ倒れないようにしてある。
 <!-- /prose:notes -->

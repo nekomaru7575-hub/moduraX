@@ -20,7 +20,7 @@ generated: 2026-09-09
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 162 | 736 | 1257 | 59 | 8 |
+| 162 | 736 | 1257 | 56 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -205,16 +205,3 @@ generated: 2026-09-09
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |
 | [[js.visibility\|js/visibility.js]] | 11 |
-
-## 散文が要更新
-
-export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
-
-- [[js.card-catalog\|js/card-catalog.js]]
-- [[js.character-dialog\|js/character-dialog.js]]
-- [[js.drag-gesture\|js/drag-gesture.js]]
-- [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]]
-- [[js.stamp-registry\|js/stamp-registry.js]]
-- [[js.store.ids\|js/store/ids.js]]
-- [[js.store.patch\|js/store/patch.js]]
-- [[js.store.stamps\|js/store/stamps.js]]

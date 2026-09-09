@@ -4,7 +4,7 @@ lines: 171
 exports: 12
 imported_by: 9
 api_sha: 696cff058238
-prose_sha: b873d8a7d79b
+prose_sha: 696cff058238
 generated: 2026-09-09
 tags: [codemap]
 ---
@@ -18,9 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-部屋に登録するスタンプ（room.stamps）の"何を受け付けるか"を1か所に集めた規則。reducer（js/store/handlers/room.js）とhydrate（js/game-store.js）と画面（js/room-stamp-dialog.js）が同じ判定を通すための置き場で、上限・ID・URLの許可リストを持つ。
-
-スタンプで唯一URLを状態に持つのがこの機能なので、ここが緩むと「全員のブラウザに任意のURLを読ませる」ことになる。データURLと相対パスを拒む理由はコード側のコメントにある。
+部屋に登録するスタンプ（room.stamps）の「何を受け付けるか」を1か所に集めた規則。reducer（js/store/handlers/room.js）と hydrate（[[js.game-store]]）と画面（[[js.room-stamp-dialog]]）が同じ判定を通すための置き場で、登録数・名前・ローカルid・画像URLの上限と許可リストを持つ。公開IDの名前空間（`room:`）を冠するのもここ。「集計する」を選んだスタンプは、押された合計がルーム変数として出る——その変数のIDと表示名の作り方（roomStampTotalParamId / roomStampTotalLabel）もここが決め、集計そのものは [[js.store.room]] の withRoomStampTotals が行う。一覧の組み立ては [[js.stamp-registry]] の仕事で、ここからは import しない（依存は registry → ここ の一方向）。
 <!-- /prose:role -->
 
 ## export（12）
@@ -62,5 +60,9 @@ tags: [codemap]
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+スタンプで唯一URLを状態に持つのがこの機能なので、ここが緩むと「全員のブラウザに任意のURLを読ませる」ことになる。`isAllowedRoomStampUrl` は許可リスト方式で `https://` と `/asset/<64桁hex>` の2形しか通さない。データURLを拒むのは数MBのblobがroomに載って以後すべてのアクションで書き直されるから、相対パスを拒むのは状態に書いた任意のパスを全員の img.src へ向けられるから（詳しい理由はコード側のコメント）。
+
+`/asset/<hash>` の正規表現は [[js.asset-store]] と sw.js に続く3つ目の写し。IndexedDBを触るモジュールをサーバーの import 網へ引き込まないために手元に置いてあり、食い違わないことは test/asset-store.test.js が見張っている。
+
+URLは切り詰めない。中途半端に短くしたURLは別のものを指すので、長すぎるものは丸ごと拒む。
 <!-- /prose:notes -->

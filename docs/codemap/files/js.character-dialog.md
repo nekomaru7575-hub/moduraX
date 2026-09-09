@@ -4,7 +4,7 @@ lines: 1106
 exports: 5
 imported_by: 2
 api_sha: 4a25cd663546
-prose_sha: 14bcbd0e5a8f
+prose_sha: 4a25cd663546
 generated: 2026-09-09
 tags: [codemap]
 ---
@@ -18,7 +18,9 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-コマの新規登録・編集モーダル。名前・画像・トリミング・デフォルトパラメータ・カスタムパラメータ・公開範囲をまとめて扱う。システム固有のパラメータ欄は [[js.parameters.registry]] が返すプラグイン記述子から組み立てるため、DX3 やシノビガミ固有の知識はここには無い。プラグイン専用スペース（buildPluginPanel）へは、store を直接読めないプラグインの代わりに Core が集めた値一式（`getToken` / `dispatch` / `participants` / 他のコマを名前で引く `findTokenByName`）を素通しする。
+コマの新規登録・編集モーダル。名前・画像・トリミング・デフォルトパラメータ・カスタムパラメータ・公開範囲をまとめて扱う。画像は自前のピッカー（トリミング付き）で、[[js.image-field]] の共通部品は使わない——crop は「選ぶ」ではなく「切る」で、applyImageCropStyle を盤面（[[js.board-data-driven]]）と共有して見たままを担保しているため。システム固有のパラメータ欄は [[js.parameters.registry]] が返すプラグイン記述子から組み立てるので、DX3 やシノビガミ固有の知識はここには無い。プラグイン専用スペース（buildPluginPanel）へは、store を直接読めないプラグインの代わりに Core が集めた値一式（`getToken` / `dispatch` / `participants` / 他のコマを名前で引く `findTokenByName`）を素通しする。
+
+編集ダイアログは部屋の中と部屋の外（[[js.character-builder]]）の両方が同じ関数を使う。違いは引数だけで、`allowParameterEdit`（能力値そのものを編集できるのは部屋の外だけ）と `dialogTitle` / `confirmLabel`（押した結果が「棚へ保存」なので文言を変える）で吸収する。結果を store へ書き戻すのは applyCharacterEditResult。
 <!-- /prose:role -->
 
 ## export（5）

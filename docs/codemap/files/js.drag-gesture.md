@@ -4,7 +4,7 @@ lines: 279
 exports: 2
 imported_by: 4
 api_sha: cdaa343aa8b6
-prose_sha: a9b5d3f67438
+prose_sha: cdaa343aa8b6
 generated: 2026-09-09
 tags: [codemap]
 ---
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-Pointer Events を使ったドラッグと長押しの入口を1つにまとめたヘルパー。要素に `bindDragGesture` を貼ると、マウス・タッチ・ペンのどれでも同じコールバック（onStart / onMove / onEnd / onLongPress）が呼ばれる。長押しはタッチ・ペンのときだけ見る（マウスには右クリックがあるため）。ポインタの捕捉、移動量による長押しの取り消し、Android が長押しの後に上げてくる contextmenu の握り潰しもここが持つ。何を動かすか・どんなメニューを出すかは一切知らず、それは呼び出し元（[[js.board-data-driven]] の盤面、[[js.floating-panel]]、[[js.dice-draft-panel]]）の仕事。
+Pointer Events を使ったドラッグ・長押し・クリックの入口を1つにまとめたヘルパー。要素に `bindDragGesture` を貼ると、マウス・タッチ・ペンのどれでも同じコールバック（onStart / onMove / onEnd / onLongPress / onClick）が呼ばれる。長押しはタッチ・ペンのときだけ見る（マウスには右クリックがあるため）。onClick は長押しが起きず、押した場所からほとんど動かずに離したときだけ鳴る——パネルのクリックオプションがこれで動く。ポインタの捕捉、移動量による長押しの取り消し、Android が長押しの後に上げてくる contextmenu の握り潰しもここが持つ。何を動かすか・どんなメニューを出すかは一切知らず、それは呼び出し元（[[js.board-data-driven]] の盤面、[[js.floating-panel]]、[[js.dice-draft-panel]]）の仕事。
 <!-- /prose:role -->
 
 ## export（2）

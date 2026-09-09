@@ -9,7 +9,7 @@
 // 適用は1回のdispatch（SET_BOARD_BACKGROUND）にまとめる。分けて投げると、他クライアントに
 // 「新しい画像＋古いサイズ」という中間状態が見えるため（APPLY_SCENEと同じ理由）。
 
-import { pickAndUploadImage } from './image-upload.js';
+import { buildImageField } from './image-field.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
@@ -25,6 +25,7 @@ const ensureDialog = createDialogHost();
  *   fallbackRows?: number,
  *   initialShowGrid?: boolean,
  *   initialKeepOnSceneChange?: boolean,
+ *   usedImages?: Set<string>, この部屋で使っている画像（セレクタの再利用一覧に並べる）
  *   gridSize: number,
  *   onConfirm: (result: {
  *     imageUrl: string | null, imageKey: string | null,
@@ -39,15 +40,12 @@ export function showBackgroundDialog({
   initialCols = null, initialRows = null,
   fallbackCols = 20, fallbackRows = 15,
   initialShowGrid = true, initialKeepOnSceneChange = false,
+  usedImages = new Set(),
   gridSize, onConfirm
 }) {
   const dialog = ensureDialog();
   dialog.innerHTML = '';
 
-  // 画像はURLとキーの組で持ち回る。キーはR2に実体がある場合のみ（データURLへ退避した
-  // 場合はnull）で、状態のbackgroundImageKeyへそのまま入る。
-  let currentImage = initialImage || null;
-  let currentImageKey = initialImageKey || null;
 
   const form = document.createElement('form');
 
@@ -61,61 +59,30 @@ export function showBackgroundDialog({
   form.appendChild(note);
 
   // --- 画像 ---
-  const imageGroup = document.createElement('div');
-  imageGroup.className = 'dialog-form-group';
-  const imageLabel = document.createElement('label');
-  imageLabel.textContent = '背景画像';
-  imageGroup.appendChild(imageLabel);
-
-  const preview = document.createElement('img');
-  preview.className = 'dialog-image-preview';
-  preview.style.display = currentImage ? 'block' : 'none';
-  if (currentImage) preview.src = currentImage;
-  imageGroup.appendChild(preview);
-
-  const imageBtnRow = document.createElement('div');
-  imageBtnRow.className = 'dialog-custom-row';
-
-  const pickBtn = document.createElement('button');
-  pickBtn.type = 'button';
-  pickBtn.textContent = '画像を選択';
-  pickBtn.className = 'dialog-add-row-btn';
-  pickBtn.style.marginBottom = '0';
-  pickBtn.addEventListener('click', async () => {
-    // R2へ上げてURLだけを状態に載せる（使えない環境ではデータURLへ退避。
-    // js/image-upload.jsのpickAndUploadImage参照）
-    const picked = await pickAndUploadImage({ purpose: 'background' });
-    if (!picked) return;
-    currentImage = picked.url;
-    currentImageKey = picked.key ?? null;
-    preview.src = currentImage;
-    preview.style.display = 'block';
-
-    // 画像の実サイズをマス換算してサイズ欄へ自動反映。
-    // 自動のままでも盤面はこの大きさになる（js/board-data-driven.jsの
-    // resolveBoardPixelSize）ので、入力欄が無効の間も実際の値として見せておく。
-    const dim = await loadImageDimensions(currentImage);
-    if (dim) {
-      colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
-      rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+  // 選ぶ手続きはセレクタ（js/image-selector-dialog.js）が持つ。返ってくるのは
+  // 置き場へ送り終えた確定URLとキーなので、下の「適用」は従来どおり同期のまま
+  // 1回のdispatchで済む。
+  const imageField = buildImageField({
+    label: '背景画像',
+    purpose: 'background',
+    initialImage,
+    initialKey: initialImageKey,
+    usedImages,
+    selectorTitle: '背景画像を選ぶ',
+    onPicked: async (picked) => {
+      // 画像の実サイズをマス換算してサイズ欄へ自動反映。
+      // 自動のままでも盤面はこの大きさになる（js/board-data-driven.jsの
+      // resolveBoardPixelSize）ので、入力欄が無効の間も実際の値として見せておく。
+      const dim = (picked.width && picked.height)
+        ? { width: picked.width, height: picked.height }
+        : await loadImageDimensions(picked.url);
+      if (dim) {
+        colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
+        rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+      }
     }
   });
-  imageBtnRow.appendChild(pickBtn);
-
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.textContent = '画像を削除';
-  clearBtn.className = 'dialog-remove-row';
-  clearBtn.addEventListener('click', () => {
-    currentImage = null;
-    currentImageKey = null;
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
-  });
-  imageBtnRow.appendChild(clearBtn);
-
-  imageGroup.appendChild(imageBtnRow);
-  form.appendChild(imageGroup);
+  form.appendChild(imageField.element);
 
   // --- 盤面サイズを自動にする ---
   // ONの間はboardWidth/boardHeightをnullにして、盤面側の判断に任せる（既定の状態）。
@@ -223,8 +190,8 @@ export function showBackgroundDialog({
 
     dialog.close();
     onConfirm({
-      imageUrl: currentImage,
-      imageKey: currentImageKey,
+      imageUrl: imageField.getImage(),
+      imageKey: imageField.getKey(),
       boardWidth: auto ? null : cols * gridSize,
       boardHeight: auto ? null : rows * gridSize,
       showGrid: gridInput.checked,

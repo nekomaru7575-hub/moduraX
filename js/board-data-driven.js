@@ -1770,6 +1770,7 @@ export function buildBackgroundSettingsMenuItem() {
         fallbackRows: Math.max(1, Math.round((board?.offsetHeight || 0) / GRID_SIZE)),
         initialShowGrid: room.showGrid !== false,
         initialKeepOnSceneChange: !!room.keepBackgroundOnSceneChange,
+        usedImages: collectImageUrls(store.state),
         gridSize: GRID_SIZE,
         onConfirm: (result) => store.dispatch('SET_BOARD_BACKGROUND', result)
       });

@@ -29,13 +29,17 @@ export const SCENES_HANDLERS = {
     if (!id || !name) return;
     const room = prevState.room;
 
+    // 画像とキーは対で扱う（js/store/handlers/room.jsのSET_BOARD_BACKGROUNDと同じ）。
+    // 均した後の値で揃えないと、画像として通らなかった値でもキーだけがシーンに残る。
+    const backgroundImage = normalizeImageRef(background.imageUrl);
+
     const scene = Object.freeze({
       id,
       name,
       text: text || '',
       bgmTrackId: bgmTrackId || null,
-      backgroundImage: normalizeImageRef(background.imageUrl),
-      backgroundImageKey: background.imageKey || null,
+      backgroundImage,
+      backgroundImageKey: backgroundImage ? (background.imageKey || null) : null,
       boardWidth: background.boardWidth || null,
       boardHeight: background.boardHeight || null,
       // この項目より前に保存されたシーンにはキーが無いので、既定（マス目あり）へ倒す

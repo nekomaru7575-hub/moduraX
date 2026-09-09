@@ -1,4 +1,4 @@
-﻿// js/board-data-driven.js
+// js/board-data-driven.js
 
 import { EventBus } from './EventBus.js';
 import { showContextMenu } from './context-menu.js';
@@ -23,6 +23,7 @@ import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authorit
 import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import { findStamp, listStamps } from './stamp-registry.js';
+import { collectImageUrls } from './store/images.js';
 import { MAX_PANEL_CHAT_TEXT_LENGTH } from './store/panels.js';
 import { ownEntry } from './store/patch.js';
 import {
@@ -1046,6 +1047,7 @@ function bindPanelDrag(element) {
             // 他人のものになっている箱では、誰のものかを画面に出す（自分の箱なら出さない）
             stockerOwnerLabel: canUseStocker(current) ? '' : stockerOwnerName(current),
             initialClickAction: current.clickAction || null,
+            usedImages: collectImageUrls(store.state),
             clickActionChoices: buildClickActionChoices(),
             maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
             gridSize: GRID_SIZE,
@@ -1703,6 +1705,7 @@ export function buildAddPanelMenuItem(dropX, dropY) {
 
       showPanelDialog({
         title: 'パネルを追加',
+        usedImages: collectImageUrls(store.state),
         clickActionChoices: buildClickActionChoices(),
         maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
         gridSize: GRID_SIZE,

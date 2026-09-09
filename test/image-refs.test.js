@@ -11,13 +11,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  collectImageUrls, imageUsableFor, normalizeImageRef, pickReusableCommit, poolMimeAllowed
+  canReuseCommitFor, collectImageUrls, imageUsableFor, normalizeImageRef, pickReusableCommit,
+  poolMimeAllowed
 } from '../js/store/images.js';
 
 const HASH_A = 'a'.repeat(64);
 const R2_A = 'https://img.example.com/rooms/room-1/aaaa.png';
 const R2_B = 'https://img.example.com/rooms/room-1/bbbb.png';
 const DATA_URL = 'data:image/png;base64,AAAA';
+const KEY_A = 'rooms/room-1/aaaa.png';
 
 // --- 状態に載せてよい値の門 ---
 
@@ -171,30 +173,49 @@ test('空の指定はどの用途でも通らない', () => {
 
 // --- 上げ直しを省く判断 ---
 
+test('スタンプでは使い回さない', () => {
+  // スタンプの削除はR2の実体をその場で消す。1つの実体を共有していると、
+  // スタンプを消した瞬間に関係ないパネルの絵が404になる
+  assert.equal(canReuseCommitFor('stamp'), false);
+  assert.equal(canReuseCommitFor('background'), true);
+  assert.equal(canReuseCommitFor('panel'), true);
+  assert.equal(canReuseCommitFor('token'), true);
+  assert.equal(canReuseCommitFor('card'), true);
+});
+
 test('状態に写っているURLだけ使い回す', () => {
-  const memory = { [HASH_A]: R2_A };
-  assert.equal(pickReusableCommit(memory, new Set([R2_A]), HASH_A), R2_A);
+  const memory = { [HASH_A]: { url: R2_A, key: KEY_A } };
+  assert.deepEqual(pickReusableCommit(memory, new Set([R2_A]), HASH_A), { url: R2_A, key: KEY_A });
 });
 
 test('状態に無いURLは使い回さない', () => {
   // これが本命。部屋を削除して同じ番号の部屋ができても、消えたオブジェクトを指さない
-  const memory = { [HASH_A]: R2_A };
+  const memory = { [HASH_A]: { url: R2_A, key: KEY_A } };
   assert.equal(pickReusableCommit(memory, new Set(), HASH_A), null);
   assert.equal(pickReusableCommit(memory, new Set([R2_B]), HASH_A), null);
+});
+
+test('キーが無い記憶でもURLだけ使い回す', () => {
+  // データURLへ退避した回・P2P卓ではキーがnullになる（js/image-upload.js）
+  const memory = { [HASH_A]: { url: R2_A, key: null } };
+  assert.deepEqual(pickReusableCommit(memory, new Set([R2_A]), HASH_A), { url: R2_A, key: null });
 });
 
 test('記憶が無い・崩れているときは使い回さない', () => {
   assert.equal(pickReusableCommit(null, new Set([R2_A]), HASH_A), null);
   assert.equal(pickReusableCommit({}, new Set([R2_A]), HASH_A), null);
   assert.equal(pickReusableCommit({ [HASH_A]: null }, new Set([R2_A]), HASH_A), null);
-  assert.equal(pickReusableCommit({ [HASH_A]: R2_A }, new Set([R2_A]), ''), null);
-  assert.equal(pickReusableCommit({ [HASH_A]: R2_A }, null, HASH_A), null);
+  // 古い形（URLの文字列を直に持っていた版）は読まない
+  assert.equal(pickReusableCommit({ [HASH_A]: R2_A }, new Set([R2_A]), HASH_A), null);
+  assert.equal(pickReusableCommit({ [HASH_A]: { url: null } }, new Set([R2_A]), HASH_A), null);
+  assert.equal(pickReusableCommit({ [HASH_A]: { url: R2_A } }, new Set([R2_A]), ''), null);
+  assert.equal(pickReusableCommit({ [HASH_A]: { url: R2_A } }, null, HASH_A), null);
 });
 
 test('プロトタイプ経由の値を引かない', () => {
   // 記憶はlocalStorage由来＝外から書き換えられる値。'__proto__'や'toString'を鍵に
   // されても、持っていないものは持っていないと答える
-  const memory = { [HASH_A]: R2_A };
+  const memory = { [HASH_A]: { url: R2_A, key: KEY_A } };
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), '__proto__'), null);
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), 'toString'), null);
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), 'constructor'), null);

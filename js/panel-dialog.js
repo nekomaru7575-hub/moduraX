@@ -5,7 +5,10 @@
 // すでに画像があるパネルの編集では、画像を差し替えてもサイズは変えない。
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
-import { pickAndUploadImage } from './image-upload.js';
+// 画像はセレクタ（js/image-selector-dialog.js）で選ぶ。選んだ時点で置き場へ送られて
+// いるので、ここへ返ってくるのは常に確定した文字列URL——溜め置きの参照は入ってこない。
+
+import { showImageSelectorDialog } from './image-selector-dialog.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 
@@ -24,6 +27,7 @@ const ensureDialog = createDialogHost();
  *   initialStockerOwned?: boolean,
  *   stockerOwnerLabel?: string,
  *   initialClickAction?: object | null,
+ *   usedImages?: Set<string>, この部屋で使っている画像（セレクタの再利用一覧に並べる）
  *   clickActionChoices?: {
  *     scenes: {id: string, name: string}[],
  *     audioTracks: {id: string, name: string, channel: string, channelLabel: string}[],
@@ -43,6 +47,7 @@ export function showPanelDialog({
   initialStackOrder = 0, initialKeepOnSceneChange = false,
   initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '',
   initialClickAction = null,
+  usedImages = new Set(),
   clickActionChoices = { scenes: [], audioTracks: [], stamps: [] },
   maxChatTextLength = 500,
   gridSize, onConfirm
@@ -84,17 +89,23 @@ export function showPanelDialog({
   pickBtn.className = 'dialog-add-row-btn';
   pickBtn.style.marginBottom = '0';
   pickBtn.addEventListener('click', async () => {
-    // R2へ上げてURLだけを状態に持つ（データURLのままだと、シーンがパネルを写し取る都合で
+    // 状態に載るのはURLだけ（データURLのままだと、シーンがパネルを写し取る都合で
     // シーンの数だけ画像が部屋データに積み上がる。js/image-upload.js参照）
-    const picked = await pickAndUploadImage({ purpose: 'panel' });
+    const picked = await showImageSelectorDialog({
+      purpose: 'panel', usedImages, title: 'パネルの画像を選ぶ'
+    });
     if (!picked) return;
     currentImage = picked.url;
     preview.src = currentImage;
     preview.style.display = 'block';
 
-    // 画像の実サイズをマス換算してサイズ欄へ自動反映（新規追加時のみ）
+    // 画像の実サイズをマス換算してサイズ欄へ自動反映（新規追加時のみ）。
+    // 寸法はセレクタが持って返す（溜めるときに測ってある）ので、多くの場合は
+    // 画像を取り直さずに済む。使い回した画像など分からないときだけ測る。
     if (!autoSizeFromImage) return;
-    const dim = await loadImageDimensions(currentImage);
+    const dim = (picked.width && picked.height)
+      ? { width: picked.width, height: picked.height }
+      : await loadImageDimensions(currentImage);
     if (dim) {
       colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
       rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));

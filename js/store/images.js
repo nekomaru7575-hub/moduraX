@@ -148,8 +148,27 @@ export function imageUsableFor(url, purpose) {
   return { ok: true };
 }
 
+// 上げ済みの画像を使い回してよい用途か。
+//
+// 【スタンプでは使い回さない】部屋スタンプの削除（REMOVE_ROOM_STAMP）は、R2の実体を
+// **その場で消す**——画像の中でこれと音源トラックだけが即時削除される
+// （server/index.jsのpickRemovedMediaKey）。1つの実体をスタンプとパネルが共有していると、
+// スタンプを消した瞬間にパネルの絵が404になる。しかも「スタンプを消した」ことと
+// 「関係ないパネルの絵が消えた」ことが結び付かないので、原因の分からない壊れ方になる。
+// 節約より、消えないことを採る。
+const NO_REUSE_PURPOSES = new Set(['stamp']);
+
 /**
- * 同じ中身の画像を、この部屋で既に上げてあるなら、その公開URLを返す。
+ * この用途で、上げ済みの実体を使い回してよいか。
+ * @param {string} purpose
+ * @returns {boolean}
+ */
+export function canReuseCommitFor(purpose) {
+  return !NO_REUSE_PURPOSES.has(purpose);
+}
+
+/**
+ * 同じ中身の画像を、この部屋で既に上げてあるなら、その指し先を返す。
  *
  * R2のキーは内容アドレスではなくUUIDなので（server/index.js）、同じ画像を2回選べば
  * 2つのオブジェクトができる。しかも画像は1枚も即時削除されない。だから
@@ -162,16 +181,24 @@ export function imageUsableFor(url, purpose) {
  * そこで**「今この部屋の状態に写っているURLだけを生きているとみなす」**。
  * 部屋を削除すれば新しい状態に古いURLは無いので、必ず外れて上げ直しになる。
  *
- * @param {Record<string, string>|null|undefined} memory hash → 公開URL
+ * keyも一緒に覚えるのは、背景がURLとキーを対で持つため（room.backgroundImageKey）。
+ * URLだけ使い回すとキーが空になり、部屋を消すときの掃除が対象を見失う。
+ *
+ * @param {Record<string, {url: string, key: string|null}>|null|undefined} memory
  * @param {Set<string>} urlsInState collectImageUrls(state) の結果
  * @param {string} hash 画像の中身のSHA-256（js/asset-store.jsのhashBlob）
- * @returns {string|null} 使い回せるURL。無ければ null（＝上げ直す）
+ * @returns {{url: string, key: string|null}|null} 使い回せる指し先。無ければ null（＝上げ直す）
  */
 export function pickReusableCommit(memory, urlsInState, hash) {
   if (!memory || typeof memory !== 'object' || typeof hash !== 'string' || hash === '') return null;
   // プロトタイプ経由の値を引かない（記憶はlocalStorage由来＝外から書ける値）
   if (!Object.prototype.hasOwnProperty.call(memory, hash)) return null;
-  const url = normalizeImageRef(memory[hash]);
+
+  const remembered = memory[hash];
+  if (!remembered || typeof remembered !== 'object') return null;
+  const url = normalizeImageRef(remembered.url);
   if (url === null) return null;
-  return urlsInState instanceof Set && urlsInState.has(url) ? url : null;
+  if (!(urlsInState instanceof Set) || !urlsInState.has(url)) return null;
+
+  return { url, key: typeof remembered.key === 'string' ? remembered.key : null };
 }

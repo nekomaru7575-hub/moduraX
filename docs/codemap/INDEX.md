@@ -20,7 +20,7 @@ generated: 2026-09-09
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 162 | 736 | 1257 | 56 | 0 |
+| 162 | 737 | 1258 | 56 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
 
@@ -75,7 +75,7 @@ generated: 2026-09-09
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 4 |
 | [[js.image-field\|js/image-field.js]] | ダイアログに貼る「ラベル＋プレビュー＋選択/削除ボタン」の1組。 | 1 | 2 |
 | [[js.image-pool\|js/image-pool.js]] | 「プール」——アップロードした画像を、実際に使われるまでこのブラウザに溜めておく待機列。 | 10 | 1 |
-| [[js.image-selector-dialog\|js/image-selector-dialog.js]] | 画像を選ぶ画面。 | 1 | 1 |
+| [[js.image-selector-dialog\|js/image-selector-dialog.js]] | 画像を選ぶ画面。 | 2 | 3 |
 | [[js.image-upload\|js/image-upload.js]] | 画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。 | 7 | 8 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
@@ -172,7 +172,7 @@ generated: 2026-09-09
 | [[js.store.handlers.round\|js/store/handlers/round.js]] | ラウンド進行（Core機能）。 | 1 | 1 |
 | [[js.store.handlers.scenes\|js/store/handlers/scenes.js]] | シーン（GMが場面ごとに盤面の見た目を保存し、1クリックで切り替えるための入れ物）。 | 1 | 1 |
 | [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 10 | 1 |
-| [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 6 | 8 |
+| [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 6 | 9 |
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
 | [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）の形と、その正規化。 | 4 | 3 |
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |

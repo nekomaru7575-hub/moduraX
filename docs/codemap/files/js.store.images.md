@@ -2,7 +2,7 @@
 source: js/store/images.js
 lines: 205
 exports: 6
-imported_by: 8
+imported_by: 9
 api_sha: fbf0da9f544a
 prose_sha: fbf0da9f544a
 generated: 2026-09-09
@@ -50,7 +50,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.store.cards]], [[js.store.stamps]]
-- imported by → [[js.board-data-driven]], [[js.game-store]], [[js.image-pool]], [[js.image-selector-dialog]], [[js.store.handlers.board]], [[js.store.handlers.characters]], [[js.store.handlers.room]], [[js.store.handlers.scenes]]
+- imported by → [[js.board-data-driven]], [[js.game-store]], [[js.image-pool]], [[js.image-selector-dialog]], [[js.main]], [[js.store.handlers.board]], [[js.store.handlers.characters]], [[js.store.handlers.room]], [[js.store.handlers.scenes]]
 
 ## 注意
 

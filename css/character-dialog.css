@@ -2452,3 +2452,15 @@
   font-size: 0.7rem;
   line-height: 1.4;
 }
+
+/* 溜め置きの管理として開いたときの札（js/image-selector-dialog.js の mode:'stock'）。
+   選ぶ相手がいないので押せない。押せそうに見えないよう、hoverもカーソルも消す。
+   使えない札（.unusable）と違って薄くはしない——理由があって選べないのではなく、
+   この画面では最初から選ぶ操作が無いだけなので。 */
+.image-selector-tile.static {
+  cursor: default;
+}
+
+.image-selector-tile.static:hover {
+  background: var(--surface-base);
+}

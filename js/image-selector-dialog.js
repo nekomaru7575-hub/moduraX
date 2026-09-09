@@ -50,26 +50,46 @@ function formatBytes(bytes) {
 }
 
 /**
+ * 画像を溜めておくだけの画面（部屋の「+」から開く）。
+ *
+ * 選ぶ相手がいない場面で、まとめてアップロードしておく・要らないものを消す、のための口。
+ * 中身は下のセレクタを「選ぶボタンの無い形」で開く——並べ方も断り方も1つに保ちたいので、
+ * 似た画面をもう1枚作らない。
+ *
+ * @param {{ usedImages?: Set<string> }} options
+ * @returns {Promise<null>}
+ */
+export function showImageStockDialog({ usedImages = new Set() } = {}) {
+  return showImageSelectorDialog({ usedImages, mode: 'stock', title: '画像の溜め置き' });
+}
+
+/**
  * 画像を選ばせて、置き場へ送ったうえで確定した指し先を返す。
  *
  * @param {{
- *   purpose: 'background'|'token'|'panel'|'card'|'stamp',
+ *   purpose?: 'background'|'token'|'panel'|'card'|'stamp',
+ *     mode:'stock' のときは使わない（置き場へ送らないので用途が決まらない）
  *   usedImages?: Set<string>,
  *     この部屋の状態に今写っている画像（js/store/images.jsのcollectImageUrls）。
  *     一覧に並べるだけでなく、上げ直しを省く判断の材料でもある（pickReusableCommit）
- *   title?: string
+ *   title?: string,
+ *   mode?: 'pick'|'stock'
  * }} options
  * @returns {Promise<{url: string, key: string|null, width: number, height: number}|null>}
- *   キャンセル・Escならnull
+ *   キャンセル・Esc・溜め置きモードならnull
  */
 export async function showImageSelectorDialog({
-  purpose, usedImages = new Set(), title = '画像を選ぶ'
+  purpose = null, usedImages = new Set(), title = '画像を選ぶ', mode = 'pick'
 }) {
+  // 溜め置きモード：溜める・消すだけで、置き場へは一切送らない。
+  const stock = mode === 'stock';
   // 上限の問い合わせをここで一度通す。プールの1件上限がこの応答から決まるので、
   // 先に取っておかないと8MBの控えで判断してしまう（js/image-pool.jsのmaxPoolEntryBytes）。
   const uploadAvailable = await isImageUploadAvailable();
   const poolReady = await isImagePoolAvailable();
-  const gm = !GM_ONLY_PURPOSES.has(purpose) || canOperateAsGm();
+  // 溜めるだけならサーバーへ行かないのでGMは要らない。GMの門が要るのは置き場へ送るとき
+  // だけで、それは実際に使う画面（背景・スタンプ）のセレクタが持つ。
+  const gm = stock || !GM_ONLY_PURPOSES.has(purpose) || canOperateAsGm();
 
   const dialog = ensureDialog();
   // 選び直しで開き直す使い方をするので、開いたままのshowModalで例外にならないようにする
@@ -127,13 +147,30 @@ export async function showImageSelectorDialog({
     }
     say('');
 
-    const confirmRow = appendConfirmRow(form, {
-      confirmLabel: 'この画像にする',
-      onCancel: () => finish(null)
-    });
+    // 溜め置きモードには確定が無い（選ぶ相手がいない）ので「閉じる」1つだけにする。
+    // js/room-stamp-list-dialog.js と同じ形。
+    let buttonRow;
+    let confirmBtn = null;
+    if (stock) {
+      buttonRow = document.createElement('div');
+      buttonRow.className = 'dialog-button-row';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.textContent = '閉じる';
+      closeBtn.addEventListener('click', () => finish(null));
+      buttonRow.appendChild(closeBtn);
+      form.appendChild(buttonRow);
+    } else {
+      const row = appendConfirmRow(form, {
+        confirmLabel: 'この画像にする',
+        onCancel: () => finish(null)
+      });
+      buttonRow = row.row;
+      confirmBtn = row.confirmBtn;
+    }
 
     function refreshConfirm() {
-      confirmRow.confirmBtn.disabled = !selected;
+      if (confirmBtn) confirmBtn.disabled = !selected;
     }
 
     // --- 溜めてある画像 ---
@@ -145,7 +182,7 @@ export async function showImageSelectorDialog({
     const poolGrid = document.createElement('div');
     poolGrid.className = 'image-selector-grid';
     poolSection.appendChild(poolGrid);
-    form.insertBefore(poolSection, confirmRow.row);
+    form.insertBefore(poolSection, buttonRow);
 
     // --- この部屋で使っている画像 ---
     const usedSection = document.createElement('div');
@@ -156,7 +193,7 @@ export async function showImageSelectorDialog({
     const usedGrid = document.createElement('div');
     usedGrid.className = 'image-selector-grid';
     usedSection.appendChild(usedGrid);
-    form.insertBefore(usedSection, confirmRow.row);
+    form.insertBefore(usedSection, buttonRow);
 
     // 選択の見た目は1か所で切り替える（選ばれている札が2つ見えると何が起きるか分からない）
     function markSelection() {
@@ -209,8 +246,13 @@ export async function showImageSelectorDialog({
         why.className = 'image-selector-detail';
         why.textContent = disabledReason;
         tile.appendChild(why);
-      } else {
+      } else if (onPick) {
         tile.addEventListener('click', onPick);
+      } else {
+        // 溜め置きモード。押しても何も起きないボタンにはしない（押せそうに見えるため）
+        tile.disabled = true;
+        tile.classList.add('static');
+        tile.removeAttribute('aria-pressed');
       }
 
       // 消すボタンは札（button）の中に入れられないので、常に枠で包んで隣に置く。
@@ -239,8 +281,11 @@ export async function showImageSelectorDialog({
         empty.className = 'dialog-empty-note';
         // プールが使えないことで画像が1枚も使えなくなるのは退行。溜められないだけで、
         // 下の「画像をアップロードする」からはそのまま使える
-        empty.textContent = 'このブラウザでは画像を溜めておけません'
-          + '（プライベートウィンドウなど）。選んだ画像はそのまま使えます。';
+        empty.textContent = stock
+          ? 'このブラウザでは画像を溜めておけません（プライベートウィンドウなど）。'
+            + '画像は使うときにその場で選んでください。'
+          : 'このブラウザでは画像を溜めておけません'
+            + '（プライベートウィンドウなど）。選んだ画像はそのまま使えます。';
         poolGrid.appendChild(empty);
         return;
       }
@@ -263,7 +308,7 @@ export async function showImageSelectorDialog({
           src: trackObjectUrl(entry.blob),
           caption: entry.name,
           detail: size,
-          onPick: () => {
+          onPick: stock ? null : () => {
             selected = { kind: 'pool', entry };
             say('');
             markSelection();
@@ -296,13 +341,14 @@ export async function showImageSelectorDialog({
       urls.forEach((url) => {
         // 用途によって使えない形がある（スタンプはhttpsか/asset/のみ、カードは長さ上限）。
         // 判定は状態側の正規化と同じものを借りる（js/store/images.js）
-        const usable = imageUsableFor(url, purpose);
+        // 溜め置きモードは用途が決まらないので検分しない（並べて見せるだけ）
+        const usable = stock ? { ok: true } : imageUsableFor(url, purpose);
         const { cell, tile } = buildTile({
           src: url,
           caption: url.startsWith('data:') ? 'この部屋に埋め込まれた画像' : url.split('/').pop(),
           detail: '',
           disabledReason: usable.ok ? '' : usable.reason,
-          onPick: () => {
+          onPick: stock ? null : () => {
             selected = { kind: 'url', url };
             say('');
             markSelection();
@@ -363,13 +409,17 @@ export async function showImageSelectorDialog({
       }
 
       await renderPool();
-      if (lastEntry) selected = { kind: 'pool', entry: lastEntry };
+      if (lastEntry && !stock) selected = { kind: 'pool', entry: lastEntry };
       markSelection();
       say(refusals.length > 0 ? refusals.join(' / ') : '');
     });
     form.insertBefore(uploadBtn, poolSection);
 
-    if (!uploadAvailable) {
+    if (stock) {
+      // 置き場へ送らないので、R2の有無もGMかどうかも関係しない
+      say('ここで溜めた画像は、コマ・パネル・背景の「画像を選択」から使えます。'
+        + 'このブラウザにだけ置かれ、使うと決めた1枚だけが部屋に入ります。');
+    } else if (!uploadAvailable) {
       // R2が無い環境（server/dev-local.js）。使えないのではなく、この部屋に画像として
       // 残らずデータURLとして状態に載る、という違いを先に伝える
       say('この部屋では画像の置き場が設定されていないため、選んだ画像は部屋データに'
@@ -380,9 +430,9 @@ export async function showImageSelectorDialog({
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!selected || settled) return;
+      if (stock || !selected || settled) return;
 
-      confirmRow.confirmBtn.disabled = true;
+      confirmBtn.disabled = true;
       say('画像を保存しています…');
 
       try {
@@ -427,7 +477,7 @@ export async function showImageSelectorDialog({
         // 上げられなかった。プールからは消さない（消すと選び直しになる）
         console.warn('[image-selector] 画像を保存できませんでした:', error?.message);
         say(`画像を保存できませんでした：${error?.message || '原因不明'}`);
-        confirmRow.confirmBtn.disabled = false;
+        confirmBtn.disabled = false;
       }
     });
 

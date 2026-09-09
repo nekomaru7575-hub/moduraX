@@ -54,6 +54,8 @@ import { showOriginalTableListDialog } from './original-table-list-dialog.js';
 import { showRoomStampDialog } from './room-stamp-dialog.js';
 import { showRoomStampListDialog } from './room-stamp-list-dialog.js';
 import { roomStampPublicId } from './store/stamps.js';
+import { collectImageUrls } from './store/images.js';
+import { showImageStockDialog } from './image-selector-dialog.js';
 import { showSceneListDialog } from './scene-list-dialog.js';
 import { showSceneDialog } from './scene-dialog.js';
 import { showLogExportDialog } from './log-export-dialog.js';
@@ -1089,6 +1091,13 @@ if (addMenuBtn) {
       buildAddCharacterMenuItem(),
       buildAddPanelMenuItem(),
       buildBackgroundSettingsMenuItem(),
+      // 使う相手を決めずに画像だけ溜めておく口。GM限定にしない——溜めるのはこの
+      // ブラウザの中だけで、置き場へ送るのは実際に使うときだから
+      // （背景に使えるのはGMだけ、という門はそちらのセレクタが持つ）。
+      {
+        label: '画像の溜め置き',
+        onSelect: () => showImageStockDialog({ usedImages: collectImageUrls(store.state) })
+      },
       {
         label: 'シーン一覧',
         onSelect: openSceneListDialog,

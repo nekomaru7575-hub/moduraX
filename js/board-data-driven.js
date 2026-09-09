@@ -453,6 +453,7 @@ export function openTokenContextMenu(tokenId, clientX, clientY) {
 
         showCharacterEditDialog({
           character: current,
+          usedImages: collectImageUrls(store.state),
           canEdit: canOperate,
           readOnlyReason: denyReason,
           activePluginId: store.state.room?.activePlugin ?? null,
@@ -1659,6 +1660,7 @@ export function buildAddCharacterMenuItem(x, y) {
       showCharacterDialog({
         activePluginId: store.state.room?.activePlugin ?? null,
         participants: store.state.participants ?? {},
+        usedImages: collectImageUrls(store.state),
         onConfirm: ({ name, image, imageCrop, size, textColor, visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters }) => {
           store.dispatch('ADD_CHARACTER', {
             id: generateTokenId(),

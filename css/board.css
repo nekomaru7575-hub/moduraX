@@ -1234,7 +1234,7 @@ h1 {
   white-space: nowrap;
   padding: 0 2px;
   color: var(--board-token-text);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 3px var(--board-token-halo);
   text-align: center;
   width : 100%;
 }

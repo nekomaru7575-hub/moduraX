@@ -1,11 +1,11 @@
 ---
 source: js/floating-panel.js
-lines: 291
+lines: 294
 exports: 1
 imported_by: 5
 api_sha: 9e114663bedc
 prose_sha: 9e114663bedc
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -39,12 +39,12 @@ tags: [codemap]
 | 49 | loadRect | `loadRect(storageKey)` | 9 |  |
 | 59 | saveRect | `saveRect(storageKey, rect)` | 7 |  |
 | 69 | clampRect | `clampRect(rect)` | 11 |  |
-| 95 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 196 | ✓ |
+| 95 | createFloatingPanel | `createFloatingPanel({ title, storageKey, defaultRect = { x: 80, y: 80, w: 320, h: 420 }, defaultVisible = true, onVisibilityChange })` | 199 | ✓ |
 
 ## 依存
 
 - import → [[js.drag-gesture]]
-- imported by → [[js.character-panel]], [[js.dice-draft-panel]], [[js.info-panel]], [[js.main]], [[js.stamp-panel]]
+- imported by → [[js.character-panel]], [[js.check-panel]], [[js.info-panel]], [[js.main]], [[js.stamp-panel]]
 
 ## 注意
 

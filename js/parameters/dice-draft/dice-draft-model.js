@@ -5,7 +5,7 @@
 //   1. server/index.js → game-store.js → registry.js → プラグイン → ここ、という import 連鎖が
 //      あるため、トップレベルで document を触ると本番サーバーが起動しなくなる
 //   2. 判定の規則（何が置けるか・いつ発動できるか）を、UIとは切り離して1か所に集めるため
-// UI（ドラッグ・ダイスの絵・store操作）は js/dice-draft-panel.js が持つ。
+// UI（ドラッグ・ダイスの絵・store操作）は js/check-view/dice-draft-view.js が持つ。
 //
 // 保存する形（token.components.diceDraft）:
 //   { pool: [die], placements: { [スキル名]: [die] } }   die = { id, sides, value }
@@ -349,7 +349,7 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
 
     // 1個で1回。何個乗せてもよく、乗せた数だけ使える。
     // targetOptions/targetValue は一致型には無い概念だが、**戻り値の形は必ず揃える**。
-    // 画面は kind で分岐せずに result.targetOptions.length を読む（js/dice-draft-panel.js）ので、
+    // 画面は kind で分岐せずに result.targetOptions.length を読む（js/check-view/dice-draft-view.js）ので、
     // 欠けていると描画の途中で落ち、スキルの列がまるごと出なくなる。
     return {
       ready: true, uses: count, perUseDice: 1, supportsPartialUse: true,

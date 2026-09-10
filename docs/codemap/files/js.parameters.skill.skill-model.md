@@ -5,7 +5,7 @@ exports: 18
 imported_by: 12
 api_sha: 4be371c9a6c9
 prose_sha: 4be371c9a6c9
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -81,7 +81,7 @@ tags: [codemap]
 ## 依存
 
 - import → [[js.parameters.skill.skill-formula]]
-- imported by → [[js.dice-draft-panel]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.gcrest]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
+- imported by → [[js.check-view.dice-draft-view]], [[js.parameters.arianrhod]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.dx3]], [[js.parameters.futarisousa]], [[js.parameters.gcrest]], [[js.parameters.shinobigami]], [[js.parameters.skill.item-use]], [[js.parameters.skill.skill-box]], [[js.parameters.skill.skill-use]], [[js.parameters.stella-knights]]
 
 ## 注意
 

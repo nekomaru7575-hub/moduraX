@@ -84,11 +84,11 @@ export function setStampPanelController(controller) {
   stampPanelController = controller;
 }
 
-let diceDraftPanelController = null;
+let checkPanelController = null;
 
 /** @param {{ toggle: () => void, isVisible: () => boolean }} controller */
-export function setDiceDraftPanelController(controller) {
-  diceDraftPanelController = controller;
+export function setCheckPanelController(controller) {
+  checkPanelController = controller;
 }
 
 // 進行中のドラッグ（コマ・パネル・視点移動のうち1つ）。2本指になったら
@@ -116,7 +116,9 @@ export function buildPanelToggleItems() {
     info: panelToggleItem(infoPanelController, '情報'),
     characterList: panelToggleItem(characterPanelController, 'キャラクター一覧'),
     stamp: panelToggleItem(stampPanelController, 'スタンプ送信'),
-    diceDraft: panelToggleItem(diceDraftPanelController, 'ダイスドラフト')
+    // 中身は部屋のシステムで変わる（特技表判定／ダイスドラフト）が、
+    // 項目名は常に「判定」。何が出るかはパネルの見出しで読める。
+    check: panelToggleItem(checkPanelController, '判定')
   };
 }
 
@@ -1272,7 +1274,7 @@ function seenByNames(cardData) {
 }
 
 // --- カードの落とし先（ストッカー・デッキ） ---
-// 仕組みはダイスドラフト（js/dice-draft-panel.js）と同じで、受け取る側に data-drop-target を
+// 仕組みはダイスドラフト（js/check-view/dice-draft-view.js）と同じで、受け取る側に data-drop-target を
 // 付け、掴んでいる指の位置から探す。違うのは、掴んでいるカード自身がその点の下に居ること。
 // elementsFromPointで重なりを全部取り、自分を飛ばして最初の落とし先を拾う。
 function dropTargetAt(clientX, clientY, draggedEl) {
@@ -1984,9 +1986,9 @@ window.addEventListener('DOMContentLoaded', () => {
       ...t.characterList,
       // スタンプ送信も既定で非表示なので、ここが唯一の出しどころ（生成はjs/stamp-panel.js）。
       ...t.stamp,
-      // ダイスドラフトも既定で非表示（生成はjs/dice-draft-panel.js）。ダイスの割り当てを
-      // 持たないシステムの部屋でも項目は出す：中を開けば理由が読めるようにしてある。
-      ...t.diceDraft
+      // 拡張判定UIも既定で非表示（生成はjs/check-panel.js）。判定UIを宣言していない
+      // システムの部屋でも項目は出す：中を開けば理由が読めるようにしてある。
+      ...t.check
     ]);
   }
 

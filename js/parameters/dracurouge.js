@@ -675,7 +675,7 @@ function importDracurougeCharacterJson(json) {
   };
 }
 
-// ダイスドラフト。treat で振った目がプールへ溜まり、パネル（js/dice-draft-panel.js）で
+// ダイスドラフト。treat で振った目がプールへ溜まり、パネル（js/check-view/dice-draft-view.js）で
 // 行いへ割り当てる。行いの「目標値」がそのまま合計の目標になる（kind:'sum'）。
 const DRACUROUGE_DRAFT_SPEC = createDiceDraftSpec({
   id: 'dracurouge-draft',
@@ -738,7 +738,7 @@ function readTreatDice({ diceValues, resultText }) {
     const values = last.slice(1, -1).split(',').map(text => Number(text.trim()));
     if (values.length > 0 && values.every(value => Number.isInteger(value) && value > 0)) {
       // 10（栄光のダイス）も渇き修正の乗った目も、面数はd6のまま扱う。
-      // パネルは1〜6以外を数字で描くので、そのまま見分けがつく（js/dice-draft-panel.js）。
+      // パネルは1〜6以外を数字で描くので、そのまま見分けがつく（js/check-view/dice-draft-view.js）。
       return values.map(value => createDie(DRACUROUGE_DRAFT_SPEC.diceSides, value));
     }
   }

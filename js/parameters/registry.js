@@ -377,7 +377,7 @@ export function getPluginBcdiceSystem(pluginId) {
 
 /**
  * ダイスドラフト（振った目をスキルへ割り当てて使う仕組み）の宣言をそのまま返す。
- * Coreは中身を解釈せず、パネル（js/dice-draft-panel.js）へ渡すだけ。
+ * Coreは中身を解釈せず、拡張判定UIのパネル（js/check-panel.js）へ渡すだけ。
  * 何が置けるか・いつ発動できるかの規則は、宣言と
  * js/parameters/dice-draft/dice-draft-model.js の側にある。
  * @param {string|null} pluginId
@@ -385,6 +385,33 @@ export function getPluginBcdiceSystem(pluginId) {
  */
 export function getPluginDiceDraftSpec(pluginId) {
   return PLUGINS[pluginId]?.diceDraft ?? null;
+}
+
+// 拡張判定UI：記述子のどのキーを宣言したかで、どのビューで描くかが決まる。
+// プラグインは「自分がどの判定UIを使うか」を宣言するだけで、中身をCoreは解釈しない。
+// ビューの実体は js/check-view/ にあり、この表の view はそちらのキーと揃える。
+// 上から順に見て、最初に見つかった1つを使う（1つのシステムに判定UIは1つ）。
+const CHECK_VIEWS = [
+  { view: 'diceDraft', key: 'diceDraft' },
+  { view: 'skillTable', key: 'skillTableCheck' }
+];
+
+/**
+ * その部屋のシステムが出す拡張判定UIの宣言。
+ * 呼び出し側（js/check-panel.js）がシステム名もキー名も知らずに済むように、
+ * 「どのビューか」と「その宣言」の組にして返す。
+ * @param {string|null} pluginId
+ * @returns {{ view: string, spec: object }|null} 宣言が無ければnull
+ */
+export function getPluginCheckView(pluginId) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin) return null;
+
+  for (const { view, key } of CHECK_VIEWS) {
+    const spec = plugin[key];
+    if (spec) return { view, spec };
+  }
+  return null;
 }
 
 /**

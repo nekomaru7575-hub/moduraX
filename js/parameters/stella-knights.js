@@ -74,7 +74,7 @@ const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
   }))
 });
 
-// チャージで振った目は「ダイスドラフト」のプールへ入り、パネル（js/dice-draft-panel.js）で
+// チャージで振った目は「ダイスドラフト」のプールへ入り、パネル（js/check-view/dice-draft-view.js）で
 // スキルへドラッグして使う。スキルの「対応する数字」と同じ目だけが置け、置いた個数だけ使用できる
 // ＝ requirement の kind:'match'。「対応する数字」が「0/7」のスキルだけは目を問わず、
 // 1〜6どれでも置ける（anyValue）。数え方は同じで、1個で1回だ。
@@ -185,7 +185,7 @@ function renderStellaKnightsCharacterPanel({
   title.style.color = '#fff';
   container.appendChild(title);
 
-  // 出目の在庫はダイスドラフトのプール（js/dice-draft-panel.js）が持つので、
+  // 出目の在庫はダイスドラフトのプール（js/check-view/dice-draft-view.js）が持つので、
   // 並べるのはシートに載っている値と持ち点だけ。
   //
   // 【この欄が要る理由】プラグインが専用スペースを持つと、そのプラグイン由来のパラメータは

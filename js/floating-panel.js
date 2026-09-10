@@ -279,6 +279,9 @@ export function createFloatingPanel({
   return {
     element: panel,
     body,
+    // 見出しは生成後にも差し替えられる。中身が部屋の設定で入れ替わるパネル
+    // （js/check-panel.js の拡張判定UI）が、今出しているものの名前を出すために使う。
+    setTitle: (text) => { titleEl.textContent = text; },
     show: () => setVisible(true),
     hide: () => setVisible(false),
     toggle: () => setVisible(!visible),

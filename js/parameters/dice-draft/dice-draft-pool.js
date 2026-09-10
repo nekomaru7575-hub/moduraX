@@ -32,7 +32,7 @@ const DICE_ADD_PATTERN = /^dice\.add\(\s*(\d+)\s*(?:[*×＊]\s*(\d+)\s*)?\)$/i;
 // システムがありうる（d6の盤面に7の目を置く等）ためで、一致型の置き場に対応する数字が
 // 無ければ置けないだけ＝プールに残るので、それ自体は壊れない。
 // ただし青天井にすると保存データも見た目も破綻するので、当面の頭打ちとして99を置く。
-// 1〜6以外の目はピップではなく数字で描かれる（js/dice-draft-panel.jsのrenderDieFace）。
+// 1〜6以外の目はピップではなく数字で描かれる（js/check-view/dice-draft-view.jsのrenderDieFace）。
 const MAX_FACE_VALUE = 99;
 
 // 目の呼び方はパネル・チャットログで揃える（「3の目」）。

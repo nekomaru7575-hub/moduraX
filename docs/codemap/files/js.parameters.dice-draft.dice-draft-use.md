@@ -5,7 +5,7 @@ exports: 1
 imported_by: 2
 api_sha: 7cb2872b952b
 prose_sha: 7cb2872b952b
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.parameters.dice-draft.dice-draft-model]], [[js.parameters.dice-draft.dice-draft-roll]], [[js.parameters.skill.skill-model]], [[js.parameters.skill.skill-use]]
-- imported by → [[js.dice-draft-panel]], [[js.parameters.dracurouge]]
+- imported by → [[js.check-view.dice-draft-view]], [[js.parameters.dracurouge]]
 
 ## 注意
 

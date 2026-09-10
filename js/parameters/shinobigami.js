@@ -626,13 +626,16 @@ function resetShinobigamiComponentsOnPhaseEnd(components, phase) {
 }
 
 /**
- * キャラ作成/更新ダイアログのプラグイン専用スペース。
- * 特技表の編集も判定も1つのボックスの中で完結させるため、ここはボタン1つだけ置く。
+ * キャラ作成/更新ダイアログのプラグイン専用スペース。ボックスを開くボタンを並べるだけ。
+ *
+ * 特技表はここから**設定だけ**を開く（取得・ギャップ・つながり・追加生命力の個数）。
+ * 判定は拡張判定UIのパネル（js/check-panel.js）にあるので、判定に要る一式
+ * （getEffectiveParameterValue / rollBCDice）はここでは受け取らない。
  */
 function renderShinobigamiCharacterPanel(options) {
   const {
     container, mode, canEdit = true, components, onComponentChange, getComponents, getToken,
-    getEffectiveParameterValue, generateBuffId, dispatch, rollBCDice, findTokenByName = null,
+    generateBuffId, dispatch, findTokenByName = null,
     participants = {}, myParticipantId = null
   } = options;
 
@@ -697,46 +700,27 @@ function renderShinobigamiCharacterPanel(options) {
 
   const updateLabel = () => {
     const state = readSkillTableState(readComponents());
-    const life = countRemainingSlots(skillTableSpecFor(readComponents()), state).total;
-    skillTableBtn.textContent = `特技表を開く（取得${state.acquired.length}件・生命力${life}）`;
+    skillTableBtn.textContent = `特技表を開く（取得${state.acquired.length}件）`;
   };
   updateLabel();
 
+  // ここは**表の設定だけ**（取得・ギャップ・左右と上下のつながり・追加生命力の個数）。
+  // 判定と、卓の最中に動く値（生命力の喪失・変調のマヒ・判定の修正値）は
+  // 拡張判定UIのパネル側にある（js/check-view/skill-table-view.js）。
+  // 判定のたびにこのダイアログを開き直させないための分割なので、ここへ戻さないこと。
   skillTableBtn.addEventListener('click', () => {
     showSkillTableBox({
       spec: skillTableSpecFor(readComponents()),
-      state: readSkillTableState(readComponents()),
+      // 判定パネルと同時に開いていても互いの変更を踏み潰さないよう、状態は毎回読み直す
+      readState: () => readSkillTableState(readComponents()),
       title: '特技表',
-      // 他人のコマを表示だけしている時は取得の編集も判定も外す。判定はチャットへログを流し
-      // バフも付けるので「変更」側として扱う。onCheckを渡さなければモード切替も修正値の欄も
-      // 出ず、表を眺めてコマンドをコピーするだけのボックスになる。
+      purpose: 'edit',
+      // 他人のコマを表示だけしている時は編集も外す
       editable: canEdit,
       onSave: (nextState) => {
         onComponentChange(SKILL_TABLE_COMPONENT_KEY, nextState);
         updateLabel();
-      },
-      onCheck: canEdit ? (cellId) => {
-        runSkillCheck({
-          // 枠を失った分野を代用元から外すかがspecで変わる（エネミーは外さない）
-          spec: skillTableSpecFor(readComponents()),
-          state: readSkillTableState(readComponents()),
-          targetCellId: cellId,
-          token: getToken ? getToken() : null,
-          getEffectiveParameterValue,
-          dispatch,
-          rollBCDice,
-          bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM
-        });
-      } : undefined,
-      // 修正値の欄もプレビューの目標値も、開いた時点のコマではなく今のコマを見る
-      // （欄から書き換えた値が同じダイアログの中で反映される必要があるため）。
-      getToken,
-      getEffectiveParameterValue,
-      // 修正値の入力欄はコマのパラメータを直接書き換える。他人のコマを見ているだけの時は
-      // 渡さない＝欄は出るが触れない（バフが乗っているかは読めるようにしておく）。
-      onParameterChange: canEdit ? (paramId, value) => {
-        dispatch('SET_PARAMETER', { characterId: getToken?.()?.id, paramId, value });
-      } : null
+      }
     });
   });
   container.appendChild(skillTableBtn);
@@ -1320,6 +1304,39 @@ function buildShinobigamiRoundPhaseTemplate() {
   ];
 }
 
+/**
+ * 拡張判定UI（js/check-panel.js）の宣言。「特技表を出して、マスを押したら振る」を
+ * skillTable ビュー（js/check-view/skill-table-view.js）に描かせる。
+ *
+ * PC／エネミーで表そのものが変わる（生命力の持ち方）ので、specを1つ渡すのではなく
+ * コマから引く関数を渡す。この出し分けはシノビガミの都合なので、Coreにも
+ * サイフィク共通側にも漏らさない。
+ *
+ * 判定の実体は runSkillCheck で、表から振ってもチャットの `特技判定(...)` から振っても
+ * 同じ関数を通る（修正値がコマのパラメータにあるので、どちらから振っても同じ値が乗る）。
+ */
+const SHINOBIGAMI_SKILL_TABLE_CHECK = {
+  label: '特技判定',
+  // 判定中に動く状態（生命力の喪失・マヒ印）の保存先
+  componentKey: SKILL_TABLE_COMPONENT_KEY,
+  tableFor: (components) => skillTableSpecFor(components),
+  stateFor: (components) => readSkillTableState(components),
+  runCheck: ({ cellId, token, dispatch, rollBCDice, getEffectiveParameterValue }) => {
+    if (!token) return;
+    runSkillCheck({
+      // 枠を失った分野を代用元から外すかがspecで変わる（エネミーは外さない）
+      spec: skillTableSpecFor(token.components),
+      state: readSkillTableState(token.components),
+      targetCellId: cellId,
+      token,
+      getEffectiveParameterValue,
+      dispatch,
+      rollBCDice,
+      bcdiceSystem: SHINOBIGAMI_BCDICE_SYSTEM
+    });
+  }
+};
+
 export const SHINOBIGAMI_PLUGIN = {
   id: 'SHINOBIGAMI',
   label: 'シノビガミ',
@@ -1337,6 +1354,8 @@ export const SHINOBIGAMI_PLUGIN = {
   item: SHINOBIGAMI_TOOL_SPEC,
   // シーン終了・ラウンド終了で忍法の使用回数を戻す
   resetComponentsOnPhaseEnd: resetShinobigamiComponentsOnPhaseEnd,
+  // 拡張判定UIのパネルに特技表判定を出す（js/parameters/registry.js の CHECK_VIEWS）
+  skillTableCheck: SHINOBIGAMI_SKILL_TABLE_CHECK,
   bcdiceSystem:SHINOBIGAMI_BCDICE_SYSTEM
 };
 

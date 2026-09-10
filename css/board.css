@@ -540,20 +540,45 @@ h1 {
   cursor: not-allowed;
 }
 
-/* ダイスドラフト（js/dice-draft-panel.js）。浮動パネルの中身なので、枠の見た目は
-   .floating-panel側が持つ。ここはダイスの絵と、落とし先の枠の見せ方だけ。 */
-.dice-draft-body {
+/* 拡張判定UIのパネル（js/check-panel.js）の器。中身（特技表判定／ダイスドラフト）は
+   js/check-view/ のビューが持ち、ここは対象コマの選択と注意書きの置き方だけ。 */
+.check-panel-body {
   gap: 8px;
 }
 
-.dice-draft-notice {
+.check-panel-picker {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.check-panel-picker-label {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.check-panel-picker-select {
+  flex: 1;
+  min-width: 0;
+  background-color: var(--surface-control);
+  color: var(--text-body);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.8rem;
+}
+
+.check-panel-notice {
   flex: 0 0 auto;
   font-size: 0.75rem;
   color: #e0b070;
   line-height: 1.4;
 }
 
-.dice-draft-content {
+.check-panel-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -561,6 +586,12 @@ h1 {
   flex-direction: column;
   gap: 10px;
 }
+
+/* ダイスドラフト（js/check-view/dice-draft-view.js）。拡張判定UIのパネルの中身なので、
+   枠と対象コマの選択は上の .check-panel-* 側が持つ。ここはダイスの絵と、
+   落とし先の枠の見せ方だけ。 */
+
+
 
 .dice-draft-owner {
   font-size: 0.8rem;
@@ -608,7 +639,7 @@ h1 {
   background-color: #33404a;
 }
 
-/* ダイス1個。1〜6はピップのSVG、それ以外は数字（js/dice-draft-panel.jsのrenderDieFace）。
+/* ダイス1個。1〜6はピップのSVG、それ以外は数字（js/check-view/dice-draft-view.jsのrenderDieFace）。
    touch-action:noneは.tokenと同じ理由：指で掴めるようにするため、ブラウザのスクロールに
    先に取られないようにする。 */
 .dice-draft-die {

@@ -74,7 +74,7 @@ import { MAX_ANIMATED_DICE } from './dice-notation.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initStampLayer, requestStamp } from './stamp-layer.js';
 import { initStampPanel } from './stamp-panel.js';
-import { initDiceDraftPanel } from './dice-draft-panel.js';
+import { initCheckPanel } from './check-panel.js';
 import { findStampByName, listStampLabels } from './stamp-registry.js';
 import { initInfoPanel } from './info-panel.js';
 import { initCharacterPanel, listBackyardTokens } from './character-panel.js';
@@ -1074,7 +1074,7 @@ if (panelVisibilityBtn) {
     const rect = panelVisibilityBtn.getBoundingClientRect();
     const t = buildPanelToggleItems();
     showContextMenu(rect.left, rect.bottom + 4, [
-      ...t.characterList, ...t.chatPalette, ...t.info, ...t.stamp, ...t.diceDraft
+      ...t.characterList, ...t.chatPalette, ...t.info, ...t.stamp, ...t.check
     ]);
   });
 }
@@ -2743,20 +2743,30 @@ window.addEventListener('DOMContentLoaded', async () => {
   const infoPanel = initInfoPanel();
   const characterPanel = initCharacterPanel();
   const stampPanel = initStampPanel();
-  const diceDraftPanel = initDiceDraftPanel();
-
-  // ダイスドラフトはチャット欄の参照キャラクターのコマを扱う。選ぶ場所を2つに増やすと、
-  // 「charge()を撃ったコマ」と「パネルに出ているコマ」が食い違うので、こちらを追従させる。
+  // 拡張判定UI（特技表判定／ダイスドラフト）。
+  //
+  // 対象のコマを選ぶ場所は、パネルの中とチャット欄（参照キャラクター）の2つある。
+  // **双方向に連動させて、指しているコマは常に1つ**にする。片方だけを動かせるようにすると、
+  // 「特技判定(...)を撃ったコマ」と「パネルに出ているコマ」が食い違う。
+  const checkPanel = initCheckPanel({
+    onCharacterChange: (tokenId) => {
+      if (!characterParamSelect || characterParamSelect.value === (tokenId || '')) return;
+      characterParamSelect.value = tokenId || '';
+      // 値を代入しただけではchangeは飛ばない。追従している側（コマンド補完など）を
+      // まとめて起こすため、実際にイベントを発火させる。
+      characterParamSelect.dispatchEvent(new Event('change'));
+    }
+  });
   if (characterParamSelect) {
-    diceDraftPanel.setCharacter(characterParamSelect.value || null);
+    checkPanel.setCharacter(characterParamSelect.value || null);
     characterParamSelect.addEventListener('change', () => {
-      diceDraftPanel.setCharacter(characterParamSelect.value || null);
+      checkPanel.setCharacter(characterParamSelect.value || null);
     });
   }
 
   // 狭幅（スマホ）では浮かせる場所が無いので、盤面と浮動パネル5枚を
   // 中央スペースのタブに切り替える。PC幅では何も起きない。
-  // キャラ・情報・スタンプ・ダイスは1枚のタブに束ねる（groupが同じもの同士）。タブは375px幅で
+  // キャラ・情報・スタンプ・判定は1枚のタブに束ねる（groupが同じもの同士）。タブは375px幅で
   // 1枚70px弱しか取れず、6枚並べると文字が読めなくなるため。打鍵中に行き来する
   // パレットだけは、束ねずに1タップで開けるところへ残す。
   initMobileLayout({
@@ -2765,7 +2775,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       { id: 'characters', label: 'キャラ', group: 'panels', panel: characterPanel },
       { id: 'info', label: '情報', group: 'panels', panel: infoPanel },
       { id: 'stamps', label: 'スタンプ', group: 'panels', panel: stampPanel },
-      { id: 'diceDraft', label: 'ダイス', group: 'panels', panel: diceDraftPanel }
+      { id: 'check', label: '判定', group: 'panels', panel: checkPanel }
     ]
   });
 

@@ -139,7 +139,8 @@ const PLUGINS = {
 | `buffFields` | `{ render, parseExtra, describe }` | バフに独自の追加情報を持たせる |
 | `stamps` | `{ id, label, file }[]` | そのシステム用のスタンプを足す |
 | `bcdiceSystem` | `string` | このシステムを選んだときの BCDice のシステムID（[3.11](#311-bcdicesystem)） |
-| `diceDraft` | `spec` | 振った目をスキルへ割り当てて使う仕組みの宣言（[3.12](#312-dicedraft)） |
+| `diceDraft` | `spec` | 拡張判定UIに「ダイスドラフト」を出す宣言（[3.12](#312-拡張判定ui)） |
+| `skillTableCheck` | `spec` | 拡張判定UIに「特技表判定」を出す宣言（[3.12](#312-拡張判定ui)） |
 
 以下、それぞれの詳細。
 
@@ -628,11 +629,45 @@ bcdiceSystem: 'StellarKnights'
 
 ---
 
-### 3.12 `diceDraft`
+### 3.12 拡張判定UI
 
-「振った目を1個ずつ取っておき、スキルへ割り当てて使う」システム（ドラクルージュ、
-銀剣のステラナイツ）のための宣言。UI（浮動パネル・ドラッグ・ダイスの絵）は Core 側の
-`js/dice-draft-panel.js` が持ち、**何が置けるか・いつ発動できるかだけをプラグインが決める**。
+**拡張判定UI**は、卓の最中にずっと出しておく判定用の浮動パネル（`js/check-panel.js`）。
+盤外の右クリックメニューとヘッダーの「パネル表示」に「判定」という名前で出る。
+
+パネルは1枚で、**その部屋のシステムが宣言した判定UIを出す**。器（パネルの枠・対象コマの
+選択・注意書き）は Core が持ち、中身は「ビュー」が組む。プラグインは
+**どのビューを使うかを、記述子のキーで宣言するだけ**。
+
+| 記述子のキー | ビュー | 出るもの |
+|---|---|---|
+| `diceDraft` | `js/check-view/dice-draft-view.js` | 振った目を溜めてスキルへドラッグする（ドラクルージュ、銀剣のステラナイツ） |
+| `skillTableCheck` | `js/check-view/skill-table-view.js` | 分野×出目の特技表を出し、マスを押すと振る（シノビガミ等サイコロ・フィクション系） |
+
+どちらも宣言していないシステムでは、パネルは開けるが
+「この部屋のシステムには拡張判定UIがありません」とだけ出る。
+2つ宣言した場合は上の表の順で先に見つかったものが使われる（1システムに判定UIは1つ）。
+
+> **対象のコマはパネルが選ぶ。** チャット欄の参照キャラクターと双方向に連動しているので、
+> どちらで選び直しても指しているコマは常に1つ。ビューは `ctx.getToken()` で受け取るだけで、
+> コマの選び方を知らなくてよい。
+
+#### 判定UIを1つ足す
+
+1. `js/check-view/` にビューを1本書く（契約は `js/check-view/index.js` の冒頭が正）
+2. `js/check-view/index.js` の `CHECK_VIEW_FACTORIES` に1行足す
+3. `js/parameters/registry.js` の `CHECK_VIEWS` に「記述子のどのキーを見るか」を1行足す
+4. プラグインの記述子にその宣言を書く
+
+ビューが実装するのは4つだけ。`id` / `title(spec)`（パネルの見出し） /
+`renderKey(ctx)`（**参照比較**で描き直しの要否を決める材料） / `render(ctx)`。
+器は `container` を消さないので、毎回組み直すか作り置きを使い回すかはビューが決める
+（ダイスドラフトは毎回組み直し、特技表は入力欄のフォーカスを飛ばさないために使い回す）。
+
+#### `diceDraft`
+
+「振った目を1個ずつ取っておき、スキルへ割り当てて使う」システムのための宣言。
+UI（ドラッグ・ダイスの絵）は Core 側の `js/check-view/dice-draft-view.js` が持ち、
+**何が置けるか・いつ発動できるかだけをプラグインが決める**。
 
 ```js
 import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
@@ -794,6 +829,42 @@ if (!result.ok) return true;   // 目が足りない。理由はrunDiceChangeが
 
 `silent: true` はログを出さない指定。1回の操作でログが2行進むと直前の結果が流れるので、
 合成コマンドは自分で1行だけ出す。
+
+#### `skillTableCheck`
+
+サイコロ・フィクション系の特技表（[6.2](#62-特技表jsparameterssaikoro-fiction)）を、
+拡張判定UIのパネルへ出す宣言。表の描画も距離計算も判定の実行も共通側が持っているので、
+ここに書くのは**このコマの表と状態をどう引くか**だけ。
+
+```js
+skillTableCheck: {
+  label: '特技判定',                        // パネルの見出し
+  componentKey: SKILL_TABLE_COMPONENT_KEY,  // 判定中に動く状態の保存先
+  tableFor: (components) => skillTableSpecFor(components),   // createSkillTableSpec() の戻り値
+  stateFor: (components) => readSkillTableState(components), // 正規化済みの状態
+  runCheck: ({ cellId, token, dispatch, rollBCDice, getEffectiveParameterValue }) =>
+    runSkillCheck({ /* 6.2 のとおり */ })
+}
+```
+
+`tableFor` / `stateFor` を **spec ではなく関数**で受け取るのは、同じシステムでもコマによって
+表が変わりうるため（シノビガミの PC とエネミーは生命力の持ち方が違う）。その出し分けは
+プラグインの中に閉じたままにできる。
+
+**判定と表の設定は出し先が分かれている。**
+
+| 出し先 | 何ができるか |
+|---|---|
+| キャラクター更新ダイアログ（`showSkillTableBox`、`purpose: 'edit'`） | 特技の取得・ギャップ埋め・左右と上下のつながり・失われうる枠の**個数** |
+| 拡張判定UIのパネル（`purpose: 'check'`） | 判定・判定の修正値・枠の**喪失**・マス1つの「使えない印」 |
+
+判定は卓の最中に何度も使うので、モーダルの中に置かない。逆に、キャラクターを組むときにしか
+触らない設定はパネルに出さない。**この境界を崩さないこと**（判定のたびに更新ダイアログを
+開き直させないための分割）。
+
+どちらの出し先も、状態は**書き込む直前に読み直してから**当てる（`buildSkillTableView` の
+`readState` / `commit`）。両方を同時に開けるようになったので、開いた時点のスナップショットへ
+当てて丸ごと書き戻すと、片方の変更がもう片方の次のトグルで消える。
 
 ---
 
@@ -1095,11 +1166,15 @@ footerNote: ({ skills, parameters }) => ({
 | ファイル | 役割 |
 |---|---|
 | `skill-table.js` | 表のモデルと距離計算（`createSkillTableSpec()`） |
-| `skill-table-box.js` | 表の UI（`showSkillTableBox()`） |
+| `skill-table-box.js` | 表の UI。`buildSkillTableView()` が DOM を組み、`showSkillTableBox()` がそれを `<dialog>` で包む |
 | `skill-check.js` | 判定の実行（`runSkillCheck()`） |
 
 特技名と分野の並び、BCDice のコマンド書式を渡すだけで、表の描画も距離計算も判定も動く。
 「失われうる枠」（シノビガミの生命力、インセインの恐怖心）も `slots` で宣言できる。
+
+表は2か所に出る。**設定**（取得・ギャップ・つながり・枠の個数）はキャラクター更新の
+ダイアログ、**判定**（判定・修正値・枠の喪失・使えない印）は拡張判定UIのパネル
+（[3.12](#312-拡張判定ui)）。どちらを出すかは `buildSkillTableView` の `purpose` で決まる。
 
 インセイン等を足す場合は、`shinobigami.js` をそのまま雛形にできる。
 

@@ -1611,33 +1611,13 @@
   font-weight: bold;
 }
 
-/* サイコロ・フィクション共通：特技表ボックス（js/parameters/saikoro-fiction/skill-table-box.js）。
-   シノビガミ・インセイン等で共用するため、システム名ではなく sf- プレフィックスで揃える。 */
+/* サイコロ・フィクション共通：特技表（js/parameters/saikoro-fiction/skill-table-box.js）。
+   シノビガミ・インセイン等で共用するため、システム名ではなく sf- プレフィックスで揃える。
+   出し先は2つ——キャラクター更新のダイアログ（表の設定）と、拡張判定UIの浮動パネル（判定）。
+   ここは共通の見た目で、パネルの中に入ったときの詰めだけを末尾でまとめて上書きする。 */
 .sf-skill-table-dialog {
   width: 100%;
   max-width: 860px;
-}
-
-.sf-skill-table-modes {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.sf-skill-table-mode-btn {
-  background-color: var(--surface-control);
-  color: var(--text-body);
-  border: 1px solid var(--border-default);
-  border-radius: 4px;
-  padding: 5px 14px;
-  cursor: pointer;
-}
-
-.sf-skill-table-mode-btn.is-active {
-  background-color: #4a6ea8;
-  border-color: #6f95cf;
-  color: var(--text-emphasis);
-  font-weight: bold;
 }
 
 /* 「使えない」印（シノビガミの変調「マヒ」）のボタン。判定モードのときだけ出る。
@@ -2463,4 +2443,52 @@
 
 .image-selector-tile.static:hover {
   background: var(--surface-base);
+}
+
+/* 特技表の外枠。ダイアログの中でも浮動パネルの中でも、縦に積むだけ。 */
+.sf-skill-table-view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 格子は狭い場所（浮動パネル・スマホ）では横にはみ出す。表そのものは縮めず、
+   ここで横スクロールへ逃がす（分野名を潰すと何の表なのか読めなくなるため）。 */
+.sf-skill-table-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+/* --- 拡張判定UIのパネルの中に入ったときの詰め（js/check-panel.js） ---
+   ダイアログ前提の余白と max-height はパネルでは合わない。高さはパネルの本文側が
+   まとめてスクロールするので、格子自身は伸びるに任せる。 */
+.check-panel-content .sf-skill-table-grid {
+  max-height: none;
+  overflow: visible;
+}
+
+.check-panel-content .sf-skill-table-summary {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: var(--text-emphasis);
+  margin-bottom: 6px;
+}
+
+.check-panel-content .sf-skill-cell {
+  font-size: 0.72rem;
+  padding: 3px 2px;
+}
+
+.check-panel-content .sf-skill-table-header {
+  font-size: 0.76rem;
+}
+
+.check-panel-content .sf-skill-table-check-options,
+.check-panel-content .sf-skill-slot-extra-row {
+  margin-bottom: 6px;
+}
+
+.check-panel-content .sf-skill-table-note,
+.check-panel-content .sf-skill-table-status {
+  font-size: 0.72rem;
 }

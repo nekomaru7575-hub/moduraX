@@ -5,7 +5,7 @@ exports: 3
 imported_by: 5
 api_sha: 8c5959783c1f
 prose_sha: 8c5959783c1f
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -42,7 +42,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.dice-notation]], [[js.parameters.dice-draft.dice-draft-model]]
-- imported by → [[js.dice-draft-panel]], [[js.parameters.dice-draft.dice-draft-pool]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.stella-knights]]
+- imported by → [[js.check-view.dice-draft-view]], [[js.parameters.dice-draft.dice-draft-pool]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.dracurouge]], [[js.parameters.stella-knights]]
 
 ## 注意
 

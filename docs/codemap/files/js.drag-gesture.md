@@ -5,7 +5,7 @@ exports: 2
 imported_by: 4
 api_sha: cdaa343aa8b6
 prose_sha: cdaa343aa8b6
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -40,7 +40,7 @@ Pointer Events を使ったドラッグ・長押し・クリックの入口を1�
 ## 依存
 
 - import → なし
-- imported by → [[js.board-data-driven]], [[js.character-panel]], [[js.dice-draft-panel]], [[js.floating-panel]]
+- imported by → [[js.board-data-driven]], [[js.character-panel]], [[js.check-view.dice-draft-view]], [[js.floating-panel]]
 
 ## 注意
 

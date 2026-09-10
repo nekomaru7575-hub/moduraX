@@ -2,10 +2,10 @@
 source: js/BCdice.js
 lines: 41
 exports: 1
-imported_by: 2
+imported_by: 3
 api_sha: 808f14485f64
 prose_sha: 808f14485f64
-generated: 2026-09-09
+generated: 2026-09-10
 tags: [codemap]
 ---
 
@@ -39,7 +39,7 @@ BCDice の公開 API を叩いてダイス判定を実行する唯一の口。
 ## 依存
 
 - import → なし
-- imported by → [[js.board-data-driven]], [[js.main]]
+- imported by → [[js.board-data-driven]], [[js.check-panel]], [[js.main]]
 
 ## 注意
 

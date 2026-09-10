@@ -1,5 +1,5 @@
 // js/parameters/dice-draft/dice-draft-use.js
-// ダイスドラフトの「発動」。パネルのボタン（js/dice-draft-panel.js）と、プラグインが生やす
+// ダイスドラフトの「発動」。パネルのボタン（js/check-view/dice-draft-view.js）と、プラグインが生やす
 // チャットコマンド（ドラクルージュの「行い使用(名前)」）の両方がここを通る。
 // 入口が2つあるので、規則をどちらかに書くと必ずもう一方とずれる。
 //

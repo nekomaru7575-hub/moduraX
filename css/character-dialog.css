@@ -2457,6 +2457,35 @@
 .sf-skill-table-scroll {
   overflow-x: auto;
   min-width: 0;
+  /* 【スクロールできることを見せる】overflow:auto の既定はオーバーレイのスクロールバーで、
+     触るまで出てこない。この表はスマホでは必ず横へ溢れる（6分野ぶんの幅がどうやっても
+     入らない）ので、印が無いと「文字が切れている」ようにしか見えない。バーを常に出して、
+     切れているのではなく続きがあることを示す。溢れていないときは auto なので出ない。 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.sf-skill-table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.sf-skill-table-scroll::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.sf-skill-table-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 4px;
+}
+
+/* 【格子を縮ませない】列は minmax(0, 1fr) なので、放っておくとトラックが中身より
+   小さく潰れ、特技名が「手裏…」「九ノ…」と省略される。省略された名前は読めない＝
+   どのマスを押せばいいか分からないので、この表では潰すより溢れさせるほうが正しい。
+   max-content にしているのは、必要な幅が場所によって違うため（パネルは0.72rem、
+   ダイアログは0.78rem）。決め打ちの数値だと、どちらかで足りないか無駄に溢れる。
+   溢れた分は上の .sf-skill-table-scroll が横スクロールで受ける。 */
+.sf-skill-table-scroll > .sf-skill-table-grid {
+  min-width: max-content;
 }
 
 /* --- 拡張判定UIのパネルの中に入ったときの詰め（js/check-panel.js） ---

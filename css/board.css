@@ -542,8 +542,18 @@ h1 {
 
 /* 拡張判定UIのパネル（js/check-panel.js）の器。中身（特技表判定／ダイスドラフト）は
    js/check-view/ のビューが持ち、ここは対象コマの選択と注意書きの置き方だけ。 */
+/* 【パネル本体のクラスを差し替える】floating-panel-body は余白を持たないので、
+   中身が枠にぴったり貼り付く。キャラクター一覧・情報・チャットパレットと同じく、
+   縦並びと余白はこちら側で持ち直す（js/check-panel.js が className ごと置き換える）。 */
 .check-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  padding: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .check-panel-picker {
@@ -560,22 +570,23 @@ h1 {
   color: var(--text-tertiary);
 }
 
-.check-panel-picker-select {
-  flex: 1;
-  min-width: 0;
-  background-color: var(--surface-control);
-  color: var(--text-body);
-  border: 1px solid var(--border-default);
-  border-radius: 4px;
-  padding: 3px 6px;
-  font-size: 0.8rem;
-}
+/* 対象コマのセレクトは .compact-select（チャット欄の参照キャラクターと同じ部品）を
+   そのまま使う。この2つは双方向に連動する対で、たいてい同時に画面へ出るので、
+   別の見た目にすると「同じものを指している」ことが伝わらない。 */
 
+/* パネルの知らせは3種類あって、重さが違う。判定UIが無い部屋・コマ未選択は
+   ただの案内なので地味な色に置き、警告色は「他人のコマなので触れない」——
+   利用者の操作が弾かれる場合だけに取っておく。全部を警告色で塗ると、
+   本当に警告したいときに目が止まらなくなる。 */
 .check-panel-notice {
   flex: 0 0 auto;
   font-size: 0.75rem;
-  color: #e0b070;
+  color: var(--text-muted);
   line-height: 1.4;
+}
+
+.check-panel-notice.is-warn {
+  color: var(--text-warn);
 }
 
 .check-panel-content {
@@ -590,8 +601,6 @@ h1 {
 /* ダイスドラフト（js/check-view/dice-draft-view.js）。拡張判定UIのパネルの中身なので、
    枠と対象コマの選択は上の .check-panel-* 側が持つ。ここはダイスの絵と、
    落とし先の枠の見せ方だけ。 */
-
-
 
 .dice-draft-owner {
   font-size: 0.8rem;

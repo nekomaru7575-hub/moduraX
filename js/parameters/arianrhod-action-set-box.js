@@ -268,7 +268,7 @@ export function showActionSetBox({
   form.appendChild(title);
 
   const note = document.createElement('p');
-  note.style.color = '#888';
+  note.style.color = 'var(--text-muted)';
   note.style.fontSize = '0.8rem';
   note.textContent = '発動/判定/ダメージはチャットコマンド（set.awk(名前)/set.hk(名前)/set.dmg(名前)）から実行します。「コマンドをコピー」で3つのコマンドをコピーし、チャットパレットの編集欄（複数行貼り付け可）に貼り付けてください。保存済みの内容に対して実行されるため、枠や能力を変えたら先に保存してください。';
   form.appendChild(note);

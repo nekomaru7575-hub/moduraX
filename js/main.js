@@ -394,7 +394,7 @@ function renderActiveTabLog(state) {
     if (logContainer.children.length === 0) {
       const placeholder = document.createElement('div');
       placeholder.className = 'log-item log-placeholder';
-      placeholder.style.color = '#888';
+      placeholder.style.color = 'var(--text-muted)';
       placeholder.textContent = 'ここにダイスログが表示されます...';
       logContainer.appendChild(placeholder);
     }

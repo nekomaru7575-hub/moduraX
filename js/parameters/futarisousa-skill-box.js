@@ -93,7 +93,7 @@ export function showFutariSousaSkillBox({ skills = {}, readOnly = false, onSave 
     label.className = 'dialog-param-label';
     label.textContent = categoryLabel;
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
     row.appendChild(label);
 

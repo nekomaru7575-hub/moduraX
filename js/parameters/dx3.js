@@ -213,7 +213,7 @@ function renderDX3CharacterPanel({
   const title = document.createElement('h4');
   title.textContent = 'ダブルクロス (3rd)';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   const corruptionParam = parameters['DX3:corruption'];

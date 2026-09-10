@@ -201,7 +201,7 @@ export function showBuffListDialog({ getBuffs, getParameters, activePluginId = n
 
     if (buffs.length === 0) {
       const empty = document.createElement('p');
-      empty.style.color = '#888';
+      empty.style.color = 'var(--text-muted)';
       empty.textContent = '現在、付与されているバフ/デバフはありません。';
       listEl.appendChild(empty);
       return;

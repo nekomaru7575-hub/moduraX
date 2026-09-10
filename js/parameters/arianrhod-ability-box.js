@@ -108,7 +108,7 @@ export function showArianrhodAbilityBox({
 
   if (!canEditValues) {
     const note = document.createElement('p');
-    note.style.color = '#888';
+    note.style.color = 'var(--text-muted)';
     note.style.fontSize = '0.8rem';
     note.textContent = 'これらの値は部屋の中では編集できません。コマ作成ツール（キャラクター作成）で入力してから部屋へ持ち込んでください。';
     form.appendChild(note);
@@ -129,7 +129,7 @@ export function showArianrhodAbilityBox({
     // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
     label.textContent = param?.label ?? fallbackLabel;
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
     row.appendChild(label);
 
@@ -142,7 +142,7 @@ export function showArianrhodAbilityBox({
       row.appendChild(input);
     } else {
       const valueEl = document.createElement('span');
-      valueEl.style.color = '#fff';
+      valueEl.style.color = 'var(--text-emphasis)';
       valueEl.textContent = String(Number(param?.value) || 0);
       row.appendChild(valueEl);
     }
@@ -163,7 +163,7 @@ export function showArianrhodAbilityBox({
     form.appendChild(checkTitle);
 
     const checkNote = document.createElement('p');
-    checkNote.style.color = '#888';
+    checkNote.style.color = 'var(--text-muted)';
     checkNote.style.fontSize = '0.8rem';
     checkNote.textContent = `(2+修正+{${diceModName}})D6+{能力ボーナス}+{${valueModName}} の形で組み立てます。{}のまま送るので、バフを含んだ今の値で振られます。`;
     form.appendChild(checkNote);
@@ -195,7 +195,7 @@ export function showArianrhodAbilityBox({
       label.className = 'dialog-param-label';
       label.textContent = check.label;
       label.style.alignSelf = 'center';
-      label.style.color = '#ccc';
+      label.style.color = 'var(--text-body)';
       label.style.fontSize = '0.85rem';
       row.appendChild(label);
 

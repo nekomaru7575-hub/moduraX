@@ -99,11 +99,11 @@ h1 {
 }
 
 .net-status-connecting {
-  color: #e0a020;
+  color: var(--text-caution);
 }
 
 .net-status-disconnected {
-  color: #e05252;
+  color: var(--text-alert);
 }
 
 /* ヘッダーの四角いボタン（.app-menu-btn）は、部屋の外のページの「⋯」と同じものを
@@ -380,7 +380,7 @@ h1 {
   font-size: 0.7rem;
   line-height: 1.2;
   color: var(--text-bright);
-  background-color: rgba(40, 40, 40, 0.85);
+  background-color: var(--board-chip);
   border: 1px dashed var(--border-bright);
   border-radius: 8px;
 }
@@ -388,12 +388,12 @@ h1 {
 .stamp-item-name {
   max-width: 100%;
   font-size: 0.7rem;
-  color: var(--text-emphasis);
+  color: var(--board-label);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 2px var(--board-label-halo);
 }
 
 /* 列（＝参加者）ごとに、名前を出すのは一番新しい1枚だけ。連投すると同じ名前が
@@ -409,9 +409,9 @@ h1 {
   padding: 4px 6px;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: #ffd479;
-  background-color: rgba(255, 212, 121, 0.1);
-  border: 1px solid rgba(255, 212, 121, 0.35);
+  color: var(--notice-warn-text);
+  background-color: var(--notice-warn-bg);
+  border: 1px solid var(--notice-warn-edge);
   border-radius: 4px;
 }
 
@@ -643,9 +643,9 @@ h1 {
 
 .dice-draft-pool.is-drop-hover,
 .dice-draft-slot.is-drop-hover {
-  border-color: #6aa9e0;
+  border-color: var(--fill-drop-edge);
   border-style: solid;
-  background-color: #33404a;
+  background-color: var(--fill-drop);
 }
 
 /* ダイス1個。1〜6はピップのSVG、それ以外は数字（js/check-view/dice-draft-view.jsのrenderDieFace）。
@@ -776,9 +776,9 @@ h1 {
   flex: 1 1 0;
   min-width: 0;
   padding: 2px 2px;
-  background-color: #2a4a2a;
-  color: #dfd;
-  border: 1px solid #4a6a4a;
+  background-color: var(--fill-go);
+  color: var(--fill-go-text);
+  border: 1px solid var(--fill-go-edge);
   border-radius: 4px;
   font-size: 0.72rem;
   white-space: nowrap;
@@ -786,7 +786,7 @@ h1 {
 }
 
 .dice-draft-use-btn:hover:not(:disabled) {
-  background-color: #356035;
+  background-color: var(--fill-go-hover);
   color: var(--text-emphasis);
 }
 
@@ -805,7 +805,7 @@ h1 {
 }
 
 .dice-draft-status.is-ready {
-  color: #8ec98e;
+  color: var(--text-ready);
 }
 
 /* スキル一覧の絞り込み（ドラクルージュの 戦／常／終）。パネルが狭いので折り返す */
@@ -835,9 +835,9 @@ h1 {
 }
 
 .dice-draft-tab.is-active {
-  background-color: #2a4a2a;
-  color: #dfd;
-  border-color: #4a6a4a;
+  background-color: var(--fill-go);
+  color: var(--fill-go-text);
+  border-color: var(--fill-go-edge);
 }
 
 /* 目標値に幅があるスキルの「どれを狙うか」。枠の幅を超えないよう横幅は目一杯にする */
@@ -941,7 +941,7 @@ h1 {
 /* 自分が今出している数字。公開前は自分にだけ見えている状態なので、はっきり示す */
 .round-panel-plot-btn.selected {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   border-color: var(--accent);
   font-weight: bold;
 }
@@ -996,14 +996,14 @@ h1 {
 /* 選んだプロット。数字ボタンのselectedと同じ色で「これが効いている」と示す */
 .round-panel-plot-choice-btn.selected {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   border-color: var(--accent);
   font-weight: bold;
 }
 
 /* 他の人が出した分の「提出済み」表示（値は見せない） */
 .round-panel-plot-note {
-  color: #8fbf8f;
+  color: var(--text-ready-soft);
   font-size: 0.8rem;
   margin-left: 4px;
 }
@@ -1028,15 +1028,15 @@ h1 {
 
 .round-panel-action-btn {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   font-weight: bold;
   border-color: var(--accent);
 }
 
 .round-panel-btn.active {
-  background-color: #2e7d32;
-  color: var(--text-emphasis);
-  border-color: #2e7d32;
+  background-color: var(--fill-active);
+  color: var(--text-on-dark);
+  border-color: var(--fill-active);
 }
 
 .round-panel-detail {
@@ -1060,7 +1060,7 @@ h1 {
 
 .round-panel-turn-row.active-turn {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
@@ -1076,7 +1076,7 @@ h1 {
    斜線（対角線）で示す。行動済みも同時に付いている場合は斜線を優先する
    （js/round-panel.jsのbuildTurnRow。復帰時は行動済みも一緒に外すため、通常は同時発生しない）。 */
 .round-panel-turn-row.withdrawn {
-  color: #ff6b6b;
+  color: var(--text-withdrawn);
   text-decoration: none;
   opacity: 0.85;
   background-image: linear-gradient(
@@ -1090,14 +1090,14 @@ h1 {
 
 /* 次の手番に割り込む予約が入っているコマ */
 .round-panel-turn-row.interrupt-reserved {
-  border: 1px solid #d0a000;
-  color: #f0c040;
+  border: 1px solid var(--edge-reserved);
+  color: var(--text-reserved);
 }
 
 /* プロットが同値のコマ。ルール上は同時処理で、並び順はCoreが決めた便宜上のもの
    （js/game-store.jsのsortForTurnOrder）。それが一目で分かるように点線で囲う。 */
 .round-panel-turn-row.plot-tied {
-  border: 1px dashed #7aa7c7;
+  border: 1px dashed var(--edge-tied);
 }
 
 /* 複数のプロットに出ていて、まだどれで動くか選ばれていない行。手番順もコストの上限も
@@ -1105,7 +1105,7 @@ h1 {
    枠線ではなく不透明度と文字色で区別する（js/round-panel.jsのbuildTurnRow）。 */
 .round-panel-turn-row.plot-unchosen {
   opacity: 0.65;
-  color: #c7a77a;
+  color: var(--text-unchosen);
 }
 
 .round-panel-turn-row.clickable {
@@ -1171,13 +1171,15 @@ h1 {
   position: absolute;
   width: 100%;
   height: 100%;
-  background-color: #808080;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-color: var(--board-ground);
+  /* 背景画像が無いときの既定。実際はjs/board-data-driven.jsのapplyBoardBackgroundが
+     インラインで上書きする（画像があるときは線の色を --board-grid-line-on-image に替える） */
+  background-image: linear-gradient(var(--board-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--board-grid-line) 1px, transparent 1px);
   background-size: 25px 25px, 25px 25px;
   background-position: 0 0, 0 0;
   background-repeat: repeat, repeat;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 20px var(--board-vignette);
   transform-origin: 0 0;
 }
 
@@ -1186,11 +1188,11 @@ h1 {
   height: 25px;
   background-color: transparent;
   overflow: hidden;
-  border: 2px solid var(--text-emphasis);
+  border: 2px solid var(--board-token-edge);
   border-radius: 10px;
   position: absolute;
   cursor: grab;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 8px var(--board-shadow);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1206,7 +1208,7 @@ h1 {
 .token:active {
   cursor: grabbing;
   transform: scale(1.1);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 16px var(--board-shadow-lift);
   transition: none;
 }
 
@@ -1231,6 +1233,7 @@ h1 {
   text-overflow: ellipsis;
   white-space: nowrap;
   padding: 0 2px;
+  color: var(--board-token-text);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   text-align: center;
   width : 100%;
@@ -1255,7 +1258,7 @@ h1 {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  border: 0px dashed rgba(255, 255, 255, 0.35);
+  border: 0px dashed var(--board-panel-edge);
   box-sizing: border-box;
   cursor: grab;
   touch-action: none;
@@ -1278,7 +1281,7 @@ h1 {
 .panel-object.locked {
   cursor: default;
   border-style: solid;
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--board-panel-edge-locked);
 }
 
 .panel-object.locked:active {
@@ -1290,7 +1293,7 @@ h1 {
 .panel-object.stocker {
   border-width: 2px;
   border-style: solid;
-  border-color: rgba(120, 200, 255, 0.55);
+  border-color: var(--board-stocker-edge);
 }
 
 .panel-stocker-count {
@@ -1299,8 +1302,8 @@ h1 {
   bottom: 0;
   font-size: 14px;
   font-weight: bold;
-  color: var(--text-emphasis);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: var(--board-label);
+  text-shadow: 0 1px 3px var(--board-label-halo);
   pointer-events: none;
 }
 
@@ -1308,7 +1311,7 @@ h1 {
    is-drop-hoverを付け外しする（ダイスドラフトのスロットと同じ見せ方）。 */
 .panel-object.is-drop-hover,
 .deck-object.is-drop-hover {
-  outline: 2px solid #4caf50;
+  outline: 2px solid var(--board-drop-edge);
   outline-offset: 1px;
 }
 
@@ -1322,7 +1325,9 @@ h1 {
   box-sizing: border-box;
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.55);
-  background-color: #f7f5ef; /* 画像が無いときの表面（紙の色） */
+  /* 画像が無いときの表面（紙の色）。枠・影・裏面も含め、カードは盤面に置く「物」なので
+     色をテーマで変えない（css/tokens.css 冒頭の「テーマで変えない色」） */
+  background-color: #f7f5ef;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   cursor: grab;
@@ -1404,7 +1409,7 @@ h1 {
   left: 0;
   right: 0;
   text-align: center;
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   pointer-events: none;
 }
@@ -1606,7 +1611,7 @@ h1 {
   background-color: var(--surface-base);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 8px 24px var(--shadow-float);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1648,7 +1653,7 @@ h1 {
 }
 
 .floating-panel-close:hover {
-  background-color: #4a3a3a;
+  background-color: var(--fill-close-hover);
   color: var(--text-emphasis);
 }
 
@@ -1765,7 +1770,7 @@ h1 {
 }
 
 .chat-palette-name-status.is-plain {
-  color: #c9a227;
+  color: var(--accent-gold);
 }
 
 .chat-palette-list {
@@ -1791,22 +1796,22 @@ h1 {
 }
 
 .chat-palette-line:hover {
-  background-color: #33405a;
+  background-color: var(--fill-hover-cool);
   color: var(--text-emphasis);
 }
 
 /* 見出し行（「//」始まり）。フレーズではないので押せず、色で塊の頭だと分かるようにする。
    hoverの色変化も打ち消して、「押せそう」に見せない。 */
 .chat-palette-line.is-heading {
-  color: #e5c453;
+  color: var(--text-heading-gold);
   cursor: default;
-  border-bottom-color: #3a3423;
+  border-bottom-color: var(--edge-heading-gold);
   margin-top: 4px;
 }
 
 .chat-palette-line.is-heading:hover {
   background-color: transparent;
-  color: #e5c453;
+  color: var(--text-heading-gold);
 }
 
 .chat-palette-empty {
@@ -1854,7 +1859,7 @@ h1 {
 .chat-palette-send-btn {
   flex: 0 0 auto;
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   border: none;
   border-radius: 4px;
   padding: 0 12px;
@@ -1863,7 +1868,7 @@ h1 {
 }
 
 .chat-palette-send-btn:hover {
-  background-color: #0a8ae0;
+  background-color: var(--accent-hover-soft);
 }
 
 .chat-palette-footer {
@@ -1890,13 +1895,13 @@ h1 {
 /* 初期化（全タブ削除）。取り返しがつかないので、よく押すボタンから引き離して左端へ置く。 */
 .chat-palette-footer-btn.is-danger {
   margin-right: auto;
-  color: #c88;
-  border-color: #5a4444;
+  color: var(--danger-soft-text);
+  border-color: var(--danger-soft-edge);
 }
 
 .chat-palette-footer-btn.is-danger:hover {
-  background-color: #4a3030;
-  color: #fbb;
+  background-color: var(--danger-soft-hover);
+  color: var(--danger-soft-hover-text);
 }
 
 /* 情報パネル：タイトル＋内容の組をタブで並べる共有メモ（js/info-panel.js）。
@@ -1973,7 +1978,7 @@ h1 {
 
 /* 区画の見出し。将来のダブルハンドアウト（表の使命／裏の使命）で使う */
 .info-panel-section-head {
-  color: #c9a227;
+  color: var(--accent-gold);
   font-size: 0.75rem;
   margin-bottom: 3px;
 }
@@ -2068,7 +2073,7 @@ button.info-mask:hover {
   background-color: var(--surface-base);
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 6px var(--shadow-panel);
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -2115,11 +2120,11 @@ select:focus, input[type="text"]:focus, textarea:focus {
 }
 
 .btn-send:hover {
-  background-color: #0098ff;
+  background-color: var(--accent-hover);
 }
 
 .btn-send:disabled {
-  background-color: #555;
+  background-color: var(--fill-disabled);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -2172,7 +2177,7 @@ select:focus, input[type="text"]:focus, textarea:focus {
 
 .chat-tab.active {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   border-color: var(--accent);
 }
 
@@ -2184,7 +2189,7 @@ select:focus, input[type="text"]:focus, textarea:focus {
   height: 7px;
   margin-left: 5px;
   border-radius: 50%;
-  background-color: #d9534f;
+  background-color: var(--badge-alert);
   vertical-align: middle;
 }
 
@@ -2218,20 +2223,20 @@ select:focus, input[type="text"]:focus, textarea:focus {
    人が喋るタブと役割が違うことが一目で分かるよう、彩度を落とした地色にしておく
    （「？ヘルプ」ほど目立たせない：探させたい場所ではなく、常にそこにある置き場なので） */
 .chat-tab-system {
-  background-color: #23303a;
-  color: #9fb6c4;
-  border-color: #3a5566;
+  background-color: var(--tab-system-bg);
+  color: var(--tab-system-text);
+  border-color: var(--tab-system-edge);
 }
 
 .chat-tab-system:hover {
-  background-color: #2e404e;
+  background-color: var(--tab-system-hover);
   color: var(--text-emphasis);
 }
 
 .chat-tab-system.active {
-  background-color: #3a6b8a;
-  color: var(--text-emphasis);
-  border-color: #4d88ad;
+  background-color: var(--tab-system-active);
+  color: var(--text-on-dark);
+  border-color: var(--tab-system-active-edge);
 }
 
 /* 「？ヘルプ」タブ。他のタブと違い、選んでいなくても黄色くしておく
@@ -2298,7 +2303,7 @@ select:focus, input[type="text"]:focus, textarea:focus {
 }
 
 .help-chat-row.is-user .help-bubble {
-  background-color: #0b5f96;
+  background-color: var(--fill-user-bubble);
 }
 
 .help-paragraph {
@@ -2619,7 +2624,7 @@ select:focus, input[type="text"]:focus, textarea:focus {
 
   .mobile-stage-tab.is-active {
     background-color: var(--accent);
-    color: var(--text-emphasis);
+    color: var(--text-on-dark);
     border-color: var(--accent);
   }
 
@@ -2634,8 +2639,8 @@ select:focus, input[type="text"]:focus, textarea:focus {
      タブの中に置くので、文字が押し出されないよう縮まない指定にする。 */
   .mobile-stage-tab-badge {
     flex: 0 0 auto;
-    background-color: #d9534f;
-    color: var(--text-emphasis);
+    background-color: var(--badge-alert);
+    color: var(--text-on-dark);
     border-radius: 999px;
     padding: 0 5px;
     font-size: 0.7rem;

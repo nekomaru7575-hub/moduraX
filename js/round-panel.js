@@ -541,7 +541,7 @@ export function initRoundPanel() {
       if (detailExpanded) {
         if (round.participants.length === 0) {
           const empty = document.createElement('p');
-          empty.style.color = '#888';
+          empty.style.color = 'var(--text-muted)';
           empty.style.fontSize = '0.85rem';
           empty.style.margin = '0';
           empty.textContent = '参加者がいません。';

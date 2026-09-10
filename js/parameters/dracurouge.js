@@ -273,7 +273,7 @@ function renderDracurougeCharacterPanel({
   const title = document.createElement('h4');
   title.textContent = 'ドラクルージュ';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   if (canWrite) renameHpToExistence({ readParameters, dispatch, tokenId });
@@ -287,7 +287,7 @@ function renderDracurougeCharacterPanel({
   typeLabel.className = 'dialog-param-label';
   typeLabel.textContent = '種別';
   typeLabel.style.alignSelf = 'center';
-  typeLabel.style.color = '#ccc';
+  typeLabel.style.color = 'var(--text-body)';
   typeLabel.style.fontSize = '0.85rem';
   const typeSelect = buildTypeSelect(charType);
   typeSelect.disabled = !canEdit;
@@ -317,7 +317,7 @@ function renderDracurougeCharacterPanel({
       label.className = 'dialog-param-label';
       label.textContent = definition.label;
       label.style.alignSelf = 'center';
-      label.style.color = '#ccc';
+      label.style.color = 'var(--text-body)';
       label.style.fontSize = '0.85rem';
 
       let input;
@@ -351,12 +351,12 @@ function renderDracurougeCharacterPanel({
   bonusLabel.className = 'dialog-param-label';
   bonusLabel.textContent = TARGET_BONUS_PARAMETER.label;
   bonusLabel.style.alignSelf = 'center';
-  bonusLabel.style.color = '#ccc';
+  bonusLabel.style.color = 'var(--text-body)';
   bonusLabel.style.fontSize = '0.85rem';
 
   const bonusValue = document.createElement('span');
   bonusValue.style.alignSelf = 'center';
-  bonusValue.style.color = '#ddd';
+  bonusValue.style.color = 'var(--text-body-strong)';
   bonusValue.style.fontSize = '0.85rem';
   bonusValue.title = 'バフ/デバフで増減します。行いの目標値がこの分だけ動きます';
 

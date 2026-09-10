@@ -283,7 +283,7 @@ export function showComboBox({
   form.appendChild(title);
 
   const note = document.createElement('p');
-  note.style.color = '#888';
+  note.style.color = 'var(--text-muted)';
   note.style.fontSize = '0.8rem';
   note.textContent = '発動/判定/ダメージはチャットコマンド（combo.awk(コンボ名)/combo.chk(コンボ名)/combo.dmg(コンボ名)）から実行します。「コマンドをコピー」で3つのコマンドをコピーし、チャットパレットの編集欄（複数行貼り付け可）に貼り付けてください。保存済みの内容に対して実行されるため、エフェクトの選択や能力値/技能値を変えたら、先に保存してください。';
   form.appendChild(note);
@@ -379,7 +379,7 @@ export function showComboBox({
 
       if (effects.length === 0) {
         const empty = document.createElement('span');
-        empty.style.color = '#888';
+        empty.style.color = 'var(--text-muted)';
         empty.style.fontSize = '0.8rem';
         empty.textContent = '（登録済みのエフェクトがありません）';
         checkboxListEl.appendChild(empty);
@@ -390,7 +390,7 @@ export function showComboBox({
       const visibleEffects = effects.filter(e => !timing || e.fields?.timing === timing);
       if (visibleEffects.length === 0) {
         const empty = document.createElement('span');
-        empty.style.color = '#888';
+        empty.style.color = 'var(--text-muted)';
         empty.style.fontSize = '0.8rem';
         empty.textContent = `（タイミング「${timing}」のエフェクトがありません）`;
         checkboxListEl.appendChild(empty);

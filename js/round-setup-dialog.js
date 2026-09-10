@@ -34,7 +34,7 @@ export function showRoundSetupDialog({ title = '参加者を選択', tokens, cur
 
   if (tokens.length === 0) {
     const empty = document.createElement('p');
-    empty.style.color = '#888';
+    empty.style.color = 'var(--text-muted)';
     empty.style.fontSize = '0.85rem';
     empty.textContent = '盤面にキャラクターがいません。';
     listEl.appendChild(empty);

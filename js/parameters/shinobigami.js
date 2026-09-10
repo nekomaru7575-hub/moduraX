@@ -644,7 +644,7 @@ function renderShinobigamiCharacterPanel(options) {
   const title = document.createElement('h4');
   title.textContent = 'シノビガミ';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   // 新規作成時はまだcomponentsを持たない（コマが存在しない）ため、特技表は開けない。

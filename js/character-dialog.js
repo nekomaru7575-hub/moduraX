@@ -837,7 +837,7 @@ export function showCharacterEditDialog({
     label.textContent = param.label;
     label.className = 'dialog-param-label';
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
 
     // カスタム変数（source:'user'）のみ文字列値を受け付ける。HP等の組み込み・

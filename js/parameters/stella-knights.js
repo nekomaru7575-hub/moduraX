@@ -182,7 +182,7 @@ function renderStellaKnightsCharacterPanel({
   const title = document.createElement('h4');
   title.textContent = '銀剣のステラナイツ';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   // 出目の在庫はダイスドラフトのプール（js/check-view/dice-draft-view.js）が持つので、
@@ -204,7 +204,7 @@ function renderStellaKnightsCharacterPanel({
     // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
     label.textContent = parameters[paramId]?.label ?? fallbackLabel;
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
 
     const input = document.createElement('input');

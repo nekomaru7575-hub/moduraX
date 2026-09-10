@@ -105,7 +105,7 @@ function createInstallButton(container) {
 
 function createIosHint(container) {
   const hint = document.createElement('p');
-  hint.style.color = '#aaa';
+  hint.style.color = 'var(--text-secondary)';
   hint.style.fontSize = '0.85rem';
   hint.style.margin = '8px 0 0';
   hint.style.lineHeight = '1.6';
@@ -117,7 +117,7 @@ function createIosHint(container) {
   close.setAttribute('aria-label', 'この案内を閉じる');
   close.style.background = 'none';
   close.style.border = 'none';
-  close.style.color = '#888';
+  close.style.color = 'var(--text-muted)';
   close.style.cursor = 'pointer';
   close.style.marginLeft = '6px';
   close.style.fontSize = '0.85rem';

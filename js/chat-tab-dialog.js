@@ -115,7 +115,7 @@ export function showChatTabDialog({
     form.appendChild(picker.element);
   } else {
     const fixedNote = document.createElement('p');
-    fixedNote.style.color = '#888';
+    fixedNote.style.color = 'var(--text-muted)';
     fixedNote.style.marginTop = '8px';
     fixedNote.textContent = '公開先: 全員（このタブは常に全員に公開されます）';
     form.appendChild(fixedNote);

@@ -54,7 +54,7 @@ export function showRoomParametersDialog({ parameters, onConfirm }) {
     const label = document.createElement('span');
     label.textContent = param.label;
     label.className = 'dialog-param-label';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
     row.appendChild(label);
 

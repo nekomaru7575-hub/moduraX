@@ -124,7 +124,12 @@ export function buildPanelToggleItems() {
 
 const GRID_SIZE = 25;
 // #boardのCSS側で定義しているグリッド線レイヤー。背景画像を差し替える際もこの2層は維持する。
-const BOARD_GRID_LAYERS = "linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px)";
+// 線の色は css/tokens.css の --board-grid-line*（明るい表示では色が替わる）。背景画像の上では
+// 明るさを決めるのは画像なので、テーマで変えない方（-on-image）を使う。
+function boardGridLayers(onImage) {
+  const line = onImage ? 'var(--board-grid-line-on-image)' : 'var(--board-grid-line)';
+  return `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`;
+}
 
 /**
  * オブジェクトの位置を確定するときの丸め。**位置を決める箇所は必ずここを通すこと**：
@@ -344,7 +349,7 @@ function applyBoardBackground(board, room) {
   const repeats = [];
 
   if (showGrid) {
-    layers.push(BOARD_GRID_LAYERS); // 縦線・横線の2層
+    layers.push(boardGridLayers(Boolean(imageUrl))); // 縦線・横線の2層
     sizes.push(`${GRID_SIZE}px ${GRID_SIZE}px`, `${GRID_SIZE}px ${GRID_SIZE}px`);
     repeats.push('repeat', 'repeat');
   }
@@ -816,7 +821,7 @@ function applyPanelAppearance(el, panelData) {
     el.style.backgroundColor = '';
   } else {
     el.style.backgroundImage = '';
-    el.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+    el.style.backgroundColor = 'var(--board-panel-empty)';
   }
 
   // --- カードストッカー ---

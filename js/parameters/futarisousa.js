@@ -596,7 +596,7 @@ function renderFutariSousaCharacterPanel({
   const title = document.createElement('h4');
   title.textContent = 'フタリソウサ';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   // --- 属性（探偵 / 助手 / NPC）---
@@ -608,7 +608,7 @@ function renderFutariSousaCharacterPanel({
   typeLabel.className = 'dialog-param-label';
   typeLabel.textContent = '属性';
   typeLabel.style.alignSelf = 'center';
-  typeLabel.style.color = '#ccc';
+  typeLabel.style.color = 'var(--text-body)';
   typeLabel.style.fontSize = '0.85rem';
   const typeSelect = buildTypeSelect(charType);
   // 表示だけの人にはここで先に固める。これが効いているおかげで、下のchangeハンドラが
@@ -640,7 +640,7 @@ function renderFutariSousaCharacterPanel({
       label.className = 'dialog-param-label';
       label.textContent = definition.label;
       label.style.alignSelf = 'center';
-      label.style.color = '#ccc';
+      label.style.color = 'var(--text-body)';
       label.style.fontSize = '0.85rem';
 
       const input = document.createElement('input');
@@ -685,7 +685,7 @@ function renderFutariSousaCharacterPanel({
     label.className = 'dialog-param-label';
     label.textContent = '心労';
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
     stressRow.appendChild(label);
 

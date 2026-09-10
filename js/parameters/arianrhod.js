@@ -268,7 +268,7 @@ function renderArianrhodCharacterPanel({
   const title = document.createElement('h4');
   title.textContent = 'アリアンロッドRPG 2E';
   title.style.margin = '0 0 8px 0';
-  title.style.color = '#fff';
+  title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
   const list = document.createElement('div');
@@ -284,7 +284,7 @@ function renderArianrhodCharacterPanel({
     // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
     label.textContent = parameters[rowParamId]?.label ?? fallbackLabel;
     label.style.alignSelf = 'center';
-    label.style.color = '#ccc';
+    label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
 
     const input = document.createElement('input');

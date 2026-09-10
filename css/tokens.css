@@ -99,6 +99,108 @@
 
   /* --- アクセント --- */
   --accent: #007acc;            /* 選択中・主ボタン */
+  --accent-hover: #0098ff;      /* 送信ボタンのhover */
+  --accent-hover-soft: #0a8ae0; /* チャットパレットの送信ボタンのhover */
+  --accent-gold: #c9a227;       /* 見出し・制限付きの目印に使う金色（文字にも枠にも使う） */
+
+  /* --- 色の濃い塗り・画像の上に乗る文字 ---
+     青・緑・赤の塗りのボタン、カードの裏面など。地がテーマで変わらない（または変わっても
+     白が読める濃さに保つ）ので、この文字もテーマで変えない。
+     以前はここに --text-emphasis を使っていたが、あれは見出しの色でもあるため、明るい表示で
+     黒へ反転した瞬間に塗りの上の文字が沈む。役割を分けてある。 */
+  --text-on-dark: #fff;
+
+  /* --- 1つの部品だけが持つ、状態を伝える文字の色 ---
+     値が近いものもあるが、それぞれ別の画面で別の意味を持つので揃えていない。 */
+  --text-caution: #e0a020;      /* 接続中・音源の注意 */
+  --text-alert: #e05252;        /* 切断 */
+  --text-over: #e06060;         /* 重量などの上限超え */
+  --text-error-soft: #e58a90;   /* 入力中に出す式の誤り */
+  --text-ready: #8ec98e;        /* ダイスドラフトの準備完了 */
+  --text-ready-soft: #8fbf8f;   /* 他の人のプロット提出済み */
+  --text-withdrawn: #ff6b6b;    /* 戦闘離脱したコマの行 */
+  --text-reserved: #f0c040;     /* 割り込み予約の行 */
+  --text-unchosen: #c7a77a;     /* どのプロットで動くか未選択の行 */
+  --text-heading-gold: #e5c453; /* チャットパレットの見出し行 */
+  --text-buff: #7fb2ff;         /* 特技表のバフの注記 */
+  --text-lost: #8a6a6a;         /* 生命力を失った分野の見出し */
+
+  /* --- 1つの部品だけが持つ枠の色 --- */
+  --edge-reserved: #d0a000;
+  --edge-tied: #7aa7c7;         /* プロット同値の点線 */
+  --edge-heading-gold: #3a3423;
+  --edge-noir: #555a75;         /* ドラクルージュの絆（ノワール側） */
+  --edge-hover-cool: #9ec1f0;   /* 特技表のマスのhover */
+
+  /* --- 色の付いた塗り ---
+     白い文字（--text-on-dark）を乗せる前提の濃さ。明るい表示でもこの前提は崩さない。 */
+  --fill-primary: #4a6ea8;      /* 取得済み・使用ボタン */
+  --fill-primary-edge: #6f95cf;
+  --fill-primary-deep: #3a4a6a; /* 人物の属性「＋」 */
+  --fill-danger: #5a3a3a;       /* 赤い側のトグル（−・タイタス・別の効果） */
+  --fill-danger-edge: #8a5555;
+  --fill-danger-strong: #a8323f;/* 取り消せない操作 */
+  --fill-mark: #a2494c;         /* 特技表の印・使えない特技 */
+  --fill-mark-edge: #d08084;
+  --fill-muted: #5a5a6e;        /* 取得済みだが枠を失った特技 */
+  --fill-muted-edge: #7a7a90;
+  --fill-active: #2e7d32;       /* ラウンド進行中のボタン */
+  --fill-disabled: #555;        /* 押せない送信ボタン */
+  --badge-alert: #d9534f;       /* 未読の印 */
+
+  /* --- 面に薄く色を乗せた塗り。上の文字は面と一緒にテーマで変わる --- */
+  --fill-go: #2a4a2a;           /* ダイスドラフトの「使う」・選択中のタブ */
+  --fill-go-text: #dfd;
+  --fill-go-edge: #4a6a4a;
+  --fill-go-hover: #356035;
+  --fill-drop: #33404a;         /* ダイスを落とせる場所 */
+  --fill-drop-edge: #6aa9e0;
+  --fill-hover-cool: #33405a;   /* チャットパレットの行のhover */
+  --fill-close-hover: #4a3a3a;  /* 浮動パネルの×のhover */
+  --fill-user-bubble: #0b5f96;  /* ヘルプの対話で自分が選んだ吹き出し */
+  --fill-gap: #e0e0e0;          /* 特技表の埋まった隙間 */
+  --danger-soft-text: #c88;     /* 控えめな危険操作（パレットの初期化） */
+  --danger-soft-edge: #5a4444;
+  --danger-soft-hover: #4a3030;
+  --danger-soft-hover-text: #fbb;
+  --tab-system-bg: #23303a;     /* 「システム」タブ */
+  --tab-system-text: #9fb6c4;
+  --tab-system-edge: #3a5566;
+  --tab-system-hover: #2e404e;
+  --tab-system-active: #3a6b8a;
+  --tab-system-active-edge: #4d88ad;
+  --notice-warn-text: #ffd479;  /* スタンプ送信パネルの注意書き */
+  --notice-warn-bg: rgba(255, 212, 121, 0.1);
+  --notice-warn-edge: rgba(255, 212, 121, 0.35);
+
+  /* --- 影。明るい地では同じ濃さだと汚れて見えるので、テーマごとに薄さを変える --- */
+  --shadow-panel: rgba(0, 0, 0, 0.3);
+  --shadow-menu: rgba(0, 0, 0, 0.4);
+  --shadow-popover: rgba(0, 0, 0, 0.5);
+  --shadow-float: rgba(0, 0, 0, 0.55);
+  --backdrop: rgba(0, 0, 0, 0.5);  /* モーダルの後ろを沈める幕 */
+
+  /* --- 盤面 ---
+     盤面の地とその上に直接乗るもの。面(--surface-*)とは別に持つのは、盤面の上の文字や枠が
+     「面の上」ではなく「盤面の地の上」で読める必要があるため。 */
+  --board-ground: #808080;
+  --board-grid-line: rgba(255, 255, 255, 0.15);
+  /* 背景画像の上に引くマス目。明るさを決めるのは画像なので、テーマで変えない */
+  --board-grid-line-on-image: rgba(255, 255, 255, 0.15);
+  --board-vignette: rgba(0, 0, 0, 0.5);
+  --board-token-edge: #fff;
+  /* コマの名前。コマ自身の色・画像の上に乗り、暗いハローを持つので、テーマで変えない */
+  --board-token-text: #e0e0e0;
+  --board-shadow: rgba(0, 0, 0, 0.4);
+  --board-shadow-lift: rgba(0, 0, 0, 0.6);
+  --board-label: #fff;          /* 盤面の地に直接乗る文字（スタンプ名・ストッカーの枚数） */
+  --board-label-halo: rgba(0, 0, 0, 0.9);
+  --board-panel-edge: rgba(255, 255, 255, 0.35);
+  --board-panel-edge-locked: rgba(255, 255, 255, 0.2);
+  --board-stocker-edge: rgba(120, 200, 255, 0.55);
+  --board-panel-empty: rgba(255, 255, 255, 0.05);  /* 画像の無いパネル（js/board-data-driven.js） */
+  --board-drop-edge: #4caf50;
+  --board-chip: rgba(40, 40, 40, 0.85);  /* スタンプの画像が無いときの代わり */
 
   /* --- キーボード操作の目印（combined_layout.html の :focus-visible 参照） --- */
   --focus-ring: #fff;
@@ -212,7 +314,7 @@
   background-color: var(--surface-base);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 16px var(--shadow-menu);
   display: flex;
   flex-direction: column;
   min-width: 140px;
@@ -247,8 +349,8 @@
 }
 
 .context-menu-item.danger:hover {
-  background-color: #a8323f;
-  color: var(--text-emphasis);
+  background-color: var(--fill-danger-strong);
+  color: var(--text-on-dark);
 }
 
 /* 指で操作する環境（タッチ・ペン）。画面幅とは独立に、当たり判定だけを広げる。

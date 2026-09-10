@@ -208,9 +208,9 @@
 
 /* 行ごとの任意ボタン（spec.rowActions。シノビガミの人物の「感情修正」） */
 .effect-box-row-action {
-  background-color: #4a6ea8;
-  color: var(--text-emphasis);
-  border: 1px solid #6f95cf;
+  background-color: var(--fill-primary);
+  color: var(--text-on-dark);
+  border: 1px solid var(--fill-primary-edge);
   border-radius: 4px;
   padding: 6px 10px;
   cursor: pointer;
@@ -234,15 +234,15 @@
 }
 
 .effect-box-toggle.person-box-attitude.is-opt-1 {
-  background-color: #3a4a6a;
-  border-color: #6f95cf;
-  color: var(--text-emphasis);
+  background-color: var(--fill-primary-deep);
+  border-color: var(--fill-primary-edge);
+  color: var(--text-on-dark);
 }
 
 .effect-box-toggle.person-box-attitude.is-opt-2 {
-  background-color: #5a3a3a;
-  border-color: #8a5555;
-  color: var(--text-emphasis);
+  background-color: var(--fill-danger);
+  border-color: var(--fill-danger-edge);
+  color: var(--text-on-dark);
 }
 
 .person-box-emotion {
@@ -277,9 +277,9 @@
 }
 
 .effect-box-use-btn {
-  background-color: #4a6ea8;
-  color: var(--text-emphasis);
-  border: 1px solid #6f95cf;
+  background-color: var(--fill-primary);
+  color: var(--text-on-dark);
+  border: 1px solid var(--fill-primary-edge);
   border-radius: 4px;
   padding: 6px 10px;
   margin-left: 4px;
@@ -305,14 +305,14 @@
 }
 
 .effect-box-footer.is-over {
-  color: #e06060;
+  color: var(--text-over);
   font-weight: bold;
 }
 
 .effect-box-toggle.is-alt {
-  background-color: #5a3a3a;
-  border-color: #8a5555;
-  color: var(--text-emphasis);
+  background-color: var(--fill-danger);
+  border-color: var(--fill-danger-edge);
+  color: var(--text-on-dark);
 }
 
 /* その種類では使わない欄と同じ薄さにする（.is-unavailable は input/select にしか
@@ -474,7 +474,7 @@
 
 /* コンボ時修正の式が評価できないときの注意（使用時に黙って0にならないよう、入力時に出す） */
 .effect-box-combo-error {
-  color: #e58a90;
+  color: var(--text-error-soft);
   font-size: 0.75rem;
   line-height: 1.4;
   margin-top: 4px;
@@ -556,9 +556,9 @@
 }
 
 .lois-box-state-toggle.is-titus {
-  background-color: #5a3a3a;
-  border-color: #8a5555;
-  color: var(--text-emphasis);
+  background-color: var(--fill-danger);
+  border-color: var(--fill-danger-edge);
+  color: var(--text-on-dark);
 }
 
 .lois-box-sublimated {
@@ -711,11 +711,11 @@
 }
 
 .bond-box-side-rouge .bond-box-slot {
-  border-color: #8a5555;
+  border-color: var(--fill-danger-edge);
 }
 
 .bond-box-side-noir .bond-box-slot {
-  border-color: #555a75;
+  border-color: var(--edge-noir);
 }
 
 /* 消えざる絆。名称の左隣がノワール側、右隣がルージュ側。
@@ -830,7 +830,7 @@
 }
 
 .character-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--backdrop);
 }
 
 .character-dialog h3 {
@@ -979,7 +979,7 @@
   background-color: var(--surface-well);
   border: 1px solid var(--border-default);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px var(--shadow-popover);
   color: var(--text-body-strong);
   font-size: 0.8rem;
   line-height: 1.5;
@@ -1151,7 +1151,7 @@
 }
 
 .dialog-audience-btn.restricted {
-  border-color: #c9a227;
+  border-color: var(--accent-gold);
 }
 
 /* 行を消すボタン。パラメータ行では「×」1文字だが、画像の行では「画像を削除」の
@@ -1288,7 +1288,7 @@
 }
 
 .audio-note-warn {
-  color: #e0a020;
+  color: var(--text-caution);
 }
 
 /* 一覧が空のときの説明行（オリジナル表一覧） */
@@ -1356,7 +1356,7 @@
 
 /* 合計枚数の注記が上限を超えたとき。切られてから気づくのを防ぐための警告 */
 .dialog-form-note.over-limit {
-  color: #e57373;
+  color: var(--text-danger);
 }
 
 /* 情報（js/info-entry-dialog.js）の区画エディタ。1区画＝見出し＋本文＋公開先を1枚の枠に
@@ -1509,14 +1509,14 @@
 
 .dialog-confirm-btn {
   background-color: var(--accent);
-  color: var(--text-emphasis);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
 /* 部屋削除など、取り消せない操作のボタン */
 .dialog-danger-btn {
-  background-color: #a8323f;
-  color: var(--text-emphasis);
+  background-color: var(--fill-danger-strong);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
@@ -1639,9 +1639,9 @@
 }
 
 .sf-skill-table-mark-btn.is-active {
-  background-color: #a2494c;
-  border-color: #d08084;
-  color: var(--text-emphasis);
+  background-color: var(--fill-mark);
+  border-color: var(--fill-mark-edge);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
@@ -1687,7 +1687,7 @@
    負けないようにするため。 */
 .sf-skill-table-check-option span.sf-skill-table-check-buff {
   font-size: 0.7rem;
-  color: #7fb2ff;
+  color: var(--text-buff);
   margin-top: 2px;
   margin-bottom: 0;
   text-align: center;
@@ -1730,7 +1730,7 @@
 
 /* 枠（生命力）を失った分野。見出しごと沈めて、下の列全体が使えないことを示す */
 .sf-skill-table-header.is-lost .sf-skill-table-header-label {
-  color: #8a6a6a;
+  color: var(--text-lost);
   text-decoration: line-through;
 }
 
@@ -1852,9 +1852,9 @@
 }
 
 .sf-skill-cell.is-acquired {
-  background-color: #4a6ea8;
-  border-color: #6f95cf;
-  color: var(--text-emphasis);
+  background-color: var(--fill-primary);
+  border-color: var(--fill-primary-edge);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
@@ -1867,8 +1867,8 @@
 /* 取得しているのに枠を失っている特技。代用元に使えないので、取得済みの色は残したまま
    取り消し線を引いて「持っているが判定には使えない」ことを見せる。 */
 .sf-skill-cell.is-acquired.is-slot-lost {
-  background-color: #5a5a6e;
-  border-color: #7a7a90;
+  background-color: var(--fill-muted);
+  border-color: var(--fill-muted-edge);
   text-decoration: line-through;
 }
 
@@ -1877,9 +1877,9 @@
 .sf-skill-cell.is-cell-disabled,
 .sf-skill-cell.is-acquired.is-cell-disabled,
 .sf-skill-cell.is-acquired.is-slot-lost.is-cell-disabled {
-  background-color: #a2494c;
-  border-color: #d08084;
-  color: var(--text-emphasis);
+  background-color: var(--fill-mark);
+  border-color: var(--fill-mark-edge);
+  color: var(--text-on-dark);
   font-weight: bold;
 }
 
@@ -1888,7 +1888,7 @@
 }
 
 .sf-skill-cell.is-clickable:hover {
-  border-color: #9ec1f0;
+  border-color: var(--edge-hover-cool);
 }
 
 /* ギャップ：分野の間の細い縦帯。全行をまたぐ1本の要素として描く */
@@ -1899,7 +1899,7 @@
 }
 
 .sf-skill-gap.is-filled {
-  background-color: #e0e0e0;
+  background-color: var(--fill-gap);
   border-style: solid;
   border-color: var(--text-emphasis);
 }
@@ -1909,7 +1909,7 @@
 }
 
 .sf-skill-gap.is-clickable:hover {
-  border-color: #9ec1f0;
+  border-color: var(--edge-hover-cool);
 }
 
 .sf-skill-table-note {

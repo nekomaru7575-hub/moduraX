@@ -84,6 +84,7 @@ import { showRoomDeleteConfirmDialog } from './room-delete-dialog.js';
 import { canOperateAsGm, canEditChatEntry, GM_ONLY_REASON } from './room-authority.js';
 import { createHelpPanel } from './help/help-panel.js';
 import { applyStaticIcons, setIconText } from './icons.js';
+import { getTheme, setTheme, initTheme } from './theme.js';
 
 // HTMLにdata-iconで置き場所だけ書いてあるアイコン（ヘッダーのボタンなど）を埋める。
 // DOM要素の取得より先に済ませておく。
@@ -1167,6 +1168,12 @@ if (roomMenuBtn && roomSettingsDialog) {
       {
         label: '参加者設定',
         onSelect: openIdentityDialog
+      },
+      // 表示の明暗。音量と同じく自分の画面だけの設定（js/theme.js）。
+      // 文言は今の状態ではなく、押すと起きることを書く。
+      {
+        label: getTheme() === 'light' ? '暗い表示にする' : '明るい表示にする',
+        onSelect: () => setTheme(getTheme() === 'light' ? 'dark' : 'light')
       },
       // ホーム画面／デスクトップにインストールして開くとアドレスバーが無く、更新ボタンも
       // 引っ張って更新も使えない（後者はhtmlのoverscroll-behaviorでこちらが止めている）。
@@ -2703,11 +2710,13 @@ function buildLogHtml({ system = "", character = "", comment = "", command = "",
 // CSPの style-src に 'unsafe-inline' を開けておかないと効かない。挿入した後に
 // CSSOM（要素の .style）から当てれば、その必要がなくなる（CSSOMはCSPの対象外）。
 // 色として認められない形の値は当てず、CSS側の既定（--text-speaker）のままにする。
+// color を直接書かずに --name-color として渡すのは、明るい表示でCSS側が明るさだけを
+// 抑えられるようにするため（暗い地で選ばれた淡い黄などが白地に沈む。css/board.css の .log-name）。
 function applyLogNameColor(item, color) {
   const nameEl = item.querySelector('.log-name');
   if (!nameEl) return;
   const safe = safeCssColor(color, '');
-  if (safe) nameEl.style.color = safe;
+  if (safe) nameEl.style.setProperty('--name-color', safe);
 }
 
 // entryを指定タブ（省略時は現在表示中のタブ）のログへ追加する。
@@ -2721,6 +2730,9 @@ function applyLog(entry, tabId = activeTabId) {
 window.addEventListener('DOMContentLoaded', async () => {
   // 盤面が自前でズームを持っているので、ブラウザのページズームとは競合させない
   initNoBrowserZoom();
+
+  // 表示の明暗（属性は js/theme-boot.js が描画前に付け済み。ここは meta と他タブへの追従）
+  initTheme();
 
   // リポジトリに置いていない絵（プラグインのスタンプ・トランプ）の置き場と、鳴らす音のURLを
   // 先に受け取る。スタンプの一覧もデッキの裏面も、最初に読まれた時点のURLで固まるので、

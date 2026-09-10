@@ -1,3 +1,4 @@
+/* Hallmark · theme variant: light 紙 · paper oklch(97.5% 0.008 85) · accent #007acc kept · genre: utilitarian tool UI */
 /* css/tokens.css
    全ページが読む土台。中身は2つ。
      1. 色と書体のトークン（:root）
@@ -28,7 +29,21 @@
 
    【HTMLに style="…" を書かないこと】CSPの style-src が 'self' だけなので、
    書いても効かない（画面は崩れるがエラーは出ない）。server/index.js のCSPの
-   コメントも参照。 */
+   コメントも参照。
+
+   【暗い表示と明るい表示】:root が暗い表示の値、:root[data-theme="light"] が明るい表示
+   （紙の白）の値。data-theme を付けるのは部屋の画面だけ（js/theme-boot.js・js/theme.js）
+   なので、他のページは暗い表示のまま。
+   - トークンを足すときは、両方の値を入れること。片方だけだと、もう片方の表示でその色だけ
+     前のテーマのまま残る。
+   - 明るい表示の段は、暗い表示の段を「逆順」に並べてある（暗い表示は1段上がるほど明るく、
+     明るい表示は1段上がるほど暗い）。hover・選択・窪みがすべて「隣の段へ動かす」で
+     作られているので、並びを保てばどの組み合わせの差も崩れない。
+   - 色の濃い塗り（--fill-primary など）は、両方の表示で白い文字（--text-on-dark）が
+     読める濃さに保つ。
+   【テーマで変えない色】盤面に置く「物」の色は、表示を切り替えても変えない：カードの紙色と
+   裏面、トランプのスート色（js/card-catalog.js）、ダイスの面、コマの名前。「困ったらここ」の
+   目印であるヘルプの黄（css/board.css の .chat-tab-help）と --text-on-light も同じ。 */
 
 :root {
   /* --- 面（背景）。暗い順 --- */
@@ -215,6 +230,142 @@
      日本語書体を並べて受け止める。 */
   --font-body: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
     "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+}
+
+/* --- 明るい表示（紙の白）---
+   色相85（紙の黄み）に寄せた、ほんのり温かい白。カードの紙色 #f7f5ef と同じ系統。
+   上の :root と同じ名前だけを上書きする。ここに無いトークン（--accent・--text-on-dark・
+   --text-on-light・--surface-invert・--board-token-text・--board-grid-line-on-image・
+   濃い塗りの一部）は、両方の表示で同じ値を使う。 */
+:root[data-theme="light"] {
+  /* 面。暗い表示の段を逆順に並べる（1段上がるほど暗い） */
+  --surface-deepest: oklch(99% 0.004 85);
+  --surface-page: oklch(97.5% 0.008 85);
+  --surface-well: oklch(96.5% 0.009 85);
+  --surface-sunken: oklch(95.8% 0.009 85);
+  --surface-base: oklch(94.5% 0.010 85);
+  --surface-base-2: oklch(93.5% 0.011 85);
+  --surface-raised: oklch(92% 0.012 85);
+  --surface-control: oklch(90.5% 0.012 85);
+  --surface-raised-2: oklch(88% 0.013 85);
+  --surface-hover: oklch(86.5% 0.014 85);
+
+  /* 線 */
+  --border-faint: oklch(90% 0.010 85);
+  --border-subtle: oklch(86% 0.012 85);
+  --border-default: oklch(80% 0.012 85);
+  --border-mid: oklch(74% 0.012 85);
+  --border-strong: oklch(68% 0.012 85);
+  --border-bright: oklch(62% 0.012 85);
+
+  /* 文字。墨色（色相70にわずかに寄せる）。--text-muted は最も暗い地
+     (--surface-base 94.5%) の上で 4.5:1 を超える明るさ(50%)に留める。
+     --text-faint・--text-disabled も、空欄の案内（「発言者なし」など）に使われていて
+     読ませたい文なので、ログ欄の地の上で 4.5:1 に届く明るさにする。段の並び
+     （faint が一番薄い）は崩さない */
+  --text-faint: oklch(52.5% 0.008 70);
+  --text-disabled: oklch(51.2% 0.008 70);
+  --text-muted: oklch(50% 0.008 70);
+  --text-tertiary: oklch(47% 0.008 70);
+  --text-secondary: oklch(43% 0.009 70);
+  --text-body-dim: oklch(39% 0.009 70);
+  --text-body: oklch(35% 0.010 70);
+  --text-body-strong: oklch(31% 0.010 70);
+  --text-default: oklch(27% 0.010 70);
+  --text-bright: oklch(23.5% 0.010 70);
+  --text-emphasis: oklch(20% 0.010 70);
+  /* 暗い表示の明るい緑・青は白地では3:1に届かない。同じ色相で50%まで下げる
+     （書き出したログの既定の名前色 #2e7d32（js/log-export.js）と同じ考え方） */
+  --text-speaker: oklch(50% 0.13 145);
+  --text-param-label: oklch(50% 0.12 155);
+  --text-link: oklch(50% 0.13 250);
+  --text-success: oklch(50% 0.12 150);
+  --text-warn: oklch(52% 0.12 65);
+  --text-danger: oklch(52% 0.17 25);
+
+  /* 暗い表示の #007acc は、白い文字(4.6:1)と紙の地の上の文字(4.0:1 — ログのシステム名)の
+     両方に使われる。後者が 4.5:1 に届かないので、明るい表示では同じ色相のまま少し沈める。
+     白い文字との差もかえって広がる（5.5:1） */
+  --accent: oklch(52% 0.14 245);
+  --accent-hover: oklch(46% 0.14 245);
+  --accent-hover-soft: oklch(48% 0.14 245);
+  --accent-gold: oklch(52% 0.11 85);
+
+  --focus-ring: oklch(20% 0.010 70);
+  --focus-ring-halo: rgba(255, 255, 255, 0.85);
+
+  --text-caution: oklch(52% 0.12 70);
+  --text-alert: oklch(52% 0.18 25);
+  --text-over: oklch(52% 0.17 25);
+  --text-error-soft: oklch(52% 0.14 15);
+  --text-ready: oklch(50% 0.11 145);
+  --text-ready-soft: oklch(52% 0.08 145);
+  --text-withdrawn: oklch(53% 0.19 25);
+  --text-reserved: oklch(52% 0.12 80);
+  --text-unchosen: oklch(50% 0.07 70);
+  --text-heading-gold: oklch(52% 0.11 85);
+  --text-buff: oklch(50% 0.14 255);
+  --text-lost: oklch(50% 0.05 20);
+
+  --edge-reserved: oklch(62% 0.13 85);
+  --edge-tied: oklch(60% 0.07 235);
+  --edge-heading-gold: oklch(85% 0.04 85);
+  --edge-noir: oklch(62% 0.05 275);
+  --edge-hover-cool: oklch(62% 0.10 250);
+
+  /* 濃い塗りのうち、紙の地では重すぎるものだけ明るくする（白い文字は6:1以上を保つ） */
+  --fill-danger: oklch(48% 0.12 22);
+  --fill-danger-edge: oklch(62% 0.10 22);
+  /* 押せない送信ボタン。文字は --text-muted なので、その文字が読める明るさの地にする */
+  --fill-disabled: oklch(86% 0.012 85);
+
+  /* 面に薄く色を乗せた塗り。上の文字は墨色へ反転する */
+  --fill-go: oklch(93% 0.04 145);
+  --fill-go-text: oklch(40% 0.10 145);
+  --fill-go-edge: oklch(75% 0.08 145);
+  --fill-go-hover: oklch(88% 0.06 145);
+  --fill-drop: oklch(92% 0.03 240);
+  --fill-drop-edge: oklch(58% 0.12 245);
+  --fill-hover-cool: oklch(91% 0.03 255);
+  --fill-close-hover: oklch(90% 0.04 25);
+  --fill-user-bubble: oklch(90% 0.04 240);
+  --fill-gap: oklch(40% 0.010 85);
+  --danger-soft-text: oklch(50% 0.13 25);
+  --danger-soft-edge: oklch(82% 0.05 25);
+  --danger-soft-hover: oklch(92% 0.035 25);
+  --danger-soft-hover-text: oklch(42% 0.15 25);
+  --tab-system-bg: oklch(92% 0.02 230);
+  --tab-system-text: oklch(42% 0.05 230);
+  --tab-system-edge: oklch(82% 0.03 230);
+  --tab-system-hover: oklch(88% 0.03 230);
+  --tab-system-active: oklch(50% 0.08 230);
+  --tab-system-active-edge: oklch(45% 0.08 230);
+  --notice-warn-text: oklch(46% 0.10 75);
+  --notice-warn-bg: oklch(80% 0.12 85 / 0.18);
+  --notice-warn-edge: oklch(70% 0.12 80 / 0.6);
+
+  /* 影は紙の上の影として、黒ではなく焦茶を薄く */
+  --shadow-panel: rgba(60, 45, 20, 0.10);
+  --shadow-menu: rgba(60, 45, 20, 0.16);
+  --shadow-popover: rgba(60, 45, 20, 0.18);
+  --shadow-float: rgba(60, 45, 20, 0.20);
+  --backdrop: rgba(40, 32, 20, 0.30);
+
+  /* 盤面。地を明るい紙の卓にし、その上の線と文字を墨色へ反転する */
+  --board-ground: oklch(90% 0.012 85);
+  --board-grid-line: oklch(35% 0.02 85 / 0.14);
+  --board-vignette: rgba(60, 45, 20, 0.18);
+  --board-token-edge: oklch(35% 0.010 85);
+  --board-shadow: rgba(60, 45, 20, 0.28);
+  --board-shadow-lift: rgba(60, 45, 20, 0.40);
+  --board-label: oklch(22% 0.010 70);
+  --board-label-halo: rgba(255, 253, 245, 0.9);
+  --board-panel-edge: oklch(30% 0.010 85 / 0.35);
+  --board-panel-edge-locked: oklch(30% 0.010 85 / 0.22);
+  --board-stocker-edge: oklch(55% 0.12 235 / 0.7);
+  --board-panel-empty: rgba(60, 45, 20, 0.05);
+  --board-drop-edge: oklch(55% 0.15 145);
+  --board-chip: rgba(255, 253, 245, 0.9);
 }
 
 /* --- アイコン（js/icons.js が作るSVG）---

@@ -2755,8 +2755,20 @@ select:focus, input[type="text"]:focus, textarea:focus {
 /* --- チャットログの色（元は js/main.js の buildLogHtml が style 属性で書いていた） --- */
 /* 発言者の名前。ここは既定色で、キャラクターごとに色を設定している場合は
    js/main.js の applyLogNameColor が要素へ直接当てて上書きする。 */
+/* 発言者名。キャラクターごとの色は js/main.js の applyLogNameColor が --name-color として当てる */
 .log-name {
-  color: var(--text-speaker);
+  color: var(--name-color, var(--text-speaker));
+}
+
+/* 明るい表示では、暗い地で選ばれた淡い色（黄など）が紙の白に沈む。色相と彩度は残し、
+   明るさだけを上限で抑える。
+   @supports で囲むのは、var() を含む宣言は読み込み時に弾かれないため：相対色の書き方を
+   知らないブラウザでは、ここが「無効な値」になって色ごと消える（上の既定へは戻らない）。 */
+@supports (color: oklch(from red l c h)) {
+  :root[data-theme="light"] .log-name {
+    /* 0.5 はログ欄の地（--surface-sunken）の上で 4.5:1 を超える上限（白を選んだ名前で5:1） */
+    color: oklch(from var(--name-color, var(--text-speaker)) min(l, 0.5) c h);
+  }
 }
 
 /* BCDiceのシステム名（[Cthulhu7th] など）。選択中の色と同じ青で、本文と区別する。 */

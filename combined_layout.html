@@ -36,6 +36,9 @@
        失敗しうる。1本でも届かないと画面は出たまま「接続中...」で永久に止まるため、
        気づけるようにしておく。 -->
   <script src="/js/boot-guard.js"></script>
+  <!-- 明るい表示を選んでいる人には、最初の描画より前に data-theme を付ける（js/theme-boot.js）。
+       moduleにすると一瞬暗い画面が出るので、boot-guardと同じく古典スクリプトで同期実行する。 -->
+  <script src="/js/theme-boot.js"></script>
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/character-dialog.css">
 

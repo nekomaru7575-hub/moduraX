@@ -1139,6 +1139,14 @@ h1 {
   background-repeat: no-repeat;
 }
 
+/* 明るい表示では、ページの地（--surface-page）が暗めの「机」になっている。そのままだと
+   発言を読ませる場所なのにログ欄より沈んで見えるので、立ち絵の地も含めてログ欄
+   （.log-container）と同じ紙の色にそろえる。暗い表示は元のまま。 */
+:root[data-theme="light"] .current-chat-bar,
+:root[data-theme="light"] .current-chat-portrait {
+  background-color: var(--surface-sunken);
+}
+
 .current-chat-log {
   flex: 1;
   min-width: 0;

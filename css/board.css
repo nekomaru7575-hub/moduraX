@@ -1984,11 +1984,45 @@ h1 {
   border-top: 1px solid var(--surface-base);
 }
 
-/* 区画の見出し。将来のダブルハンドアウト（表の使命／裏の使命）で使う */
+/* 区画の見出し行。左にラベル（表の使命／裏の使命など）、右にコピーボタン。
+   ラベルが空でもコピーボタンの置き場として必ず出るので、行が潰れないよう高さを持たせる */
 .info-panel-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 1.4em;
   color: var(--accent-gold);
   font-size: 0.75rem;
   margin-bottom: 3px;
+}
+
+/* 長いラベルでコピーボタンが右へ押し出されないよう、はみ出し分はここで切る */
+.info-panel-section-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 区画ごとのコピー（js/info-panel.jsのbuildCopyButton）。中身はアイコン1つ。
+   paddingは、タブ行の＋（.info-panel-tab-add）と同じくらいの大きさになるところで取っている
+   ——見出し行に置く小さなボタンだが、狭幅（スマホ）で指が乗らない大きさにはしない */
+.info-panel-section-copy {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.info-panel-section-copy:hover {
+  background-color: var(--surface-control);
 }
 
 /* 本文はtextContentで入れるので、改行はここで見せる */

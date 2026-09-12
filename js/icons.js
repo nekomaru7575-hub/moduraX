@@ -37,6 +37,10 @@ const ICON_SHAPES = {
   'check-circle': '<path d="M21.8 10.6A10 10 0 1 1 16 3"/><path d="m8.5 11.5 3.5 3.5L22 5"/>',
   'chevron-left': '<path d="m15 18-6-6 6-6"/>',
 
+  // クリップボードへ写す（js/info-panel.jsの区画コピー）。重ねた紙2枚で「写し」を示す。
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/>'
+    + '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+
   play: '<path d="M6 4.2 19 12 6 19.8Z"/>',
   // 割り込み予約（次に動く人）の目印。
   'skip-next': '<path d="M5 4.5 15 12 5 19.5Z"/><path d="M19 5v14"/>',

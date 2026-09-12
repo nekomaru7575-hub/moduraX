@@ -33,12 +33,13 @@ import { showAudienceDialog } from './audience-picker.js';
 import { showContextMenu } from './context-menu.js';
 import { canView, isGm, isRestricted, describeAudience } from './visibility.js';
 import { getCurrentParticipantId } from './local-identity.js';
-import { setIconText } from './icons.js';
+import { setIcon, setIconText } from './icons.js';
 
 const EDIT_DENIED_REASON = '作成者とGMだけが編集できます。';
 // 編集画面には伏せた語がそのまま並ぶので、見透かせない人には開かせない。削除・公開先は
 // 中身が見えないので、こちらの制限は掛けない（下のcanRevealMasksの但し書き参照）。
 const PEEK_DENIED_REASON = '伏せた語があるため、作成者とGMだけが編集できます。';
+const COPY_LABEL = 'この区画の本文をコピー';
 
 // 「どのタブを見ているか」は各クライアントのローカル状態にする（共有状態に入れると
 // 全員のタブが同時に切り替わってしまう。チャットタブのactiveTabIdと同じ扱い）。
@@ -88,6 +89,14 @@ function hasMaskedWords(entry, myId) {
   return visibleSections(entry, myId).some(section => section.masks.length > 0);
 }
 
+// 伏せ語1つが、いまこの人の画面でどう出ているか。画面（buildMaskNode）とコピー
+// （sectionDisplayText）が同じ字を出すよう、どちらの文字もここから取る。
+// 未公開かつ見透かせないときは、常に伏せ字1つぶん。mask.textの長さには触れない
+// （文字数から語を当てられないように）。
+function maskDisplayText(mask, canReveal) {
+  return (mask.revealed || canReveal) ? mask.text : mask.mask;
+}
+
 // 伏せ字1つぶんの節点を作る。触れる人だけbuttonにして、触れない人にはtitleもcursorも
 // 付けない（「何かある」以上の手掛かりを渡さない）。
 function buildMaskNode(mask, canReveal, onToggle) {
@@ -97,15 +106,14 @@ function buildMaskNode(mask, canReveal, onToggle) {
     + (mask.revealed ? ' is-revealed' : '')
     + (!mask.revealed && canReveal ? ' is-peek' : '');
 
+  el.textContent = maskDisplayText(mask, canReveal);
+
   if (mask.revealed || canReveal) {
-    el.textContent = mask.text;
     // 公開済みの語は全員に地の文として見える。押せない人には、伏せ字だったことも言わない
     if (canReveal) {
       el.title = mask.revealed ? '公開済みの語（押すと伏せ直せます）' : '伏せている語（あなたにだけ見えています）';
     }
   } else {
-    // 常に伏せ字1つぶん。mask.textの長さには触れない（文字数から語を当てられないように）
-    el.textContent = mask.mask;
     el.setAttribute('aria-label', '伏せられた語');
   }
 
@@ -113,11 +121,12 @@ function buildMaskNode(mask, canReveal, onToggle) {
   return el;
 }
 
-// 本文を、伏せ字のところで切りながら組み立てる。他クライアントから同期されてくるユーザー入力
-// なので、ここでもinnerHTMLは使わない（テキストは必ずtextContent、改行はCSSのpre-wrap）。
-function renderSectionBody(bodyEl, section, canReveal, onToggle) {
+// 本文を「地の文」と「伏せ語」の列に切る。画面に描くrenderSectionBodyと、クリップボードへ
+// 写すsectionDisplayTextが必ず同じ規則で読むよう、走査はここ1つに寄せる。片方だけ直すと
+// 「画面には伏せ字、コピーには語」のような食い違いが出て、伏せた語が漏れてしまう。
+function splitSectionBody(section) {
   const byId = new Map(section.masks.map(mask => [mask.id, mask]));
-  const nodes = [];
+  const parts = [];
   let cut = 0;
 
   listMaskMarkers(section.body).forEach(marker => {
@@ -125,17 +134,38 @@ function renderSectionBody(bodyEl, section, canReveal, onToggle) {
     // 対応する伏せ語が無い目印はcutを進めない＝次の切れ端に入り、ただの文字として出る
     // （本文は自由入力欄なので、利用者が手で打った {{1}} を黙って消さない）
     if (!mask) return;
-    nodes.push(document.createTextNode(section.body.slice(cut, marker.start)));
-    nodes.push(buildMaskNode(mask, canReveal, (event) => onToggle(event, section, mask)));
+    parts.push({ text: section.body.slice(cut, marker.start) });
+    parts.push({ mask });
     cut = marker.end;
   });
 
-  if (nodes.length === 0) {
+  parts.push({ text: section.body.slice(cut) });
+  return parts;
+}
+
+// 本文を、伏せ字のところで切りながら組み立てる。他クライアントから同期されてくるユーザー入力
+// なので、ここでもinnerHTMLは使わない（テキストは必ずtextContent、改行はCSSのpre-wrap）。
+function renderSectionBody(bodyEl, section, canReveal, onToggle) {
+  const parts = splitSectionBody(section);
+
+  if (parts.length === 1) {
     bodyEl.textContent = section.body; // 伏せ字なし＝従来どおり
     return;
   }
-  nodes.push(document.createTextNode(section.body.slice(cut)));
-  bodyEl.replaceChildren(...nodes);
+
+  bodyEl.replaceChildren(...parts.map(part => (
+    part.mask
+      ? buildMaskNode(part.mask, canReveal, (event) => onToggle(event, section, part.mask))
+      : document.createTextNode(part.text)
+  )));
+}
+
+// コピー用に、区画の本文を「いまこの人の画面に出ているとおり」の文字列で返す。
+// 見透かせない人には伏せ字のまま渡る＝画面で読めないものはコピーでも取れない。
+function sectionDisplayText(section, canReveal) {
+  return splitSectionBody(section)
+    .map(part => (part.mask ? maskDisplayText(part.mask, canReveal) : part.text))
+    .join('');
 }
 
 export function initInfoPanel() {
@@ -254,6 +284,33 @@ export function initInfoPanel() {
     tabRow.appendChild(addBtn);
   }
 
+  // 区画の本文をクリップボードへ写すボタン。誰が押してもよい——渡すのはsectionDisplayTextが
+  // 組んだ「その人の画面に出ているとおり」の文字列で、見透かせない人の手元では伏せ字のまま
+  // なので、画面で読めないものはここからも取れない。
+  // 成否は文言ではなくアイコンの差し替えで示す（.iconは1emに固定されていて、文言を伸ばす
+  // 既存のやり方と違い、狭い見出し行の幅が動かない）。
+  function buildCopyButton(section, canReveal) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'info-panel-section-copy';
+    btn.title = COPY_LABEL;
+    setIcon(btn, 'copy', COPY_LABEL);
+
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sectionDisplayText(section, canReveal));
+      } catch (error) {
+        alert(`クリップボードへのコピーに失敗しました: ${error.message}`);
+        return;
+      }
+      // 再描画が挟まると✓は消えるが、写し終えたあとなので追いかけない
+      setIcon(btn, 'check', 'コピーしました');
+      setTimeout(() => setIcon(btn, 'copy', COPY_LABEL), 1500);
+    });
+
+    return btn;
+  }
+
   function renderSections(state, myId) {
     sectionsEl.innerHTML = '';
 
@@ -266,23 +323,32 @@ export function initInfoPanel() {
       return;
     }
 
+    const canReveal = canRevealMasks(entry, myId, isGm(state.participants, myId));
+
     visibleSections(entry, myId).forEach(section => {
       const sectionEl = document.createElement('div');
       sectionEl.className = 'info-panel-section';
 
-      // 見出し（表／裏など）か、限定公開の目印が要るときだけ帯を出す。見出し無しの
-      // 区画1つだけ＝ただのメモのときは、余計な行を足さない。
-      if (section.label.trim() !== '' || isRestricted(section.audience)) {
-        const head = document.createElement('div');
-        head.className = 'info-panel-section-head';
-        if (isRestricted(section.audience)) {
-          setIconText(head, 'lock', section.label, '限定公開');
-        } else {
-          head.textContent = section.label;
-        }
-        head.title = describeAudience(section.audience, state.participants);
-        sectionEl.appendChild(head);
+      // 見出しの帯は、ラベルや鍵が無くても必ず出す。コピーボタンの置き場がここだけなので、
+      // 見出し無しのただのメモでもボタンの高さぶんの行が要る（ラベル側は空のまま）。
+      const head = document.createElement('div');
+      head.className = 'info-panel-section-head';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'info-panel-section-label';
+      if (isRestricted(section.audience)) {
+        setIconText(labelEl, 'lock', section.label, '限定公開');
+      } else {
+        labelEl.textContent = section.label;
       }
+      // 公開先の説明は、以前と同じく「見出しか鍵がある区画」にだけ付ける。ラベルが空でも
+      // 帯は出るようになったので、無条件に付けると素のメモの空白部分にまで吹き出しが出る。
+      if (section.label.trim() !== '' || isRestricted(section.audience)) {
+        labelEl.title = describeAudience(section.audience, state.participants);
+      }
+      head.appendChild(labelEl);
+      head.appendChild(buildCopyButton(section, canReveal));
+      sectionEl.appendChild(head);
 
       const bodyEl = document.createElement('div');
       bodyEl.className = 'info-panel-section-body';
@@ -291,7 +357,7 @@ export function initInfoPanel() {
       renderSectionBody(
         bodyEl,
         section,
-        canRevealMasks(entry, myId, isGm(state.participants, myId)),
+        canReveal,
         (event, targetSection, mask) => openMaskMenu(event, entry, targetSection, mask)
       );
       sectionEl.appendChild(bodyEl);

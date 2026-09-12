@@ -2486,14 +2486,29 @@ select:focus, input[type="text"]:focus, textarea:focus {
   justify-content: center;
 }
 
+/* コマの名前。キャラクターごとに色を設定している場合は、js/character-panel.js が
+   --name-color として当てる（既定は下の --text-body-dim）。 */
 .character-avatar-name {
   font-size: 0.65rem;
-  color: var(--text-body-dim);
+  color: var(--name-color, var(--text-body-dim));
   max-width: 44px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+/* 明るい表示では、暗い地を前提に選ばれた色が紙のパネルに沈む。文字色の既定は白なので、
+   何も設定していないコマほど読めなくなる。色相と彩度は残し、明るさだけを上限で抑える。
+   上限を 0.37 にしてあるのは、色を付けていない名前（--text-body-dim）とちょうど同じ濃さで、
+   白を選んだ名前が一覧の他の名前と揃うため。ログ欄の .log-name（上限 0.5）より濃いのは、
+   この字が 0.65rem と小さく、地もログ欄(95%)より暗いパネル(92.5%)の上に乗るから。
+   @supports で囲む理由も .log-name と同じ（相対色の書き方を知らないブラウザでは、ここが
+   「無効な値」になって色ごと消え、上の既定へは戻らない）。 */
+@supports (color: oklch(from red l c h)) {
+  :root[data-theme="light"] .character-avatar-name {
+    color: oklch(from var(--name-color, var(--text-body-dim)) min(l, 0.37) c h);
+  }
 }
 
 /* メニュー本体の見た目（.context-menu / .context-menu-item）は、部屋の外のページでも

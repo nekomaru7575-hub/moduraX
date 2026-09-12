@@ -18,6 +18,7 @@ import { EventBus } from './EventBus.js';
 import { bindDragGesture, LONG_PRESS_ONLY } from './drag-gesture.js';
 import { createFloatingPanel } from './floating-panel.js';
 import { canView, isGm, HIDDEN_VALUE_MASK } from './visibility.js';
+import { safeCssColor } from './html-escape.js';
 import { getCurrentParticipantId, getLocalUserId } from './local-identity.js';
 import {
   showTokenLibraryPickerDialog, showTokenLibrarySaveDialog
@@ -95,9 +96,14 @@ function buildAvatarColumn(tokenData, { withInitiative }) {
   const nameSpan = document.createElement('span');
   nameSpan.className = 'character-avatar-name';
   nameSpan.textContent = tokenData.name;
-  if (tokenData.textColor) {
-    nameSpan.style.color = tokenData.textColor;
-  }
+  // color を直接書かずに --name-color として渡す。文字色の既定は白（js/character-dialog.js の
+  // buildTextColorInput）なので、そのまま color に当てると明るい表示で紙のパネルに沈んで
+  // 名前が読めなくなる。CSS側（css/board.css の .character-avatar-name）で明るさだけを
+  // 抑えられるようにしておく。チャットログの applyLogNameColor（js/main.js）と同じ作り。
+  // 値は部屋にいる誰かが決めたものなので、色として認められる形だけを通す
+  // （カスタムプロパティはほぼ何でも受け取るため、ここで濾さないとCSSの値を壊せる）。
+  const nameColor = safeCssColor(tokenData.textColor, '');
+  if (nameColor) nameSpan.style.setProperty('--name-color', nameColor);
 
   bindTokenMenu(avatar, tokenData.id);
 

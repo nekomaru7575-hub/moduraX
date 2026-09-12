@@ -659,9 +659,9 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0;
+  background-color: var(--die-face);
   color: var(--text-on-light);
-  border: 1px solid #999;
+  border: 1px solid var(--die-edge);
   border-radius: 5px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   user-select: none;
@@ -2282,26 +2282,28 @@ select:focus, input[type="text"]:focus, textarea:focus {
 }
 
 /* 「？ヘルプ」タブ。他のタブと違い、選んでいなくても黄色くしておく
-   （「困ったらここ」の目印なので、探させたくない） */
+   （「困ったらここ」の目印なので、探させたくない）。
+   黄の濃さは表示ごとに変わる（css/tokens.css の --help-mark）。明るい表示で
+   同じ黄を使うと、紙のパネルとの差が 1.3:1 まで落ちて目印にならないため。 */
 .chat-tab-help {
-  background-color: #f0c419;
+  background-color: var(--help-mark);
   color: var(--text-on-light);
-  border-color: #c99f0a;
+  border-color: var(--help-mark-edge);
   font-weight: bold;
 }
 
 .chat-tab-help:hover {
-  background-color: #ffd633;
+  background-color: var(--help-mark-hover);
   color: var(--text-on-light);
 }
 
 /* .chat-tab.active が color:#fff を持っているので、ここで打ち消しておく
    （黄色地に白文字だと読めない） */
 .chat-tab-help.active {
-  background-color: #ffd633;
+  background-color: var(--help-mark-hover);
   color: var(--text-on-light);
-  border-color: #fff0a0;
-  box-shadow: inset 0 0 0 1px #fff0a0;
+  border-color: var(--help-mark-halo);
+  box-shadow: inset 0 0 0 1px var(--help-mark-halo);
 }
 
 /* --- ヘルプの対話（js/help/help-panel.js）。枠はログ欄と同じ見た目に揃える --- */
@@ -2384,7 +2386,7 @@ select:focus, input[type="text"]:focus, textarea:focus {
 .help-choice {
   background-color: var(--surface-base);
   color: var(--text-default);
-  border: 1px solid #f0c419;
+  border: 1px solid var(--help-choice-edge);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 0.85rem;

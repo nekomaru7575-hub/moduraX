@@ -1,18 +1,18 @@
 ---
-source: js/mobile-layout.js
-lines: 286
-exports: 1
+source: js/theme.js
+lines: 49
+exports: 3
 imported_by: 1
-api_sha: 927a067b39ff
-prose_sha: 927a067b39ff
+api_sha: a359c667306c
+prose_sha: a359c667306c
 generated: 2026-09-13
 tags: [codemap]
 ---
 
-# js/mobile-layout.js
+# js/theme.js
 
 <!-- prose:summary -->
-狭幅（スマホ）向けの縦積みレイアウト。
+部屋の画面の表示（暗い／明るい）の切り替え。
 <!-- /prose:summary -->
 
 ## 役割
@@ -21,11 +21,13 @@ tags: [codemap]
 _(未記入)_
 <!-- /prose:role -->
 
-## export（1）
+## export（3）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 66 | fn | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | panels: 中央スペースへはめ込む浮動パネル。 |
+| 16 | fn | getTheme | `getTheme()` |  |
+| 30 | fn | setTheme | `setTheme(theme)` |  |
+| 43 | fn | initTheme | `initTheme()` | theme-boot.js が付けた属性に meta theme-color を合わせ（meta は boot の時点ではまだ 読まれていない）、以後は他のタブでの切り替えに追従する。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -34,14 +36,14 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 41 | countLogEntries | `countLogEntries(state)` | 3 |  |
-| 45 | loadActiveViewId | `loadActiveViewId()` | 7 |  |
-| 53 | saveActiveViewId | `saveActiveViewId(viewId)` | 7 |  |
-| 66 | initMobileLayout | `initMobileLayout({ panels = [] } = {})` | **220** | ✓ |
+| 16 | getTheme | `getTheme()` | 3 | ✓ |
+| 20 | applyTheme | `applyTheme(theme)` | 9 |  |
+| 30 | setTheme | `setTheme(theme)` | 10 | ✓ |
+| 43 | initTheme | `initTheme()` | 6 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.context-menu]]
+- import → なし
 - imported by → [[js.main]]
 
 ## 注意

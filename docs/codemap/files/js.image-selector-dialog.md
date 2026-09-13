@@ -1,11 +1,11 @@
 ---
 source: js/image-selector-dialog.js
-lines: 495
+lines: 553
 exports: 2
 imported_by: 3
-api_sha: f99e8bc316a6
-prose_sha: f99e8bc316a6
-generated: 2026-09-10
+api_sha: 0106e7a85f45
+prose_sha: 0106e7a85f45
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -18,15 +18,15 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-アップローダ（ファイルを選んで溜める）とセレクタ（溜めたもの・この部屋で使っているものから選ぶ）を1枚に収めた画面。2つの開き方がある——用途を決めて選ばせる `showImageSelectorDialog`（コマ・パネル・背景の「画像を選択」から。[[js.image-field]] と [[js.character-dialog]] が呼ぶ）と、選ぶ相手を決めずに溜める・消すだけの `showImageStockDialog`（部屋の「+」から。[[js.main]] が呼ぶ）。中身は同じで、後者は確定ボタンの無い形で開く。置き場へ送る（[[js.image-upload]] の commitImageBlob）のは前者だけで、呼び出し元へ返すのは常に確定した文字列URLとキー。溜め置きは [[js.image-pool]]、用途ごとの可否は [[js.store.images]] に委ねる。
+アップローダ（ファイルを選んで溜める）とセレクタ（溜めたもの・この部屋で使っているものから選ぶ）を1枚に収めた画面。2つの開き方がある——用途を決めて選ばせる `showImageSelectorDialog`（コマ・パネル・背景の「画像を選択」から。[[js.image-field]] と [[js.character-dialog]] が呼ぶ）と、選ぶ相手を決めずに溜める・消すだけの `showImageStockDialog`（部屋の「+」から。[[js.main]] が呼ぶ）。中身は同じで、後者は確定ボタンの無い形で開く。置き場へ送る（[[js.image-upload]] の commitImageBlob）のは前者だけで、呼び出し元へ返すのは常に確定した文字列URLとキー。背景を選ぶときは、差し替えで外れた画像を「前に使っていた背景」として並べ、上げ直さずに選び直せる（一覧の中身は [[js.store.images]] の normalizeRetiredImages）。溜め置きは [[js.image-pool]]、用途ごとの可否は [[js.store.images]] に委ねる。
 <!-- /prose:role -->
 
 ## export（2）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 62 | fn | showImageStockDialog | `showImageStockDialog({ usedImages = new Set() } = {})` | 画像を溜めておくだけの画面（部屋の「+」から開く）。 |
-| 81 | fn | showImageSelectorDialog | `async showImageSelectorDialog({ purpose = null, usedImages = new Set(), title = '画像を選ぶ', mode = 'pick' })` | 画像を選ばせて、置き場へ送ったうえで確定した指し先を返す。 |
+| 65 | fn | showImageStockDialog | `showImageStockDialog({ usedImages = new Set() } = {})` | 画像を溜めておくだけの画面（部屋の「+」から開く）。 |
+| 84 | fn | showImageSelectorDialog | `async showImageSelectorDialog({ purpose = null, usedImages: usedImagesInput = new Set(), title = '画像を選ぶ', mode = 'pick' })` | 画像を選ばせて、置き場へ送ったうえで確定した指し先を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（3）
 
@@ -35,13 +35,13 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 47 | formatBytes | `formatBytes(bytes)` | 4 |  |
-| 62 | showImageStockDialog | `showImageStockDialog({ usedImages = new Set() } = {})` | 3 | ✓ |
-| 81 | showImageSelectorDialog | `async showImageSelectorDialog({ purpose = null, usedImages = new Set(), title = '画像を選ぶ', mode = 'pick' })` | **414** | ✓ |
+| 50 | formatBytes | `formatBytes(bytes)` | 4 |  |
+| 65 | showImageStockDialog | `showImageStockDialog({ usedImages = new Set() } = {})` | 3 | ✓ |
+| 84 | showImageSelectorDialog | `async showImageSelectorDialog({ purpose = null, usedImages: usedImagesInput = new Set(), title = '画像を選ぶ', mode = 'pick' })` | **469** | ✓ |
 
 ## 依存
 
-- import → [[js.dialog-host]], [[js.file-uploader]], [[js.image-dimensions]], [[js.image-pool]], [[js.image-upload]], [[js.room-authority]], [[js.store.images]]
+- import → [[js.dialog-host]], [[js.file-uploader]], [[js.game-store]], [[js.image-dimensions]], [[js.image-pool]], [[js.image-upload]], [[js.room-authority]], [[js.store.images]]
 - imported by → [[js.character-dialog]], [[js.image-field]], [[js.main]]
 
 ## 注意

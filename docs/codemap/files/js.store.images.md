@@ -1,11 +1,11 @@
 ---
 source: js/store/images.js
-lines: 205
-exports: 6
-imported_by: 9
-api_sha: fbf0da9f544a
-prose_sha: fbf0da9f544a
-generated: 2026-09-10
+lines: 276
+exports: 10
+imported_by: 10
+api_sha: 7dc462f8a695
+prose_sha: 7dc462f8a695
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-画像URLについての判定と列挙を、純関数だけで集めた場所。DOMもIndexedDBも通信も知らない。状態に載せてよい形か（normalizeImageRef）、この部屋はどの画像を使っているか（collectImageUrls）、この用途に使えるか（imageUsableFor）、同じ画像を上げ直さずに済むか（pickReusableCommit・canReuseCommitFor）を答える。溜め置きの実体は [[js.image-pool]]、画面は [[js.image-selector-dialog]]、実際に上げるのは [[js.image-upload]] で、ここはどれも持たない。
+画像URLについての判定と列挙を、純関数だけで集めた場所。DOMもIndexedDBも通信も知らない。状態に載せてよい形か（normalizeImageRef）、この部屋はどの画像を使っているか（collectImageUrls）、この用途に使えるか（imageUsableFor）、同じ画像を上げ直さずに済むか（pickReusableCommit・canReuseCommitFor）を答える。背景の差し替えで外れた画像の指し先を room.retiredImages に残す計算（nextRetiredImages・normalizeRetiredImages・findRetiredImage）もここで、実体は置き場に残ったまま上げ直しは起きない。溜め置きの実体は [[js.image-pool]]、画面は [[js.image-selector-dialog]]、実際に上げるのは [[js.image-upload]] で、ここはどれも持たない。
 <!-- /prose:role -->
 
-## export（6）
+## export（10）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -31,8 +31,12 @@ tags: [codemap]
 | 132 | fn | imageUsableFor | `imageUsableFor(url, purpose)` | この用途にその画像を使えるか。 |
 | 166 | fn | canReuseCommitFor | `canReuseCommitFor(purpose)` | この用途で、上げ済みの実体を使い回してよいか。 |
 | 192 | fn | pickReusableCommit | `pickReusableCommit(memory, urlsInState, hash)` | 同じ中身の画像を、この部屋で既に上げてあるなら、その指し先を返す。 |
+| 219 | const | MAX_RETIRED_IMAGES | `MAX_RETIRED_IMAGES` | 残しておく件数の上限。 |
+| 226 | fn | normalizeRetiredImages | `normalizeRetiredImages(list)` | room.retiredImages を読める形へ均す。 |
+| 245 | fn | findRetiredImage | `findRetiredImage(room, image)` | 外れた画像の一覧から、その指し先の行を探す。 |
+| 260 | fn | nextRetiredImages | `nextRetiredImages(state, nextBackground)` | 背景を nextBackground に差し替えたあとの、外れた画像の一覧を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（7）
+## トップレベル関数（LOCAL TASKS 候補）（10）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -46,11 +50,14 @@ tags: [codemap]
 | 132 | imageUsableFor | `imageUsableFor(url, purpose)` | 18 | ✓ |
 | 166 | canReuseCommitFor | `canReuseCommitFor(purpose)` | 3 | ✓ |
 | 192 | pickReusableCommit | `pickReusableCommit(memory, urlsInState, hash)` | 13 | ✓ |
+| 226 | normalizeRetiredImages | `normalizeRetiredImages(list)` | 13 | ✓ |
+| 245 | findRetiredImage | `findRetiredImage(room, image)` | 4 | ✓ |
+| 260 | nextRetiredImages | `nextRetiredImages(state, nextBackground)` | 16 | ✓ |
 
 ## 依存
 
 - import → [[js.store.cards]], [[js.store.stamps]]
-- imported by → [[js.board-data-driven]], [[js.game-store]], [[js.image-pool]], [[js.image-selector-dialog]], [[js.main]], [[js.store.handlers.board]], [[js.store.handlers.characters]], [[js.store.handlers.room]], [[js.store.handlers.scenes]]
+- imported by → [[js.board-data-driven]], [[js.game-store]], [[js.image-pool]], [[js.image-selector-dialog]], [[js.main]], [[js.store.handlers.board]], [[js.store.handlers.characters]], [[js.store.handlers.room]], [[js.store.handlers.scenes]], [[server.index]]
 
 ## 注意
 

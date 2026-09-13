@@ -5,6 +5,10 @@
 // すでに画像があるパネルの編集では、画像を差し替えてもサイズは変えない。
 // 固定・テキストの公開先はここではなくパネルの右クリックメニューから設定する。
 
+// mode: 'marker' で開くと「簡易マーカー」の追加・編集になる：画像欄の代わりに形状・色・濃さ・
+// フィルターの欄を出す（形の検証はjs/store/panels.jsのnormalizeMarker、描画はjs/marker-style.js）。
+// サイズ・重なり順・シーンチェンジで残す・ストッカー・クリックオプションはパネルと共通。
+
 // 画像はセレクタ（js/image-selector-dialog.js）で選ぶ。選んだ時点で置き場へ送られて
 // いるので、ここへ返ってくるのは常に確定した文字列URL——溜め置きの参照は入ってこない。
 
@@ -12,12 +16,16 @@ import { buildImageField } from './image-field.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
 import { buildAspectLockField } from './aspect-lock-field.js';
+import { applyMarkerStyle, MARKER_FILTER_LABELS, MARKER_SHAPE_LABELS } from './marker-style.js';
+import { DEFAULT_MARKER, normalizeMarker } from './store/panels.js';
 
 const ensureDialog = createDialogHost();
 
 /**
  * @param {{
  *   title?: string,
+ *   mode?: 'panel' | 'marker',
+ *   initialMarker?: object | null, mode==='marker'のときの初期値（nullなら既定の見た目）
  *   initialImage?: string | null,
  *   initialText?: string,
  *   initialCols?: number,
@@ -39,12 +47,13 @@ const ensureDialog = createDialogHost();
  *   onConfirm: (result: {
  *     image: string | null, text: string, cols: number, rows: number,
  *     stackOrder: number, keepOnSceneChange: boolean,
- *     isStocker: boolean, stockerOwned: boolean, clickAction: object | null
+ *     isStocker: boolean, stockerOwned: boolean, clickAction: object | null,
+ *     marker: object | null  mode==='marker'なら正規化済みの値、パネルならnull
  *   }) => void
  * }} options
  */
 export function showPanelDialog({
-  title = 'パネルを追加', initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
+  title = 'パネルを追加', mode = 'panel', initialMarker = null, initialImage = null, initialText = '', initialCols = 2, initialRows = 2,
   initialStackOrder = 0, initialKeepOnSceneChange = false,
   initialIsStocker = false, initialStockerOwned = false, stockerOwnerLabel = '',
   initialClickAction = null,
@@ -60,7 +69,8 @@ export function showPanelDialog({
   // （＝盤面上のパネルの大きさを変えない）。サイズを変えたいときは手で入力する。
   // 判断は開いた時点の値で決める（選び直した後の値で見ると、1枚目を選んだ直後から
   // 反映されなくなる）。
-  const autoSizeFromImage = !initialImage;
+  const isMarker = mode === 'marker';
+  const autoSizeFromImage = !isMarker && !initialImage;
 
   const form = document.createElement('form');
 
@@ -68,10 +78,10 @@ export function showPanelDialog({
   heading.textContent = title;
   form.appendChild(heading);
 
-  // --- 画像 ---
+  // --- 画像（パネル）／形状・色・濃さ・フィルター（マーカー） ---
   // 状態に載るのはURLだけ（データURLのままだと、シーンがパネルを写し取る都合で
   // シーンの数だけ画像が部屋データに積み上がる。js/image-upload.js参照）
-  const imageField = buildImageField({
+  const imageField = isMarker ? null : buildImageField({
     label: '画像',
     purpose: 'panel',
     initialImage: initialImage || null,
@@ -92,7 +102,8 @@ export function showPanelDialog({
       }
     }
   });
-  form.appendChild(imageField.element);
+  const markerFields = isMarker ? buildMarkerFields(initialMarker) : null;
+  form.appendChild(isMarker ? markerFields.element : imageField.element);
 
   // --- マウスオーバーテキスト ---
   const textGroup = document.createElement('div');
@@ -421,14 +432,112 @@ export function showPanelDialog({
     ));
     dialog.close();
     onConfirm({
-      image: imageField.getImage(), text: textInput.value, cols, rows, stackOrder,
+      image: isMarker ? null : imageField.getImage(), text: textInput.value, cols, rows, stackOrder,
       keepOnSceneChange: keepInput.checked,
       isStocker: stockerInput.checked,
       stockerOwned: stockerInput.checked && ownedInput.checked,
-      clickAction: buildClickAction()
+      clickAction: buildClickAction(),
+      marker: isMarker ? markerFields.getMarker() : null
     });
   });
 
   dialog.appendChild(form);
   dialog.showModal();
+}
+
+// 1行に「ラベル・入力・値」を並べる（濃さ・強さのスライダー用）
+function buildRangeRow(labelText, value, min, max) {
+  const row = document.createElement('div');
+  row.className = 'marker-range-row';
+  const label = document.createElement('span');
+  label.className = 'marker-range-label';
+  label.textContent = labelText;
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = '1';
+  input.value = String(value);
+  const shown = document.createElement('span');
+  shown.className = 'marker-range-value';
+  const sync = () => { shown.textContent = input.value; };
+  input.addEventListener('input', sync);
+  sync();
+  row.append(label, input, shown);
+  return { row, input };
+}
+
+function buildSelect(choices, value) {
+  const select = document.createElement('select');
+  choices.forEach(([optionValue, text]) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = text;
+    select.appendChild(option);
+  });
+  select.value = value;
+  return select;
+}
+
+// マーカーの見た目の欄。入れた値はプレビューへすぐ映す（盤面と同じapplyMarkerStyleで描く）。
+function buildMarkerFields(initialMarker) {
+  const start = normalizeMarker(initialMarker) || DEFAULT_MARKER;
+
+  const group = document.createElement('div');
+  group.className = 'dialog-form-group marker-fields';
+
+  const shapeLabel = document.createElement('label');
+  shapeLabel.textContent = '形状';
+  const shapeSelect = buildSelect(MARKER_SHAPE_LABELS, start.shape);
+
+  const colorLabel = document.createElement('label');
+  colorLabel.textContent = '色';
+  colorLabel.style.marginTop = '6px';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.className = 'marker-color-input';
+  colorInput.value = start.color;
+
+  const opacity = buildRangeRow('濃さ（%）', start.opacity, 0, 100);
+  opacity.row.title = '0にすると塗りが消え、下のフィルターだけが残ります。';
+
+  const filterLabel = document.createElement('label');
+  filterLabel.textContent = '下にあるものへのフィルター';
+  filterLabel.style.marginTop = '6px';
+  filterLabel.title = '背景や、重なり順がこのマーカーより低いパネル・カードに掛かります（コマには掛かりません）。';
+  const filterSelect = buildSelect(MARKER_FILTER_LABELS, start.filter?.type ?? '');
+  const strength = buildRangeRow('強さ', start.filter?.strength ?? 50, 1, 100);
+
+  // 下地に市松模様を敷いて、フィルターと透け具合がダイアログの中でも分かるようにする
+  const previewWrap = document.createElement('div');
+  previewWrap.className = 'marker-preview';
+  const previewShape = document.createElement('div');
+  previewShape.className = 'marker-preview-shape';
+  previewWrap.appendChild(previewShape);
+
+  function getMarker() {
+    return normalizeMarker({
+      shape: shapeSelect.value,
+      color: colorInput.value,
+      opacity: Number(opacity.input.value),
+      filter: filterSelect.value
+        ? { type: filterSelect.value, strength: Number(strength.input.value) }
+        : null
+    });
+  }
+
+  function refresh() {
+    strength.input.disabled = !filterSelect.value;
+    strength.row.style.opacity = filterSelect.value ? '' : '0.5';
+    applyMarkerStyle(previewShape, getMarker());
+  }
+  [shapeSelect, filterSelect].forEach((el) => el.addEventListener('change', refresh));
+  [colorInput, opacity.input, strength.input].forEach((el) => el.addEventListener('input', refresh));
+  refresh();
+
+  group.append(
+    shapeLabel, shapeSelect, colorLabel, colorInput, opacity.row,
+    filterLabel, filterSelect, strength.row, previewWrap
+  );
+  return { element: group, getMarker };
 }

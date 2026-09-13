@@ -1,6 +1,6 @@
 ---
-source: server/dev-local.js
-lines: 72
+source: js/theme-boot.js
+lines: 22
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
@@ -9,16 +9,16 @@ generated: 2026-09-13
 tags: [codemap]
 ---
 
-# server/dev-local.js
+# js/theme-boot.js
 
 <!-- prose:summary -->
-動作確認（検証）用の起動口。
+明るい表示を選んでいる人の画面に、**最初の描画より前に** data-theme="light" を付ける。
 <!-- /prose:summary -->
 
 ## 役割
 
 <!-- prose:role -->
-ローカル動作確認用の起動口（`npm run dev`）。本番の起動は [[server.index]] で、こちらは環境変数を読み込んでそれを起動するだけ。
+_(未記入)_
 <!-- /prose:role -->
 
 ## export（0）

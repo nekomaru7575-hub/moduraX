@@ -24,7 +24,8 @@ import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import { findStamp, listStamps } from './stamp-registry.js';
 import { collectImageUrls } from './store/images.js';
-import { MAX_PANEL_CHAT_TEXT_LENGTH } from './store/panels.js';
+import { MAX_PANEL_CHAT_TEXT_LENGTH, normalizeMarker, sameMarker } from './store/panels.js';
+import { applyMarkerStyle } from './marker-style.js';
 import { ownEntry } from './store/patch.js';
 import {
   store, generateTokenId, generatePanelId, generateBuffId, listPlugins, DEFAULT_TOKEN_COLOR,
@@ -816,7 +817,16 @@ function applyPanelAppearance(el, panelData) {
   el.style.width = `${panelData.cols * GRID_SIZE}px`;
   el.style.height = `${panelData.rows * GRID_SIZE}px`;
 
-  if (panelData.image) {
+  // 簡易マーカーは画像を見ず、子要素の形へ色とフィルターを当てる。
+  // 描画の直前にも正規化を通す：シーン経由で入るパネル（APPLY_SCENEのfreezePanelMap）は
+  // hydrateの検証を通らないので、CSSへ渡す前の最後の守りをここに置く。
+  const marker = normalizeMarker(panelData.marker);
+  el.classList.toggle('marker', !!marker);
+  applyMarkerStyle(el.querySelector('.panel-marker-shape'), marker);
+  if (marker) {
+    el.style.backgroundImage = '';
+    el.style.backgroundColor = '';
+  } else if (panelData.image) {
     el.style.backgroundImage = `url('${panelData.image}')`;
     el.style.backgroundColor = '';
   } else {
@@ -943,6 +953,8 @@ function bindPanelDrag(element) {
     const panelId = element.id;
     const panelState = store.state.panels[panelId];
     const isLocked = !!panelState?.locked;
+    // 簡易マーカーは編集の項目名と説明文の言い方だけ変える（中身はパネルと同じ）
+    const isMarkerPanel = !!normalizeMarker(panelState?.marker);
 
     // 本文はマウスオーバーのツールチップ（title属性）で読ませているが、タッチには
     // ホバーが無い。読める人にはメニューの先頭に冒頭を出して、指だけでも辿れるようにする。
@@ -1038,12 +1050,15 @@ function bindPanelDrag(element) {
       ...textPreviewItem,
       ...stockerItems,
       {
-        label: 'パネルを編集',
+        label: isMarkerPanel ? 'マーカーを編集' : 'パネルを編集',
         onSelect: () => {
           const current = store.state.panels[panelId];
           if (!current) return;
+          const currentMarker = normalizeMarker(current.marker);
           showPanelDialog({
-            title: 'パネルを編集',
+            title: currentMarker ? 'マーカーを編集' : 'パネルを編集',
+            mode: currentMarker ? 'marker' : 'panel',
+            initialMarker: currentMarker,
             initialImage: current.image,
             initialText: current.text,
             initialCols: current.cols,
@@ -1061,11 +1076,16 @@ function bindPanelDrag(element) {
             gridSize: GRID_SIZE,
             onConfirm: ({
               image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned,
-              clickAction
+              clickAction, marker
             }) => {
               const latest = store.state.panels[panelId];
               if (!latest) return;
-              if (image !== (latest.image || null)) {
+              if (currentMarker) {
+                // マーカーは画像を持たないので、見た目の変更だけを見る
+                if (!sameMarker(marker, normalizeMarker(latest.marker))) {
+                  store.dispatch('SET_PANEL_MARKER', { id: panelId, marker });
+                }
+              } else if (image !== (latest.image || null)) {
                 store.dispatch('SET_PANEL_IMAGE', { id: panelId, image });
               }
               if (text !== (latest.text || '')) {
@@ -1113,7 +1133,7 @@ function bindPanelDrag(element) {
           if (!current) return;
           showAudienceDialog({
             title: 'パネルのテキストの公開先',
-            description: 'マウスオーバーで出るテキストを誰に見せるかを選びます（画像は常に全員に見えます）。',
+            description: `マウスオーバーで出るテキストを誰に見せるかを選びます（${isMarkerPanel ? 'マーカー' : '画像'}は常に全員に見えます）。`,
             audience: current.textAudience ?? null,
             participants: store.state.participants ?? {},
             myParticipantId: getCurrentParticipantId(),
@@ -1156,6 +1176,11 @@ function createPanelElement(panelData, panelLayer) {
   const el = document.createElement('div');
   el.className = 'panel-object';
   el.id = panelData.id;
+
+  // 簡易マーカーの形（画像パネルでは何も当てない）。枚数表示より先に入れて、数字を上に出す
+  const markerShape = document.createElement('div');
+  markerShape.className = 'panel-marker-shape';
+  el.appendChild(markerShape);
 
   // カードストッカーにしたときの枚数表示（普通のパネルでは中身が空のまま）
   const count = document.createElement('span');
@@ -1693,64 +1718,78 @@ export function buildAddCharacterMenuItem(x, y) {
   };
 }
 
-// 「パネルを追加」項目。サイズはダイアログの中で選ぶため置く時点では分からず、
-// dropX/dropYを省略した場合はgetBoardDropSpot()の生の中央位置をそのまま使う
+// 「パネルを追加」「簡易マーカーを追加」の中身。サイズはダイアログの中で選ぶため置く時点では
+// 分からず、dropX/dropYを省略した場合はgetBoardDropSpot()の生の中央位置をそのまま使う
 // （クリック位置版が生のdropX/dropYをそのまま使うのと同じ扱い）。
+function openAddPanelDialog(dropX, dropY, { mode, title }) {
+  // パネルの左上を置く位置（マス目に合わせる設定ならそのマスへ吸着する）
+  let snapX, snapY;
+  if (dropX !== undefined && dropY !== undefined) {
+    snapX = settlePosition(dropX);
+    snapY = settlePosition(dropY);
+  } else {
+    const spot = getBoardDropSpot();
+    snapX = spot.x;
+    snapY = spot.y;
+  }
+
+  showPanelDialog({
+    title,
+    mode,
+    // マーカーは目印なので、既定は1マス
+    ...(mode === 'marker' ? { initialCols: 1, initialRows: 1 } : {}),
+    usedImages: collectImageUrls(store.state),
+    clickActionChoices: buildClickActionChoices(),
+    maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
+    gridSize: GRID_SIZE,
+    onConfirm: ({
+      image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned,
+      clickAction, marker
+    }) => {
+      const panelId = generatePanelId();
+      store.dispatch('ADD_PANEL', {
+        id: panelId,
+        image,
+        text,
+        x: snapX,
+        y: snapY,
+        cols,
+        rows,
+        stackOrder,
+        keepOnSceneChange,
+        clickAction,
+        marker
+      });
+
+      // ストッカー化は所有者を決める必要があるので専用のアクションで続ける
+      // （ADD_PANELは「誰が作ったか」を持たない）
+      if (isStocker) {
+        const { participantId, localUserId } = actingUserPayload();
+        store.dispatch('SET_PANEL_STOCKER', {
+          id: panelId,
+          isStocker: true,
+          ownerId: stockerOwned ? participantId : null,
+          localUserId: stockerOwned ? localUserId : null,
+          gridSize: GRID_SIZE
+        });
+      }
+    }
+  });
+}
+
+// 「パネルを追加」項目。
 export function buildAddPanelMenuItem(dropX, dropY) {
-  const hasPos = dropX !== undefined && dropY !== undefined;
   return {
     label: 'パネルを追加',
-    onSelect: () => {
-      // パネルの左上を置く位置（マス目に合わせる設定ならそのマスへ吸着する）
-      let snapX, snapY;
-      if (hasPos) {
-        snapX = settlePosition(dropX);
-        snapY = settlePosition(dropY);
-      } else {
-        const spot = getBoardDropSpot();
-        snapX = spot.x;
-        snapY = spot.y;
-      }
+    onSelect: () => openAddPanelDialog(dropX, dropY, { mode: 'panel', title: 'パネルを追加' })
+  };
+}
 
-      showPanelDialog({
-        title: 'パネルを追加',
-        usedImages: collectImageUrls(store.state),
-        clickActionChoices: buildClickActionChoices(),
-        maxChatTextLength: MAX_PANEL_CHAT_TEXT_LENGTH,
-        gridSize: GRID_SIZE,
-        onConfirm: ({
-          image, text, cols, rows, stackOrder, keepOnSceneChange, isStocker, stockerOwned,
-          clickAction
-        }) => {
-          const panelId = generatePanelId();
-          store.dispatch('ADD_PANEL', {
-            id: panelId,
-            image,
-            text,
-            x: snapX,
-            y: snapY,
-            cols,
-            rows,
-            stackOrder,
-            keepOnSceneChange,
-            clickAction
-          });
-
-          // ストッカー化は所有者を決める必要があるので専用のアクションで続ける
-          // （ADD_PANELは「誰が作ったか」を持たない）
-          if (isStocker) {
-            const { participantId, localUserId } = actingUserPayload();
-            store.dispatch('SET_PANEL_STOCKER', {
-              id: panelId,
-              isStocker: true,
-              ownerId: stockerOwned ? participantId : null,
-              localUserId: stockerOwned ? localUserId : null,
-              gridSize: GRID_SIZE
-            });
-          }
-        }
-      });
-    }
+// 「簡易マーカーを追加」項目。画像を使わず、色と形（とフィルター）だけで描くパネルを置く。
+export function buildAddMarkerMenuItem(dropX, dropY) {
+  return {
+    label: '簡易マーカーを追加',
+    onSelect: () => openAddPanelDialog(dropX, dropY, { mode: 'marker', title: '簡易マーカーを追加' })
   };
 }
 
@@ -1980,6 +2019,7 @@ window.addEventListener('DOMContentLoaded', () => {
     showContextMenu(event.clientX, event.clientY, [
       buildAddCharacterMenuItem(newTokenX, newTokenY),
       buildAddPanelMenuItem(dropX, dropY),
+      buildAddMarkerMenuItem(dropX, dropY),
       buildBackgroundSettingsMenuItem(),
       // チャットパレットは浮動パネルなので、閉じたあと戻す手段がここだけになる。
       // パネルの生成はjs/main.js側なので、実体はsetChatPaletteControllerで受け取る。

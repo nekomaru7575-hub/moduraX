@@ -1298,6 +1298,16 @@ h1 {
   cursor: default;
 }
 
+/* 簡易マーカー（色と形だけで描くパネル）。見た目は内側の.panel-marker-shapeが持ち
+   （js/marker-style.jsがborder-radius・clip-path・backdrop-filterを当てる）、
+   外側の要素は操作を拾う四角のまま。形を切り抜くのを内側にしてあるのは、ストッカーの
+   枚数表示や枠まで一緒に切り抜かれないようにするため。 */
+.panel-marker-shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* カードストッカー（カードを収納できるパネル）。箱だと分かるよう枠を実線にし、
    右下に枚数を出す（js/board-data-driven.jsのapplyPanelAppearance）。 */
 .panel-object.stocker {

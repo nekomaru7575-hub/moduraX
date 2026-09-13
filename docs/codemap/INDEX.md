@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-10
+generated: 2026-09-13
 ---
 
 # trpg-app コードマップ
@@ -20,14 +20,15 @@ generated: 2026-09-10
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 165 | 743 | 1264 | 55 | 0 |
+| 169 | 764 | 1288 | 57 | 0 |
 
-エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `server/dev-local.js`, `server/index.js`
+エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
 ## ファイル一覧
 
 | ファイル | 紹介 | export | 被import |
 |---|---|---:|---:|
+| [[js.aspect-lock-field\|js/aspect-lock-field.js]] | ダイアログの「幅（マス）」「高さ（マス）」欄に添える「縦横比を固定する」チェックボックス。 | 1 | 2 |
 | [[js.asset-base\|js/asset-base.js]] | 「このアプリが画面に出す絵のうち、リポジトリに置いていないもの」の置き場所を1か所で持つ。 | 4 | 3 |
 | [[js.asset-store\|js/asset-store.js]] | P2P卓で使う、画像・音源の実体の置き場（IndexedDB）。中身のSHA-256を名前にし、状態には /asset/<hash> の参照だけを載せる。状態を歩いて集める・差し替える道具もここ。 | 19 | 10 |
 | [[js.asset-sync\|js/asset-sync.js]] | P2P卓で、画像・音源の実体をピアの間で行き来させる。 | 5 | 4 |
@@ -38,7 +39,7 @@ generated: 2026-09-10
 | [[js.background-dialog\|js/background-dialog.js]] | 盤面の「背景設定」ダイアログ。 | 1 | 1 |
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
 | [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 3 |
-| [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 12 | 8 |
+| [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 13 | 8 |
 | [[js.boot-guard\|js/boot-guard.js]] | ページに必要なファイルが1本でも届かなかったとき、**利用者に分かる形で知らせる**。 | 0 | 0 |
 | [[js.buff-dialog\|js/buff-dialog.js]] | コマ（トークン）へのバフ/デバフの付与・一覧表示ダイアログ。 | 2 | 2 |
 | [[js.card-catalog\|js/card-catalog.js]] | 「盤面に置けるカードの束（デッキ）」の既定の中身を持つ表。 | 7 | 2 |
@@ -66,16 +67,16 @@ generated: 2026-09-10
 | [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 17 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 8 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
-| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 17 |
+| [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 18 |
 | [[js.help.help-content\|js/help/help-content.js]] | 部屋の中のヘルプ（「？ヘルプ」タブ）で読ませる文章そのもの。 | 8 | 1 |
 | [[js.help.help-panel\|js/help/help-panel.js]] | 「？ヘルプ」タブの中身。 | 1 | 1 |
 | [[js.host-persistence\|js/host-persistence.js]] | P2P卓の永続化。 | 1 | 1 |
-| [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 3 |
+| [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 4 |
 | [[js.ice-probe-rules\|js/ice-probe-rules.js]] | 「この回線からP2Pが張れるか」の判定そのもの。 | 5 | 1 |
 | [[js.ice-probe\|js/ice-probe.js]] | 「この回線からP2Pの部屋に入れるか」を、相手を用意せずに1台だけで測る道具（/ice-probe.html）。 | 0 | 0 |
 | [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
-| [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 4 |
+| [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 5 |
 | [[js.image-field\|js/image-field.js]] | ダイアログに貼る「ラベル＋プレビュー＋選択/削除ボタン」の1組。 | 1 | 2 |
 | [[js.image-pool\|js/image-pool.js]] | 「プール」——アップロードした画像を、実際に使われるまでこのブラウザに溜めておく待機列。 | 10 | 1 |
 | [[js.image-selector-dialog\|js/image-selector-dialog.js]] | 画像を選ぶ画面。 | 2 | 3 |
@@ -102,11 +103,12 @@ generated: 2026-09-10
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.p2p-import-handoff\|js/p2p-import-handoff.js]] | P2P卓を「ファイルから作る」ときに、読み込んだ状態を部屋一覧ページから盤面ページへ渡す。 | 4 | 2 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
+| [[js.parameter-command\|js/parameter-command.js]] | [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([値]) でパラメータを直接変更する コマンドの解釈。 | 5 | 1 |
 | [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 3 | 1 |
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
 | [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
 | [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 4 |
-| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 16 | 6 |
+| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 17 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |
 | [[js.parameters.dice-draft.dice-draft-use\|js/parameters/dice-draft/dice-draft-use.js]] | ダイスドラフトの「発動」。 | 1 | 2 |
@@ -175,14 +177,16 @@ generated: 2026-09-10
 | [[js.store.handlers.round\|js/store/handlers/round.js]] | ラウンド進行（Core機能）。 | 1 | 1 |
 | [[js.store.handlers.scenes\|js/store/handlers/scenes.js]] | シーン（GMが場面ごとに盤面の見た目を保存し、1クリックで切り替えるための入れ物）。 | 1 | 1 |
 | [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 10 | 1 |
-| [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 6 | 9 |
+| [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 10 | 10 |
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
-| [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）の形と、その正規化。 | 4 | 3 |
+| [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）と「簡易マーカー」（marker）の形と、その正規化。 | 10 | 4 |
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 9 | 16 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
 | [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 12 | 9 |
+| [[js.theme-boot\|js/theme-boot.js]] | 明るい表示を選んでいる人の画面に、**最初の描画より前に** data-theme="light" を付ける。 | 0 | 0 |
+| [[js.theme\|js/theme.js]] | 部屋の画面の表示（暗い／明るい）の切り替え。 | 3 | 1 |
 | [[js.token-library-dialog\|js/token-library-dialog.js]] | 「保存したコマから追加」——部屋の外のコマ作成ツールで作って棚（js/token-library.js）に 残したコマを、この部屋のバックヤードへ引き込む。 | 2 | 1 |
 | [[js.token-library\|js/token-library.js]] | 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに 取っておく置き場。 | 13 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
@@ -199,8 +203,8 @@ generated: 2026-09-10
 | ファイル | 被import |
 |---|---:|
 | [[js.dialog-host\|js/dialog-host.js]] | 39 |
+| [[js.game-store\|js/game-store.js]] | 18 |
 | [[js.EventBus\|js/EventBus.js]] | 17 |
-| [[js.game-store\|js/game-store.js]] | 17 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 17 |
 | [[js.store.patch\|js/store/patch.js]] | 16 |
 | [[js.local-identity\|js/local-identity.js]] | 15 |

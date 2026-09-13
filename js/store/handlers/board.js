@@ -12,7 +12,7 @@ import {
   releaseStockerCards, stockerAllowsUser
 } from '../cards.js';
 import { normalizeImageRef } from '../images.js';
-import { normalizeClickAction } from '../panels.js';
+import { normalizeClickAction, normalizeMarker } from '../panels.js';
 import { normalizeAudience, normalizeStackOrder, withMapEntry, withoutMapEntry } from '../patch.js';
 
 export const BOARD_HANDLERS = {
@@ -56,13 +56,16 @@ export const BOARD_HANDLERS = {
   ADD_PANEL({ prevState, payload, commit }) {
     const {
       id, image = null, text = '', x = 0, y = 0, cols = 2, rows = 2, locked = false,
-      textAudience = null, keepOnSceneChange = false, stackOrder = 0, clickAction = null
+      textAudience = null, keepOnSceneChange = false, stackOrder = 0, clickAction = null, marker = null
     } = payload;
     if (!id) return;
     if (prevState.panels[id]) return;
 
+    // 簡易マーカー（色と形だけで描くパネル）なら画像は持たない。形の検証はjs/store/panels.js
+    const normalizedMarker = normalizeMarker(marker);
+
     const panel = Object.freeze({
-      id, image: normalizeImageRef(image), text: text || '', x, y,
+      id, image: normalizedMarker ? null : normalizeImageRef(image), text: text || '', x, y,
       cols: Math.max(1, Math.round(cols)),
       rows: Math.max(1, Math.round(rows)),
       locked: !!locked, // 固定中は盤面上でドラッグ移動できない（背景タイルのように振る舞う）
@@ -76,6 +79,7 @@ export const BOARD_HANDLERS = {
       // クリックしたときの振る舞い（発言・シーン変更・音楽変更・スタンプ送信）。
       // null＝押しても何も起きない従来のパネル。形の検証はjs/store/panels.js
       clickAction: normalizeClickAction(clickAction),
+      marker: normalizedMarker,
       // カードストッカー（カードを収納できる箱）。既定は普通のパネル。
       // 切り替えとその所有者はSET_PANEL_STOCKERで決める
       isStocker: false,

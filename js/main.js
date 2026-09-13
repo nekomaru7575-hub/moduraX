@@ -7,7 +7,8 @@ import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdi
 import {
   store, generateTokenId, generateBuffId, listPlugins, getEffectiveParameterValue,
   BUFF_PHASE_LABELS, getBoardDropSpot,
-  buildPanelToggleItems, buildAddCharacterMenuItem, buildAddPanelMenuItem, buildBackgroundSettingsMenuItem
+  buildPanelToggleItems, buildAddCharacterMenuItem, buildAddPanelMenuItem, buildAddMarkerMenuItem,
+  buildBackgroundSettingsMenuItem
 } from './board-data-driven.js';
 import {
   AUDIO_CHANNELS, AUDIO_CHANNEL_LABELS, listExpiringBuffNames, formatExpiredBuffsNote,
@@ -1092,6 +1093,7 @@ if (addMenuBtn) {
     const items = [
       buildAddCharacterMenuItem(),
       buildAddPanelMenuItem(),
+      buildAddMarkerMenuItem(),
       buildBackgroundSettingsMenuItem(),
       // 使う相手を決めずに画像だけ溜めておく口。GM限定にしない——溜めるのはこの
       // ブラウザの中だけで、置き場へ送るのは実際に使うときだから

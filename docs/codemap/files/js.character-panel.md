@@ -1,11 +1,11 @@
 ---
 source: js/character-panel.js
-lines: 363
+lines: 369
 exports: 3
 imported_by: 1
 api_sha: ad595620bb46
 prose_sha: ad595620bb46
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -25,9 +25,9 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 55 | fn | listBackyardTokens | `listBackyardTokens(state)` | 部屋の誰かのバックヤードに入っているコマを、持ち主を問わず全部返す。 |
-| 63 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
-| 223 | fn | initCharacterPanel | `initCharacterPanel()` |  |
+| 56 | fn | listBackyardTokens | `listBackyardTokens(state)` | 部屋の誰かのバックヤードに入っているコマを、持ち主を問わず全部返す。 |
+| 64 | fn | listMyBackyardTokens | `listMyBackyardTokens(state)` | バックヤードに入っているコマのうち、自分の棚のものだけを返す。 |
+| 229 | fn | initCharacterPanel | `initCharacterPanel()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（9）
 
@@ -36,19 +36,19 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 34 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
-| 41 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
-| 55 | listBackyardTokens | `listBackyardTokens(state)` | 3 | ✓ |
-| 63 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
-| 76 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 32 |  |
-| 116 | bindTokenMenu | `bindTokenMenu(element, tokenId)` | 12 |  |
-| 129 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
-| 192 | buildBackyardRow | `buildBackyardRow(tokenData)` | 30 |  |
-| 223 | initCharacterPanel | `initCharacterPanel()` | 140 | ✓ |
+| 35 | truncateLabel | `truncateLabel(label, maxLength = 4)` | 4 |  |
+| 42 | listBoardTokens | `listBoardTokens(state)` | 9 |  |
+| 56 | listBackyardTokens | `listBackyardTokens(state)` | 3 | ✓ |
+| 64 | listMyBackyardTokens | `listMyBackyardTokens(state)` | 10 | ✓ |
+| 77 | buildAvatarColumn | `buildAvatarColumn(tokenData, { withInitiative })` | 37 |  |
+| 122 | bindTokenMenu | `bindTokenMenu(element, tokenId)` | 12 |  |
+| 135 | buildBoardRow | `buildBoardRow(tokenData, myId)` | 56 |  |
+| 198 | buildBackyardRow | `buildBackyardRow(tokenData)` | 30 |  |
+| 229 | initCharacterPanel | `initCharacterPanel()` | 140 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.board-data-driven]], [[js.drag-gesture]], [[js.floating-panel]], [[js.local-identity]], [[js.token-library-dialog]], [[js.visibility]]
+- import → [[js.EventBus]], [[js.board-data-driven]], [[js.drag-gesture]], [[js.floating-panel]], [[js.html-escape]], [[js.local-identity]], [[js.token-library-dialog]], [[js.visibility]]
 - imported by → [[js.main]]
 
 ## 注意

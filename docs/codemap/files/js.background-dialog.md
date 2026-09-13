@@ -1,11 +1,11 @@
 ---
 source: js/background-dialog.js
-lines: 205
+lines: 180
 exports: 1
 imported_by: 1
 api_sha: 23878aaa1c7b
 prose_sha: 23878aaa1c7b
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 38 | fn | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, usedImages = new Set(), gridSize, onConfirm })` | initialImage?: string \| null, initialImageKey?: string \| null, initialCols?: number \| null, null＝自動（ビューポートに合… |
+| 39 | fn | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, usedImages = new Set(), gridSize, onConfirm })` | initialImage?: string \| null, initialImageKey?: string \| null, initialCols?: number \| null, null＝広さが未指定の部屋（以前の「自動」）。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -34,11 +34,11 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 38 | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, usedImages = new Set(), gridSize, onConfirm })` | 167 | ✓ |
+| 39 | showBackgroundDialog | `showBackgroundDialog({ initialImage = null, initialImageKey = null, initialCols = null, initialRows = null, fallbackCols = 20, fallbackRows = 15, initialShowGrid = true, initialKeepOnSceneChange = false, usedImages = new Set(), gridSize, onConfirm })` | 141 | ✓ |
 
 ## 依存
 
-- import → [[js.dialog-host]], [[js.image-dimensions]], [[js.image-field]]
+- import → [[js.aspect-lock-field]], [[js.dialog-host]], [[js.image-dimensions]], [[js.image-field]]
 - imported by → [[js.board-data-driven]]
 
 ## 注意

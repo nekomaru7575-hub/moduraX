@@ -1003,6 +1003,102 @@ test('hydrate: 取り込んだパネルのクリックオプションを検証�
   assert.equal({}.type, undefined);
 });
 
+// --- 簡易マーカー（js/store/panels.jsのnormalizeMarker） ---
+
+test('簡易マーカー: ADD_PANELで形を整えて持ち、画像は持たない', () => {
+  const store = newStore();
+
+  store.dispatch('ADD_PANEL', {
+    id: 'm1', image: 'https://example.com/a.png',
+    marker: { shape: 'ellipse', color: '#ABCDEF', opacity: 30.4, filter: { type: 'blur', strength: 40 } }
+  });
+  assert.deepEqual(store.state.panels.m1.marker,
+    { shape: 'ellipse', color: '#abcdef', opacity: 30, filter: { type: 'blur', strength: 40 } });
+  assert.equal(store.state.panels.m1.image, null, 'マーカーは画像を持たない');
+
+  // 範囲外は丸める・知らないフィルターは外す・色が読めなければ既定色
+  store.dispatch('ADD_PANEL', {
+    id: 'm2', marker: { shape: 'hexagon', color: 'red;background:url(x)', opacity: 900, filter: { type: 'mosaic', strength: -5 } }
+  });
+  assert.deepEqual(store.state.panels.m2.marker,
+    { shape: 'hexagon', color: '#e53935', opacity: 100, filter: { type: 'mosaic', strength: 1 } });
+
+  store.dispatch('ADD_PANEL', { id: 'm3', marker: { shape: 'rect', filter: { type: 'constructor', strength: 10 } } });
+  assert.equal(store.state.panels.m3.marker.filter, null);
+
+  // 普通のパネルはmarker null
+  store.dispatch('ADD_PANEL', { id: 'p1' });
+  assert.equal(store.state.panels.p1.marker, null);
+});
+
+test('簡易マーカー: 形状の分からないものはマーカーにならない', () => {
+  const store = newStore();
+  const rejected = {
+    r1: { shape: '__proto__' },
+    r2: { shape: 'constructor', color: '#000000' },
+    r3: { shape: 'star' },
+    r4: ['rect'],
+    r5: 'rect',
+    r6: { color: '#000000' }
+  };
+  for (const [id, marker] of Object.entries(rejected)) {
+    store.dispatch('ADD_PANEL', { id, marker });
+    assert.equal(store.state.panels[id].marker, null, `${id}: ${JSON.stringify(marker)}`);
+  }
+  assert.equal({}.shape, undefined);
+});
+
+test('SET_PANEL_MARKER: 変更と解除', () => {
+  const store = newStore();
+  store.dispatch('ADD_PANEL', { id: 'm1', marker: { shape: 'rect', color: '#000000', opacity: 50 } });
+
+  store.dispatch('SET_PANEL_MARKER', {
+    id: 'm1', marker: { shape: 'triangle', color: '#112233', opacity: 0, filter: { type: 'grayscale', strength: 100 } }
+  });
+  assert.deepEqual(store.state.panels.m1.marker,
+    { shape: 'triangle', color: '#112233', opacity: 0, filter: { type: 'grayscale', strength: 100 } });
+
+  store.dispatch('SET_PANEL_MARKER', { id: 'm1', marker: { shape: 'nope' } });
+  assert.equal(store.state.panels.m1.marker, null, '壊れた値は画像パネル扱いへ落ちる');
+
+  assertNoop(store, 'SET_PANEL_MARKER', { id: 'いない', marker: { shape: 'rect' } });
+});
+
+test('hydrate: 取り込んだパネルのマーカーを検証する', () => {
+  const store = newStore();
+  store.hydrate({
+    panels: {
+      ok: { id: 'ok', cols: 1, rows: 1, marker: { shape: 'diamond', color: '#00ff00', opacity: 20, filter: null } },
+      evil: { id: 'evil', cols: 1, rows: 1, marker: { shape: 'rect', color: 'url(javascript:1)', opacity: 'x', filter: { type: '__proto__' } } },
+      broken: { id: 'broken', cols: 1, rows: 1, marker: { shape: 'toString' } },
+      old: { id: 'old', cols: 2, rows: 2 }
+    }
+  });
+
+  assert.deepEqual(store.state.panels.ok.marker,
+    { shape: 'diamond', color: '#00ff00', opacity: 20, filter: null });
+  assert.deepEqual(store.state.panels.evil.marker,
+    { shape: 'rect', color: '#e53935', opacity: 50, filter: null });
+  assert.equal(store.state.panels.broken.marker, null);
+  assert.equal('marker' in store.state.panels.old, false, '無いパネルにキーを足さない');
+});
+
+test('簡易マーカー: ストッカーにでき、シーンチェンジで残す設定も効く', () => {
+  const store = newStore();
+  const marker = { shape: 'rounded', color: '#123456', opacity: 60, filter: null };
+  store.dispatch('ADD_PANEL', { id: 'kept', marker, keepOnSceneChange: true });
+  store.dispatch('ADD_PANEL', { id: 'gone', marker });
+  store.dispatch('SET_PANEL_STOCKER', { id: 'kept', isStocker: true });
+  assert.equal(store.state.panels.kept.isStocker, true);
+
+  store.dispatch('SAVE_SCENE', { id: 'sc1', name: '空のシーン', panels: {} });
+  store.dispatch('APPLY_SCENE', { id: 'sc1', playId: '1' });
+
+  assert.equal(store.state.panels.gone, undefined, '残さないマーカーは消える');
+  assert.equal(store.state.panels.kept?.isStocker, true, '残すマーカーはストッカーのまま残る');
+  assert.deepEqual(store.state.panels.kept.marker, { ...marker, shape: 'rounded' });
+});
+
 test('ADD_CARD / ADD_DECK: 重複とid欠落は何もしない', () => {
   const store = newStore();
 

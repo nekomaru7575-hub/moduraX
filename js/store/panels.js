@@ -11,6 +11,8 @@
 // 「押すと何かが起きる」ので、細工された形がそのまま入ると押した人の側で動く。
 // hydrateからここを通し、形の合わないものはすべてnullへ落とす。
 //
+// 簡易マーカー（marker）も同じ理由でここを通す：色と種類がそのままCSSへ渡るため。
+//
 // パネルの他の項目（cols/rows/stackOrder等）が検証を受けていないのは別の穴で、
 // ここでは手を付けていない。足すときはこのファイルへ足すこと。
 
@@ -80,11 +82,76 @@ export function normalizeClickAction(value) {
   }
 }
 
+// --- 簡易マーカー（画像を使わず、色と形だけで描くパネル） ---
+// panel.marker に持つ。null＝従来の画像パネル。
+// 塗りの下に backdrop-filter を掛けられるので、濃さ0にすると「下の絵をぼかすだけの窓」になる
+// （js/board-data-driven.jsのapplyMarkerAppearance）。
+//
+// 色と種類はそのままCSSへ渡るので、形の検証をここで必ず通す。種類はSetで持つ
+// （CLICK_ACTION_TYPESと同じ理由で、キー参照にしない）。
+
+/** 形状。rect＝マスいっぱいの四角 */
+export const MARKER_SHAPES = Object.freeze(new Set([
+  'rect', 'rounded', 'ellipse', 'diamond', 'triangle', 'hexagon'
+]));
+
+/** 下にあるもの（背景・重なり順の低いパネル／カード）へ掛けるフィルター */
+export const MARKER_FILTER_TYPES = Object.freeze(new Set([
+  'blur', 'mosaic', 'grayscale', 'sepia', 'darken', 'brighten', 'invert', 'saturate'
+]));
+
+export const DEFAULT_MARKER_COLOR = '#e53935';
+
+export const DEFAULT_MARKER = Object.freeze({
+  shape: 'rect', color: DEFAULT_MARKER_COLOR, opacity: 50, filter: null
+});
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/;
+
+// 範囲の整数へ丸める。数でないものは既定値
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
 /**
- * パネルのマップを、clickActionだけ正規化して返す。hydrateから通す。
+ * markerを正規化する。オブジェクトでない・形状が分からないものはnull（＝マーカーではない）。
+ * 色・濃さ・強さは範囲へ丸め、フィルターの種類が分からなければフィルター無しにする。
+ *
+ * @param {unknown} value
+ * @returns {Readonly<object>|null}
+ */
+export function normalizeMarker(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (!MARKER_SHAPES.has(value.shape)) return null;
+
+  const rawColor = typeof value.color === 'string' ? value.color.toLowerCase() : '';
+  const color = HEX_COLOR.test(rawColor) ? rawColor : DEFAULT_MARKER_COLOR;
+  const opacity = clampInt(value.opacity, 0, 100, DEFAULT_MARKER.opacity);
+
+  const rawFilter = value.filter;
+  const filter = (rawFilter && typeof rawFilter === 'object' && !Array.isArray(rawFilter)
+    && MARKER_FILTER_TYPES.has(rawFilter.type))
+    ? Object.freeze({ type: rawFilter.type, strength: clampInt(rawFilter.strength, 1, 100, 50) })
+    : null;
+
+  return Object.freeze({ shape: value.shape, color, opacity, filter });
+}
+
+/** 2つのmarkerが同じ見た目か（正規化済みの値どうしを比べる） */
+export function sameMarker(a, b) {
+  if (!a || !b) return !a && !b;
+  return a.shape === b.shape && a.color === b.color && a.opacity === b.opacity
+    && (a.filter?.type ?? null) === (b.filter?.type ?? null)
+    && (a.filter?.strength ?? null) === (b.filter?.strength ?? null);
+}
+
+/**
+ * パネルのマップを、clickActionとmarkerだけ正規化して返す。hydrateから通す。
  * 変わるものが1つも無ければ元の参照をそのまま返す（差分検知に使っているため）。
  */
-export function normalizePanelClickActions(panels) {
+export function normalizePanels(panels) {
   if (!panels || typeof panels !== 'object') return {};
 
   let changed = false;
@@ -95,12 +162,15 @@ export function normalizePanelClickActions(panels) {
       continue; // 形になっていないパネルは落とす
     }
     const clickAction = normalizeClickAction(panel.clickAction);
-    if (clickAction === panel.clickAction) {
+    const marker = normalizeMarker(panel.marker);
+    // markerは正規化で必ず別の参照になるので、中身で比べる（無いパネルはキーを増やさない）
+    const markerSame = marker === null ? panel.marker == null : sameMarker(marker, panel.marker);
+    if (clickAction === panel.clickAction && markerSame) {
       next[id] = panel;
       continue;
     }
     changed = true;
-    next[id] = { ...panel, clickAction };
+    next[id] = { ...panel, clickAction, ...(marker || panel.marker != null ? { marker } : {}) };
   }
   return changed ? next : panels;
 }

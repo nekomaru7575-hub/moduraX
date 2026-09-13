@@ -2,10 +2,10 @@
 source: js/html-escape.js
 lines: 38
 exports: 2
-imported_by: 3
+imported_by: 4
 api_sha: 5e6788af49d6
 prose_sha: 5e6788af49d6
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -41,7 +41,7 @@ _(未記入)_
 ## 依存
 
 - import → なし
-- imported by → [[js.log-export]], [[js.main]], [[js.parameters.dx3]]
+- imported by → [[js.character-panel]], [[js.log-export]], [[js.main]], [[js.parameters.dx3]]
 
 ## 注意
 

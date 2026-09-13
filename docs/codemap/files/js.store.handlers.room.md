@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/room.js
-lines: 243
+lines: 264
 exports: 1
 imported_by: 1
 api_sha: a1ff12e4b823
 prose_sha: a1ff12e4b823
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 

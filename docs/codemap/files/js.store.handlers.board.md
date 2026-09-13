@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/board.js
-lines: 412
+lines: 416
 exports: 1
 imported_by: 1
 api_sha: 1fc9b2f89527
 prose_sha: 1fc9b2f89527
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 

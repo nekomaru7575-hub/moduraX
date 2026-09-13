@@ -23,7 +23,7 @@ import {
   MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID, SYSTEM_CHAT_TAB_NAME, withFixedChatTabs
 } from './store/chat.js';
 import { normalizeImageRef } from './store/images.js';
-import { normalizePanelClickActions } from './store/panels.js';
+import { normalizeMarker, normalizePanels } from './store/panels.js';
 import { normalizeRoomStampMap } from './store/stamps.js';
 import { normalizeInfoEntries } from './store/info.js';
 import {
@@ -115,7 +115,9 @@ const PANEL_FIELD_PATCHES = {
   // パネル同士の重なり順（0以上。小さいほど下、大きいほど上。同値なら追加順）
   SET_PANEL_STACK_ORDER: ({ stackOrder }) => ({ stackOrder: normalizeStackOrder(stackOrder) }),
   // シーンへ遷移しても盤面に残すか（APPLY_SCENE参照）
-  SET_PANEL_KEEP_ON_SCENE_CHANGE: ({ keepOnSceneChange }) => ({ keepOnSceneChange: !!keepOnSceneChange })
+  SET_PANEL_KEEP_ON_SCENE_CHANGE: ({ keepOnSceneChange }) => ({ keepOnSceneChange: !!keepOnSceneChange }),
+  // 簡易マーカーの見た目（形・色・濃さ・フィルター。js/store/panels.js）。nullで画像パネルへ戻る
+  SET_PANEL_MARKER: ({ marker }) => ({ marker: normalizeMarker(marker) })
 };
 
 // カードの「決まった項目だけを差し替える」アクション。PANEL_FIELD_PATCHESと同じ扱い。
@@ -181,10 +183,10 @@ export class ImmutableStore {
     const normalized = {
       ...newState,
       tokens: newState.tokens || {},
-      // パネルのクリックオプションだけは形を検証する。取り込んだ部屋データ（信用しないJSON）も
-      // ここを通り、押すと何かが起きる項目なので、細工された形を状態へ入れない
+      // パネルのクリックオプションと簡易マーカーだけは形を検証する。取り込んだ部屋データ
+      // （信用しないJSON）もここを通り、押すと何かが起きる・CSSへ渡る項目なので、細工された形を状態へ入れない
       // （panelsの他の項目に検証が無いのは別の穴。js/store/panels.js冒頭を参照）
-      panels: normalizePanelClickActions(newState.panels),
+      panels: normalizePanels(newState.panels),
       // この機能より前に保存された状態にはカード・デッキが無いため、既定値を補う。
       // 取り込んだ部屋データ（信用しないJSON）もここを通るので、形の整えと上限も
       // まとめて掛かる（normalizeCardMap／normalizeDeckMap）。

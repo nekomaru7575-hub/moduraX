@@ -882,6 +882,63 @@
   border-radius: 4px;
 }
 
+/* 簡易マーカーの欄（js/panel-dialog.jsのbuildMarkerFields）。 */
+.marker-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.marker-range-label {
+  flex: 0 0 6em;
+}
+
+/* .dialog-form-group input の指定（背景・枠・余白）はテキスト/数値入力向けなので打ち消す */
+.marker-range-row input[type="range"] {
+  flex: 1;
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.marker-range-value {
+  flex: 0 0 2.5em;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.dialog-form-group input.marker-color-input {
+  width: 64px;
+  height: 32px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+/* プレビューの下地。市松模様と縞を敷いて、透け具合とフィルターの効き方が見えるようにする */
+.marker-preview {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin-top: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #999 25%, transparent 25%, transparent 75%, #999 75%),
+    linear-gradient(45deg, #999 25%, transparent 25%, transparent 75%, #999 75%),
+    linear-gradient(90deg, rgba(229, 57, 53, 0.6), rgba(30, 136, 229, 0.6));
+  background-size: 16px 16px, 16px 16px, 100% 100%;
+  background-position: 0 0, 8px 8px, 0 0;
+}
+
+.marker-preview-shape {
+  position: absolute;
+  inset: 12px;
+}
+
 /* 入力欄の下に添える補足文（バフの終了条件の入れ子説明など）。ラベルより弱く見せる。 */
 .dialog-form-note {
   font-size: 0.75rem;

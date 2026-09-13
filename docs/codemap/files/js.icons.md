@@ -1,11 +1,11 @@
 ---
 source: js/icons.js
-lines: 156
+lines: 160
 exports: 4
 imported_by: 12
 api_sha: 0c50efe1cc24
 prose_sha: 0c50efe1cc24
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -25,10 +25,10 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 93 | fn | createIcon | `createIcon(name, label = '')` | アイコン1つを作って返す。 |
-| 114 | fn | setIcon | `setIcon(el, name, label = '')` | 要素の中身を「アイコンだけ」に差し替える。 |
-| 124 | fn | setIconText | `setIconText(el, name, text, label = '')` | 要素の中身を「アイコン＋文字」に差し替える。 |
-| 142 | fn | applyStaticIcons | `applyStaticIcons(root = document)` | HTMLに直接書いてあるアイコン置き場を埋める。 |
+| 97 | fn | createIcon | `createIcon(name, label = '')` | アイコン1つを作って返す。 |
+| 118 | fn | setIcon | `setIcon(el, name, label = '')` | 要素の中身を「アイコンだけ」に差し替える。 |
+| 128 | fn | setIconText | `setIconText(el, name, text, label = '')` | 要素の中身を「アイコン＋文字」に差し替える。 |
+| 146 | fn | applyStaticIcons | `applyStaticIcons(root = document)` | HTMLに直接書いてあるアイコン置き場を埋める。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（5）
 
@@ -37,11 +37,11 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 69 | parseIcon | `parseIcon(name)` | 17 |  |
-| 93 | createIcon | `createIcon(name, label = '')` | 16 | ✓ |
-| 114 | setIcon | `setIcon(el, name, label = '')` | 3 | ✓ |
-| 124 | setIconText | `setIconText(el, name, text, label = '')` | 5 | ✓ |
-| 142 | applyStaticIcons | `applyStaticIcons(root = document)` | 14 | ✓ |
+| 73 | parseIcon | `parseIcon(name)` | 17 |  |
+| 97 | createIcon | `createIcon(name, label = '')` | 16 | ✓ |
+| 118 | setIcon | `setIcon(el, name, label = '')` | 3 | ✓ |
+| 128 | setIconText | `setIconText(el, name, text, label = '')` | 5 | ✓ |
+| 146 | applyStaticIcons | `applyStaticIcons(root = document)` | 14 | ✓ |
 
 ## 依存
 

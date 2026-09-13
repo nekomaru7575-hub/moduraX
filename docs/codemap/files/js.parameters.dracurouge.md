@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dracurouge.js
-lines: 928
+lines: 918
 exports: 2
 imported_by: 1
 api_sha: d4d7df16cc4b
 prose_sha: d4d7df16cc4b
-generated: 2026-09-10
+generated: 2026-09-13
 tags: [codemap]
 ---
 
@@ -25,10 +25,10 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 44 | const | DRACUROUGE_BCDICE_SYSTEM | `DRACUROUGE_BCDICE_SYSTEM` | BCDice側のシステムID。 |
-| 912 | const | DRACUROUGE_PLUGIN | `DRACUROUGE_PLUGIN` |  |
+| 43 | const | DRACUROUGE_BCDICE_SYSTEM | `DRACUROUGE_BCDICE_SYSTEM` | BCDice側のシステムID。 |
+| 903 | const | DRACUROUGE_PLUGIN | `DRACUROUGE_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（25）
+## トップレベル関数（LOCAL TASKS 候補）（24）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -54,12 +54,11 @@ _(未記入)_
 | 718 | readThirstModifier | `readThirstModifier(token, getEffectiveParameterValue)` | 7 |  |
 | 734 | readTreatDice | `readTreatDice({ diceValues, resultText })` | 15 |  |
 | 755 | looksLikeDracurougeChatCommand | `looksLikeDracurougeChatCommand(rawInput)` | 4 |  |
-| 768 | splitDeedUseArgument | `splitDeedUseArgument(rawArgument)` | 7 |  |
-| 784 | handleDracurougeChatCommand | `handleDracurougeChatCommand(rawInput, context)` | 51 |  |
-| 839 | resetDracurougeComponentsOnPhaseEnd | `resetDracurougeComponentsOnPhaseEnd(components, phase)` | 6 |  |
-| 856 | buildDracurougeRoundPhaseTemplate | `buildDracurougeRoundPhaseTemplate()` | 16 |  |
-| 875 | computeDracurougeDerivedParameters | `computeDracurougeDerivedParameters(parameters = {})` | 7 |  |
-| 886 | applyDracurougeRoundPhaseStart | `applyDracurougeRoundPhaseStart(phase, { tokens = {}, participants = [] } = {})` | 25 |  |
+| 769 | splitDeedUseArgument | `splitDeedUseArgument(rawArgument)` | 7 |  |
+| 785 | handleDracurougeChatCommand | `handleDracurougeChatCommand(rawInput, context)` | 51 |  |
+| 847 | buildDracurougeRoundPhaseTemplate | `buildDracurougeRoundPhaseTemplate()` | 16 |  |
+| 866 | computeDracurougeDerivedParameters | `computeDracurougeDerivedParameters(parameters = {})` | 7 |  |
+| 877 | applyDracurougeRoundPhaseStart | `applyDracurougeRoundPhaseStart(phase, { tokens = {}, participants = [] } = {})` | 25 |  |
 
 ## 依存
 

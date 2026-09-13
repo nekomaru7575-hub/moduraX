@@ -31,8 +31,7 @@ import { createDie, createDiceDraftSpec, readTargetModifier } from './dice-draft
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from './dice-draft/dice-draft-use.js';
 import {
-  buildSkillUseCommandPattern, createSkillSpec, createListSpec, normalizeSkillList,
-  resetSkillUsageOnPhaseEnd
+  buildSkillUseCommandPattern, createSkillSpec, createListSpec, normalizeSkillList
 } from './skill/skill-model.js';
 import { showSkillBox } from './skill/skill-box.js';
 import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
@@ -148,8 +147,9 @@ const TYPED_PARAM_IDS = [...PC_PARAM_IDS, ...NPC_PARAM_IDS];
 // 行い。名称と効果は枠組みの組み込み欄（name / note）なので宣言しない。
 // 目標値はダイスドラフト（合計型）の目標値になる：ここに書いた数値以上の目を積めば発動できる。
 //
-// 使用制限はこのシステムでは全て「ラウンド1回」なので、利用者に上限を触らせない
-// （periodのfixedMax）。修正値も効果時間も持たないので、その欄ごと出さない
+// 使用回数は数えない（periodsを宣言しない）。行いは基本「ラウンド1回」だが、効果で
+// 複数回使えるものがあり、上限を置くとそれが使えなくなるため。回数の管理は卓に任せる。
+// 修正値も効果時間も持たないので、その欄ごと出さない
 // （allowMods / allowExpirePhase）。modTargetsを空にするだけでは、ボックスの
 // 「その他のパラメータ」から全パラメータが選べてしまう。
 const DEED_COMPONENT_KEY = 'deeds';
@@ -163,15 +163,15 @@ const DEED_SPEC = createSkillSpec({
       key: 'kind', label: '種別', type: 'select', className: 'effect-box-level',
       options: [{ value: '戦', label: '戦' }, { value: '常', label: '常' }]
     },
-    // 目標値は数値ではなく文字列で持つ。《軽やかに剣舞う》の「3～12」のように、
-    // 幅のある目標値（最小値の倍数から選ぶ）を書く行いがあるため（読み方はparseDeedTarget）。
+    // 目標値は数値ではなく文字列で持つ。《軽やかに剣舞う》の「3～12」や「効果参照」のように、
+    // 数字1つでは書けない行いがあるため。そういう行いはダイスドラフトの画面で狙う値を入れる
+    // （読み方はdice-draft-model.jsのparseSumTarget）。
     { key: 'target', label: '目標値', type: 'text', className: 'effect-box-level' },
     { key: 'range', label: '間合', type: 'text', className: 'effect-box-timing' },
     // 対象（「他の一体」「エリア」など）は文章なので数値にはしない。判定には使わず、
     // 行い一覧とチャットログで読むためだけの欄。キーをtargetにできないのは目標値が使っているため。
     { key: 'subject', label: '対象', type: 'text', className: 'effect-box-timing' }
   ],
-  periods: [{ key: 'round', label: 'ラウンド', fixedMax: 1 }],
   allowMods: false,
   allowExpirePhase: false,
   // 修正値を持たないので、使用ログには効果（note）をそのまま出す
@@ -758,25 +758,26 @@ function looksLikeDracurougeChatCommand(rawInput) {
 }
 
 // 「行い使用(名前)」の中身を、行いの名前と目標値に分ける。
-// 目標値に幅がある行い（《軽やかに剣舞う》の「3～12」）を、どれを狙うか決めて使うための
-// 省略できる引数。書式は「行い使用(名前,9)」。
+// 目標値が数字1つでない行い（《軽やかに剣舞う》の「3～12」、「効果参照」）で、狙う値を
+// 決めて使うための省略できる引数。書式は「行い使用(名前,9)」。
 //
 // 末尾の「,数字」だけを目標値として切り出す。共通のコマンド書式
 // （buildSkillUseCommandPattern）は括弧の中を丸ごと1つの名前として渡してくるので、
 // 分けるのはこのシステムの都合＝ここの仕事。名前に読点が入っていても、その後ろが
 // 数字でなければ切らないので巻き添えにならない。
+// 全角の数字・読点（「行い使用(名前，９)」）も受ける。名前の側は書かれたまま返す。
 function splitDeedUseArgument(rawArgument) {
   const text = String(rawArgument).trim();
-  const match = text.match(/^(.+?)\s*,\s*(\d+)$/);
+  const match = text.match(/^(.+?)\s*[,，]\s*([0-9０-９]+)$/);
   if (!match) return { skillName: text, targetValue: null };
 
-  return { skillName: match[1].trim(), targetValue: Number(match[2]) };
+  return { skillName: match[1].trim(), targetValue: Number(match[2].normalize('NFKC')) };
 }
 
 // treat(n) … n個のダイスを振ってプールへ入れる（DRn+渇き）
 // treat     … 個数を書かない形。BCDiceの既定である4個で振る（DR+渇き）
 // 行い使用(名前) … 乗せたダイスで行いを発動する（パネルの「使用」ボタンと同じ経路）
-// 行い使用(名前,目標値) … 目標値に幅がある行いで、狙う目標値を決めて使う
+// 行い使用(名前,目標値) … 目標値が「3～12」「効果参照」などの行いで、狙う値を決めて使う
 //
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内・使えない理由の説明は、それぞれ
 // runDiceDraftRoll と runDiceDraftUse がまとめて行うので、ここは書式の判定と、
@@ -831,16 +832,6 @@ function handleDracurougeChatCommand(rawInput, context) {
   }
 
   return false;
-}
-
-// ラウンド終了で行いの使用回数（periods: round）を戻す
-// （js/parameters/stella-knights.jsのresetStellaKnightsComponentsOnPhaseEndと同型）。
-// 変化が無ければ同一参照のcomponentsを返す（game-store.js側の差分検知に合わせるため）。
-function resetDracurougeComponentsOnPhaseEnd(components, phase) {
-  const deeds = components?.[DEED_COMPONENT_KEY];
-  const nextDeeds = resetSkillUsageOnPhaseEnd(DEED_SPEC, deeds, phase);
-
-  return nextDeeds === deeds ? components : { ...components, [DEED_COMPONENT_KEY]: nextDeeds };
 }
 
 // --- ラウンド進行 ---------------------------------------------------
@@ -921,7 +912,6 @@ export const DRACUROUGE_PLUGIN = {
   characterSheetSource: DRACUROUGE_SHEET_SOURCE,
   handleChatCommand: handleDracurougeChatCommand,
   looksLikeOwnChatCommand: looksLikeDracurougeChatCommand,
-  resetComponentsOnPhaseEnd: resetDracurougeComponentsOnPhaseEnd,
   diceDraft: DRACUROUGE_DRAFT_SPEC,
   bcdiceSystem: DRACUROUGE_BCDICE_SYSTEM
 };

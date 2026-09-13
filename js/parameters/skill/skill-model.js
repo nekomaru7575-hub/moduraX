@@ -113,7 +113,7 @@ export function resolveExpirePhase(stored, fallback = null) {
  *                              回数制限の期間。keyはフェーズ終了のリセット
  *                              （resetSkillUsageOnPhaseEnd）で渡される名前と一致させる。
  *                              fixedMaxを付けると上限がシステム側で決まり、利用者は直せない
- *                              （ドラクルージュの行いは全て「ラウンド1回」）。保存済みの値も
+ *                              （回数が規則で1つに決まる一覧向け）。保存済みの値も
  *                              読み出しのたびにこの値へ揃うので、手でJSONを書き換えられても
  *                              上限は緩まない。
  *   allowMods?: boolean,       既定true。falseにすると「使用時の修正」を扱わない。

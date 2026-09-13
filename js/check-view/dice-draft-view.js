@@ -354,29 +354,37 @@ export function createDiceDraftView() {
         status.title = result.description;
         card.appendChild(status);
 
-        // 目標値に幅があるスキル（ドラクルージュの「3～12」）は、どれを狙うかを選ばせる。
-        // 既定は「今の合計で届く一番大きい目標値」（evaluatePlacement）なので、たいていは
-        // 触らなくてよく、低い目標値でわざと使いたいときだけ変える。
-        if (result.targetOptions.length > 1) {
-          const select = document.createElement('select');
-          select.className = 'dice-draft-target';
-          select.title = '狙う目標値（判定値）';
-          select.disabled = !canEdit;
+        // 目標値が数字1つでないスキル（ドラクルージュの「3～12」「効果参照」）は、判定値を入れさせる。
+        // 「3～12」の既定は「今の合計で届く一番大きい判定値」（evaluatePlacement）なので、たいていは
+        // 触らなくてよく、低い判定値でわざと使いたいときだけ変える。「効果参照」は入れるまで使えない。
+        if (result.targetInput) {
+          const { min, max } = result.targetInput;
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.className = 'dice-draft-target';
+          input.min = String(min);
+          if (max !== null) input.max = String(max);
+          input.step = '1';
+          input.placeholder = '判定値';
+          input.title = max === null
+            ? `判定値（${min}以上）。目標値修正はこの値に足されます`
+            : `判定値（${min}～${max}）。目標値修正はこの値に足されます`;
+          input.disabled = !canEdit;
+          // 届かない判定値も入れられる（あと何点かを見ながら積むため）。入れた時点では使えないだけ
+          input.value = result.targetValue === null ? '' : String(result.targetValue);
 
-          result.targetOptions.forEach(value => {
-            const option = document.createElement('option');
-            option.value = String(value);
-            // 届かない目標値も選べる（あと何点かを見ながら積むため）。選んだ時点では使えないだけ
-            option.textContent = `目標 ${value}`;
-            select.appendChild(option);
+          // inputのたびに描き直すと、打っている途中でカードが組み直されて入力欄のフォーカスが飛ぶ。
+          // 確定（Enter・フォーカスを外す）で拾う。
+          input.addEventListener('change', () => {
+            const value = Number(input.value);
+            const valid = input.value !== '' && Number.isInteger(value)
+              && value >= min && (max === null || value <= max);
+            // 範囲外・空欄は選び直しを無かったことにする＝既定（「効果参照」なら未入力）へ戻す
+            if (valid) chosenTargets.set(targetChoiceKey(skill.name), value);
+            else chosenTargets.delete(targetChoiceKey(skill.name));
+            requestRender(); // 使用ボタンの可否と状態の1行を入れ直した判定値で出し直す
           });
-          select.value = String(result.targetValue);
-
-          select.addEventListener('change', () => {
-            chosenTargets.set(targetChoiceKey(skill.name), Number(select.value));
-            requestRender(); // 使用ボタンの可否と状態の1行を選び直した目標値で出し直す
-          });
-          card.appendChild(select);
+          card.appendChild(input);
         }
 
         // 「1回だけ」に意味があるかは規則側が決める（evaluatePlacementのsupportsPartialUse）。

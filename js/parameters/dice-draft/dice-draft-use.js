@@ -20,8 +20,8 @@ import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
  *   spec: object,              createDiceDraftSpec() の戻り値
  *   skillName: string,
  *   mode?: 'one'|'all',        'one' は1回ぶんだけ。既定は 'all'
- *   targetValue?: number|null, 幅のある目標値（"3～12"）でどれを狙うか。
- *                              省略時は合計で届く一番大きい目標値（evaluatePlacement）
+ *   targetValue?: number|null, 目標値が "3～12" や "効果参照" の行いで、使う人が決めた判定値。
+ *                              省略時の扱いは evaluatePlacement が決める
  *   token: object|null,
  *   dispatch: (action: string, payload: object) => void,
  *   getToken?: () => object|null,

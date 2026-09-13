@@ -840,9 +840,11 @@ h1 {
   border-color: var(--fill-go-edge);
 }
 
-/* 目標値に幅があるスキルの「どれを狙うか」。枠の幅を超えないよう横幅は目一杯にする */
+/* 目標値が数字1つでないスキル（3～12・効果参照）の判定値の入力欄。
+   枠の幅を超えないよう、枠線込みで横幅を目一杯にする */
 .dice-draft-target {
   flex: 0 0 auto;
+  box-sizing: border-box;
   width: 100%;
   padding: 1px 2px;
   background-color: var(--surface-base);

@@ -132,7 +132,7 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *                              （ドラクルージュの「目標値修正(TB)」）。読むのは呼び出し側で、
  *                              このファイルはstoreを触らない（readTargetModifier）
  *     modifierLabel?: string   その修正の呼び名。状態の1行に出す（既定は「修正」）
- *     floor?: number           修正を足した後の目標値の下限。段階が潰れて重なった分は1つにまとめる
+ *     floor?: number           修正を足した後の目標値の下限
  *   },
  *   skillTabs?: Array<{ id: string, label: string, field?: string, value?: string }>
  *                              スキル一覧の絞り込み（ドラクルージュの幕：戦／常／終）。
@@ -197,12 +197,16 @@ function readNumberField(skill, fieldKey) {
   return Number.isFinite(value) ? value : null;
 }
 
-// 目標値（kind:'sum'）の書き方は2通りある。
-//   "7"      … その値ちょうど。従来からの書き方
-//   "3～12"  … 最小値の倍数から選ぶ（ドラクルージュの《軽やかに剣舞う》は3・6・9・12）。
-//              どれを狙うかは使う人が決めるので、選択肢を返して画面とコマンドに選ばせる。
+// 目標値（kind:'sum'）の書き方は3通りある。
+//   "7"        … その値ちょうど。従来からの書き方
+//   "3～12"    … 範囲の中から使う人が「判定値」を選ぶ（ドラクルージュの《軽やかに剣舞う》）
+//   "効果参照" … 数字として読めない文字。判定値は使う人が画面かコマンドで入れる
 // 区切り記号は書く人によって揺れるので、見かける形は全部受ける。
+// 全角の数字・記号（シートからの取り込みで入る「３～１２」）は、読む前にNFKCで寄せる。
 const TARGET_RANGE_PATTERN = /^(\d+)\s*[~～〜ー－–—-]\s*(\d+)$/;
+
+// 使う人が判定値を入れる目標値（"効果参照"）の下限。0以下の判定値には意味が無い。
+const FREE_TARGET_MIN = 1;
 
 /**
  * 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。
@@ -241,44 +245,33 @@ export function readTargetModifier(spec, token, getEffectiveParameterValue) {
 }
 
 /**
- * 目標値の欄を読み、選べる目標値の一覧にする。読めなければnull。
- * @returns {{ options: number[] }|null} optionsは昇順。単一の目標値なら1件
+ * 目標値の欄を読む。空欄ならnull（＝「決まっていない」）。
+ * @returns {{ type:'fixed', value:number }
+ *   | { type:'range', min:number, max:number }
+ *   | { type:'free' }
+ *   | null}
  */
-function parseSumTarget(raw) {
-  if (raw === '' || raw === null || raw === undefined) return null;
-  const text = String(raw).trim();
+export function parseSumTarget(raw) {
+  if (raw === null || raw === undefined) return null;
+  const text = String(raw).normalize('NFKC').trim();
+  if (text === '') return null;
 
   const range = text.match(TARGET_RANGE_PATTERN);
   if (range) {
     const min = Number(range[1]);
     const max = Number(range[2]);
-    if (!(min > 0) || max < min) return null;
-
-    const options = [];
-    for (let value = min; value <= max; value += min) options.push(value);
-    return { options };
+    // 「12～3」のような逆順は、書き間違いとして範囲に並べ直す（発動できなくするより親切）
+    return { type: 'range', min: Math.min(min, max), max: Math.max(min, max) };
   }
 
   const value = Number(text);
-  return Number.isFinite(value) ? { options: [value] } : null;
+  return Number.isFinite(value) ? { type: 'fixed', value } : { type: 'free' };
 }
 
-/**
- * 目標値の段階すべてに修正を足し、下限で切る。
- *
- * 段階のある目標値（3～12 → 3・6・9・12）では、**最終的な段階のそれぞれに**足す。
- * 修正-1なら 2・5・8・11 になり、刻み（3）は変わらない。
- * 下限で複数の段階が同じ値へ潰れたときは、重なった分を1つにまとめる
- * （選択肢に同じ数字が並んでも選びようがないため）。
- */
-function applyTargetModifier(options, modifier, floor) {
-  const hasFloor = Number.isFinite(floor);
-  const moved = options.map(value => {
-    const next = value + modifier;
-    return hasFloor ? Math.max(floor, next) : next;
-  });
-
-  return [...new Set(moved)]; // 元が昇順なので、まとめた後も昇順のまま
+/** 判定値に修正を足し、下限で切る。 */
+function applyTargetModifier(value, modifier, floor) {
+  const next = value + modifier;
+  return Number.isFinite(floor) ? Math.max(floor, next) : next;
 }
 
 /**
@@ -310,17 +303,22 @@ export function acceptsDie(spec, skill, die) {
  * @param {object} skill
  * @param {object[]} dice
  * @param {{ targetValue?: number|null, targetModifier?: number }} [options]
- *   targetValue    … 幅のある目標値（"3～12"）でどれを狙うか。選択肢に無い値は無視して
- *                    「今の合計で届く一番大きい目標値」を採る（画面もコマンドも同じ規則）。
- *   targetModifier … 目標値へ足す修正（readTargetModifierの戻り値）。
+ *   targetValue    … 使う人が決める判定値（目標値が "3～12" や "効果参照" のとき）。
+ *                    範囲外・整数でない値は無視する。"3～12" なら「今の合計で届く一番大きい
+ *                    判定値」を既定に採り、"効果参照" は決まるまで使えない（画面もコマンドも同じ規則）。
+ *                    目標値が数字1つの行いでは読まない。
+ *   targetModifier … 目標値へ足す修正（readTargetModifierの戻り値）。判定値ではなく、
+ *                    届かせる合計の側に足す（下限はrequirement.floor）。
  * @returns {{
  *   ready: boolean,
  *   uses: number,               乗っているダイスを全部使うと何回ぶんになるか
  *   perUseDice: number,         1回ぶんが何個のダイスを食うか
  *   supportsPartialUse: boolean 「1回だけ使う」に意味があるか。
  *                               画面がkindで分岐しなくて済むよう、ここで答えを出す
- *   targetOptions: number[],    選べる目標値。2件以上なら画面に選択欄を出す
- *   targetValue: number|null,   今回狙う目標値（判定値）
+ *   targetInput: {min:number, max:number|null}|null
+ *                               使う人が判定値を決める行いなら、その入力範囲（maxがnullなら上限なし）。
+ *                               nullでなければ画面に入力欄を出す
+ *   targetValue: number|null,   今回の判定値（修正を足す前の数）。決まっていなければnull
  *   description: string         パネルとチャットログの両方に出す1行
  * }}
  */
@@ -329,7 +327,7 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
   const count = dice.length;
   const no = (description) => ({
     ready: false, uses: 0, perUseDice: 0, supportsPartialUse: false,
-    targetOptions: [], targetValue: null, description
+    targetInput: null, targetValue: null, description
   });
 
   if (!requirement) return no('ダイスの割り当て規則がありません');
@@ -348,12 +346,12 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
     }
 
     // 1個で1回。何個乗せてもよく、乗せた数だけ使える。
-    // targetOptions/targetValue は一致型には無い概念だが、**戻り値の形は必ず揃える**。
-    // 画面は kind で分岐せずに result.targetOptions.length を読む（js/check-view/dice-draft-view.js）ので、
-    // 欠けていると描画の途中で落ち、スキルの列がまるごと出なくなる。
+    // targetInput/targetValue は一致型には無い概念だが、**戻り値の形は必ず揃える**。
+    // 画面は kind で分岐せずに result.targetInput を読む（js/check-view/dice-draft-view.js）ので、
+    // 形が揃っていないと、描画の途中で落ちてスキルの列がまるごと出なくなる。
     return {
       ready: true, uses: count, perUseDice: 1, supportsPartialUse: true,
-      targetOptions: [], targetValue: null,
+      targetInput: null, targetValue: null,
       description: `${faceLabel} ×${count} → ${count}回使用`
     };
   }
@@ -362,46 +360,59 @@ export function evaluatePlacement(spec, skill, dice = [], { targetValue = null, 
   // supportsPartialUse は false（画面のボタンも1つになる）。
   //
   // 【使用回数は必ず1回】幅のある目標値では効果が「判定値/3回」のように増えることがあるが、
-  // それは1回の行いの効果であって使用回数ではない。ここでusesを増やすと、runDiceDraftUseが
-  // その回数だけ使用を記録し、「ラウンド1回」の上限に自分でぶつかる。
+  // それは1回の行いの効果であって使用回数ではない。usesは「このダイスで何回発動するか」で、
+  // 増やすとrunDiceDraftUseがその回数だけ発動のログと使用の記録を重ねてしまう。
   const target = parseSumTarget(skill?.fields?.[requirement.targetField]);
   if (target === null) return no('目標値が設定されていません');
 
-  const options = applyTargetModifier(target.options, targetModifier, requirement.floor);
   const total = dice.reduce((sum, die) => sum + die.value, 0);
-
-  // 狙う目標値。指定が無ければ「今の合計で届く一番大きいもの」、1つも届かないなら最小値
-  // （どれだけ足りないかを出すため）。
-  const affordable = options.filter(value => value <= total);
-  const chosen = options.includes(targetValue)
-    ? targetValue
-    : (affordable.length > 0 ? affordable[affordable.length - 1] : options[0]);
-
-  const label = options.length > 1
-    ? `${options[0]}～${options[options.length - 1]}`
-    : String(options[0]);
 
   // 修正が乗っているときは、目標値が動いた理由が状態の1行だけで分かるようにする
   // （行いに書いてある目標値と違う数字が出る唯一の理由がこれなので、黙って変えない）。
   const modifierNote = targetModifier === 0
     ? ''
     : `${requirement.modifierLabel ?? '修正'} ${targetModifier > 0 ? '+' : ''}${targetModifier}`;
-  const trailing = modifierNote ? `（${modifierNote}）` : '';
 
-  if (total < chosen) {
+  // 判定値（行いに書いてある数字、または使う人が選んだ数字）から、届かせる合計を出して結果にする。
+  // 判定値は効果（「判定値/3回」など）を決める数なので、修正はここで合計の側にだけ足す。
+  const settle = (judgeValue, goalText, targetInput) => {
+    const goal = applyTargetModifier(judgeValue, targetModifier, requirement.floor);
+    const shortage = goal - total;
+    const notes = [shortage > 0 ? `あと ${shortage}` : '', modifierNote].filter(Boolean);
+    const description = `合計 ${total} / ${goalText(goal)}${notes.length > 0 ? `（${notes.join('・')}）` : ''}`;
+
+    if (shortage > 0) return { ...no(description), targetInput, targetValue: judgeValue };
     return {
-      ...no(`合計 ${total} / 目標 ${chosen}（あと ${chosen - total}）${trailing}`),
-      targetOptions: options, targetValue: chosen
+      ready: true, uses: 1, perUseDice: count, supportsPartialUse: false,
+      targetInput, targetValue: judgeValue, description
     };
+  };
+
+  if (target.type === 'fixed') {
+    return settle(target.value, goal => `目標 ${goal}`, null);
   }
 
-  return {
-    ready: true, uses: 1, perUseDice: count, supportsPartialUse: false,
-    targetOptions: options, targetValue: chosen,
-    description: options.length > 1
-      ? `合計 ${total} / 判定値 ${chosen}（目標 ${label}${modifierNote ? `・${modifierNote}` : ''}）`
-      : `合計 ${total} / 目標 ${chosen}${trailing}`
-  };
+  // 使う人が判定値を決める目標値（"3～12" / "効果参照"）。画面はtargetInputがあれば入力欄を出す。
+  const min = target.type === 'range' ? target.min : FREE_TARGET_MIN;
+  const max = target.type === 'range' ? target.max : null;
+  const targetInput = { min, max };
+  const chosen = Number.isInteger(targetValue) && targetValue >= min && (max === null || targetValue <= max)
+    ? targetValue
+    : null;
+
+  // 判定値が書いていない行いは、決めてもらうまで使えない（勝手に決めると効果が変わる）
+  if (chosen === null && target.type === 'free') {
+    return { ...no('目標値を入力してください'), targetInput };
+  }
+
+  // 範囲の既定は「今の合計で届く一番大きい判定値」。届かなければ最小値
+  // （どれだけ足りないかを出すため）。範囲外の指定も同じく既定へ落とす（画面もコマンドも同じ規則）。
+  const judgeValue = chosen ?? Math.min(max, Math.max(min, total - targetModifier));
+  return settle(
+    judgeValue,
+    goal => (goal === judgeValue ? `判定値 ${judgeValue}` : `判定値 ${judgeValue} → 目標 ${goal}`),
+    targetInput
+  );
 }
 
 // ------------------------------------------------------------------

@@ -11,6 +11,7 @@
 import { buildImageField } from './image-field.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
+import { buildAspectLockField } from './aspect-lock-field.js';
 
 const ensureDialog = createDialogHost();
 
@@ -87,6 +88,7 @@ export function showPanelDialog({
       if (dim) {
         colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
         rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+        aspectLock.useImageAspect(dim);
       }
     }
   });
@@ -134,6 +136,14 @@ export function showPanelDialog({
   rowsGroup.appendChild(rowsLabel);
   rowsGroup.appendChild(rowsInput);
   form.appendChild(rowsGroup);
+
+  // --- 縦横比を固定する ---
+  // すでに画像があるパネルでは、画像を選び直してもサイズ欄は変わらないので、比の基準も
+  // 画像へ置き換えない（上のonPickedがautoSizeFromImageで抜けるため、useImageAspectまで来ない）。
+  const aspectLock = buildAspectLockField({
+    colsInput, rowsInput, gridSize, initialImage: initialImage || null
+  });
+  form.appendChild(aspectLock.element);
 
   // --- 重なり順 ---
   // パネル同士の前後だけを決める値（コマは常にパネルより手前のまま）。

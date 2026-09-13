@@ -12,6 +12,7 @@
 import { buildImageField } from './image-field.js';
 import { loadImageDimensions } from './image-dimensions.js';
 import { createDialogHost, appendConfirmRow } from './dialog-host.js';
+import { buildAspectLockField } from './aspect-lock-field.js';
 
 const ensureDialog = createDialogHost();
 
@@ -77,10 +78,7 @@ export function showBackgroundDialog({
       if (dim) {
         colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
         rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
-        // 縦横比の基準は、マス数へ丸める前の画像の実寸で持つ（丸めた後の値を基準にすると、
-        // 幅を変えるたびに画像の比からずれていく）
-        aspect = { width: dim.width, height: dim.height };
-        aspectCells = { cols: Number(colsInput.value), rows: Number(rowsInput.value) };
+        aspectLock.useImageAspect(dim);
       }
     }
   });
@@ -115,66 +113,8 @@ export function showBackgroundDialog({
   form.appendChild(rowsGroup);
 
   // --- 縦横比を固定する ---
-  // ONの間は、幅を変えると高さが、高さを変えると幅が、基準の比に合わせて動く（端数は四捨五入）。
-  // 基準の比はONにした時点の幅×高さ。画像を選び直したときはその画像の実寸に置き換える。
-  // 比は変えるたびに測り直さない：丸めた値から測り直すと、動かすたびに比がずれていくため。
-  // ダイアログの中だけの補助で、状態には何も残さない。
-  let aspect = null; // { width, height }
-  // 基準の比を決めたときの欄の値。画像を選んだあとに欄を触らずONにしたなら、
-  // 丸めたマス数ではなく画像の実寸の比を使い続けるための目印。
-  let aspectCells = null; // { cols, rows }
-  const aspectGroup = document.createElement('div');
-  aspectGroup.className = 'dialog-form-group';
-  const aspectLabel = document.createElement('label');
-  aspectLabel.style.display = 'flex';
-  aspectLabel.style.alignItems = 'center';
-  aspectLabel.style.gap = '6px';
-  aspectLabel.style.cursor = 'pointer';
-  aspectLabel.title = '幅と高さの一方を変えると、もう一方が今の縦横比に合わせて変わります（端数は四捨五入）。';
-  const aspectInput = document.createElement('input');
-  aspectInput.type = 'checkbox';
-  aspectInput.checked = false;
-  aspectLabel.appendChild(aspectInput);
-  aspectLabel.appendChild(document.createTextNode('縦横比を固定する'));
-  aspectGroup.appendChild(aspectLabel);
-  form.appendChild(aspectGroup);
-
-  const readCells = (input) => Math.round(Number(input.value));
-  aspectInput.addEventListener('change', () => {
-    const cols = readCells(colsInput);
-    const rows = readCells(rowsInput);
-    if (!aspectInput.checked) return;
-    if (aspect && aspectCells?.cols === cols && aspectCells?.rows === rows) return;
-    aspect = cols >= 1 && rows >= 1 ? { width: cols, height: rows } : null;
-    aspectCells = aspect ? { cols, rows } : null;
-  });
-  // 空欄や0を打っている途中では、相手の欄を動かさない（消して打ち直すたびに1へ潰れるため）
-  colsInput.addEventListener('input', () => {
-    const cols = readCells(colsInput);
-    if (!aspectInput.checked || !aspect || !(cols >= 1)) return;
-    rowsInput.value = Math.max(1, Math.round(cols * aspect.height / aspect.width));
-    aspectCells = { cols, rows: Number(rowsInput.value) };
-  });
-  rowsInput.addEventListener('input', () => {
-    const rows = readCells(rowsInput);
-    if (!aspectInput.checked || !aspect || !(rows >= 1)) return;
-    colsInput.value = Math.max(1, Math.round(rows * aspect.width / aspect.height));
-    aspectCells = { cols: Number(colsInput.value), rows };
-  });
-
-  // 今の背景画像があって、欄の値がその実寸どおりのマス数なら、比の基準を画像の実寸にしておく
-  // （ONにしたときに丸めたマス数の比にならないように）。欄を自分で変えた盤面なら何もしない。
-  if (initialImage) {
-    const startCols = readCells(colsInput);
-    const startRows = readCells(rowsInput);
-    loadImageDimensions(initialImage).then((dim) => {
-      if (!dim || aspect) return;
-      if (Math.max(1, Math.round(dim.width / gridSize)) !== startCols) return;
-      if (Math.max(1, Math.round(dim.height / gridSize)) !== startRows) return;
-      aspect = { width: dim.width, height: dim.height };
-      aspectCells = { cols: startCols, rows: startRows };
-    });
-  }
+  const aspectLock = buildAspectLockField({ colsInput, rowsInput, gridSize, initialImage });
+  form.appendChild(aspectLock.element);
 
   // --- マス目を描画する ---
   // 既定はあり。地図画像に元からマス目が描かれている場合など、二重に見えるときに外す。

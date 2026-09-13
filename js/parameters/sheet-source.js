@@ -21,12 +21,20 @@
  * edit.html / display.html はどちらも人が見るページなので、キーだけを取り出して
  * JSONを返す口（display?ajax=1）へ付け替える。利用者はブラウザのURLをそのまま貼れる。
  *
- * @param {{ label: string, pathSegment: string }} options
+ * @param {{ label: string, pathSegment: string,
+ *            secret?: { isNeeded: (publicData: any) => boolean, missingNotice: string } }} options
  *   label       … 画面に出すシステム名（「Webキャラクターシート（〜）」の〜の部分）
  *   pathSegment … そのシステムのパス。シノビガミなら 'shinobigami'、フタリソウサなら '2s'。
  *                 同じサービスの他システムのシートを掴まないための絞り込みでもある
+ *   secret      … 「閲覧パスワード」の奥の欄も取りに行くシステムだけが渡す。
+ *                 isNeeded      … 公開JSONだけでは足りないか（真ならサーバーが openSecret を叩く）
+ *                 missingNotice … パスワードが設定されている等で取れなかったとき、利用者へ出す文
+ *
+ * 【秘匿欄を空のパスワードで取る理由】このサービスは種別によって一部の欄を公開JSONから外し、
+ * openSecret（key, pass）でしか返さない。パスワードを設定していないシートなら空で開く。
+ * パスワードは尋ねない（サーバーに他人のパスワードを通す口を作らないため）。
  */
-export function createAppspotSheetSource({ label, pathSegment }) {
+export function createAppspotSheetSource({ label, pathSegment, secret }) {
   const pathPrefix = `/${pathSegment}/`;
   return {
     label: `Webキャラクターシート（${label}）`,
@@ -35,7 +43,14 @@ export function createAppspotSheetSource({ label, pathSegment }) {
     keyParam: 'key',
     keyPattern: /^[A-Za-z0-9_-]{8,200}$/,
     fetchPath: (key) => `${pathPrefix}display?ajax=1&key=${encodeURIComponent(key)}`,
-    hint: `character-sheets.appspot.com${pathPrefix}edit.html?key=... の形のURL`
+    hint: `character-sheets.appspot.com${pathPrefix}edit.html?key=... の形のURL`,
+    ...(secret ? {
+      secret: {
+        fetchPath: `${pathPrefix}openSecret`,
+        isNeeded: secret.isNeeded,
+        missingNotice: secret.missingNotice
+      }
+    } : {})
   };
 }
 

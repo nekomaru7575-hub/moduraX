@@ -82,7 +82,13 @@ export async function promptForCharacterSheetJson(pluginId, source) {
   }
 
   try {
-    return await fetchCharacterSheetJson(pluginId, key);
+    const json = await fetchCharacterSheetJson(pluginId, key);
+    // 閲覧パスワードの奥の欄が取れなかった（サーバーが付ける印）。
+    // 公開欄だけでも取り込ませるので、知らせたうえでそのまま返す
+    if (json?.secretMissing === true && source.secret?.missingNotice) {
+      alert(source.secret.missingNotice);
+    }
+    return json;
   } catch (error) {
     alert(error.message);
     return null;

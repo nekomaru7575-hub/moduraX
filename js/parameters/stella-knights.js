@@ -108,9 +108,11 @@ const DEFENSE_PARAM_ID = 'STELLA_KNIGHTS:defense';
 const CHARGE_PARAM_ID = 'STELLA_KNIGHTS:charge';
 const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
 
-// 耐久力はCoreの既定パラメータ（HP）をそのまま使う。取り込みの書き込み先にするだけで、
-// ラベルは触らない（利用者が付けた名前を勝手に上書きしないため）。
+// 耐久力はCoreの既定パラメータ（HP）を流用し、ラベルだけ「耐久力」へ差し替える
+// （renameHpToEndurance。js/parameters/dracurouge.jsの「存在点」と同じやり方）。
 const HP_PARAM_ID = 'core:hp';
+const HP_DEFAULT_LABEL = 'HP';
+const ENDURANCE_LABEL = '耐久力';
 
 // 個数を書かない charge の個数に足す、Coreのルーム変数「現在のラウンド」
 // （js/parameters/core.jsのCORE_DEFAULT_ROOM_PARAMETERS）。値はCoreが維持する。
@@ -174,8 +176,25 @@ function readStellaKnightsSkills(components) {
   return normalizeSkillList(STELLA_KNIGHTS_SKILL_SPEC, components?.[SKILL_COMPONENT_KEY] ?? []);
 }
 
+// このシステムはHPを「耐久力」と呼ぶ。core:hpは配布を止められないので、ラベルだけ差し替えて流用する。
+// ラベルがまだ既定の「HP」のときだけ動くのが冪等性の要（更新画面を開くたびにdispatchが飛ばない。
+// 利用者が自分で別の名前に変えた場合も、その名前を尊重して触らない）。
+// 改称した瞬間に開いているダイアログの左カラムは「HP」のまま残るが、閉じて開き直せば揃う
+// （js/parameters/dracurouge.jsのrenameHpToExistenceと同じ割り切り）。
+function renameHpToEndurance({ readParameters, dispatch, tokenId }) {
+  const hp = readParameters()[HP_PARAM_ID];
+  if (!hp || hp.label !== HP_DEFAULT_LABEL) return;
+
+  // ラベルの差し替え口はIMPORT_CHARACTER_DATAのlabelOverridesしかない（SET_PARAMETERは値専用）
+  dispatch('IMPORT_CHARACTER_DATA', {
+    id: tokenId,
+    labelOverrides: { [HP_PARAM_ID]: ENDURANCE_LABEL }
+  });
+}
+
 function renderStellaKnightsCharacterPanel({
-  container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents
+  container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents,
+  dispatch, getToken, tokenId
 }) {
   container.innerHTML = '';
 
@@ -184,6 +203,14 @@ function renderStellaKnightsCharacterPanel({
   title.style.margin = '0 0 8px 0';
   title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
+
+  if (mode === 'edit' && canEdit && typeof dispatch === 'function' && tokenId) {
+    renameHpToEndurance({
+      readParameters: () => getToken?.()?.parameters ?? parameters,
+      dispatch,
+      tokenId
+    });
+  }
 
   // 出目の在庫はダイスドラフトのプール（js/check-view/dice-draft-view.js）が持つので、
   // 並べるのはシートに載っている値と持ち点だけ。
@@ -453,29 +480,53 @@ function handleStellaKnightsChatCommand(
 // として持たせても、画面のどこにも出ず、書き出したJSONだけが太るため。
 
 // URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
-const STELLA_KNIGHTS_SHEET_SOURCE = createAppspotSheetSource({
+//
+// 【秘匿欄】シートは騎士の種別がエンブレイス/エクリプスだと、ステータス（耐久力・防御力・
+// チャージダイス数）と隠したスキルを公開JSONから外し、閲覧パスワードの奥へ移して保存する。
+// 公開JSONに status が無ければ、サーバーが空のパスワードで取りに行き json.secret に付けてくる
+// （server/index.jsのfetchSheetSecret）。パスワードが設定されていれば取れない。
+export const STELLA_KNIGHTS_SHEET_SOURCE = createAppspotSheetSource({
   label: '銀剣のステラナイツ',
-  pathSegment: 'stellar'
+  pathSegment: 'stellar',
+  secret: {
+    isNeeded: (publicData) => publicData?.status === undefined,
+    missingNotice: 'このシートは閲覧パスワードが設定されているため、耐久力・防御力・チャージダイス数と'
+      + '隠したスキルは取り込めませんでした。\n取り込んだ後、更新画面で入力してください。'
+  }
 });
 
+// スキル行の位置（0始まり）から「対応する数字」を決める。シートのNo列（No.1〜）は行番号だが、
+// このシステムでは行番号がそのまま出目になる。7行目以降は出目に対応しないので、
+// どの目でも置ける「0/7」にする。
+function skillNumberForRow(index) {
+  return index < FACE_NUMBERS.length ? String(FACE_NUMBERS[index]) : ANY_FACE_VALUE;
+}
+
 // スキル一覧。シートの列（名前・種別・タイミング・効果）はこのプラグインのスキルと
-// 素直に1対1で対応する。
+// 素直に1対1で対応し、「対応する数字」は行の位置から決める（skillNumberForRow）。
 //
-// 【「対応する数字」は埋まらない】シート側にその欄が無いため（Noの列は行番号であって
-// 出目ではない）、取り込んだスキルは数字が空のまま入る。空のスキルはダイスドラフトで
-// 「対応する数字が設定されていません」となりダイスを置けないので、取り込んだ後に
-// スキル一覧を開いて1〜6を割り当ててもらう。
+// 秘匿欄（json.secret.skills）が取れていればそちらを読む。公開側では隠したスキルが
+// 空の行 {} に置き換わっているため。
+//
+// 【番号は空行を除く前に振る】隠したスキルや空の行を先に除くと、後ろの行の番号が繰り上がり、
+// 出目がずれる。
 //
 // シートのスキルが0件なら、normalizeSkillListが既定の6枠（１の目〜６の目）を配る。
 // 空のシートを取り込んで枠まで消える、ということにはならない。
 function importStellaKnightsSkillsFromSheet(json) {
-  const rawList = Array.isArray(json?.skills) ? json.skills : [];
+  const secretList = json?.secret?.skills;
+  const rawList = Array.isArray(secretList) ? secretList
+    : Array.isArray(json?.skills) ? json.skills : [];
 
   return normalizeSkillList(STELLA_KNIGHTS_SKILL_SPEC, rawList
-    .map(raw => ({
+    .map((raw, index) => ({
       name: sheetText(raw?.name),
       note: sheetText(raw?.effect),
-      fields: { type: sheetText(raw?.type), timing: sheetText(raw?.timing), number: '' }
+      fields: {
+        type: sheetText(raw?.type),
+        timing: sheetText(raw?.timing),
+        number: skillNumberForRow(index)
+      }
     }))
     // シートは空の行を1つ持って返してくる。名前の無い行は取り込まない
     .filter(skill => skill.name !== ''));
@@ -487,7 +538,7 @@ function importStellaKnightsSkillsFromSheet(json) {
  * @returns {{name?:string, valueOverrides:object, labelOverrides:object,
  *            newParameters:object, components:object} | null}
  */
-function importStellaKnightsCharacterJson(json) {
+export function importStellaKnightsCharacterJson(json) {
   if (!json || typeof json !== 'object') return null;
 
   // ステラナイツのシートらしさの確認。他システムのシートを黙って空のコマとして
@@ -498,17 +549,20 @@ function importStellaKnightsCharacterJson(json) {
   if (!looksLikeSheet) return null;
 
   // 耐久力はCoreのHPへ入れる。防御力とチャージダイス数はこのプラグインのパラメータ。
+  // エンブレイス/エクリプスのステータスは秘匿欄にしか無い（STELLA_KNIGHTS_SHEET_SOURCEの説明）。
+  const status = json?.secret?.status ?? json?.status;
   const valueOverrides = {};
-  assignSheetNumber(valueOverrides, HP_PARAM_ID, json?.status?.hp);
-  assignSheetNumber(valueOverrides, DEFENSE_PARAM_ID, json?.status?.defense);
-  assignSheetNumber(valueOverrides, CHARGE_PARAM_ID, json?.status?.charge);
+  assignSheetNumber(valueOverrides, HP_PARAM_ID, status?.hp);
+  assignSheetNumber(valueOverrides, DEFENSE_PARAM_ID, status?.defense);
+  assignSheetNumber(valueOverrides, CHARGE_PARAM_ID, status?.charge);
 
   const name = sheetText(json?.base?.name);
 
   return {
     name: name === '' ? undefined : name,
     valueOverrides,
-    labelOverrides: {},
+    // シートの見出しに合わせてHPを耐久力と呼ぶ（js/parameters/gcrest.jsが行動値を入れているのと同じ）
+    labelOverrides: { [HP_PARAM_ID]: ENDURANCE_LABEL },
     newParameters: {},
     components: {
       [SKILL_COMPONENT_KEY]: importStellaKnightsSkillsFromSheet(json)

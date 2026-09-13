@@ -2926,6 +2926,34 @@ async function readCappedText(response, maxBytes) {
   return Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString('utf8');
 }
 
+// 「閲覧パスワード」の奥の欄を、空のパスワードで取る（js/parameters/sheet-source.jsのsecret）。
+// 宛先は宣言が決めた1か所で、呼び出し側から来るのは形を確かめたキーだけ。
+// 取れなければnull。パスワードが設定されたシートは上流が {error} を返すので、ここで降りる。
+// 取り込み全体は失敗させない（公開欄だけでも入れる）ので、例外は外へ投げない。
+async function fetchSheetSecret(source, key, signal) {
+  try {
+    const response = await fetch(`${source.origin}${source.secret.fetchPath}`, {
+      method: 'POST',
+      body: new URLSearchParams({ key, pass: '' }),
+      signal,
+      redirect: 'manual',
+      headers: { 'User-Agent': OUTBOUND_USER_AGENT }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const secret = parseUntrustedJson(await readCappedText(response, MAX_SHEET_BYTES));
+    if (!secret || typeof secret !== 'object' || Array.isArray(secret)) return null;
+    if (secret.error !== undefined) return null;
+
+    // 上流はパスワードそのものも返してくる。画面には要らないので流さない
+    delete secret.pass;
+    return secret;
+  } catch (error) {
+    console.warn('[server] シートの秘匿欄を取得できませんでした:', error.message);
+    return null;
+  }
+}
+
 // GET /api/character-sheet?plugin={プラグインID}&key={シートのキー}
 async function handleCharacterSheet(req, res, url) {
   const pluginId = url.searchParams.get('plugin') ?? '';
@@ -2966,6 +2994,15 @@ async function handleCharacterSheet(req, res, url) {
     if (typeof data.error === 'string' && Object.keys(data).length === 1) {
       sendJson(res, 404, { error: `シートが見つかりませんでした（${data.error}）。URLを確かめてください。` });
       return;
+    }
+
+    // 下の2つはこの中継が付ける印。上流が同じ名前の欄を返しても、それを信じない
+    delete data.secret;
+    delete data.secretMissing;
+    if (source.secret?.isNeeded(data)) {
+      const secret = await fetchSheetSecret(source, key, abort.signal);
+      if (secret) data.secret = secret;
+      else data.secretMissing = true;
     }
 
     sendJson(res, 200, data, { 'Cache-Control': 'no-store' });

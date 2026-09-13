@@ -71,6 +71,7 @@ import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
 import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
+import { resolveParameterCommand, computeNextValue } from './parameter-command.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initStampLayer, requestStamp } from './stamp-layer.js';
 import { initStampPanel } from './stamp-panel.js';
@@ -1527,14 +1528,11 @@ function substituteCharacterParameters(text, character, depth = 0) {
   });
 }
 
-// [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([数値] または [nDx形式のダイス]) で
-// パラメータを直接変更するコマンド。例: +侵蝕率(10)　=HP(2D6)　+攻撃力,-防御力(1D6)
-// カンマ区切りで複数パラメータを指定でき、それぞれに個別の演算子（+/-/=）を付けられる。
-// カッコ内の値（数値 or ダイスロール結果）は1回だけ算出し、全パラメータへ共通で適用する。
-// editable:falseのパラメータは変更不可。
-const PARAMETER_COMMAND_PATTERN = /^([+\-=].+?)\(([+-]?\d+(?:\.\d+)?|\d+[Dd]\d+)\)$/;
-const PARAMETER_TARGET_PATTERN = /^([+\-=])(.+)$/;
-const DICE_AMOUNT_PATTERN = /^\d+[Dd]\d+$/;
+// [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([値]) でパラメータを直接変更するコマンド。
+// 例: +侵蝕率(10)　=HP(2D6)　+攻撃力,-防御力(1D6)　=状態(毒)　+混沌レベル(1)
+// 解釈（対象の解決・妥当性チェック）は js/parameter-command.js。参照キャラクターに同名パラメータが
+// 無ければルーム変数が対象になる。カッコ内の値（数値・ダイス結果・文字列）は1回だけ算出し、
+// 全対象へ共通で適用する。editable:falseのパラメータは変更不可。
 
 // BCDiceの結果テキストは "(コマンド) ＞ 内訳 ＞ 合計" の形。最後の「＞」より後ろの
 // 数値だけを読み取る（dx3-combo-box.jsのparseFinalNumberと同じ考え方）。
@@ -1546,16 +1544,6 @@ function parseFinalDiceNumber(resultText) {
   return match ? Number(match[0]) : null;
 }
 
-// "+HP,-MP" のようなカンマ区切りの指定を { operator, name } の配列に分解する。
-// いずれかのトークンが演算子から始まっていない場合はnullを返す（呼び出し側で書式エラー扱い）。
-function parseParameterTargets(rawTargets) {
-  const targets = rawTargets.split(',').map(token => {
-    const m = token.match(PARAMETER_TARGET_PATTERN);
-    return m ? { operator: m[1], name: m[2].trim() } : null;
-  });
-  return targets.some(t => !t) ? null : targets;
-}
-
 // この値をログに実数で残してよいか。
 // visible:false（キャラクター一覧に出していない）と、公開先を絞ったパラメータが対象。
 // ログは1本の文字列を全員へ配る作りなので、相手ごとの出し分けはできない。伏せると決めたら
@@ -1564,12 +1552,18 @@ function shouldMaskParameterValue(param) {
   return param.visible === false || isRestricted(param.audience);
 }
 
-// 指定された全パラメータへ同じamount（数値 or ダイス結果）を、それぞれの演算子で適用し、
+// 指定された全対象へ同じamount（数値・ダイス結果・文字列）を、それぞれの演算子で適用し、
 // 1件のログにまとめて記録する。diceDetailは通常のチャットロールと同じ形の出目内訳文字列
-// （js/main.js:777付近のDICE_ROLL_REQUESTEDハンドラと同じ作り方）で、ダイスでない場合は空。
-function applyParameterChanges({ character, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId }) {
-  const changeLines = targets.map(({ operator, paramId, param, before }) => {
-    const after = operator === '=' ? amount : operator === '+' ? before + amount : before - amount;
+// （DICE_ROLL_REQUESTEDハンドラと同じ作り方）で、ダイスでない場合は空。
+// 対象はコマのパラメータ（scope:'token'）とルーム変数（scope:'room'）が混ざりうる。
+function applyParameterChanges({ character, characterName, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId }) {
+  const changeLines = targets.map(({ operator, scope, paramId, param, before }) => {
+    const after = computeNextValue(operator, before, amount);
+    if (scope === 'room') {
+      store.dispatch('SET_ROOM_PARAMETER', { paramId, value: after });
+      // ルーム変数は常に全員のものなので伏せない
+      return `${param.label}: ${before} → ${after}`;
+    }
     store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
     // 「何が動いたか」は伝えたいのでラベルは出し、前後の値だけを伏せる。
     return shouldMaskParameterValue(param)
@@ -1578,9 +1572,9 @@ function applyParameterChanges({ character, targets, amount, diceResultText, dic
   });
 
   applyLog({
-    character: character.name,
-    characterId: character.id,
-    color: character.textColor,
+    character: character?.name ?? characterName,
+    characterId: character?.id,
+    color: character?.textColor,
     command,
     diceDetail,
     resultText: diceResultText
@@ -1589,65 +1583,33 @@ function applyParameterChanges({ character, targets, amount, diceResultText, dic
   }, tabId);
 }
 
-function tryHandleParameterCommand(rawInput, character, tabId = activeTabId) {
-  const match = rawInput.match(PARAMETER_COMMAND_PATTERN);
-  if (!match) return false;
-
-  const [, rawTargets, rawAmount] = match;
-
-  if (!character) {
-    alert('パラメータを変更するキャラクターを選択してください。');
+function tryHandleParameterCommand(rawInput, character, tabId = activeTabId, characterName) {
+  const resolved = resolveParameterCommand({
+    rawInput, character, roomParameters: store.state.room.parameters
+  });
+  if (!resolved) return false;
+  if (resolved.error) {
+    alert(resolved.error);
     return true;
   }
 
-  const parsedTargets = parseParameterTargets(rawTargets);
-  if (!parsedTargets) {
-    alert(`パラメータ指定の書式が正しくありません: ${rawTargets}`);
-    return true;
-  }
+  const { amount, targets } = resolved;
 
-  // 名前解決・妥当性チェックは先にすべて行い、1つでも無効なら何も変更しない（部分適用を防ぐ）。
-  const resolvedTargets = [];
-  for (const { operator, name } of parsedTargets) {
-    const entry = Object.entries(character.parameters || {}).find(
-      ([, p]) => p.label === name || p.key === name
-    );
-    if (!entry) {
-      alert(`パラメータ「${name}」が見つかりません。`);
-      return true;
-    }
-
-    const [paramId, param] = entry;
-    if (param.editable === false) {
-      alert(`パラメータ「${name}」は変更できません。`);
-      return true;
-    }
-
-    const before = param.value;
-    // 文字列値のカスタム変数は+/-による加減算ができない（=による上書きのみ許可）。
-    if (operator !== '=' && typeof before !== 'number') {
-      alert(`パラメータ「${name}」は数値ではないため、+/-では変更できません。`);
-      return true;
-    }
-
-    resolvedTargets.push({ operator, paramId, param, before });
-  }
-
-  if (DICE_AMOUNT_PATTERN.test(rawAmount)) {
+  if (amount.kind === 'dice') {
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
     // （combo.chk等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
-    rollBCDice(store.state.room.bcdiceSystem, rawAmount).then(({ success, resultText, diceValues }) => {
+    rollBCDice(store.state.room.bcdiceSystem, amount.expr).then(({ success, resultText, diceValues }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
         return;
       }
-      const amount = parseFinalDiceNumber(resultText);
-      if (amount === null) {
+      const rolled = parseFinalDiceNumber(resultText);
+      if (rolled === null) {
         alert(`ダイス結果の解釈に失敗しました: ${resultText}`);
         return;
       }
 
-      // 通常のチャットロール（js/main.js:783付近）と同じ形で3Dダイス演出を出す。
+      // 通常のチャットロールと同じ形で3Dダイス演出を出す。
       // tabIdはBCDice呼び出し前（await前）に確定させた値を使う。応答待ちの間に
       // ユーザーが別タブへ切り替えても、演出とログはコマンド送信時点のタブに出す。
       if (diceValues?.length) {
@@ -1657,7 +1619,7 @@ function tryHandleParameterCommand(rawInput, character, tabId = activeTabId) {
         diceValues.map(d => d.value).join(', ') : "";
 
       applyParameterChanges({
-        character, targets: resolvedTargets, amount, diceResultText: resultText, diceDetail, command: rawInput, tabId
+        character, characterName, targets, amount: rolled, diceResultText: resultText, diceDetail, command: rawInput, tabId
       });
     }).catch(error => {
       alert(`ダイスロールでエラーが発生しました: ${error.message}`);
@@ -1666,7 +1628,7 @@ function tryHandleParameterCommand(rawInput, character, tabId = activeTabId) {
   }
 
   applyParameterChanges({
-    character, targets: resolvedTargets, amount: Number(rawAmount), command: rawInput, tabId
+    character, characterName, targets, amount: amount.value, command: rawInput, tabId
   });
 
   return true;
@@ -2034,7 +1996,7 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
   const substituted = substituteCharacterParameters(text, character);
 
   if (tryHandleBuffCommand(substituted, character, tabId)) { onSent?.(); return; }
-  if (tryHandleParameterCommand(substituted, character, tabId)) { onSent?.(); return; }
+  if (tryHandleParameterCommand(substituted, character, tabId, characterName)) { onSent?.(); return; }
   if (tryHandlePluginChatCommand(substituted, character)) { onSent?.(); return; }
   if (tryHandleOriginalTableCommand(substituted, character, tabId)) { onSent?.(); return; }
 

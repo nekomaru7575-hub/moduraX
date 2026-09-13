@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 
 import {
   canReuseCommitFor, collectImageUrls, imageUsableFor, normalizeImageRef, pickReusableCommit,
-  poolMimeAllowed
+  poolMimeAllowed, MAX_RETIRED_IMAGES, nextRetiredImages, normalizeRetiredImages
 } from '../js/store/images.js';
 
 const HASH_A = 'a'.repeat(64);
@@ -219,4 +219,49 @@ test('プロトタイプ経由の値を引かない', () => {
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), '__proto__'), null);
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), 'toString'), null);
   assert.equal(pickReusableCommit(memory, new Set([R2_A]), 'constructor'), null);
+});
+
+// --- 背景を差し替えて外れた画像 ---
+
+test('前の背景は外れた画像の一覧へ避難し、状態に写っている画像として拾われる', () => {
+  const state = { room: { backgroundImage: R2_A, backgroundImageKey: KEY_A, retiredImages: [] } };
+  const retired = nextRetiredImages(state, R2_B);
+  assert.deepEqual(retired, [{ image: R2_A, imageKey: KEY_A }]);
+
+  // 差し替え後の状態でも「この部屋で使っている画像」に残る＝選び直せる
+  const after = { room: { backgroundImage: R2_B, retiredImages: retired } };
+  assert.ok(collectImageUrls(after).has(R2_A));
+});
+
+test('シーンなど他の場所でまだ使っている背景は避難させない', () => {
+  const state = {
+    room: {
+      backgroundImage: R2_A, retiredImages: [],
+      scenes: { s1: { backgroundImage: R2_A } }
+    }
+  };
+  assert.deepEqual(nextRetiredImages(state, R2_B), []);
+});
+
+test('背景に選び直した画像は一覧から外れ、同じ背景のままなら何も積まない', () => {
+  const state = {
+    room: { backgroundImage: R2_B, retiredImages: [{ image: R2_A, imageKey: KEY_A }] }
+  };
+  assert.deepEqual(nextRetiredImages(state, R2_A), [{ image: R2_B, imageKey: null }]);
+  assert.deepEqual(nextRetiredImages(state, R2_B), [{ image: R2_A, imageKey: KEY_A }]);
+});
+
+test('背景を消したときも前の背景を避難させる', () => {
+  const state = { room: { backgroundImage: R2_A, backgroundImageKey: KEY_A } };
+  assert.deepEqual(nextRetiredImages(state, null), [{ image: R2_A, imageKey: KEY_A }]);
+});
+
+test('外れた画像の一覧は形を確かめ、重複を落とし、件数に上限がある', () => {
+  assert.deepEqual(normalizeRetiredImages('x'), []);
+  assert.deepEqual(
+    normalizeRetiredImages([{ image: R2_A, imageKey: 3 }, { image: R2_A }, { image: {} }, null]),
+    [{ image: R2_A, imageKey: null }]
+  );
+  const many = Array.from({ length: MAX_RETIRED_IMAGES + 5 }, (_, i) => ({ image: `${R2_A}?${i}` }));
+  assert.equal(normalizeRetiredImages(many).length, MAX_RETIRED_IMAGES);
 });

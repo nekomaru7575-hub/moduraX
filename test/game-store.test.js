@@ -1306,3 +1306,22 @@ test('hydrate: STATE_CHANGED が出る', () => {
   assert.equal(seen.length, 1);
   assert.strictEqual(seen[0], store.state);
 });
+
+test('SET_BOARD_BACKGROUND: 前の背景を避難させ、選び直すとキーも戻る／REMOVE_RETIRED_IMAGE で外せる', () => {
+  const store = newStore();
+  const A = 'https://img.example.com/rooms/room-1/a.png';
+  const B = 'https://img.example.com/rooms/room-1/b.png';
+
+  store.dispatch('SET_BOARD_BACKGROUND', { imageUrl: A, imageKey: 'rooms/room-1/a.png' });
+  store.dispatch('SET_BOARD_BACKGROUND', { imageUrl: B, imageKey: 'rooms/room-1/b.png' });
+  assert.deepEqual(store.state.room.retiredImages, [{ image: A, imageKey: 'rooms/room-1/a.png' }]);
+
+  // セレクタは状態に写っているURLを選ぶとキーを返さない。避難時のキーが戻ること
+  store.dispatch('SET_BOARD_BACKGROUND', { imageUrl: A, imageKey: null });
+  assert.equal(store.state.room.backgroundImageKey, 'rooms/room-1/a.png');
+  assert.deepEqual(store.state.room.retiredImages, [{ image: B, imageKey: 'rooms/room-1/b.png' }]);
+
+  store.dispatch('REMOVE_RETIRED_IMAGE', { image: B });
+  assert.deepEqual(store.state.room.retiredImages, []);
+  assertNoop(store, 'REMOVE_RETIRED_IMAGE', { image: B });
+});

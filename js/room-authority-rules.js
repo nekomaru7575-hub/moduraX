@@ -69,6 +69,8 @@ export const GM_ONLY_ACTIONS = new Set([
   // 背景と盤面サイズ（js/background-dialog.js）。部屋全体の見た目を左右するのでGM限定。
   // 画像のアップロード側（server/index.jsのIMAGE_PURPOSES.background）も同じくGM限定。
   'SET_BOARD_BACKGROUND',
+  // 背景を差し替えて外れた画像の一覧から外す。一覧に積むのが背景設定（上）なので同じくGM限定。
+  'REMOVE_RETIRED_IMAGE',
   // 部屋のスタンプの登録・削除（js/room-stamp-list-dialog.js）。登録したスタンプは、
   // 以後そのIDを送った誰の操作でも全員の画面に出る。つまり「どの絵が全員の画面に出うるか」
   // を決める操作で、背景と同じ種類の判断なのでGM限定。

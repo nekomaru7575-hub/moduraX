@@ -31,7 +31,10 @@ import {
 import { commitImageBlob, isImageUploadAvailable } from './image-upload.js';
 import { pickFiles } from './file-uploader.js';
 import { canOperateAsGm, GM_ONLY_REASON } from './room-authority.js';
-import { canReuseCommitFor, imageUsableFor, pickReusableCommit } from './store/images.js';
+import { store } from './game-store.js';
+import {
+  canReuseCommitFor, imageUsableFor, normalizeRetiredImages, pickReusableCommit
+} from './store/images.js';
 
 const ensureDialog = createDialogHost('image-selector-dialog');
 
@@ -79,8 +82,11 @@ export function showImageStockDialog({ usedImages = new Set() } = {}) {
  *   キャンセル・Esc・溜め置きモードならnull
  */
 export async function showImageSelectorDialog({
-  purpose = null, usedImages = new Set(), title = '画像を選ぶ', mode = 'pick'
+  purpose = null, usedImages: usedImagesInput = new Set(), title = '画像を選ぶ', mode = 'pick'
 }) {
+  // 外れた画像を×で一覧から外したら、ここからも抜く。抜かないと「この部屋で使っている画像」の
+  // 側へ移って見え続け、上げ直しを省く判断（pickReusableCommit）も状態に無いURLを生きているとみなす。
+  const usedImages = new Set(usedImagesInput);
   // 溜め置きモード：溜める・消すだけで、置き場へは一切送らない。
   const stock = mode === 'stock';
   // 上限の問い合わせをここで一度通す。プールの1件上限がこの応答から決まるので、
@@ -184,6 +190,19 @@ export async function showImageSelectorDialog({
     poolSection.appendChild(poolGrid);
     form.insertBefore(poolSection, buttonRow);
 
+    // --- 背景を差し替えて外れた画像（js/store/images.jsのnextRetiredImages） ---
+    // 状態からは外れているが実体は置き場に残っているので、ここから選び直せる。
+    // 1枚も無いときは節ごと出さない（ほとんどの部屋では空で、見出しだけ並ぶと探しにくい）。
+    const retiredSection = document.createElement('div');
+    retiredSection.className = 'dialog-form-group';
+    const retiredLabel = document.createElement('label');
+    retiredLabel.textContent = '前に使っていた背景';
+    retiredSection.appendChild(retiredLabel);
+    const retiredGrid = document.createElement('div');
+    retiredGrid.className = 'image-selector-grid';
+    retiredSection.appendChild(retiredGrid);
+    form.insertBefore(retiredSection, buttonRow);
+
     // --- この部屋で使っている画像 ---
     const usedSection = document.createElement('div');
     usedSection.className = 'dialog-form-group';
@@ -197,7 +216,7 @@ export async function showImageSelectorDialog({
 
     // 選択の見た目は1か所で切り替える（選ばれている札が2つ見えると何が起きるか分からない）
     function markSelection() {
-      [...poolGrid.children, ...usedGrid.children].forEach((cell) => {
+      [...poolGrid.children, ...retiredGrid.children, ...usedGrid.children].forEach((cell) => {
         if (!cell.classList.contains('image-selector-cell')) return;
         const isSelected = !!selected
           && ((selected.kind === 'pool' && cell.dataset.hash === selected.entry.hash)
@@ -209,7 +228,9 @@ export async function showImageSelectorDialog({
       refreshConfirm();
     }
 
-    function buildTile({ src, caption, detail, disabledReason, onPick, onRemove }) {
+    function buildTile({
+      src, caption, detail, disabledReason, onPick, onRemove, removeTitle = 'この画像を溜め置きから消す'
+    }) {
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'image-selector-tile';
@@ -266,7 +287,7 @@ export async function showImageSelectorDialog({
         removeBtn.type = 'button';
         removeBtn.className = 'dialog-remove-row image-selector-remove';
         removeBtn.textContent = '×';
-        removeBtn.title = 'この画像を溜め置きから消す';
+        removeBtn.title = removeTitle;
         removeBtn.addEventListener('click', onRemove);
         cell.appendChild(removeBtn);
       }
@@ -326,9 +347,63 @@ export async function showImageSelectorDialog({
       });
     }
 
+    // 状態に写っている画像を札にする（外れた画像・使っている画像で共通）。
+    function buildUrlTile(url, { onRemove = null, removeTitle } = {}) {
+      // 用途によって使えない形がある（スタンプはhttpsか/asset/のみ、カードは長さ上限）。
+      // 判定は状態側の正規化と同じものを借りる（js/store/images.js）
+      // 溜め置きモードは用途が決まらないので検分しない（並べて見せるだけ）
+      const usable = stock ? { ok: true } : imageUsableFor(url, purpose);
+      const { cell } = buildTile({
+        src: url,
+        caption: url.startsWith('data:') ? 'この部屋に埋め込まれた画像' : url.split('/').pop(),
+        detail: '',
+        disabledReason: usable.ok ? '' : usable.reason,
+        onPick: stock ? null : () => {
+          selected = { kind: 'url', url };
+          say('');
+          markSelection();
+        },
+        onRemove,
+        removeTitle
+      });
+      cell.dataset.url = url;
+      return cell;
+    }
+
+    // 部屋の状態から毎回読む（×で外したあとに描き直すため）
+    function retiredUrls() {
+      return normalizeRetiredImages(store.state.room?.retiredImages).map(entry => entry.image);
+    }
+
+    function renderRetired() {
+      retiredGrid.innerHTML = '';
+      const urls = retiredUrls();
+      // hiddenは使えない（.dialog-form-groupがdisplay:flexを持ち、UA既定の[hidden]に勝つ）
+      retiredSection.style.display = urls.length === 0 ? 'none' : '';
+
+      // 一覧に積むのが背景設定（GM限定）なので、外すのもGMだけ。押せない×は出さない
+      const canRemove = canOperateAsGm();
+      urls.forEach((url) => {
+        retiredGrid.appendChild(buildUrlTile(url, {
+          removeTitle: 'この画像を一覧から外す（部屋の画像そのものは消えません）',
+          onRemove: canRemove ? () => {
+            if (!confirm('この画像を「前に使っていた背景」から外しますか？')) return;
+            store.dispatch('REMOVE_RETIRED_IMAGE', { image: url });
+            usedImages.delete(url);
+            if (selected?.kind === 'url' && selected.url === url) selected = null;
+            renderRetired();
+            renderUsed();
+            markSelection();
+          } : null
+        }));
+      });
+    }
+
     function renderUsed() {
       usedGrid.innerHTML = '';
-      const urls = [...usedImages];
+      // 外れた画像も状態に写っているのでusedImagesに入っているが、上の節と二重に並べない
+      const retired = new Set(retiredUrls());
+      const urls = [...usedImages].filter(url => !retired.has(url));
 
       if (urls.length === 0) {
         const empty = document.createElement('div');
@@ -338,25 +413,7 @@ export async function showImageSelectorDialog({
         return;
       }
 
-      urls.forEach((url) => {
-        // 用途によって使えない形がある（スタンプはhttpsか/asset/のみ、カードは長さ上限）。
-        // 判定は状態側の正規化と同じものを借りる（js/store/images.js）
-        // 溜め置きモードは用途が決まらないので検分しない（並べて見せるだけ）
-        const usable = stock ? { ok: true } : imageUsableFor(url, purpose);
-        const { cell, tile } = buildTile({
-          src: url,
-          caption: url.startsWith('data:') ? 'この部屋に埋め込まれた画像' : url.split('/').pop(),
-          detail: '',
-          disabledReason: usable.ok ? '' : usable.reason,
-          onPick: stock ? null : () => {
-            selected = { kind: 'url', url };
-            say('');
-            markSelection();
-          }
-        });
-        cell.dataset.url = url;
-        usedGrid.appendChild(cell);
-      });
+      urls.forEach((url) => usedGrid.appendChild(buildUrlTile(url)));
     }
 
     // --- アップロード（溜めるだけ。ここではサーバーへ行かない） ---
@@ -486,6 +543,7 @@ export async function showImageSelectorDialog({
 
     // 一覧は開いたあとに作る（プールの読み出しがIndexedDB待ちなので、
     // 先に画面を出しておかないと押した反応が無いように見える）
+    renderRetired();
     renderUsed();
     renderPool().then(markSelection);
     refreshConfirm();

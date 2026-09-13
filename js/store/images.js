@@ -202,3 +202,74 @@ export function pickReusableCommit(memory, urlsInState, hash) {
 
   return { url, key: typeof remembered.key === 'string' ? remembered.key : null };
 }
+
+// --- 背景を差し替えて外れた画像 ---
+//
+// 【なぜ要るか】背景を差し替えても、前の画像の実体は置き場（R2）に残る（画像は即時削除
+// されない。js/image-pool.js冒頭）。ところが状態からは外れるので、セレクタの
+// 「この部屋で使っている画像」（collectImageUrls）からも消え、選び直す道が無くなっていた。
+// プールへ戻そうにも、R2の公開ドメインはCORSを返さないので実体を読めない。
+// そこで**指し先（URLとキー）だけを部屋の状態に残す**。上げ直しは起きない。
+//
+// 各行の項目名を'image'にしてあるのは、collectImageUrlsが名前で拾うため。これで
+// 「今この部屋の状態に写っている＝生きている」扱いになり、pickReusableCommitの判断にも乗る。
+
+// 残しておく件数の上限。超えたら古いものから落とす（状態は全員へ配られ、保存のたびに
+// 書き直されるので、際限なく積まない）。
+export const MAX_RETIRED_IMAGES = 30;
+
+/**
+ * room.retiredImages を読める形へ均す。取り込んだ部屋データ由来の値も通るので、形を確かめる。
+ * @param {unknown} list
+ * @returns {{image: string, imageKey: string|null}[]}
+ */
+export function normalizeRetiredImages(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const entry of list) {
+    const image = normalizeImageRef(entry?.image);
+    if (image === null || seen.has(image)) continue;
+    seen.add(image);
+    result.push({ image, imageKey: typeof entry.imageKey === 'string' ? entry.imageKey : null });
+    if (result.length >= MAX_RETIRED_IMAGES) break;
+  }
+  return result;
+}
+
+/**
+ * 外れた画像の一覧から、その指し先の行を探す。無ければ null。
+ * @param {object} room
+ * @param {string|null} image
+ */
+export function findRetiredImage(room, image) {
+  if (!image) return null;
+  return normalizeRetiredImages(room?.retiredImages).find(entry => entry.image === image) || null;
+}
+
+/**
+ * 背景を nextBackground に差し替えたあとの、外れた画像の一覧を返す。
+ *   ・前の背景は先頭へ避難させる（新しいものが手前）
+ *   ・ただしシーンやパネルなど他の場所でまだ使っている画像は、一覧から消えないので避難させない
+ *   ・新しく背景にした画像は使用中へ戻るので、一覧から外す
+ *
+ * @param {object} state 差し替える前の状態
+ * @param {string|null} nextBackground 均した後の新しい背景
+ * @returns {{image: string, imageKey: string|null}[]}
+ */
+export function nextRetiredImages(state, nextBackground) {
+  const room = state?.room || {};
+  let list = normalizeRetiredImages(room.retiredImages).filter(entry => entry.image !== nextBackground);
+
+  const previous = normalizeImageRef(room.backgroundImage);
+  if (previous === null || previous === nextBackground) return list;
+
+  const usedElsewhere = collectImageUrls({
+    ...state, room: { ...room, backgroundImage: null, retiredImages: [] }
+  });
+  if (usedElsewhere.has(previous)) return list;
+
+  list = list.filter(entry => entry.image !== previous);
+  const imageKey = typeof room.backgroundImageKey === 'string' ? room.backgroundImageKey : null;
+  return [{ image: previous, imageKey }, ...list].slice(0, MAX_RETIRED_IMAGES);
+}

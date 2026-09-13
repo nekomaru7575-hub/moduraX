@@ -8,7 +8,7 @@
 import { EventBus } from '../../EventBus.js';
 import { applyPluginDerivedParameters, buildRoomParameters } from '../../parameters/registry.js';
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
-import { normalizeImageRef } from '../images.js';
+import { findRetiredImage, nextRetiredImages, normalizeImageRef, normalizeRetiredImages } from '../images.js';
 import { patchCharacter, withMapEntry, withoutMapEntry } from '../patch.js';
 import { showsEntryMessages, snapsToGrid, withDerivedRoomParameters } from '../room.js';
 import { MAX_ROOM_STAMPS, normalizeRoomStamp, roomStampPublicId } from '../stamps.js';
@@ -188,12 +188,18 @@ export const ROOM_HANDLERS = {
     // オブジェクトを指す）。均した後の値で揃えること——生のimageUrlの真偽で見ると、
     // 画像として通らなかった値でもキーだけ残る。
     const backgroundImage = normalizeImageRef(imageUrl);
+    // 外れた画像の一覧から選び直した場合、セレクタはキーを返さない（状態に写っている
+    // URLとして選ばれるため）。避難させたときのキーを戻す。
+    const restored = findRetiredImage(prevState.room, backgroundImage);
 
     commit({
       room: {
         ...prevState.room,
         backgroundImage,
-        backgroundImageKey: backgroundImage ? (imageKey || null) : null,
+        backgroundImageKey: backgroundImage ? (imageKey || restored?.imageKey || null) : null,
+        // 前の背景を避難させる。状態から外れると画像を選ぶ画面に出なくなり、
+        // 実体は残っているのに二度と選べなくなるため（js/store/images.jsのnextRetiredImages）。
+        retiredImages: nextRetiredImages(prevState, backgroundImage),
         // マス目（グリッド線）を敷くか。既定はあり（applyBoardBackground参照）
         showGrid: showGrid !== false,
         // 画像とサイズは独立して決める（画像なしで盤面だけ広げる／画像を消しても
@@ -205,6 +211,20 @@ export const ROOM_HANDLERS = {
         // 背景は1つしかなく、保存しない（＝null）と「背景なし」の区別が付かないため。
         keepBackgroundOnSceneChange: !!keepOnSceneChange
       }
+    });
+  },
+
+  // 背景を差し替えて外れた画像を、一覧から外す（画像を選ぶ画面の×から）。
+  // 置き場の実体は消さない：画像は即時削除しない方針で、同じ実体を他の場所が指しうるため
+  // （js/image-pool.js冒頭）。
+  REMOVE_RETIRED_IMAGE({ prevState, payload, commit }) {
+    const image = payload?.image;
+    const room = prevState.room;
+    const list = normalizeRetiredImages(room.retiredImages);
+    if (!list.some(entry => entry.image === image)) return;
+
+    commit({
+      room: { ...room, retiredImages: list.filter(entry => entry.image !== image) }
     });
   },
 

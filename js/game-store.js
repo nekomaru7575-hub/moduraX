@@ -349,6 +349,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // シーンへ遷移しても背景・盤面サイズを変えないか（js/background-dialog.js）。
       // シーン側への保存は従来どおり行い、遷移時の上書きだけを止める
       keepBackgroundOnSceneChange: false,
+      // 背景を差し替えて外れた画像（[{image, imageKey}]、新しいものが先頭）。実体は置き場に
+      // 残っているので、画像を選ぶ画面から選び直せるように指し先だけ残す（js/store/images.js）。
+      retiredImages: [],
       // ラウンド進行の設定（js/round-panel.js・SET_ROUND_SETTINGS）。今は
       // 「キャラクターの手番の前にイニシアチブプロセスを挟むか」だけを持つ。
       // 将来ラウンド進行の仕組み自体をユーザー/プラグインで指定できるようにする際の置き場。

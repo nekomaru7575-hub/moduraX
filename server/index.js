@@ -28,6 +28,7 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 // スタンプの一覧。送られてきたIDが実在するかの確認だけに使う（画像には触らない）。
 import { isKnownStampId } from '../js/stamp-registry.js';
 import { roomStampPublicId } from '../js/store/stamps.js';
+import { normalizeRetiredImages } from '../js/store/images.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
 // メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
 import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES } from '../js/net-host-rules.js';
@@ -1994,6 +1995,15 @@ async function adoptStateMedia(roomId, state) {
     roomStamps[id] = { ...stamp, url: image, key: keyFromPublicUrl(image) || null };
   }
 
+  // 背景を差し替えて外れた画像（js/store/images.js）。背景と同じくURLとキーを対で書き換える。
+  // 引き取れなかったものは行ごと落とす（指し先の無い行は選んでも絵が出ない）。
+  const retiredImages = [];
+  for (const entry of normalizeRetiredImages(state.room?.retiredImages)) {
+    const image = await adoptImage(entry.image);
+    if (!image) continue;
+    retiredImages.push({ image, imageKey: keyFromPublicUrl(image) || null });
+  }
+
   const scenes = {};
   for (const [id, scene] of Object.entries(state.room?.scenes || {})) {
     // 落とした音源を指したままだと、シーン遷移時に鳴らない曲を指し続ける。
@@ -2027,6 +2037,7 @@ async function adoptStateMedia(roomId, state) {
         audioTracks,
         audioPlayback,
         stamps: roomStamps,
+        retiredImages,
         scenes
       }
     }

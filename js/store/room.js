@@ -121,10 +121,10 @@ export function withDerivedRoomParameters(room, stampCounts, round) {
 
 export const DEFAULT_TOKEN_COLOR = 'transparent';
 
-// 新しい部屋の盤面サイズ（マス数）。背景設定ダイアログ（js/background-dialog.js）の
-// 「盤面サイズを自動にする」は boardWidth/boardHeight が null かどうかで決まるので、
-// ここへ値を入れることが「既定では自動にしない」と同じ意味になる。
-// 既に保存されている部屋はhydrateで触らないため、nullのまま＝自動のままになる。
+// 新しい部屋の盤面サイズ（マス数）。boardWidth/boardHeight が null の部屋は広さ未指定
+// （画像の実寸かビューポートに合わせる）として描かれるので、ここへ値を入れておく。
+// 背景設定ダイアログ（js/background-dialog.js）は常に数値を保存する（「自動」の口は無くした）。
+// 既に保存されている部屋はhydrateで触らないため、nullのままなら次に背景設定を適用するまでそのまま。
 export const DEFAULT_BOARD_COLS = 40;
 export const DEFAULT_BOARD_ROWS = 30;
 // マス1つのピクセル数。描画側の定数（js/board-data-driven.jsのGRID_SIZE）と同じ値で、

@@ -19,9 +19,9 @@ const ensureDialog = createDialogHost();
  * @param {{
  *   initialImage?: string | null,
  *   initialImageKey?: string | null,
- *   initialCols?: number | null,  null＝自動（ビューポートに合わせる）
+ *   initialCols?: number | null,  null＝広さが未指定の部屋（以前の「自動」）。数値欄にはfallbackを出す
  *   initialRows?: number | null,
- *   fallbackCols?: number,        自動のときに数値欄へ初期表示する、今の実サイズ
+ *   fallbackCols?: number,        広さが未指定のときに数値欄へ初期表示する、今の実サイズ
  *   fallbackRows?: number,
  *   initialShowGrid?: boolean,
  *   initialKeepOnSceneChange?: boolean,
@@ -29,11 +29,11 @@ const ensureDialog = createDialogHost();
  *   gridSize: number,
  *   onConfirm: (result: {
  *     imageUrl: string | null, imageKey: string | null,
- *     boardWidth: number | null, boardHeight: number | null,
+ *     boardWidth: number, boardHeight: number,
  *     showGrid: boolean, keepOnSceneChange: boolean
  *   }) => void
  * }} options
- *   boardWidth/boardHeightはマス数×gridSizeへ変換した後のピクセルサイズ（自動ならnull）。
+ *   boardWidth/boardHeightはマス数×gridSizeへ変換した後のピクセルサイズ。常に数値で返す。
  */
 export function showBackgroundDialog({
   initialImage = null, initialImageKey = null,
@@ -71,39 +71,20 @@ export function showBackgroundDialog({
     selectorTitle: '背景画像を選ぶ',
     onPicked: async (picked) => {
       // 画像の実サイズをマス換算してサイズ欄へ自動反映。
-      // 自動のままでも盤面はこの大きさになる（js/board-data-driven.jsの
-      // resolveBoardPixelSize）ので、入力欄が無効の間も実際の値として見せておく。
       const dim = (picked.width && picked.height)
         ? { width: picked.width, height: picked.height }
         : await loadImageDimensions(picked.url);
       if (dim) {
         colsInput.value = Math.max(1, Math.round(dim.width / gridSize));
         rowsInput.value = Math.max(1, Math.round(dim.height / gridSize));
+        // 縦横比の基準は、マス数へ丸める前の画像の実寸で持つ（丸めた後の値を基準にすると、
+        // 幅を変えるたびに画像の比からずれていく）
+        aspect = { width: dim.width, height: dim.height };
+        aspectCells = { cols: Number(colsInput.value), rows: Number(rowsInput.value) };
       }
     }
   });
   form.appendChild(imageField.element);
-
-  // --- 盤面サイズを自動にする ---
-  // ONの間はboardWidth/boardHeightをnullにして、盤面側の判断に任せる（既定の状態）。
-  // 背景画像があればその実サイズ、無ければウィンドウの大きさになる
-  // （js/board-data-driven.jsのresolveBoardPixelSize）。画像があるときにウィンドウ基準に
-  // すると、PCとスマホで盤面の縦横比が変わって画像だけが歪むため。
-  const autoGroup = document.createElement('div');
-  autoGroup.className = 'dialog-form-group';
-  const autoLabel = document.createElement('label');
-  autoLabel.style.display = 'flex';
-  autoLabel.style.alignItems = 'center';
-  autoLabel.style.gap = '6px';
-  autoLabel.style.cursor = 'pointer';
-  autoLabel.title = '盤面の広さを画面の大きさに合わせます。オフにすると下の数値で固定します。';
-  const autoInput = document.createElement('input');
-  autoInput.type = 'checkbox';
-  autoInput.checked = initialCols === null || initialRows === null;
-  autoLabel.appendChild(autoInput);
-  autoLabel.appendChild(document.createTextNode('盤面サイズを自動にする（画面に合わせる）'));
-  autoGroup.appendChild(autoLabel);
-  form.appendChild(autoGroup);
 
   // --- 幅（マス） ---
   const colsGroup = document.createElement('div');
@@ -133,12 +114,67 @@ export function showBackgroundDialog({
   rowsGroup.appendChild(rowsInput);
   form.appendChild(rowsGroup);
 
-  const syncSizeInputs = () => {
-    colsInput.disabled = autoInput.checked;
-    rowsInput.disabled = autoInput.checked;
-  };
-  autoInput.addEventListener('change', syncSizeInputs);
-  syncSizeInputs();
+  // --- 縦横比を固定する ---
+  // ONの間は、幅を変えると高さが、高さを変えると幅が、基準の比に合わせて動く（端数は四捨五入）。
+  // 基準の比はONにした時点の幅×高さ。画像を選び直したときはその画像の実寸に置き換える。
+  // 比は変えるたびに測り直さない：丸めた値から測り直すと、動かすたびに比がずれていくため。
+  // ダイアログの中だけの補助で、状態には何も残さない。
+  let aspect = null; // { width, height }
+  // 基準の比を決めたときの欄の値。画像を選んだあとに欄を触らずONにしたなら、
+  // 丸めたマス数ではなく画像の実寸の比を使い続けるための目印。
+  let aspectCells = null; // { cols, rows }
+  const aspectGroup = document.createElement('div');
+  aspectGroup.className = 'dialog-form-group';
+  const aspectLabel = document.createElement('label');
+  aspectLabel.style.display = 'flex';
+  aspectLabel.style.alignItems = 'center';
+  aspectLabel.style.gap = '6px';
+  aspectLabel.style.cursor = 'pointer';
+  aspectLabel.title = '幅と高さの一方を変えると、もう一方が今の縦横比に合わせて変わります（端数は四捨五入）。';
+  const aspectInput = document.createElement('input');
+  aspectInput.type = 'checkbox';
+  aspectInput.checked = false;
+  aspectLabel.appendChild(aspectInput);
+  aspectLabel.appendChild(document.createTextNode('縦横比を固定する'));
+  aspectGroup.appendChild(aspectLabel);
+  form.appendChild(aspectGroup);
+
+  const readCells = (input) => Math.round(Number(input.value));
+  aspectInput.addEventListener('change', () => {
+    const cols = readCells(colsInput);
+    const rows = readCells(rowsInput);
+    if (!aspectInput.checked) return;
+    if (aspect && aspectCells?.cols === cols && aspectCells?.rows === rows) return;
+    aspect = cols >= 1 && rows >= 1 ? { width: cols, height: rows } : null;
+    aspectCells = aspect ? { cols, rows } : null;
+  });
+  // 空欄や0を打っている途中では、相手の欄を動かさない（消して打ち直すたびに1へ潰れるため）
+  colsInput.addEventListener('input', () => {
+    const cols = readCells(colsInput);
+    if (!aspectInput.checked || !aspect || !(cols >= 1)) return;
+    rowsInput.value = Math.max(1, Math.round(cols * aspect.height / aspect.width));
+    aspectCells = { cols, rows: Number(rowsInput.value) };
+  });
+  rowsInput.addEventListener('input', () => {
+    const rows = readCells(rowsInput);
+    if (!aspectInput.checked || !aspect || !(rows >= 1)) return;
+    colsInput.value = Math.max(1, Math.round(rows * aspect.width / aspect.height));
+    aspectCells = { cols: Number(colsInput.value), rows };
+  });
+
+  // 今の背景画像があって、欄の値がその実寸どおりのマス数なら、比の基準を画像の実寸にしておく
+  // （ONにしたときに丸めたマス数の比にならないように）。欄を自分で変えた盤面なら何もしない。
+  if (initialImage) {
+    const startCols = readCells(colsInput);
+    const startRows = readCells(rowsInput);
+    loadImageDimensions(initialImage).then((dim) => {
+      if (!dim || aspect) return;
+      if (Math.max(1, Math.round(dim.width / gridSize)) !== startCols) return;
+      if (Math.max(1, Math.round(dim.height / gridSize)) !== startRows) return;
+      aspect = { width: dim.width, height: dim.height };
+      aspectCells = { cols: startCols, rows: startRows };
+    });
+  }
 
   // --- マス目を描画する ---
   // 既定はあり。地図画像に元からマス目が描かれている場合など、二重に見えるときに外す。
@@ -184,7 +220,6 @@ export function showBackgroundDialog({
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const auto = autoInput.checked;
     const cols = Math.max(1, Math.round(Number(colsInput.value) || fallbackCols));
     const rows = Math.max(1, Math.round(Number(rowsInput.value) || fallbackRows));
 
@@ -192,8 +227,8 @@ export function showBackgroundDialog({
     onConfirm({
       imageUrl: imageField.getImage(),
       imageKey: imageField.getKey(),
-      boardWidth: auto ? null : cols * gridSize,
-      boardHeight: auto ? null : rows * gridSize,
+      boardWidth: cols * gridSize,
+      boardHeight: rows * gridSize,
       showGrid: gridInput.checked,
       keepOnSceneChange: keepInput.checked
     });

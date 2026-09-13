@@ -338,8 +338,9 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // 背景の実体がR2にある場合のキー（部屋削除時の掃除に使う）。外部URL・移行前の
       // データURLではnull。音源のtrack.keyと同じ役割。
       backgroundImageKey: null,
-      // null = 自動（ビューポートをマス単位に切り上げたサイズ。resolveBoardPixelSize参照）。
-      // 新しい部屋は自動にせず、決まった広さから始める（DEFAULT_BOARD_COLS/ROWS参照）。
+      // null = 広さ未指定（背景画像の実寸かビューポートに合わせる。resolveBoardPixelSize参照）。
+      // 背景設定から「自動」を選ぶ口は無くなったので、nullが残るのはそれより前に保存された部屋だけ。
+      // 新しい部屋は決まった広さから始める（DEFAULT_BOARD_COLS/ROWS参照）。
       boardWidth: DEFAULT_BOARD_COLS * BOARD_GRID_SIZE,
       boardHeight: DEFAULT_BOARD_ROWS * BOARD_GRID_SIZE,
       showGrid: true,        // マス目（グリッド線）を敷くか。地図画像をそのまま見せたい時に外す

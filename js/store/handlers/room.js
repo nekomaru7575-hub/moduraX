@@ -203,7 +203,8 @@ export const ROOM_HANDLERS = {
         // マス目（グリッド線）を敷くか。既定はあり（applyBoardBackground参照）
         showGrid: showGrid !== false,
         // 画像とサイズは独立して決める（画像なしで盤面だけ広げる／画像を消しても
-        // サイズは残す）。null＝ビューポートに合わせる（resolveBoardPixelSize参照）。
+        // サイズは残す）。背景設定は常に数値を送るが、nullも受ける（以前の「自動」。
+        // 画像の実寸かビューポートに合わせる。resolveBoardPixelSize参照）。
         boardWidth: boardWidth || null,
         boardHeight: boardHeight || null,
         // シーンへ遷移しても背景・盤面サイズを上書きしない（APPLY_SCENE参照）。

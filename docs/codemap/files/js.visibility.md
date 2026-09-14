@@ -1,10 +1,10 @@
 ---
 source: js/visibility.js
-lines: 104
-exports: 8
-imported_by: 11
-api_sha: 100a091fb9a3
-prose_sha: 100a091fb9a3
+lines: 121
+exports: 9
+imported_by: 12
+api_sha: 6eb71a2f606d
+prose_sha: 6eb71a2f606d
 generated: 2026-09-14
 tags: [codemap]
 ---
@@ -18,12 +18,12 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-「これは誰に見せるものか」の解釈を1か所に集めた共通モジュール。軸は2本ある。1本目は宛先（audience）で、GM 判定・閲覧可否・伏せ字マスク・公開範囲の説明文を持つ。コマ・情報・チャットタブ・パラメータのすべてがこの判定を通るので、公開範囲の仕様変更はここから始まる。2本目はシークレットダイスで、宛先ではなく「振った本人だけ」に固定された秘匿。`visibleChatEntry` がチャットログ1件を見せてよい形へ差し替える（画面もログの書き出しも同じこれを通る）。
+「これは誰に見せるものか」の解釈を1か所に集めた共通モジュール。軸は2本ある。1本目は宛先（audience）で、GM 判定・閲覧可否・伏せ字マスク・公開範囲の説明文を持つ。コマ・情報・チャットタブ・パラメータのすべてがこの判定を通るので、公開範囲の仕様変更はここから始まる。2本目はシークレットダイスで、宛先ではなく「振った本人だけ」に固定された秘匿。`visibleChatEntry` がチャットログ1件を見せてよい形へ差し替える（画面もログの書き出しも同じこれを通る）。宛先を持たない「コマの持ち主だけ」の秘匿（シノビガミの忍具、ステラナイツの NPC のスキル）は `canViewOwnerOnly` で判定する（持ち主なしは全員、GM も例外にしない）。
 
 storeにも DOM にも触らない純粋関数だけを置くこと。状態を読む判定は js/room-authority.js の側にある。
 <!-- /prose:role -->
 
-## export（8）
+## export（9）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -31,12 +31,13 @@ storeにも DOM にも触らない純粋関数だけを置くこと。状態を�
 | 21 | fn | isRestricted | `isRestricted(audience)` |  |
 | 30 | fn | isGm | `isGm(participants, participantId)` | その人がGMか。 |
 | 40 | fn | canView | `canView(audience, participantId)` | 自分がそれを見てよいか。 |
-| 58 | const | SECRET_DICE_MASK | `SECRET_DICE_MASK` | 出目の代わりに出す文言。 |
-| 67 | fn | canViewSecretDice | `canViewSecretDice(entry, participantId)` | その発言の出目を今の自分が見てよいか。 |
-| 83 | fn | visibleChatEntry | `visibleChatEntry(entry, participantId)` | チャットログ1件を、今の自分に見せてよい形にして返す。 |
-| 97 | fn | describeAudience | `describeAudience(audience, participants = {})` | 宛先を人間に読める形にする（タブのツールチップ等の表示用）。 |
+| 58 | fn | canViewOwnerOnly | `canViewOwnerOnly(token, participantId)` | コマの持ち主だけに見せるもの（シノビガミの忍具、ステラナイツのNPCのスキル）を、自分が見てよいか。 |
+| 75 | const | SECRET_DICE_MASK | `SECRET_DICE_MASK` | 出目の代わりに出す文言。 |
+| 84 | fn | canViewSecretDice | `canViewSecretDice(entry, participantId)` | その発言の出目を今の自分が見てよいか。 |
+| 100 | fn | visibleChatEntry | `visibleChatEntry(entry, participantId)` | チャットログ1件を、今の自分に見せてよい形にして返す。 |
+| 114 | fn | describeAudience | `describeAudience(audience, participants = {})` | 宛先を人間に読める形にする（タブのツールチップ等の表示用）。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -46,14 +47,15 @@ storeにも DOM にも触らない純粋関数だけを置くこと。状態を�
 | 21 | isRestricted | `isRestricted(audience)` | 3 | ✓ |
 | 30 | isGm | `isGm(participants, participantId)` | 4 | ✓ |
 | 40 | canView | `canView(audience, participantId)` | 6 | ✓ |
-| 67 | canViewSecretDice | `canViewSecretDice(entry, participantId)` | 4 | ✓ |
-| 83 | visibleChatEntry | `visibleChatEntry(entry, participantId)` | 8 | ✓ |
-| 97 | describeAudience | `describeAudience(audience, participants = {})` | 7 | ✓ |
+| 58 | canViewOwnerOnly | `canViewOwnerOnly(token, participantId)` | 5 | ✓ |
+| 84 | canViewSecretDice | `canViewSecretDice(entry, participantId)` | 4 | ✓ |
+| 100 | visibleChatEntry | `visibleChatEntry(entry, participantId)` | 8 | ✓ |
+| 114 | describeAudience | `describeAudience(audience, participants = {})` | 7 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.info-panel]], [[js.log-export]], [[js.main]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.room-authority]]
+- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.info-panel]], [[js.log-export]], [[js.main]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]], [[js.room-authority]]
 
 ## 注意
 

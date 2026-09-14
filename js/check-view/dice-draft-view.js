@@ -20,8 +20,8 @@
 import { bindDragGesture } from '../drag-gesture.js';
 import { normalizeSkillList } from '../parameters/skill/skill-model.js';
 import {
-  acceptsDie, countDice, createDie, evaluatePlacement, filterSkillsByTab, moveDie, placedDice,
-  readTargetModifier
+  acceptsDie, canViewDiceDraftSkillDetails, countDice, createDie, diceDraftUnavailableReason,
+  evaluatePlacement, filterSkillsByTab, moveDie, placedDice, readTargetModifier
 } from '../parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from '../parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from '../parameters/dice-draft/dice-draft-use.js';
@@ -134,13 +134,30 @@ export function createDiceDraftView() {
       parameters: token?.parameters ?? null,
       // 目標値の修正はバフ/デバフで動く。ADD_BUFFはparametersを書き換えないので、
       // ここでbuffsを見ないと修正を足しても目標値の表示が古いまま残る
-      buffs: token?.buffs ?? null
+      buffs: token?.buffs ?? null,
+      // 使えるか・中身を見せるかは持ち主で変わる（ステラナイツのNPC。名乗りの変更は器が拾う）
+      ownerId: token?.ownerId ?? null
     }),
 
     render(ctx) {
       const { container, spec, canEdit, dispatch, getToken, requestRender } = ctx;
       const token = getToken();
       if (!token) return;
+
+      // ドラフトを使えないコマ（ステラナイツのシース）。プールもスキルも出さず、理由だけ置く
+      const unavailable = diceDraftUnavailableReason(spec, token);
+      if (unavailable) {
+        container.innerHTML = '';
+        const note = document.createElement('div');
+        note.className = 'dice-draft-empty';
+        note.textContent = unavailable;
+        container.appendChild(note);
+        return;
+      }
+
+      // スキルの中身を伏せるか（ステラナイツのNPCを持ち主以外が見るとき）。
+      // 伏せたカードは名前とダイスの置き場（と使用ボタン）だけになる
+      const showDetails = canViewDiceDraftSkillDetails(spec, token, ctx.myParticipantId ?? null);
 
       const saveDraft = (draft) => {
         const latest = getToken();
@@ -347,17 +364,20 @@ export function createDiceDraftView() {
         }
         card.appendChild(slot);
 
-        const status = document.createElement('div');
-        status.className = 'dice-draft-status';
-        status.classList.toggle('is-ready', result.ready);
-        status.textContent = result.description;
-        status.title = result.description;
-        card.appendChild(status);
+        // 伏せたカードには状態の1行も判定値の欄も出さない（対応する数字や目標値が読めてしまう）
+        if (showDetails) {
+          const status = document.createElement('div');
+          status.className = 'dice-draft-status';
+          status.classList.toggle('is-ready', result.ready);
+          status.textContent = result.description;
+          status.title = result.description;
+          card.appendChild(status);
+        }
 
         // 目標値が数字1つでないスキル（ドラクルージュの「3～12」「効果参照」）は、判定値を入れさせる。
         // 「3～12」の既定は「今の合計で届く一番大きい判定値」（evaluatePlacement）なので、たいていは
         // 触らなくてよく、低い判定値でわざと使いたいときだけ変える。「効果参照」は入れるまで使えない。
-        if (result.targetInput) {
+        if (showDetails && result.targetInput) {
           const { min, max } = result.targetInput;
           const input = document.createElement('input');
           input.type = 'number';

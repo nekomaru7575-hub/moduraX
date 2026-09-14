@@ -12,7 +12,7 @@
 // game-store.js → registry.js → プラグイン → ここ → game-store.js の循環になる）。
 
 import { MAX_ANIMATED_DICE } from '../../dice-notation.js';
-import { addDiceToPool, createDie, normalizeDraft } from './dice-draft-model.js';
+import { addDiceToPool, createDie, diceDraftUnavailableReason, normalizeDraft } from './dice-draft-model.js';
 
 export const DICE_DRAFT_COMPONENT_KEY = 'diceDraft';
 const MAIN_TAB_ID = 'main';
@@ -52,6 +52,11 @@ export function runDiceDraftRoll({
 }) {
   if (!token) {
     alert('ダイスを振るキャラクターを選択してください。');
+    return;
+  }
+  const unavailable = diceDraftUnavailableReason(spec, token);
+  if (unavailable) {
+    alert(unavailable);
     return;
   }
   if (!rollBCDice) {

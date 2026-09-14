@@ -1,6 +1,6 @@
 ---
 source: js/check-panel.js
-lines: 260
+lines: 263
 exports: 1
 imported_by: 1
 api_sha: 4661efefbe14
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 35 | fn | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | onCharacterChange … パネルで対象コマを選び直した時。 |
+| 36 | fn | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | onCharacterChange … パネルで対象コマを選び直した時。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -34,11 +34,11 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 35 | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | **225** | ✓ |
+| 36 | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | **227** | ✓ |
 
 ## 依存
 
-- import → [[js.BCdice]], [[js.EventBus]], [[js.board-data-driven]], [[js.check-view.index]], [[js.floating-panel]], [[js.parameters.registry]], [[js.room-authority]]
+- import → [[js.BCdice]], [[js.EventBus]], [[js.board-data-driven]], [[js.check-view.index]], [[js.floating-panel]], [[js.local-identity]], [[js.parameters.registry]], [[js.room-authority]]
 - imported by → [[js.main]]
 
 ## 注意

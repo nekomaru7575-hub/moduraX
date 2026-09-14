@@ -152,8 +152,28 @@ function buildPluginPanel({
 
   return {
     element: column,
-    getValues: () => panel?.getValues() ?? {}
+    getValues: () => panel?.getValues() ?? {},
+    // 左側（Core）の入力欄と同じものをプラグインが決めたいとき用の上書き（ステラナイツの種別）。
+    // 中身は解釈せず、確定時に左側から集めた値の後へ重ねるだけ（mergeCharacterOverrides）。
+    getCharacterOverrides: () => panel?.getCharacterOverrides?.() ?? {}
   };
+}
+
+/**
+ * プラグインパネルの getCharacterOverrides を、Coreの入力欄から集めた値へ重ねる。
+ *
+ * 【なぜ要るか】コマの「キャラクター一覧に表示」やHPの公開先は、ダイアログの左側にも入力欄がある。
+ * プラグインが開いている間にdispatchしても、確定の瞬間に左側の古い値で巻き戻される
+ * （applyCharacterEditResultが「ダイアログの値≠今の状態」を変更として送るため）。
+ * 確定時に同じ入れ物へ重ねれば、送られるのは1回だけで食い違わない。
+ *
+ * @param {{ visible?: boolean, parameterVisibility?: object, parameterAudience?: object }} overrides
+ * @param {{ visible: boolean, visibility: object, audience: object }} collected 左側から集めた値（書き換える）
+ */
+function mergeCharacterOverrides(overrides, collected) {
+  if (typeof overrides?.visible === 'boolean') collected.visible = overrides.visible;
+  Object.assign(collected.visibility, overrides?.parameterVisibility ?? {});
+  Object.assign(collected.audience, overrides?.parameterAudience ?? {});
 }
 
 // キャラクター画像の選択UI（正方形クロッパー＋選択/削除ボタン）を組み立てる。
@@ -632,7 +652,10 @@ export function showCharacterDialog({
   const pluginPanel = buildPluginPanel({
     activePluginId,
     mode: 'create',
-    parameters: activePluginId ? buildCharacterParametersForPlugin(activePluginId) : {}
+    parameters: activePluginId ? buildCharacterParametersForPlugin(activePluginId) : {},
+    // 作成したコマは作成者のものになる（js/board-data-driven.jsのbuildAddCharacterMenuItem）。
+    // 「持ち主だけに見せる」既定を作成時に決めるプラグイン（ステラナイツのNPC）が使う
+    participants, myParticipantId
   });
   columns.appendChild(pluginPanel.element);
 
@@ -680,8 +703,11 @@ export function showCharacterDialog({
       }))
       .filter(p => p.key !== '');
 
+    const collected = { visible: visibleCheckbox.getVisible(), visibility: parameterVisibility, audience: parameterAudience };
+    mergeCharacterOverrides(pluginPanel.getCharacterOverrides(), collected);
+
     dialog.close();
-    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: visibleCheckbox.getVisible(), parameterOverrides, parameterVisibility, parameterAudience, customParameters });
+    onConfirm({ name, image: imagePicker.getImage(), imageCrop: imagePicker.getCrop(), size: sizeInput.getSize(), textColor: textColorInput.getColor(), visible: collected.visible, parameterOverrides, parameterVisibility, parameterAudience, customParameters });
   });
 
   dialog.appendChild(form);
@@ -1095,6 +1121,9 @@ export function showCharacterEditDialog({
       }))
       .filter(p => p.key !== '');
 
+    const collected = { visible: visibleCheckbox.getVisible(), visibility: visibilityUpdates, audience: audienceUpdates };
+    mergeCharacterOverrides(pluginPanel.getCharacterOverrides(), collected);
+
     dialog.close();
     onConfirm({
       name,
@@ -1102,7 +1131,7 @@ export function showCharacterEditDialog({
       imageCrop: imagePicker.getCrop(),
       size: sizeInput.getSize(),
       textColor: textColorInput.getColor(),
-      visible: visibleCheckbox.getVisible(),
+      visible: collected.visible,
       parameterValues,
       visibilityUpdates,
       audienceUpdates,

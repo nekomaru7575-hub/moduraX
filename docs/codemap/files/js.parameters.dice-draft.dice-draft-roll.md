@@ -1,6 +1,6 @@
 ---
 source: js/parameters/dice-draft/dice-draft-roll.js
-lines: 131
+lines: 136
 exports: 3
 imported_by: 5
 api_sha: 8c5959783c1f
@@ -37,7 +37,7 @@ _(未記入)_
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 21 | readDraft | `readDraft(components, knownSkillNames = null)` | 3 | ✓ |
-| 49 | runDiceDraftRoll | `runDiceDraftRoll({ spec, token, dispatch, rollBCDice, count, buildCommand = null, readRolledDice = null, knownSkillNames = null, chatCommand = '' })` | 82 | ✓ |
+| 49 | runDiceDraftRoll | `runDiceDraftRoll({ spec, token, dispatch, rollBCDice, count, buildCommand = null, readRolledDice = null, knownSkillNames = null, chatCommand = '' })` | 87 | ✓ |
 
 ## 依存
 

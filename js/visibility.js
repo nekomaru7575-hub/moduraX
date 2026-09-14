@@ -44,6 +44,23 @@ export function canView(audience, participantId) {
   return audience.includes(participantId);
 }
 
+/**
+ * コマの持ち主だけに見せるもの（シノビガミの忍具、ステラナイツのNPCのスキル）を、自分が見てよいか。
+ * GMも例外にしない（奥義の公開先がGMを自動で含めないのと同じ考え方）。
+ * 持ち主のいないコマ（卓で共有しているコマ）は誰でも触れる規則
+ * （js/room-authority.jsのcanOperateToken）に合わせ、全員に見せる。
+ * 部屋の外のコマ作成ツールの下書きにも持ち主は無いので、そこでは見える。
+ *
+ * audienceと同じく表示だけの絞り込み（このファイル冒頭の【重要】参照）。
+ * @param {{ownerId?: string|null}|null} token
+ * @param {string|null} participantId 自分の参加者ID。表示名未設定（ゲスト）ならnull
+ */
+export function canViewOwnerOnly(token, participantId) {
+  const ownerId = token?.ownerId;
+  if (!ownerId) return true;
+  return !!participantId && ownerId === participantId;
+}
+
 // --- シークレットダイス ---
 // 宛先（audience）とは別の軸で、「振った本人だけ」に固定された秘匿。チャットログ1件が
 // secret: true を持つと、公開（revealed: true）されるまで出目を伏せる。

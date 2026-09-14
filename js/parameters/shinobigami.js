@@ -20,7 +20,7 @@ import { showSkillBox } from './skill/skill-box.js';
 import {
   OUGI_COMPONENT_KEY, showOugiBox, listVisibleOugi, normalizeOugiList, customizationSideLabel
 } from './shinobigami-ougi-box.js';
-import { isRestricted } from '../visibility.js';
+import { canViewOwnerOnly, isRestricted } from '../visibility.js';
 import { buildParameters } from './paramFactory.js';
 import { showSkillTableBox } from './saikoro-fiction/skill-table-box.js';
 import { runSkillCheck, SKILL_CHECK_COMMAND_PATTERN } from './saikoro-fiction/skill-check.js';
@@ -549,19 +549,9 @@ function readToolList(components) {
   );
 }
 
-// 忍具を見てよいか。持ち物はそのコマの持ち主だけのものなので、GMも例外にしない
-// （奥義の公開先がGMを自動で含めないのと同じ考え方。js/visibility.js）。
-// 持ち主のいないコマ（NPCや卓で共有しているコマ）は誰でも触れる規則
-// （js/room-authority.jsのcanOperateToken）に合わせ、全員に見せる。
-// 部屋の外のコマ作成ツールもここを通るが、下書きのコマに持ち主は無いので見える。
-//
+// 忍具を見てよいかは js/visibility.js の canViewOwnerOnly で決める。持ち物はそのコマの
+// 持ち主だけのものなので、GMも例外にしない（持ち主のいないコマは全員に見せる）。
 // この絞り込みは表示だけで行う（状態自体は今も全員に配られている）。
-// うっかり見えないための仕組みであって、見ようとする相手から守るものでは無い。
-function canViewTools(token, myParticipantId) {
-  const ownerId = token?.ownerId;
-  if (!ownerId) return true;
-  return !!myParticipantId && ownerId === myParticipantId;
-}
 
 // components から正規形の忍法一覧を取り出す。
 function readNinpouList(components) {
@@ -809,7 +799,7 @@ function renderShinobigamiCharacterPanel(options) {
   // --- 忍具 ---
   // 持ち主以外にはボタンごと出さない。件数だけを見せるという選択肢もあるが、
   // 「計N個」だけでも使ったかどうかが追えてしまうので、存在ごと伏せる。
-  if (canViewTools(getToken ? getToken() : null, myParticipantId)) {
+  if (canViewOwnerOnly(getToken ? getToken() : null, myParticipantId)) {
     const toolBtn = document.createElement('button');
     toolBtn.type = 'button';
     toolBtn.className = 'dialog-add-row-btn';

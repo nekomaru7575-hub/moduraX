@@ -20,7 +20,7 @@ generated: 2026-09-14
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 170 | 770 | 1296 | 58 | 2 |
+| 170 | 780 | 1304 | 57 | 1 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -83,7 +83,7 @@ generated: 2026-09-14
 | [[js.image-upload\|js/image-upload.js]] | 画像をサーバー経由でR2へ上げ、公開URLを受け取る。P2P卓ではR2を通さず、このブラウザへしまう（js/asset-store.js）。 | 7 | 8 |
 | [[js.info-entry-dialog\|js/info-entry-dialog.js]] | 「情報」1件を編集するダイアログ。 | 1 | 1 |
 | [[js.info-panel\|js/info-panel.js]] | 「情報」：タイトルと内容の組を、浮動パネルのタブとして並べる共有メモ。 | 1 | 1 |
-| [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 15 |
+| [[js.local-identity\|js/local-identity.js]] | このブラウザ（デバイス）を指すための、自己申告不要の匿名ローカルID。 | 15 | 16 |
 | [[js.log-clear-dialog\|js/log-clear-dialog.js]] | 全タブのログを消す前の確認ダイアログ。 | 1 | 1 |
 | [[js.log-edit-dialog\|js/log-edit-dialog.js]] | 既に流れた発言の本文を書き直すダイアログ。 | 1 | 1 |
 | [[js.log-export-dialog\|js/log-export-dialog.js]] | 「ログを保存」のタブ選択ダイアログ。 | 1 | 1 |
@@ -109,7 +109,7 @@ generated: 2026-09-14
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
 | [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
 | [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 4 |
-| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 17 | 6 |
+| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 19 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |
 | [[js.parameters.dice-draft.dice-draft-use\|js/parameters/dice-draft/dice-draft-use.js]] | ダイスドラフトの「発動」。 | 1 | 2 |
@@ -138,7 +138,7 @@ generated: 2026-09-14
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
-| [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 3 | 1 |
+| [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] | 銀剣のステラナイツのプラグイン記述子（コマの種別・パラメータ・スキルとダイスドラフト・ブーケのコマンド・シートの取り込み）。 | 10 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |
 | [[js.room-authority-rules\|js/room-authority-rules.js]] | 「部屋そのものを左右する操作をしてよいのは誰か」の規則そのもの。 | 2 | 3 |
@@ -191,7 +191,7 @@ generated: 2026-09-14
 | [[js.token-library-dialog\|js/token-library-dialog.js]] | 「保存したコマから追加」——部屋の外のコマ作成ツールで作って棚（js/token-library.js）に 残したコマを、この部屋のバックヤードへ引き込む。 | 2 | 1 |
 | [[js.token-library\|js/token-library.js]] | 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに 取っておく置き場。 | 13 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
-| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 8 | 11 |
+| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 9 | 12 |
 | [[server.bcdice-cache-rules\|server/bcdice-cache-rules.js]] | BCDiceの中継キャッシュ（server/index.jsのloadBcdiceCached）の判断そのもの。 | 7 | 1 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
@@ -207,16 +207,15 @@ generated: 2026-09-14
 | [[js.game-store\|js/game-store.js]] | 18 |
 | [[js.EventBus\|js/EventBus.js]] | 17 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 17 |
+| [[js.local-identity\|js/local-identity.js]] | 16 |
 | [[js.store.patch\|js/store/patch.js]] | 16 |
-| [[js.local-identity\|js/local-identity.js]] | 15 |
 | [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |
-| [[js.visibility\|js/visibility.js]] | 11 |
+| [[js.visibility\|js/visibility.js]] | 12 |
 
 ## 散文が要更新
 
 export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
 
 - [[js.parameters.sheet-source\|js/parameters/sheet-source.js]]
-- [[js.parameters.stella-knights\|js/parameters/stella-knights.js]]

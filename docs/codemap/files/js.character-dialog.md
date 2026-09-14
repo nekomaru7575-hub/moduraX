@@ -1,6 +1,6 @@
 ---
 source: js/character-dialog.js
-lines: 1117
+lines: 1146
 exports: 5
 imported_by: 2
 api_sha: fcf637786da8
@@ -30,10 +30,10 @@ tags: [codemap]
 | 19 | fn | defaultImageCrop | `defaultImageCrop()` | コマ画像トリミングの既定値：ズームなし・中央。 |
 | 26 | fn | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | トリミング設定(crop)を<img>のCSSへ反映する。 |
 | 49 | fn | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | showCharacterEditDialogのonConfirmが返す結果を、Store（部屋のstore、または js/character-builder.jsが使う部屋に紐づかない使い捨てのImmutableS… |
-| 461 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, usedImages = new Set(), onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
-| 737 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, usedImages = new Set(), // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
+| 481 | fn | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, usedImages = new Set(), onConfirm })` | activePluginId?: string \| null, onConfirm: (result: { name: string, image: string \| null, imageCrop: {zoom:n… |
+| 763 | fn | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, usedImages = new Set(), // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | 既存キャラクターの名前・パラメータ値を更新するためのダイアログ。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（16）
+## トップレベル関数（LOCAL TASKS 候補）（17）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -43,19 +43,20 @@ tags: [codemap]
 | 19 | defaultImageCrop | `defaultImageCrop()` | 3 | ✓ |
 | 26 | applyImageCropStyle | `applyImageCropStyle(imgEl, crop)` | 9 | ✓ |
 | 49 | applyCharacterEditResult | `applyCharacterEditResult(store, tokenId, result)` | 67 | ✓ |
-| 120 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null })` | 38 |  |
-| 164 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false, usedImages = new Set() } = {})` | 147 |  |
-| 313 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
-| 332 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
-| 350 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
-| 374 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
-| 391 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 30 |  |
-| 425 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
-| 433 | appendEmptyParamCell | `appendEmptyParamCell(row)` | 6 |  |
-| 443 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
-| 461 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, usedImages = new Set(), onConfirm })` | **230** | ✓ |
-| 694 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
-| 737 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, usedImages = new Set(), // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | **381** | ✓ |
+| 120 | buildPluginPanel | `buildPluginPanel({ activePluginId, mode, canEdit = true, parameters, components, onComponentChange, getComponents, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, allowParameterEdit = false, participants = {}, myParticipantId = null })` | 41 |  |
+| 173 | mergeCharacterOverrides | `mergeCharacterOverrides(overrides, collected)` | 5 |  |
+| 184 | buildImagePicker | `buildImagePicker(initialImage, initialCrop, { readOnly = false, usedImages = new Set() } = {})` | 147 |  |
+| 333 | buildSizeInput | `buildSizeInput(initialSize)` | 17 |  |
+| 352 | buildTextColorInput | `buildTextColorInput(initialColor)` | 15 |  |
+| 370 | buildVisibleCheckbox | `buildVisibleCheckbox(initialVisible)` | 20 |  |
+| 394 | buildParameterVisibilityToggle | `buildParameterVisibilityToggle(initialChecked = true)` | 13 |  |
+| 411 | buildAudienceButton | `buildAudienceButton({ getLabel, getAudience, setAudience, participants, myParticipantId })` | 30 |  |
+| 445 | canToggleParameterVisibility | `canToggleParameterVisibility(param)` | 3 |  |
+| 453 | appendEmptyParamCell | `appendEmptyParamCell(row)` | 6 |  |
+| 463 | parseCustomParameterValue | `parseCustomParameterValue(raw)` | 6 |  |
+| 481 | showCharacterDialog | `showCharacterDialog({ activePluginId = null, participants = {}, usedImages = new Set(), onConfirm })` | **236** | ✓ |
+| 720 | ensureEditDialog | `ensureEditDialog()` | 7 |  |
+| 763 | showCharacterEditDialog | `showCharacterEditDialog({ character, activePluginId = null, participants = {}, onComponentChange, getComponents, onConfirm, dispatch, getToken, findTokenByName, getEffectiveParameterValue, generateBuffId, rollBCDice, tokenId, canEdit = true, readOnlyReason = null, allowParameterEdit = false, usedImages = new Set(), // 見出しと確定ボタンの文言。部屋の中では省く＝従来どおり「キャラクターを更新」「更新」。 // 差し替えるのは部屋の外のコマ作成ツールだけ：あちらは押した結果が「棚へ保存」なので、 // 「更新」と書いてあると何が起きるのか読み取れない（以前は押すとファイルが降ってきた）。 dialogTitle = null, confirmLabel = null })` | **384** | ✓ |
 
 ## 依存
 

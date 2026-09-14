@@ -144,6 +144,14 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *                              発動したら「判定終了」を発出するか（＝そのコマの
  *                              「判定終了で消滅」バフを剥がす）。1回きりの修正を
  *                              表現するためのもので、発出するのは runDiceDraftUse。
+ *   unavailableReason?: (token: object) => string|null
+ *                              そのコマがドラフトを使えないなら、その理由（ステラナイツのシース）。
+ *                              振る・プールを触る・発動する入口と、パネルの描画が見る
+ *                              （diceDraftUnavailableReason）。宣言しなければ誰でも使える。
+ *   canViewSkillDetails?: (token: object, participantId: string|null) => boolean
+ *                              falseならパネルのスキルのカードを名前とダイスだけにする
+ *                              （ステラナイツのNPCを持ち主以外が見るとき）。表示だけの絞り込みで、
+ *                              発動の規則は変わらない。宣言しなければ常に見せる。
  *   legacyCountParameters?: { paramId: string, value: number }[]
  *     ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行元。
  *     宣言しておくと、値が残っているときだけパネルに「プールへ移す」ボタンが出る
@@ -154,7 +162,8 @@ export function createDiceDraftSpec(definition) {
   const {
     id, label, diceSides = 6, bcdiceSystem,
     skillSpec = null, requirement = null, legacyCountParameters = [],
-    skillTabs = [], expiresCheckPhaseOnUse = false
+    skillTabs = [], expiresCheckPhaseOnUse = false,
+    unavailableReason = null, canViewSkillDetails = null
   } = definition;
 
   if (!id) throw new Error('[dice-draft] idが必要です');
@@ -169,11 +178,37 @@ export function createDiceDraftSpec(definition) {
 
   return Object.freeze({
     id, label, bcdiceSystem, skillSpec, expiresCheckPhaseOnUse,
+    unavailableReason: typeof unavailableReason === 'function' ? unavailableReason : null,
+    canViewSkillDetails: typeof canViewSkillDetails === 'function' ? canViewSkillDetails : null,
     diceSides: Number.isInteger(diceSides) && diceSides > 0 ? diceSides : 6,
     requirement: requirement ? Object.freeze({ ...requirement }) : null,
     skillTabs: Object.freeze(skillTabs.map(tab => Object.freeze({ ...tab }))),
     legacyCountParameters: Object.freeze(legacyCountParameters.map(entry => Object.freeze({ ...entry })))
   });
+}
+
+/**
+ * そのコマがドラフトを使えない理由。使えるならnull。
+ * 入口（振る・dice.* ・発動）とパネルが同じ答えを出すよう、宣言を読むのはここだけにする。
+ * @param {object|null} spec
+ * @param {object|null} token
+ * @returns {string|null}
+ */
+export function diceDraftUnavailableReason(spec, token) {
+  if (!spec?.unavailableReason || !token) return null;
+  const reason = spec.unavailableReason(token);
+  return typeof reason === 'string' && reason !== '' ? reason : null;
+}
+
+/**
+ * パネルでスキルの中身（状態の1行・判定値の欄）を見せてよいか。
+ * @param {object|null} spec
+ * @param {object|null} token
+ * @param {string|null} participantId 見ている人の参加者ID
+ */
+export function canViewDiceDraftSkillDetails(spec, token, participantId) {
+  if (!spec?.canViewSkillDetails || !token) return true;
+  return spec.canViewSkillDetails(token, participantId) !== false;
 }
 
 // ------------------------------------------------------------------

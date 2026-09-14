@@ -265,6 +265,29 @@ function renderMyCharacterPanel({ container, mode, canEdit, components, onCompon
 （シノビガミの奥義）。プラグインから `js/game-store.js` は読めない（循環 import）ので、
 参加者一覧は Core から渡す。判定は `canView()`（`js/visibility.js`）に通すこと。
 
+持ち主だけに見せたいもの（シノビガミの忍具、ステラナイツの NPC のスキル）は
+`canViewOwnerOnly(token, myParticipantId)`（同じく `js/visibility.js`）で判定する。
+持ち主のいないコマは全員に見え、GM も例外にしない。
+
+**左側（Core）の欄をプラグインが決めたいとき**は、戻り値に `getCharacterOverrides()` を足す
+（ステラナイツの種別）。返した値は、確定時に左側から集めた値の**後に重ねられる**。
+
+```js
+return {
+  getValues: () => ({ [TYPE_PARAM_ID]: charType }),
+  // 作成なら parameterVisibility / parameterAudience、更新なら visibilityUpdates / audienceUpdates に重なる
+  getCharacterOverrides: () => (typeChanged ? {
+    visible: false,                                   // コマ自体をキャラクター一覧に出すか
+    parameterVisibility: { 'MY:bouquet': false },     // パラメータを一覧に出すか
+    parameterAudience: { 'core:hp': [ownerId] }       // パラメータの公開先（null＝全員）
+  } : {})
+};
+```
+
+> **開いている間に dispatch で済ませないこと。** コマの「キャラクター一覧に表示」や HP の公開先は
+> 左側にも入力欄があり、確定の瞬間にダイアログの古い値で巻き戻される。
+> 利用者が左側で決めた値を潰さないよう、**プラグインの側で何かを切り替えたときだけ**返すこと。
+
 > **見えない行を消さないこと。** 公開先で隠した行を画面に出さないまま一覧を保存すると、
 > 他人のデータが消える（GM や持ち主なしのコマは他人のコマも編集できる）。
 > 隠した行は元の位置に取り置いて、保存時に混ぜ直す
@@ -747,6 +770,21 @@ skillTabs: [
 （隠れている分は「ここに出ていない行いに N個 乗っています」と知らせる）。どの枠を見ているかは
 状態に保存しない。**絞り込んだ一覧を `readDraft` の `knownSkillNames` へ渡してはいけない**：
 隠れているスキルの下のダイスが行き場を失ったと見なされ、プールへ戻される。
+
+**コマによってドラフトを使わせない・中身を伏せる**場合（ステラナイツのシースと NPC）は、
+次の2つを宣言する。どちらも省けば今までどおり（誰でも使え、誰にでも見える）。
+
+```js
+// 使えないコマなら理由を返す。runDiceDraftRoll・dice.change / dice.add・runDiceDraftUse の入口が
+// alert して止め、パネルはプールもスキルも描かずに理由だけ出す
+unavailableReason: (token) => (isSheath(token) ? 'シースは能力を使えません。' : null),
+// false ならパネルのカードを「名前とダイスの置き場」だけにする（状態の1行・判定値の欄を出さない）。
+// 表示だけの絞り込みで、発動の規則もチャットログも変わらない
+canViewSkillDetails: (token, participantId) => !isNpc(token) || canViewOwnerOnly(token, participantId)
+```
+
+プラグイン独自のコマンド（charge 等）は `registry.js` を通らないので、ハンドラの先頭で
+同じ理由を見て断ること（ステラナイツの `handleStellaKnightsChatCommand`）。
 
 **ダイスをプールへ入れる**のは `runDiceDraftRoll()`。チャットコマンドのハンドラから呼ぶ。
 個数の検証・コマ未選択・ダイスを振れない画面の案内・演出・ログまで面倒を見るので、

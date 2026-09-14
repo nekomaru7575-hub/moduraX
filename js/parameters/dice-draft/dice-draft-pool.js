@@ -18,7 +18,9 @@
 // game-store.js → registry.js → プラグイン → ここ → game-store.js の循環になる）。
 // トップレベルで document を触らないこと（サーバーもこのファイルを読み込む）。
 
-import { addDiceToPool, changePoolDice, createDie, POOL_SAFETY_MAX } from './dice-draft-model.js';
+import {
+  addDiceToPool, changePoolDice, createDie, diceDraftUnavailableReason, POOL_SAFETY_MAX
+} from './dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
 
 const MAIN_TAB_ID = 'main';
@@ -48,6 +50,8 @@ function validFace(value) {
 function rejectReason(spec, token, faces, count) {
   if (!token) return 'キャラクターを選択してください。';
   if (!spec) return 'このシステムはダイスドラフトを使いません。';
+  const unavailable = diceDraftUnavailableReason(spec, token);
+  if (unavailable) return unavailable;
 
   const bad = faces.find(value => !validFace(value));
   if (bad !== undefined) return `目は 1〜${MAX_FACE_VALUE} の整数で指定してください（${bad}）。`;

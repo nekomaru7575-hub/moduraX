@@ -9,7 +9,7 @@
 import { runSkillUse } from '../skill/skill-use.js';
 import { findSkillByName, normalizeSkillList } from '../skill/skill-model.js';
 import {
-  evaluatePlacement, consumePlacement, placedDice, readTargetModifier
+  diceDraftUnavailableReason, evaluatePlacement, consumePlacement, placedDice, readTargetModifier
 } from './dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
 
@@ -45,6 +45,11 @@ export function runDiceDraftUse({
   }
   if (!spec?.skillSpec) {
     notify('このシステムにはスキル一覧がありません。');
+    return none;
+  }
+  const unavailable = diceDraftUnavailableReason(spec, token);
+  if (unavailable) {
+    notify(unavailable);
     return none;
   }
 

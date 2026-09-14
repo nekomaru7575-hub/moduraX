@@ -1,6 +1,6 @@
 ---
 source: js/parameters/shinobigami.js
-lines: 1368
+lines: 1358
 exports: 9
 imported_by: 1
 api_sha: 9f11e7eabafd
@@ -33,9 +33,9 @@ tags: [codemap]
 | 400 | const | SHINOBIGAMI_BACKGROUND_SPEC | `SHINOBIGAMI_BACKGROUND_SPEC` | 背景。 |
 | 494 | const | SHINOBIGAMI_PERSON_SPEC | `SHINOBIGAMI_PERSON_SPEC` |  |
 | 538 | const | SHINOBIGAMI_TOOL_SPEC | `SHINOBIGAMI_TOOL_SPEC` | 忍具。 |
-| 1340 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
+| 1330 | const | SHINOBIGAMI_PLUGIN | `SHINOBIGAMI_PLUGIN` |  |
 
-## トップレベル関数（LOCAL TASKS 候補）（39）
+## トップレベル関数（LOCAL TASKS 候補）（38）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -60,27 +60,26 @@ tags: [codemap]
 | 455 | runEmotionModifier | `runEmotionModifier({ skill, context })` | 38 |  |
 | 523 | readPersonList | `readPersonList(components)` | 5 |  |
 | 546 | readToolList | `readToolList(components)` | 5 |  |
-| 560 | canViewTools | `canViewTools(token, myParticipantId)` | 5 |  |
-| 567 | readNinpouList | `readNinpouList(components)` | 3 |  |
-| 586 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
-| 597 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
-| 604 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
-| 615 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
-| 635 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel(options)` | **242** |  |
-| 887 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
-| 898 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 32 |  |
-| 936 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
-| 1035 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 58 |  |
-| 1094 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
-| 1111 | sheetChecked | `sheetChecked(value)` | 3 |  |
-| 1116 | sheetNumber | `sheetNumber(value)` | 4 |  |
-| 1130 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
-| 1151 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
-| 1189 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
-| 1206 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
-| 1218 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
-| 1245 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 26 |  |
-| 1288 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
+| 557 | readNinpouList | `readNinpouList(components)` | 3 |  |
+| 576 | readNinpouCost | `readNinpouCost(components, roundNumber)` | 6 |  |
+| 587 | ninpouCostOf | `ninpouCostOf(ninpou)` | 5 |  |
+| 594 | describeNinpouSkill | `describeNinpouSkill(cellId)` | 4 |  |
+| 605 | resetShinobigamiComponentsOnPhaseEnd | `resetShinobigamiComponentsOnPhaseEnd(components, phase)` | 12 |  |
+| 625 | renderShinobigamiCharacterPanel | `renderShinobigamiCharacterPanel(options)` | **242** |  |
+| 877 | looksLikeShinobigamiChatCommand | `looksLikeShinobigamiChatCommand(rawInput)` | 5 |  |
+| 888 | handleSkillCheckCommand | `handleSkillCheckCommand(rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue })` | 32 |  |
+| 926 | handleNinpouUseCommand | `handleNinpouUseCommand(rawInput, context)` | 85 |  |
+| 1025 | handleOugiUseCommand | `handleOugiUseCommand(rawInput, { token, dispatch, myParticipantId = null })` | 58 |  |
+| 1084 | handleShinobigamiChatCommand | `handleShinobigamiChatCommand(rawInput, context)` | 5 |  |
+| 1101 | sheetChecked | `sheetChecked(value)` | 3 |  |
+| 1106 | sheetNumber | `sheetNumber(value)` | 4 |  |
+| 1120 | cellIdFromSheetId | `cellIdFromSheetId(rawId)` | 8 |  |
+| 1141 | importShinobigamiSkillTableFromSheet | `importShinobigamiSkillTableFromSheet(json)` | 33 |  |
+| 1179 | importShinobigamiNinpouFromSheet | `importShinobigamiNinpouFromSheet(json)` | 15 |  |
+| 1196 | importShinobigamiBackgroundFromSheet | `importShinobigamiBackgroundFromSheet(json)` | 9 |  |
+| 1208 | importShinobigamiPersonsFromSheet | `importShinobigamiPersonsFromSheet(json)` | 21 |  |
+| 1235 | importShinobigamiCharacterJson | `importShinobigamiCharacterJson(json)` | 26 |  |
+| 1278 | buildShinobigamiRoundPhaseTemplate | `buildShinobigamiRoundPhaseTemplate()` | 18 |  |
 
 ## 依存
 

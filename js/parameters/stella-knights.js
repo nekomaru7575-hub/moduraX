@@ -5,6 +5,7 @@ import { createDiceDraftSpec } from './dice-draft/dice-draft-model.js';
 import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceChange } from './dice-draft/dice-draft-pool.js';
 import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
+import { canViewOwnerOnly } from '../visibility.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 // charge(n) … n個振る。charge / charge() … 個数を書かない形で、チャットに
@@ -87,7 +88,11 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   diceSides: 6,
   bcdiceSystem: STELLA_KNIGHTS_BCDICE_SYSTEM,
   skillSpec: STELLA_KNIGHTS_SKILL_SPEC,
-  requirement: { kind: 'match', valueField: 'number', anyValue: ANY_FACE_VALUE }
+  requirement: { kind: 'match', valueField: 'number', anyValue: ANY_FACE_VALUE },
+  // シースはドラフトを使わない。振る・dice.*・発動の入口とパネルがこれを見る
+  unavailableReason: (token) => stellaKnightsDraftUnavailableReason(token),
+  // NPCのスキルは持ち主以外にはカードの名前とダイスだけを見せる
+  canViewSkillDetails: (token, participantId) => canViewStellaKnightsSkills(token, participantId)
 });
 
 // --- コマのパラメータ ---
@@ -118,22 +123,113 @@ const ENDURANCE_LABEL = '耐久力';
 // （js/parameters/core.jsのCORE_DEFAULT_ROOM_PARAMETERS）。値はCoreが維持する。
 const ROUND_ROOM_PARAM_ID = 'core:round';
 
+// --- 種別（ブリンガー / シース / NPC） ---
+// 値は画面に出すのと同じ文字列で持つ（JSONに書き出したときにそのまま読める）。
+// 知らない値・未設定はブリンガー＝種別が入る前の既存のコマと同じ扱い。
+const CHAR_TYPE_BRINGER = 'ブリンガー';
+const CHAR_TYPE_SHEATH = 'シース';
+const CHAR_TYPE_NPC = 'NPC';
+export const STELLA_KNIGHTS_CHAR_TYPES = [
+  { value: CHAR_TYPE_BRINGER, label: 'ブリンガー' },
+  { value: CHAR_TYPE_SHEATH, label: 'シース' },
+  { value: CHAR_TYPE_NPC, label: 'NPC' }
+];
+const CHAR_TYPE_VALUES = new Set(STELLA_KNIGHTS_CHAR_TYPES.map(type => type.value));
+const CHAR_TYPE_PARAM_ID = 'STELLA_KNIGHTS:charType';
+
+// 種別はキャラクター一覧には出さない（visible:false）が、パネルのプルダウンから書き換えるので
+// editable:trueが要る（editable:falseだとSET_PARAMETERがガードに弾かれる）。
 const CHARACTER_PARAMETERS = [
+  { key: 'charType', label: '種別', value: CHAR_TYPE_BRINGER, visible: false, locked: true, editable: true },
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true }
 ];
 
-function buildStellaKnightsCharacterParameters() {
+export function buildStellaKnightsCharacterParameters() {
   return buildParameters('STELLA_KNIGHTS', CHARACTER_PARAMETERS);
 }
 
-// 更新画面のプラグイン専用スペースに出す入力欄。並び順はシートの見出し（耐久力・防御力・
-// チャージダイス数）に合わせてある。labelは、コマ側にパラメータがまだ無いとき用の控え。
-const PANEL_PARAM_ROWS = CHARACTER_PARAMETERS.map(def => ({
-  paramId: `STELLA_KNIGHTS:${def.key}`,
-  label: def.label
-}));
+/** @returns {'ブリンガー'|'シース'|'NPC'} */
+export function readStellaKnightsCharType(parameters) {
+  const value = parameters?.[CHAR_TYPE_PARAM_ID]?.value;
+  return CHAR_TYPE_VALUES.has(value) ? value : CHAR_TYPE_BRINGER;
+}
+
+// パラメータの表示名の既定（コマ側にパラメータがまだ無いとき用の控え）
+const PARAM_FALLBACK_LABELS = new Map(
+  CHARACTER_PARAMETERS.map(def => [`STELLA_KNIGHTS:${def.key}`, def.label])
+);
+
+// 種別ごとに何を持つか。どれか1つだけ直すと画面はそれらしく動いてしまうので、
+// 表どうしの食い違いは test/stella-knights-type.test.js で止める。
+//   visibleParamIds  … キャラクター一覧へ出すこのプラグインのパラメータ（チャージは常に出さない）
+//   inputParamIds    … 更新画面に並べる入力欄。並び順はシートの見出し（防御力・チャージダイス数）に合わせる
+//   skills           … スキル一覧を持つか
+//   dice             … ダイスドラフト（charge・プチラッキー・ダイス追加・リロール・dice.*）を使えるか
+//   characterVisible … コマ自体をキャラクター一覧に出すか
+//   hidesEndurance   … 耐久力（core:hp）の公開先を持ち主だけにするか
+//   hidesSkills      … スキルの中身を持ち主以外に伏せるか
+export const STELLA_KNIGHTS_TYPE_RULES = Object.freeze({
+  [CHAR_TYPE_BRINGER]: Object.freeze({
+    visibleParamIds: [DEFENSE_PARAM_ID, BOUQUET_PARAM_ID],
+    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID],
+    skills: true, dice: true, characterVisible: true, hidesEndurance: false, hidesSkills: false
+  }),
+  // シースはこのシステム独自の能力を持たない（耐久力などCoreの値はそのまま）
+  [CHAR_TYPE_SHEATH]: Object.freeze({
+    visibleParamIds: [],
+    inputParamIds: [],
+    skills: false, dice: false, characterVisible: false, hidesEndurance: false, hidesSkills: false
+  }),
+  // 機能はブリンガーと同じ。卓の全員に見せないものだけが違う
+  // （スキル使用のチャットログは伏せない。使った時点で卓に公開される扱い）
+  [CHAR_TYPE_NPC]: Object.freeze({
+    visibleParamIds: [DEFENSE_PARAM_ID],
+    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID],
+    skills: true, dice: true, characterVisible: true, hidesEndurance: true, hidesSkills: true
+  })
+});
+
+// 種別で一覧への出し入れが変わるパラメータ全部
+const TYPED_VISIBLE_PARAM_IDS = [
+  ...new Set(Object.values(STELLA_KNIGHTS_TYPE_RULES).flatMap(rule => rule.visibleParamIds))
+];
+
+function rulesOf(token) {
+  return STELLA_KNIGHTS_TYPE_RULES[readStellaKnightsCharType(token?.parameters)];
+}
+
+/**
+ * 種別を切り替えたときに揃える、コマの見え方（js/character-dialog.jsのgetCharacterOverridesの形）。
+ * 耐久力の公開先は、この時点の持ち主に固定する（持ち主が変わっても追従しない）。
+ * 持ち主がいなければ全員に見せる（持ち主のいないコマは誰でも触れる規則に合わせる）。
+ *
+ * @param {string} charType
+ * @param {string|null} ownerId 作成時は作成者、更新時はコマの持ち主
+ */
+export function buildStellaKnightsTypeOverrides(charType, ownerId) {
+  const rule = STELLA_KNIGHTS_TYPE_RULES[charType] ?? STELLA_KNIGHTS_TYPE_RULES[CHAR_TYPE_BRINGER];
+  return {
+    visible: rule.characterVisible,
+    parameterVisibility: Object.fromEntries(
+      TYPED_VISIBLE_PARAM_IDS.map(id => [id, rule.visibleParamIds.includes(id)])
+    ),
+    parameterAudience: {
+      [HP_PARAM_ID]: rule.hidesEndurance && ownerId ? [ownerId] : null
+    }
+  };
+}
+
+/** そのコマでダイスドラフト（とこのシステムのコマンド）を使えない理由。使えるならnull */
+export function stellaKnightsDraftUnavailableReason(token) {
+  return rulesOf(token).dice ? null : 'シースはチャージやスキルなどの能力を使えません。';
+}
+
+/** そのコマのスキルの中身を見てよいか（NPCは持ち主だけ。js/visibility.jsのcanViewOwnerOnly） */
+export function canViewStellaKnightsSkills(token, participantId) {
+  return !rulesOf(token).hidesSkills || canViewOwnerOnly(token, participantId);
+}
 
 // --- ブーケ合計（ルーム変数） ---
 // この部屋でブーケのスタンプが押された回数の、参加者全員ぶんの合計。
@@ -194,9 +290,14 @@ function renameHpToEndurance({ readParameters, dispatch, tokenId }) {
 
 function renderStellaKnightsCharacterPanel({
   container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents,
-  dispatch, getToken, tokenId
+  dispatch, getToken, tokenId, myParticipantId = null
 }) {
   container.innerHTML = '';
+
+  const isEditing = mode === 'edit';
+  const canWrite = isEditing && canEdit && typeof dispatch === 'function' && !!tokenId;
+  // ダイアログを開いたまま複数回編集しても巻き戻らないよう、都度最新を読む
+  const readParameters = () => getToken?.()?.parameters ?? parameters;
 
   const title = document.createElement('h4');
   title.textContent = '銀剣のステラナイツ';
@@ -204,53 +305,114 @@ function renderStellaKnightsCharacterPanel({
   title.style.color = 'var(--text-emphasis)';
   container.appendChild(title);
 
-  if (mode === 'edit' && canEdit && typeof dispatch === 'function' && tokenId) {
-    renameHpToEndurance({
-      readParameters: () => getToken?.()?.parameters ?? parameters,
-      dispatch,
-      tokenId
-    });
+  if (canWrite) {
+    renameHpToEndurance({ readParameters, dispatch, tokenId });
+    // 種別が入る前に作られたコマは、状態にまだ種別の値が無い。無いまま「更新」すると
+    // applyCharacterEditResultが「持っていないパラメータ」として種別の保存を飛ばすので、
+    // 開いた時点で既定（ブリンガー＝今の見え方）を書いて補っておく（SET_PARAMETERが宣言を補完する）。
+    if (!readParameters()[CHAR_TYPE_PARAM_ID]) {
+      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: CHAR_TYPE_PARAM_ID, value: CHAR_TYPE_BRINGER });
+    }
   }
 
-  // 出目の在庫はダイスドラフトのプール（js/check-view/dice-draft-view.js）が持つので、
-  // 並べるのはシートに載っている値と持ち点だけ。
-  //
-  // 【この欄が要る理由】プラグインが専用スペースを持つと、そのプラグイン由来のパラメータは
-  // 更新画面の汎用一覧から外される（js/character-dialog.jsのpluginOwnsDisplay）。
-  // ここに入力欄を出さないと、手で直せる場所がどこにも無くなる。
-  const list = document.createElement('div');
-  list.className = 'dialog-custom-list';
-  container.appendChild(list);
-
-  const rows = PANEL_PARAM_ROWS.map(({ paramId, label: fallbackLabel }) => {
+  const makeRow = (parent, labelText) => {
     const row = document.createElement('div');
     row.className = 'dialog-custom-row';
-
     const label = document.createElement('label');
     label.className = 'dialog-param-label';
-    // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
-    label.textContent = parameters[paramId]?.label ?? fallbackLabel;
+    label.textContent = labelText;
     label.style.alignSelf = 'center';
     label.style.color = 'var(--text-body)';
     label.style.fontSize = '0.85rem';
-
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.step = '1';
-    input.value = Number(parameters[paramId]?.value) || 0;
-    input.disabled = !canEdit;
-
     row.appendChild(label);
-    row.appendChild(input);
-    list.appendChild(row);
+    parent.appendChild(row);
+    return row;
+  };
 
-    return { paramId, input };
+  // --- 種別 ---
+  // 保存は「登録／更新」でまとめて行う（getValues）。見え方の切り替え（一覧への表示・耐久力の
+  // 公開先）もgetCharacterOverridesで同じ時に渡すので、キャンセルすれば何も変わらない。
+  const initialType = readStellaKnightsCharType(readParameters());
+  let charType = initialType;
+
+  const typeList = document.createElement('div');
+  typeList.className = 'dialog-custom-list';
+  container.appendChild(typeList);
+  const typeSelect = document.createElement('select');
+  STELLA_KNIGHTS_CHAR_TYPES.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type.value;
+    option.textContent = type.label;
+    typeSelect.appendChild(option);
   });
+  typeSelect.value = charType;
+  typeSelect.disabled = !canEdit;
+  makeRow(typeList, '種別').appendChild(typeSelect);
+
+  // 種別で中身が変わるところ
+  const typedArea = document.createElement('div');
+  container.appendChild(typedArea);
+
+  // getValues()が読む入力欄。描き直すたびに作り替える
+  let rows = [];
+  // まだ保存していない手入力を、種別を切り替えて行を作り直しても持ち越すための控え
+  // （js/parameters/gcrest.jsのpendingValuesと同じ）
+  const pendingValues = new Map();
+
+  function renderTypedArea() {
+    rows.forEach(({ paramId, input }) => pendingValues.set(paramId, input.value));
+    typedArea.innerHTML = '';
+
+    const rule = STELLA_KNIGHTS_TYPE_RULES[charType];
+    const current = readParameters();
+
+    if (rule.inputParamIds.length === 0 && !rule.skills) {
+      const note = document.createElement('p');
+      note.className = 'dialog-plugin-placeholder';
+      note.textContent = 'シースは、このシステム独自の能力（防御力・チャージ・ブーケ・スキル）を持ちません。';
+      typedArea.appendChild(note);
+    }
+
+    // 出目の在庫はダイスドラフトのプール（js/check-view/dice-draft-view.js）が持つので、
+    // 並べるのはシートに載っている値と持ち点だけ。
+    //
+    // 【この欄が要る理由】プラグインが専用スペースを持つと、そのプラグイン由来のパラメータは
+    // 更新画面の汎用一覧から外される（js/character-dialog.jsのpluginOwnsDisplay）。
+    // ここに入力欄を出さないと、手で直せる場所がどこにも無くなる。
+    const list = document.createElement('div');
+    list.className = 'dialog-custom-list';
+    typedArea.appendChild(list);
+
+    rows = rule.inputParamIds.map(paramId => {
+      // 一覧の見出しと食い違わないよう、コマが実際に持っているラベルを優先して読む
+      const row = makeRow(list, current[paramId]?.label ?? PARAM_FALLBACK_LABELS.get(paramId) ?? paramId);
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '1';
+      input.value = pendingValues.has(paramId)
+        ? pendingValues.get(paramId)
+        : (Number(current[paramId]?.value) || 0);
+      input.disabled = !canEdit;
+      row.appendChild(input);
+
+      return { paramId, input };
+    });
+
+    // NPCのスキルは持ち主以外にはボタンごと出さない（シノビガミの忍具と同じ。件数も伏せる）。
+    // 判定はプルダウンで選んでいる種別で行う（保存前でも見え方を確かめられるように）
+    const canSeeSkills = canViewStellaKnightsSkills({
+      ownerId: getToken?.()?.ownerId ?? null,
+      parameters: { [CHAR_TYPE_PARAM_ID]: { value: charType } }
+    }, myParticipantId);
+    if (rule.skills && canSeeSkills) renderSkillButton();
+  }
 
   // スキル一覧（ボックス）。既存キャラクターの更新時のみ開ける
   // （新規作成時はまだcomponentsを持たないため対象外。js/parameters/dx3.jsのエフェクト欄と同じ扱い）。
-  if (mode === 'edit' && onComponentChange) {
+  function renderSkillButton() {
+    if (!isEditing || !onComponentChange) return;
     // ダイアログを開いたまま複数回編集しても巻き戻らないよう、開くたびに最新のcomponentsを読む
     // （getComponentsが無い場合のみ、開いた時点のスナップショットにフォールバック）。
     const readComponents = () => (getComponents ? getComponents() : components);
@@ -279,15 +441,32 @@ function renderStellaKnightsCharacterPanel({
         }
       });
     });
-    container.appendChild(skillBtn);
+    typedArea.appendChild(skillBtn);
   }
 
-  // 描いた行だけを返す。どれも0未満にはならない値なので、ここで下限を切っておく
-  // （ブーケが負のままだとプチラッキーの残高の判定が意味を失う）。
+  renderTypedArea();
+
+  typeSelect.addEventListener('change', () => {
+    charType = CHAR_TYPE_VALUES.has(typeSelect.value) ? typeSelect.value : CHAR_TYPE_BRINGER;
+    renderTypedArea();
+  });
+
   return {
-    getValues: () => Object.fromEntries(rows.map(({ paramId, input }) => [
-      paramId, Math.max(0, Math.trunc(Number(input.value) || 0))
-    ]))
+    // 描いた行だけを返す（シースに切り替えても、持っている防御力などを0で潰さない）。
+    // どれも0未満にはならない値なので、ここで下限を切っておく
+    // （ブーケが負のままだとプチラッキーの残高の判定が意味を失う）。
+    getValues: () => ({
+      [CHAR_TYPE_PARAM_ID]: charType,
+      ...Object.fromEntries(rows.map(({ paramId, input }) => [
+        paramId, Math.max(0, Math.trunc(Number(input.value) || 0))
+      ]))
+    }),
+    // 見え方を揃えるのは、このダイアログで種別を切り替えたときだけ。切り替えていなければ
+    // 左側（Core）で利用者が決めた一覧への表示・公開先をそのまま通す。
+    // 耐久力を「持ち主だけ」にするときの持ち主は、作成なら作成者、更新ならそのコマの持ち主。
+    getCharacterOverrides: () => (charType === initialType ? {} : buildStellaKnightsTypeOverrides(
+      charType, isEditing ? (getToken?.()?.ownerId ?? null) : myParticipantId
+    ))
   };
 }
 
@@ -446,6 +625,16 @@ function handleStellaKnightsChatCommand(
 ) {
   const input = String(rawInput).trim();
 
+  // シースはこのシステムの能力を持たない。書式が合ったものだけ断る（合わなければ素通しして、
+  // Coreにただの発言・ダイスとして扱わせる）
+  const isOwnCommand = CHARGE_COMMAND_PATTERN.test(input) || PETIT_LUCKY_COMMAND_PATTERN.test(input)
+    || DICE_ADD_COMMAND_PATTERN.test(input) || REROLL_COMMAND_PATTERN.test(input);
+  const unavailable = isOwnCommand && token ? stellaKnightsDraftUnavailableReason(token) : null;
+  if (unavailable) {
+    alert(unavailable);
+    return true;
+  }
+
   if (runPetitLucky(input, { token, dispatch })) return true;
   if (runBouquetSpend(input, { token, dispatch })) return true;
 
@@ -574,7 +763,7 @@ export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
   // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータは
-  // 防御力・チャージダイス数・ブーケ（持ち点）の3つ
+  // 種別と、防御力・チャージダイス数・ブーケ（持ち点）の3つ
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
   buildRoomParameters: buildStellaKnightsRoomParameters,
   computeDerivedRoomParameters: computeStellaKnightsDerivedRoomParameters,

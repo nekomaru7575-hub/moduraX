@@ -620,6 +620,35 @@ h1 {
   color: var(--text-body-strong);
 }
 
+/* プールの見出しと「自動で置く」ボタンを1行に並べる（js/check-view/dice-draft-view.js） */
+.dice-draft-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.dice-draft-auto-btn {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  background-color: var(--surface-base);
+  color: var(--text-body-strong);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+
+.dice-draft-auto-btn:hover:not(:disabled) {
+  background-color: var(--surface-raised);
+  color: var(--text-emphasis);
+}
+
+.dice-draft-auto-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .dice-draft-empty {
   font-size: 0.7rem;
   color: var(--text-disabled);

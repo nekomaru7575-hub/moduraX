@@ -20,8 +20,8 @@
 import { bindDragGesture } from '../drag-gesture.js';
 import { normalizeSkillList } from '../parameters/skill/skill-model.js';
 import {
-  acceptsDie, canViewDiceDraftSkillDetails, countDice, createDie, diceDraftUnavailableReason,
-  evaluatePlacement, filterSkillsByTab, moveDie, placedDice, readTargetModifier
+  acceptsDie, autoPlaceDice, canViewDiceDraftSkillDetails, countDice, createDie, diceDraftUnavailableReason,
+  evaluatePlacement, filterSkillsByTab, moveDie, placedDice, readTargetModifier, supportsAutoPlace
 } from '../parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from '../parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from '../parameters/dice-draft/dice-draft-use.js';
@@ -260,14 +260,52 @@ export function createDiceDraftView() {
         return dieEl;
       }
 
+      // 「自動で置く」：プールの目を、対応する数字のスキルへまとめて置く（dice-draft-model.jsのautoPlaceDice）。
+      // 目とスキルが数字で結び付く規則（ステラナイツ）でだけ出す。合計型（ドラクルージュ）は
+      // どの行いへ積むかが人の判断なので出さない。置き先の決め方はモデル側にあり、ここは押すだけ。
+      function buildAutoPlaceButton(draft, skills) {
+        if (!canEdit || !spec.skillSpec || !supportsAutoPlace(spec)) return null;
+
+        const { placed } = autoPlaceDice(spec, skills, draft);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dice-draft-auto-btn';
+        btn.textContent = '自動で置く';
+        btn.disabled = placed === 0;
+        btn.title = placed === 0
+          ? `置けるダイスがありません（0/7の${spec.skillSpec.noun}には自動で置きません）`
+          : `プールの目を、対応する数字の${spec.skillSpec.noun}へまとめて置く（0/7の${spec.skillSpec.noun}には置きません）`;
+
+        btn.addEventListener('click', () => {
+          const latest = getToken();
+          if (!latest) return;
+
+          // 押した瞬間の最新で計算し直す（描いた後に他の人がダイスを動かしているかもしれない）
+          const latestSkills = readSkills(spec, latest);
+          const current = readDraft(latest.components, latestSkills.map(skill => skill.name));
+          const { draft: next } = autoPlaceDice(spec, latestSkills, current);
+          if (next === current) requestRender();
+          else saveDraft(next);
+        });
+
+        return btn;
+      }
+
       function buildPool(draft, skills) {
         const section = document.createElement('div');
         section.className = 'dice-draft-section';
 
+        const headingRow = document.createElement('div');
+        headingRow.className = 'dice-draft-heading-row';
+        section.appendChild(headingRow);
+
         const heading = document.createElement('div');
         heading.className = 'dice-draft-heading';
         heading.textContent = `プール（${draft.pool.length}個）`;
-        section.appendChild(heading);
+        headingRow.appendChild(heading);
+
+        const autoButton = buildAutoPlaceButton(draft, skills);
+        if (autoButton) headingRow.appendChild(autoButton);
 
         const pool = document.createElement('div');
         pool.className = 'dice-draft-pool';

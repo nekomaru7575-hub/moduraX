@@ -563,6 +563,54 @@ export function moveDie(draft, dieId, toSkillName, { spec = null, skill = null }
 }
 
 /**
+ * 「自動で置く」を使える規則か。目とスキルが数字で結び付く kind:'match'（ステラナイツ）だけ。
+ * 合計型（ドラクルージュ）はどのダイスをどの行いへ積むかが人の判断なので、自動にしない。
+ * @param {object|null} spec
+ */
+export function supportsAutoPlace(spec) {
+  return spec?.requirement?.kind === 'match';
+}
+
+/**
+ * プールのダイスを、対応する数字のスキルへまとめて置く。
+ *
+ * - 触るのはプールだけ。既にスキルへ乗っているダイスはそのまま
+ * - 「どの目でも置ける」印のスキル（ステラナイツの「0/7」）には置かない。どの目を
+ *   回すかは人が選ぶもので、先に吸い込むと数字のスキルへ行くはずの目が消える
+ * - 同じ数字のスキルが複数あれば、一覧の上にあるスキルへ置く。そこが上限で入らなければ次の候補
+ * - 置き先が無いダイスはプールに残る（並びもそのまま）
+ *
+ * 置けるかの判定は moveDie（＝acceptsDie と上限）に任せ、ここでは候補を選ぶだけにする。
+ *
+ * @param {object} spec
+ * @param {object[]} skills 正規化済みのスキル一覧（並び順＝一覧の上から）
+ * @param {object} draft
+ * @returns {{ draft: object, placed: number }} 1個も置けなければ元のdraftをそのまま返す
+ */
+export function autoPlaceDice(spec, skills, draft) {
+  const base = draft ?? createEmptyDraft();
+  if (!supportsAutoPlace(spec) || !Array.isArray(skills)) return { draft: base, placed: 0 };
+
+  const requirement = spec.requirement;
+  const numbered = skills.filter(skill => !acceptsAnyDie(requirement, skill));
+
+  let next = base;
+  let placed = 0;
+  base.pool.forEach(die => {
+    const candidates = numbered.filter(skill => readNumberField(skill, requirement.valueField) === die.value);
+    for (const skill of candidates) {
+      const moved = moveDie(next, die.id, skill.name, { spec, skill });
+      if (moved === next) continue;
+      next = moved;
+      placed += 1;
+      return;
+    }
+  });
+
+  return { draft: placed > 0 ? next : base, placed };
+}
+
+/**
  * 発動時。そのスキルに乗っているダイスを先頭から count 個だけ捨てる（プールへは戻さない）。
  * count を省くと全部。先頭から取るのは、利用者が並べた順を尊重するため
  * （「大きい目から使う」等の最適化を勝手にやると、意図した組み合わせが崩れる）。

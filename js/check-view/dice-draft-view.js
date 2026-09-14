@@ -25,6 +25,7 @@ import {
 } from '../parameters/dice-draft/dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from '../parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from '../parameters/dice-draft/dice-draft-use.js';
+import { HIDDEN_VALUE_MASK } from '../visibility.js';
 
 const NO_SKILL_NOTICE = 'このシステムにはまだスキル一覧がありません。プールに溜めるところまで使えます。';
 
@@ -156,7 +157,7 @@ export function createDiceDraftView() {
       }
 
       // スキルの中身を伏せるか（ステラナイツのNPCを持ち主以外が見るとき）。
-      // 伏せたカードは名前とダイスの置き場（と使用ボタン）だけになる
+      // 伏せたカードは名前を「??」にし、ダイスの置き場（と使用ボタン）だけを出す
       const showDetails = canViewDiceDraftSkillDetails(spec, token, ctx.myParticipantId ?? null);
 
       const saveDraft = (draft) => {
@@ -346,8 +347,15 @@ export function createDiceDraftView() {
 
         const name = document.createElement('div');
         name.className = 'dice-draft-skill-name';
-        name.textContent = skill.name;
-        name.title = skill.name;
+        if (showDetails) {
+          name.textContent = skill.name;
+          name.title = skill.name;
+        } else {
+          // 名前も伏せる。枠そのものは残すので、いくつ持っていてどこにダイスが乗っているかは見える
+          // （キャラクター一覧の限定公開パラメータと同じ見せ方）
+          name.textContent = HIDDEN_VALUE_MASK;
+          name.title = '公開されていません';
+        }
         card.appendChild(name);
 
         const slot = document.createElement('div');

@@ -149,7 +149,7 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *                              振る・プールを触る・発動する入口と、パネルの描画が見る
  *                              （diceDraftUnavailableReason）。宣言しなければ誰でも使える。
  *   canViewSkillDetails?: (token: object, participantId: string|null) => boolean
- *                              falseならパネルのスキルのカードを名前とダイスだけにする
+ *                              falseならパネルのスキルのカードを「名前は??・ダイスの置き場だけ」にする
  *                              （ステラナイツのNPCを持ち主以外が見るとき）。表示だけの絞り込みで、
  *                              発動の規則は変わらない。宣言しなければ常に見せる。
  *   legacyCountParameters?: { paramId: string, value: number }[]

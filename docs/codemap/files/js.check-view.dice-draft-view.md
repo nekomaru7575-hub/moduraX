@@ -1,6 +1,6 @@
 ---
 source: js/check-view/dice-draft-view.js
-lines: 554
+lines: 562
 exports: 1
 imported_by: 1
 api_sha: 05b9b1af510f
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 98 | fn | createDiceDraftView | `createDiceDraftView()` | 1つのパネルに1つだけ作る。 |
+| 99 | fn | createDiceDraftView | `createDiceDraftView()` | 1つのパネルに1つだけ作る。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,12 +34,12 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 54 | renderDieFace | `renderDieFace(die)` | 35 |  |
-| 98 | createDiceDraftView | `createDiceDraftView()` | **456** | ✓ |
+| 55 | renderDieFace | `renderDieFace(die)` | 35 |  |
+| 99 | createDiceDraftView | `createDiceDraftView()` | **463** | ✓ |
 
 ## 依存
 
-- import → [[js.drag-gesture]], [[js.parameters.dice-draft.dice-draft-model]], [[js.parameters.dice-draft.dice-draft-roll]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.skill.skill-model]]
+- import → [[js.drag-gesture]], [[js.parameters.dice-draft.dice-draft-model]], [[js.parameters.dice-draft.dice-draft-roll]], [[js.parameters.dice-draft.dice-draft-use]], [[js.parameters.skill.skill-model]], [[js.visibility]]
 - imported by → [[js.check-view.index]]
 
 ## 注意

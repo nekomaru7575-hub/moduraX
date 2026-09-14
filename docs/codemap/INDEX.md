@@ -191,7 +191,7 @@ generated: 2026-09-14
 | [[js.token-library-dialog\|js/token-library-dialog.js]] | 「保存したコマから追加」——部屋の外のコマ作成ツールで作って棚（js/token-library.js）に 残したコマを、この部屋のバックヤードへ引き込む。 | 2 | 1 |
 | [[js.token-library\|js/token-library.js]] | 「棚」——コマ作成ツール（character-builder.html）で作ったコマを、このブラウザに 取っておく置き場。 | 13 | 2 |
 | [[js.untrusted-json\|js/untrusted-json.js]] | 自分が書いたのではないJSONの読み方。 | 1 | 9 |
-| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 9 | 12 |
+| [[js.visibility\|js/visibility.js]] | 「これは誰に見せるものか」(audience) の解釈を1か所にまとめる共通モジュール。 | 9 | 13 |
 | [[server.bcdice-cache-rules\|server/bcdice-cache-rules.js]] | BCDiceの中継キャッシュ（server/index.jsのloadBcdiceCached）の判断そのもの。 | 7 | 1 |
 | [[server.dev-local\|server/dev-local.js]] | 動作確認（検証）用の起動口。 | 0 | 0 |
 | [[server.index\|server/index.js]] | 盤面のHTML/JS/画像などの静的ファイル配信と、リアルタイム同期用のWebSocketを 同じNodeサーバー・同じポートで提供する。 | 0 | 0 |
@@ -209,10 +209,10 @@ generated: 2026-09-14
 | [[js.parameters.registry\|js/parameters/registry.js]] | 17 |
 | [[js.local-identity\|js/local-identity.js]] | 16 |
 | [[js.store.patch\|js/store/patch.js]] | 16 |
+| [[js.visibility\|js/visibility.js]] | 13 |
 | [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |
-| [[js.visibility\|js/visibility.js]] | 12 |
 
 ## 散文が要更新
 

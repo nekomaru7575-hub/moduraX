@@ -91,7 +91,7 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   requirement: { kind: 'match', valueField: 'number', anyValue: ANY_FACE_VALUE },
   // シースはドラフトを使わない。振る・dice.*・発動の入口とパネルがこれを見る
   unavailableReason: (token) => stellaKnightsDraftUnavailableReason(token),
-  // NPCのスキルは持ち主以外にはカードの名前とダイスだけを見せる
+  // NPCのスキルは持ち主以外には、名前を??にしたカードとダイスだけを見せる
   canViewSkillDetails: (token, participantId) => canViewStellaKnightsSkills(token, participantId)
 });
 

@@ -778,7 +778,7 @@ skillTabs: [
 // 使えないコマなら理由を返す。runDiceDraftRoll・dice.change / dice.add・runDiceDraftUse の入口が
 // alert して止め、パネルはプールもスキルも描かずに理由だけ出す
 unavailableReason: (token) => (isSheath(token) ? 'シースは能力を使えません。' : null),
-// false ならパネルのカードを「名前とダイスの置き場」だけにする（状態の1行・判定値の欄を出さない）。
+// false ならパネルのカードを「??の名前とダイスの置き場」だけにする（名前・状態の1行・判定値の欄を伏せる）。
 // 表示だけの絞り込みで、発動の規則もチャットログも変わらない
 canViewSkillDetails: (token, participantId) => !isNpc(token) || canViewOwnerOnly(token, participantId)
 ```

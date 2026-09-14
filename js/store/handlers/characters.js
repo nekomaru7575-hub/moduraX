@@ -18,6 +18,7 @@ import { normalizeImageRef } from '../images.js';
 import { normalizeAudience, patchCharacter, withMapEntry } from '../patch.js';
 import { DEFAULT_TOKEN_COLOR } from '../room.js';
 import { buildDerivedContext } from '../round-state.js';
+import { withTarget } from '../targets.js';
 
 export const CHARACTERS_HANDLERS = {
   ADD_CHARACTER({ prevState, payload, activePlugin, nextTokensState, commit }) {
@@ -94,6 +95,18 @@ export const CHARACTERS_HANDLERS = {
 
     commit({ tokens: nextTokensState });
     EventBus.emit('CharacterDeleted', { id });
+  },
+
+  // ターゲット（js/store/targets.js）。参加者1人につき1体で、tokenId:nullで外す。
+  // 「どのコマか」を運ぶので、同じ操作が2度届いても結果は変わらない。
+  // 参加者一覧にいる人だけ受け付ける。名前の無い人は右上に出せないうえ、でたらめなIDを
+  // 送り続けるとtargetedByが際限なく伸びるため（参加者の登録は本人確認を通ったものだけ）。
+  SET_TARGET({ prevState, payload, nextTokensState, commit }) {
+    const { participantId, tokenId = null } = payload || {};
+    if (typeof participantId !== 'string' || !Object.hasOwn(prevState.participants || {}, participantId)) return;
+    if (!withTarget(nextTokensState, participantId, tokenId)) return;
+
+    commit({ tokens: nextTokensState });
   },
 
   // 読み込んだ部屋データのバックヤードのコマを、GMが自分のものとして引き取る

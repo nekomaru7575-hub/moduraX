@@ -72,7 +72,8 @@ import { showAudioDialog } from './audio-dialog.js';
 import { initAudioPlayer } from './audio-player.js';
 import { initDiceAnimation } from './dice-animation.js';
 import { MAX_ANIMATED_DICE } from './dice-notation.js';
-import { resolveParameterCommand, computeNextValue } from './parameter-command.js';
+import { resolveParameterCommand, computeNextValue, stripTargetPrefix } from './parameter-command.js';
+import { findTargetOf } from './store/targets.js';
 import { initRoundPanel, startRoundProgression } from './round-panel.js';
 import { initStampLayer, requestStamp } from './stamp-layer.js';
 import { initStampPanel } from './stamp-panel.js';
@@ -1501,11 +1502,29 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 // 解決する。変数同士が互いを参照する循環参照で無限ループしないよう、再帰の深さに上限を設ける。
 const PARAMETER_REFERENCE_MAX_DEPTH = 10;
 
+// いま自分がターゲットにしているコマ（js/store/targets.js）。名前を決めていなければnull。
+function currentTarget() {
+  return findTargetOf(store.state.tokens, getCurrentParticipantId());
+}
+
+// {t.パラメータ名} はターゲットのパラメータを指す。見つからなければ他の参照と同じくそのまま残す。
+// 値の中の{}はターゲットを参照キャラクターとして解決する（ターゲットの変数はターゲットの値で読む）。
 function substituteCharacterParameters(text, character, depth = 0) {
   if (depth > PARAMETER_REFERENCE_MAX_DEPTH) return text;
 
   return text.replace(/\{([^{}]+)\}/g, (match, rawName) => {
     const name = rawName.trim();
+
+    const targetParamName = stripTargetPrefix(name);
+    if (targetParamName !== null) {
+      const target = currentTarget();
+      const entry = target && Object.entries(target.parameters || {}).find(
+        ([, p]) => p.label === targetParamName || p.key === targetParamName
+      );
+      if (!entry) return match;
+      const value = String(getEffectiveParameterValue(target, entry[0]));
+      return substituteCharacterParameters(value, target, depth + 1);
+    }
 
     if (character) {
       const entry = Object.entries(character.parameters || {}).find(
@@ -1535,6 +1554,7 @@ function substituteCharacterParameters(text, character, depth = 0) {
 // 解釈（対象の解決・妥当性チェック）は js/parameter-command.js。参照キャラクターに同名パラメータが
 // 無ければルーム変数が対象になる。カッコ内の値（数値・ダイス結果・文字列）は1回だけ算出し、
 // 全対象へ共通で適用する。editable:falseのパラメータは変更不可。
+// 「+t.HP(20)」のようにt.を付けた名前は、自分のターゲットのパラメータが対象になる。
 
 // BCDiceの結果テキストは "(コマンド) ＞ 内訳 ＞ 合計" の形。最後の「＞」より後ろの
 // 数値だけを読み取る（dx3-combo-box.jsのparseFinalNumberと同じ考え方）。
@@ -1557,20 +1577,25 @@ function shouldMaskParameterValue(param) {
 // 指定された全対象へ同じamount（数値・ダイス結果・文字列）を、それぞれの演算子で適用し、
 // 1件のログにまとめて記録する。diceDetailは通常のチャットロールと同じ形の出目内訳文字列
 // （DICE_ROLL_REQUESTEDハンドラと同じ作り方）で、ダイスでない場合は空。
-// 対象はコマのパラメータ（scope:'token'）とルーム変数（scope:'room'）が混ざりうる。
+// 対象は参照キャラクターのパラメータ（scope:'token'）・ターゲットのパラメータ（scope:'target'）・
+// ルーム変数（scope:'room'）が混ざりうる。
 function applyParameterChanges({ character, characterName, targets, amount, diceResultText, diceDetail = "", command, tabId = activeTabId }) {
-  const changeLines = targets.map(({ operator, scope, paramId, param, before }) => {
+  const changeLines = targets.map(({ operator, scope, tokenId, paramId, param, before }) => {
     const after = computeNextValue(operator, before, amount);
     if (scope === 'room') {
       store.dispatch('SET_ROOM_PARAMETER', { paramId, value: after });
       // ルーム変数は常に全員のものなので伏せない
       return `${param.label}: ${before} → ${after}`;
     }
-    store.dispatch('SET_PARAMETER', { characterId: character.id, paramId, value: after });
+    store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value: after });
+    // ターゲットの行は、発言者と別のコマだと分かるようにコマ名を前に付ける
+    const label = scope === 'target'
+      ? `${store.state.tokens[tokenId]?.name ?? ''} ${param.label}`
+      : param.label;
     // 「何が動いたか」は伝えたいのでラベルは出し、前後の値だけを伏せる。
     return shouldMaskParameterValue(param)
-      ? `${param.label}: ${HIDDEN_VALUE_MASK} → ${HIDDEN_VALUE_MASK}`
-      : `${param.label}: ${before} → ${after}`;
+      ? `${label}: ${HIDDEN_VALUE_MASK} → ${HIDDEN_VALUE_MASK}`
+      : `${label}: ${before} → ${after}`;
   });
 
   applyLog({
@@ -1587,7 +1612,7 @@ function applyParameterChanges({ character, characterName, targets, amount, dice
 
 function tryHandleParameterCommand(rawInput, character, tabId = activeTabId, characterName) {
   const resolved = resolveParameterCommand({
-    rawInput, character, roomParameters: store.state.room.parameters
+    rawInput, character, target: currentTarget(), roomParameters: store.state.room.parameters
   });
   if (!resolved) return false;
   if (resolved.error) {
@@ -1641,7 +1666,9 @@ function tryHandleParameterCommand(rawInput, character, tabId = activeTabId, cha
 // 例: バフ(集中,知覚,+10,シーン)　バフ>ゴブリンA(苦しみ,回避,-10,ラウンド)
 // ">対象コマ名"を省略した場合は参照キャラクター欄で選択中のコマが対象になる（従来どおり）。
 // 指定した場合はその名前のコマ（コマ名の完全一致）を、選択中のキャラクターより優先して
-// 対象にする。終了条件は シーン/ラウンド/シナリオ/判定/プロセス/手動 のいずれか（「◯◯終了」表記でも可）。
+// 対象にする。「バフ>t(...)」だけはコマ名ではなく、自分のターゲット（js/store/targets.js）を指す
+// （そのため「t」という名前のコマはこの書き方では指定できない）。
+// 終了条件は シーン/ラウンド/シナリオ/判定/プロセス/手動 のいずれか（「◯◯終了」表記でも可）。
 // これらは入れ子（シナリオ ⊃ シーン ⊃ ラウンド ⊃ プロセス ⊃ 判定）なので、内側を指定したバフは
 // 外側のフェーズが終わったときにも消える（game-store.jsのPHASE_HIERARCHY参照）。
 // 対象パラメータが見つからない場合もバフ自体は付与するが、効果を持たない
@@ -1654,6 +1681,8 @@ function tryHandleParameterCommand(rawInput, character, tabId = activeTabId, cha
 // この位置ではキー名（AcB）で指定する。
 const BUFF_COMMAND_PATTERN =
   /^バフ(?:>([^(]+))?\(([^,]+),([^,]+),([+-]?\d+(?:\.\d+)?|[+-]?\d+[Dd]\d+),([^,)]+)(?:,([^,)]+))?\)$/;
+
+const BUFF_TARGET_KEYWORD = 't';
 
 // 増減値がダイス式（符号つきも可。符号はBCDiceへ渡さず、結果に後から適用する）かどうかの判定。
 const BUFF_DELTA_DICE_PATTERN = /^([+-]?)(\d+[Dd]\d+)$/;
@@ -1677,7 +1706,13 @@ function tryHandleBuffCommand(rawInput, character, tabId = activeTabId) {
   const phaseText = rawPhase.trim();
 
   let targetCharacter = character;
-  if (rawTargetName !== undefined) {
+  if (rawTargetName !== undefined && rawTargetName.trim() === BUFF_TARGET_KEYWORD) {
+    targetCharacter = currentTarget();
+    if (!targetCharacter) {
+      alert('ターゲットが指定されていません。\nコマをダブルクリックするか、右クリックメニューの「ターゲットにする」で選んでください。');
+      return true;
+    }
+  } else if (rawTargetName !== undefined) {
     const targetName = rawTargetName.trim();
     targetCharacter = Object.values(store.state.tokens).find(t => t.name === targetName) || null;
     if (!targetCharacter) {

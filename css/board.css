@@ -1249,6 +1249,24 @@ h1 {
   width : 100%;
 }
 
+/* ターゲットにしている人の名前（「>>名前,名前」。js/board-data-driven.jsのapplyTokenTargetLabel）。
+   右上に小さく重ね、コマの幅に収まらない分は省略する（.tokenのoverflow:hiddenの内側）。 */
+.token-target {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  z-index: 1;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--board-token-text);
+  text-shadow: 0 1px 3px var(--board-token-halo);
+  pointer-events: none;
+}
+
 /* パネルの重なり層。パネル同士の重なり順（.panel-objectのz-index、js/board-data-driven.jsが
    state.panels[].stackOrderから決める）をここで閉じ込める。層自身がz-index:5を持つので、
    中で何番を付けてもコマ(.token, z-index:10)やダイス(.dice-stage, z-index:40)より前には出ない。

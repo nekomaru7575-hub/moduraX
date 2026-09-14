@@ -107,3 +107,42 @@ test('toNumericValue / classifyAmount', () => {
   assert.deepEqual(classifyAmount('-4'), { kind: 'number', value: -4 });
   assert.deepEqual(classifyAmount('２'), { kind: 'number', value: 2 });
 });
+
+// --- ターゲット（t.付きの名前） ---
+
+const goblin = {
+  id: 't2',
+  name: 'ゴブリンA',
+  parameters: {
+    'core:hp': { key: 'HP', label: 'HP', value: 7, source: 'core' },
+    'user:メモ': { key: 'メモ', label: 'メモ', value: '', source: 'user' }
+  }
+};
+
+const resolveWithTarget = (rawInput, target = goblin) =>
+  resolveParameterCommand({ rawInput, character, target, roomParameters });
+
+test('t.付きの名前はターゲットのパラメータを指す（ルーム変数へは落ちない）', () => {
+  const r = resolveWithTarget('=t.HP(1D6)');
+  assert.equal(r.amount.kind, 'dice');
+  assert.equal(r.targets[0].scope, 'target');
+  assert.equal(r.targets[0].tokenId, 't2');
+  assert.equal(r.targets[0].before, 7);
+
+  // ターゲットに無い名前は、同名のルーム変数があってもエラー
+  assert.match(resolveWithTarget('+t.混沌レベル(1)').error, /ゴブリンA/);
+});
+
+test('自分とターゲットを1行に混ぜられる', () => {
+  const r = resolveWithTarget('+HP,-t.HP(3)');
+  assert.deepEqual(
+    r.targets.map(t => [t.scope, t.tokenId, t.operator]),
+    [['token', 't1', '+'], ['target', 't2', '-']]
+  );
+});
+
+test('ターゲット未指定なら数値・ダイスはエラー、文字列は発言扱い', () => {
+  assert.match(resolveWithTarget('+t.HP(20)', null).error, /ターゲットが指定されていません/);
+  assert.equal(resolveWithTarget('=t.メモ(集合)', null), null);
+  assert.equal(resolveWithTarget('=t.メモ(集合)').targets[0].tokenId, 't2');
+});

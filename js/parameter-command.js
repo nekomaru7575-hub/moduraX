@@ -6,6 +6,10 @@
 // 対象は参照キャラクターのパラメータを先に探し、無ければ（キャラ未選択なら）同名のルーム変数を使う。
 // {パラメータ名}の参照（js/main.jsのsubstituteCharacterParameters）と同じ解決順。
 // カンマ区切りの対象ごとに判定するので、キャラのHPとルーム変数を1行で同時に動かせる。
+//
+// 名前の頭に「t.」を付けると、参照キャラクターではなくターゲット（js/store/targets.js）の
+// パラメータを指す（+t.HP(20)）。ルーム変数へは落とさない。自分とターゲットは1行に混ぜられる
+// （+HP,-t.HP(5)）。
 
 const PARAMETER_COMMAND_PATTERN = /^([+\-=].+?)\((.+)\)$/;
 const PARAMETER_TARGET_PATTERN = /^([+\-=])(.+)$/;
@@ -13,6 +17,20 @@ const DICE_AMOUNT_PATTERN = /^\d+[Dd]\d+$/;
 // 半角・全角の数字だけでできた文字列は数値とみなす（ルーム変数ダイアログで「１２」と入れると
 // 文字列のまま保存されるため）。
 const NUMERIC_TEXT_PATTERN = /^[+-]?[0-9０-９]+(?:\.[0-9０-９]+)?$/;
+
+// ターゲットを指す名前の頭。{t.HP}の参照（js/main.jsのsubstituteCharacterParameters）と同じ書き方。
+export const TARGET_PARAMETER_PREFIX = 't.';
+
+/**
+ * 「t.HP」ならターゲットを指す名前として「HP」を、そうでなければnullを返す。
+ * @param {string} name
+ * @returns {string|null}
+ */
+export function stripTargetPrefix(name) {
+  if (!name.startsWith(TARGET_PARAMETER_PREFIX)) return null;
+  const rest = name.slice(TARGET_PARAMETER_PREFIX.length).trim();
+  return rest === '' ? null : rest;
+}
 
 /**
  * 値を数値として読めればNumberを、読めなければnullを返す。全角数字は半角にして読む。
@@ -63,9 +81,12 @@ function findParamByName(parameters, name) {
  * @returns {null
  *   | {error:string}
  *   | {amount: ReturnType<typeof classifyAmount>,
- *      targets: {operator:string, scope:'token'|'room', paramId:string, param:object, before:any}[]}}
+ *      targets: {operator:string, scope:'token'|'target'|'room', tokenId:string|null,
+ *                paramId:string, param:object, before:any}[]}}
+ *
+ * targetはターゲットのコマ（無ければnull）。「t.」付きの名前だけがこちらを探す。
  */
-export function resolveParameterCommand({ rawInput, character, roomParameters }) {
+export function resolveParameterCommand({ rawInput, character, target = null, roomParameters }) {
   const match = String(rawInput).match(PARAMETER_COMMAND_PATTERN);
   if (!match) return null;
 
@@ -80,6 +101,22 @@ export function resolveParameterCommand({ rawInput, character, roomParameters })
 
   const found = [];
   for (const { operator, name } of parsedTargets) {
+    const targetParamName = stripTargetPrefix(name);
+    if (targetParamName !== null) {
+      if (!target) {
+        if (isString) return null;
+        return { error: 'ターゲットが指定されていません。\nコマをダブルクリックするか、右クリックメニューの「ターゲットにする」で選んでください。' };
+      }
+      const targetEntry = findParamByName(target.parameters, targetParamName);
+      if (!targetEntry) {
+        if (isString) return null;
+        return { error: `ターゲット「${target.name}」にパラメータ「${targetParamName}」が見つかりません。` };
+      }
+      const [paramId, param] = targetEntry;
+      found.push({ operator, name, scope: 'target', tokenId: target.id, paramId, param });
+      continue;
+    }
+
     const tokenEntry = character ? findParamByName(character.parameters, name) : null;
     const roomEntry = tokenEntry ? null : findParamByName(roomParameters, name);
     const entry = tokenEntry || roomEntry;
@@ -89,11 +126,13 @@ export function resolveParameterCommand({ rawInput, character, roomParameters })
       return { error: `パラメータ「${name}」が見つかりません。${hint}` };
     }
     const [paramId, param] = entry;
-    found.push({ operator, name, scope: tokenEntry ? 'token' : 'room', paramId, param });
+    found.push({
+      operator, name, scope: tokenEntry ? 'token' : 'room', tokenId: tokenEntry ? character.id : null, paramId, param
+    });
   }
 
   const targets = [];
-  for (const { operator, name, scope, paramId, param } of found) {
+  for (const { operator, name, scope, tokenId, paramId, param } of found) {
     if (param.editable === false) {
       return { error: `パラメータ「${name}」は変更できません。` };
     }
@@ -109,7 +148,7 @@ export function resolveParameterCommand({ rawInput, character, roomParameters })
       // 文字列を持てるのは利用者が追加した変数だけ（ルーム変数・キャラの編集ダイアログと同じ線引き）
       return { error: `パラメータ「${name}」は数値のパラメータなので、文字列は代入できません。` };
     }
-    targets.push({ operator, scope, paramId, param, before });
+    targets.push({ operator, scope, tokenId, paramId, param, before });
   }
 
   return { amount, targets };

@@ -92,9 +92,10 @@ const CHARACTER_FIELD_PATCHES = {
   // バックヤードへしまうと同時に、しまった人のコマになる。表示名を設定している人は
   // 参加者ID（ownerId）で持つので、別の端末から入り直しても同じ棚が見える。
   // ゲスト（表示名なし）は参加者IDを持てないため、従来どおりブラウザ単位のIDで棚を分ける。
+  // しまったコマは狙えないので、ターゲット（js/store/targets.js）も外す。
   MOVE_TO_BACKYARD: ({ participantId, localUserId }) => {
-    if (participantId) return { inBackyard: true, ownerId: participantId };
-    return localUserId ? { inBackyard: true, backyardOwnerId: localUserId } : null;
+    if (participantId) return { inBackyard: true, ownerId: participantId, targetedBy: [] };
+    return localUserId ? { inBackyard: true, backyardOwnerId: localUserId, targetedBy: [] } : null;
   },
   // バックヤードから盤面へ戻す。位置は保管前の(x,y)をそのまま使う。
   RESTORE_FROM_BACKYARD: () => ({ inBackyard: false })

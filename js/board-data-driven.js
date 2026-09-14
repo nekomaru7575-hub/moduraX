@@ -24,6 +24,7 @@ import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import { findStamp, listStamps } from './stamp-registry.js';
 import { collectImageUrls } from './store/images.js';
+import { listTargeterNames, normalizeTargetedBy } from './store/targets.js';
 import {
   MAX_PANEL_CHAT_TEXT_LENGTH, buildPanelCopyPayload, normalizeMarker, sameMarker
 } from './store/panels.js';
@@ -372,7 +373,34 @@ function applyBoardBackground(board, room) {
 
 // --- 描画: STATE_CHANGEDを受けてDOMをStateに同期する ---
 
+// ターゲットの付け外しに使うダブルクリックの間隔。
+const TOKEN_DOUBLE_CLICK_MS = 300;
+
+// ターゲット（js/store/targets.js）を持てない理由。名前が無いと、コマの右上に誰が狙っているかを出せない。
+const TARGET_NO_NAME_REASON = 'ターゲットにするには、先に参加者設定で名前を決めてください。';
+
+function isMyTarget(token) {
+  const myId = getCurrentParticipantId();
+  return Boolean(myId) && normalizeTargetedBy(token?.targetedBy).includes(myId);
+}
+
+// 自分のターゲットを、このコマへ付ける／このコマから外す。1人1体なので、付ければ前のターゲットは外れる。
+function toggleTarget(tokenId) {
+  const token = store.state.tokens[tokenId];
+  if (!token || token.inBackyard) return;
+
+  const participantId = getCurrentParticipantId();
+  if (!participantId) {
+    alert(TARGET_NO_NAME_REASON);
+    return;
+  }
+  store.dispatch('SET_TARGET', { participantId, tokenId: isMyTarget(token) ? null : tokenId });
+}
+
 function bindTokenDrag(element) {
+  // 1つ前に「動かさずに離した」時刻。2回目がTOKEN_DOUBLE_CLICK_MS以内ならダブルクリック。
+  let lastTokenClickAt = 0;
+
   const gesture = bindDragGesture(element, {
     stopPropagation: true, // 盤面パン用のpointerdownに伝播させない
 
@@ -415,7 +443,20 @@ function bindTokenDrag(element) {
     },
 
     // タッチには右クリックが無いので、長押しからも同じメニューを開く
-    onLongPress: (event) => openTokenMenu(event)
+    onLongPress: (event) => openTokenMenu(event),
+
+    // ダブルクリック（タッチならダブルタップ）でターゲットを付け外しする。
+    // ネイティブのdblclickはタッチで届かない（.tokenはtouch-action:none）ので、
+    // 動かさずに離した2回の間隔で見る。
+    onClick: () => {
+      const now = Date.now();
+      if (now - lastTokenClickAt <= TOKEN_DOUBLE_CLICK_MS) {
+        lastTokenClickAt = 0;
+        toggleTarget(element.id);
+        return;
+      }
+      lastTokenClickAt = now;
+    }
   });
 
   // 右クリックと長押しの共通の入口。長押しから来る場合はpointerdownイベントが
@@ -558,6 +599,13 @@ export function openTokenContextMenu(tokenId, clientX, clientY) {
     // シートのURLから直接取り込む。宣言を持つシステムの部屋でだけ出す
     // （どのサービスを受け付けるかはプラグインの宣言が全て。js/character-sheet-import.js）
     ...sheetImportMenuItems(tokenId, canOperate, denyReason),
+    // しまったコマは盤面にいないので狙えない（js/store/targets.js）
+    ...(token.inBackyard ? [] : [{
+      label: isMyTarget(token) ? 'ターゲットを外す' : 'ターゲットにする',
+      disabled: !myParticipantId,
+      title: myParticipantId ? undefined : TARGET_NO_NAME_REASON,
+      onSelect: () => toggleTarget(tokenId)
+    }]),
     {
       label: 'バフ/デバフを付与',
       onSelect: () => {
@@ -670,6 +718,19 @@ function applyTokenAppearance(el, tokenData) {
   }
 }
 
+// このコマをターゲットにしている人の名前を右上へ出す。コマの幅に収まらない分はCSSで省略する。
+// 名前は参加者一覧から引くので、改名もSTATE_CHANGEDで追いつく。
+function applyTokenTargetLabel(el, tokenData, participants) {
+  const span = el.querySelector('.token-target');
+  if (!span) return;
+
+  const names = listTargeterNames(tokenData, participants);
+  const text = names.length > 0 ? `>>${names.join(',')}` : '';
+  if (span.textContent !== text) span.textContent = text;
+  span.title = text;
+  span.hidden = names.length === 0;
+}
+
 function createTokenElement(tokenData, board) {
   const el = document.createElement('div');
   el.className = 'token';
@@ -684,6 +745,12 @@ function createTokenElement(tokenData, board) {
   nameSpan.className = 'token-name';
   nameSpan.textContent = tokenData.name;
   el.appendChild(nameSpan);
+
+  // 右上の「>>名前,名前」（applyTokenTargetLabel）
+  const targetSpan = document.createElement('span');
+  targetSpan.className = 'token-target';
+  targetSpan.hidden = true;
+  el.appendChild(targetSpan);
 
   applyTokenAppearance(el, tokenData);
   bindTokenDrag(el);
@@ -2250,6 +2317,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (nameSpan && nameSpan.textContent !== tokenData.name) {
         nameSpan.textContent = tokenData.name;
       }
+      applyTokenTargetLabel(el, tokenData, state.participants);
     });
   });
 });

@@ -96,6 +96,19 @@ export function runDiceDraftUse({
   // 同じ効果の説明が3行流れ、直前の判定結果がログの上へ押し出されていた。
   // 各回のログはonLogで受け取るだけにして、出すのはループを抜けてから1回。
   // 内容はどの回も同じ（効果も修正も回ごとに変わらない）ので、最後の1件を採る。
+  //
+  // 【ログの2行目は「この回までに使った分」で書く】result.description は乗っているダイス全部の
+  // 説明なので、そのまま出すと「1回」ボタンや上限で途中まで通ったときに「×3 → 3回使用」と
+  // 実際より多く書いてしまう（ダイスは1個しか減っていないのに）。回ごとに、その回までに
+  // 食うダイスだけで評価し直した説明を渡す。採るのは最後に通った回のログなので、
+  // 何回で止まっても使えた回数どおりの説明になる。パネルの状態の1行はresultのまま変えない。
+  // 合計型はusesが1・perUseDiceが乗っている数なので、評価し直してもresultと同じ説明になる。
+  const describeUses = (count) => (count >= result.uses
+    ? result.description
+    : evaluatePlacement(spec, skill, dice.slice(0, result.perUseDice * count), {
+      targetValue, targetModifier
+    }).description);
+
   let used = 0;
   let lastLog = null;
   for (let i = 0; i < plannedUses; i += 1) {
@@ -114,7 +127,7 @@ export function runDiceDraftUse({
       onSaveSkills: (next) => { workingSkills = next; },
       // 見出しはループを抜けてから差し替える（回数が「使えた数」で決まるため）
       logTitle: `${skillSpec.noun}使用: ${skillName}`,
-      logDetail: `${result.description}${expiredNote}`,
+      logDetail: `${describeUses(i + 1)}${expiredNote}`,
       logSystem: spec.label,
       chatCommand,
       onLog: (log) => { lastLog = log; }

@@ -24,7 +24,9 @@ import { rollBCDice } from './BCdice.js';
 import { isTokenSnapshot, buildTokenSnapshot, downloadJSON, parseJsonText } from './character-snapshot.js';
 import { findStamp, listStamps } from './stamp-registry.js';
 import { collectImageUrls } from './store/images.js';
-import { MAX_PANEL_CHAT_TEXT_LENGTH, normalizeMarker, sameMarker } from './store/panels.js';
+import {
+  MAX_PANEL_CHAT_TEXT_LENGTH, buildPanelCopyPayload, normalizeMarker, sameMarker
+} from './store/panels.js';
 import { applyMarkerStyle } from './marker-style.js';
 import { ownEntry } from './store/patch.js';
 import {
@@ -489,6 +491,32 @@ export function openTokenContextMenu(tokenId, clientX, clientY) {
           rollBCDice,
           onConfirm: (result) => applyCharacterEditResult(store, tokenId, result)
         });
+      }
+    },
+    {
+      // 同じ中身のコマを右下1マスへ増やす。「JSONで保存→盤面へ落とす」と同じ2段構え
+      // （ADD_CHARACTER→RESTORE_CHARACTER_SNAPSHOT）で、あちらが誰でもできるのに揃えて
+      // 権限では絞らない。複製は複製した人のコマになる。
+      label: '複製',
+      onSelect: () => {
+        const current = store.state.tokens[tokenId];
+        if (!current) return;
+
+        const newId = generateTokenId();
+        const participantId = getCurrentParticipantId();
+        store.dispatch('ADD_CHARACTER', {
+          id: newId,
+          name: current.name,
+          x: settlePosition(current.x + GRID_SIZE),
+          y: settlePosition(current.y + GRID_SIZE),
+          ownerId: participantId
+        });
+        // 画像は既にこの部屋の参照なので、adoptSnapshotImageは通さない
+        store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: newId, snapshot: buildTokenSnapshot(current) });
+        // バックヤードのコマの複製が盤面に湧かないよう、複製も自分の棚へ入れる
+        if (current.inBackyard) {
+          store.dispatch('MOVE_TO_BACKYARD', { id: newId, participantId, localUserId: getLocalUserId() });
+        }
       }
     },
     {
@@ -1124,6 +1152,35 @@ function bindPanelDrag(element) {
               }
             }
           });
+        }
+      },
+      {
+        // 同じ見た目・振る舞いのパネルを右下1マスへ増やす（固定は外す。buildPanelCopyPayload）
+        label: '複製',
+        onSelect: () => {
+          const current = store.state.panels[panelId];
+          if (!current) return;
+
+          const newId = generatePanelId();
+          store.dispatch('ADD_PANEL', buildPanelCopyPayload(current, {
+            id: newId,
+            x: settlePosition(current.x + GRID_SIZE),
+            y: settlePosition(current.y + GRID_SIZE)
+          }));
+
+          // 箱は空の箱として複製する。所有者付きの箱なら、複製した人の箱にする
+          // （追加ダイアログの「自分専用にする」と同じ決め方）
+          if (current.isStocker) {
+            const owned = !!(current.stockerOwnerId || current.stockerOwnerLocalId);
+            const { participantId, localUserId } = actingUserPayload();
+            store.dispatch('SET_PANEL_STOCKER', {
+              id: newId,
+              isStocker: true,
+              ownerId: owned ? participantId : null,
+              localUserId: owned ? localUserId : null,
+              gridSize: GRID_SIZE
+            });
+          }
         }
       },
       {

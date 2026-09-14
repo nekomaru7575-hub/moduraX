@@ -1,11 +1,11 @@
 ---
 source: js/character-sheet-import.js
-lines: 91
+lines: 97
 exports: 3
 imported_by: 2
 api_sha: d4f9b5c27c47
 prose_sha: d4f9b5c27c47
-generated: 2026-09-13
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -38,7 +38,7 @@ _(未記入)_
 |---:|---|---|---:|:-:|
 | 25 | extractSheetKey | `extractSheetKey(source, rawUrl)` | 19 | ✓ |
 | 49 | fetchCharacterSheetJson | `async fetchCharacterSheetJson(pluginId, key)` | 16 | ✓ |
-| 74 | promptForCharacterSheetJson | `async promptForCharacterSheetJson(pluginId, source)` | 17 | ✓ |
+| 74 | promptForCharacterSheetJson | `async promptForCharacterSheetJson(pluginId, source)` | 23 | ✓ |
 
 ## 依存
 

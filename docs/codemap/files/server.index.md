@@ -1,11 +1,11 @@
 ---
 source: server/index.js
-lines: 4058
+lines: 4095
 exports: 0
 imported_by: 0
 api_sha: 97d170e1550e
 prose_sha: 97d170e1550e
-generated: 2026-09-13
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 なし（エントリポイント、または副作用のみのモジュール）。
 
-## トップレベル関数（LOCAL TASKS 候補）（110）
+## トップレベル関数（LOCAL TASKS 候補）（111）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -133,15 +133,16 @@ _(未記入)_
 | 2857 | handleBcdiceSystems | `async handleBcdiceSystems(req, res)` | 11 |  |
 | 2873 | handleBcdiceSystemInfo | `async handleBcdiceSystemInfo(req, res, systemId)` | 19 |  |
 | 2907 | readCappedText | `async readCappedText(response, maxBytes)` | 21 |  |
-| 2930 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 49 |  |
-| 3006 | clientIpOf | `clientIpOf(req)` | 8 |  |
-| 3016 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
-| 3034 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
-| 3051 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
-| 3079 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
-| 3094 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
-| 3103 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
-| 3999 | shutdown | `shutdown(signal)` | 23 |  |
+| 2933 | fetchSheetSecret | `async fetchSheetSecret(source, key, signal)` | 23 |  |
+| 2958 | handleCharacterSheet | `async handleCharacterSheet(req, res, url)` | 58 |  |
+| 3043 | clientIpOf | `clientIpOf(req)` | 8 |  |
+| 3053 | expandIpv6Groups | `expandIpv6Groups(address)` | 9 |  |
+| 3071 | rateLimitScopeOf | `rateLimitScopeOf(rawIp)` | 15 |  |
+| 3088 | exceedsRateLimit | `exceedsRateLimit(req, kind)` | 14 |  |
+| 3116 | rejectTooManyRequests | `rejectTooManyRequests(res)` | 3 |  |
+| 3131 | declaredBodyBytes | `declaredBodyBytes(req, fallbackBytes)` | 4 |  |
+| 3140 | withHeavySlot | `async withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = Infinity)` | 25 |  |
+| 4036 | shutdown | `shutdown(signal)` | 23 |  |
 
 ## 依存
 

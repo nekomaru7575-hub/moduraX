@@ -25,6 +25,8 @@ import {
   SYSTEM_CHAT_TAB_ID
 } from '../js/game-store.js';
 import { EventBus } from '../js/EventBus.js';
+import { buildPanelCopyPayload } from '../js/store/panels.js';
+import { buildTokenSnapshot } from '../js/character-snapshot.js';
 
 // --- 道具 ---
 
@@ -1097,6 +1099,72 @@ test('簡易マーカー: ストッカーにでき、シーンチェンジで残
   assert.equal(store.state.panels.gone, undefined, '残さないマーカーは消える');
   assert.equal(store.state.panels.kept?.isStocker, true, '残すマーカーはストッカーのまま残る');
   assert.deepEqual(store.state.panels.kept.marker, { ...marker, shape: 'rounded' });
+});
+
+// --- 複製（js/board-data-driven.jsのパネル／コマのメニュー） ---
+
+test('複製: パネル・マーカーは位置とid以外を引き継ぎ、固定は外す', () => {
+  const store = newStore();
+  store.dispatch('ADD_PANEL', {
+    id: 'img', image: 'https://img.example.com/rooms/room-1/a.png', text: 'メモ', x: 50, y: 75,
+    cols: 3, rows: 2, locked: true, textAudience: ['gm1'], keepOnSceneChange: true, stackOrder: 4,
+    clickAction: { type: 'chat', text: '2d6' }
+  });
+  store.dispatch('ADD_PANEL', {
+    id: 'mk', x: 0, y: 0, cols: 1, rows: 1,
+    marker: { shape: 'hexagon', color: '#123456', opacity: 20, filter: { type: 'blur', strength: 30 } }
+  });
+
+  for (const sourceId of ['img', 'mk']) {
+    const source = store.state.panels[sourceId];
+    const copyId = `${sourceId}-copy`;
+    store.dispatch('ADD_PANEL', buildPanelCopyPayload(source, { id: copyId, x: source.x + 25, y: source.y + 25 }));
+    const copy = store.state.panels[copyId];
+
+    assert.deepEqual(
+      { ...copy, id: null, x: null, y: null, locked: null },
+      { ...source, id: null, x: null, y: null, locked: null },
+      `${sourceId}: 位置・id・固定以外は同じ`
+    );
+    assert.equal(copy.x, source.x + 25);
+    assert.equal(copy.locked, false, '複製は固定されていない');
+  }
+});
+
+test('複製: ストッカーの中のカードは新しい箱へ入らない', () => {
+  const store = newStore();
+  store.dispatch('ADD_PANEL', { id: 'box' });
+  store.dispatch('SET_PANEL_STOCKER', { id: 'box', isStocker: true });
+  store.dispatch('ADD_CARD', { id: 'c1', face: { text: 'A' } });
+  store.dispatch('STORE_CARD_IN_STOCKER', { cardId: 'c1', panelId: 'box' });
+
+  store.dispatch('ADD_PANEL', buildPanelCopyPayload(store.state.panels.box, { id: 'box2', x: 25, y: 25 }));
+  store.dispatch('SET_PANEL_STOCKER', { id: 'box2', isStocker: true });
+
+  assert.equal(store.state.panels.box2.isStocker, true);
+  assert.equal(store.state.cards.c1.stockerId, 'box', '元の箱の中身はそのまま');
+  assert.equal(Object.values(store.state.cards).some(card => card.stockerId === 'box2'), false);
+});
+
+test('複製: コマはスナップショット経由で中身ごと写り、所有者は複製した人になる', () => {
+  const store = newStore();
+  addCharacter(store, 't1', 'ゴブリン', {
+    x: 100, y: 100, color: '#00ff00', size: 2, ownerId: 'gm', image: 'https://img.example.com/rooms/room-1/g.png'
+  });
+  store.dispatch('SET_PARAMETER', { characterId: 't1', paramId: 'core:hp', value: 7 });
+  store.dispatch('SET_COMPONENT', { id: 't1', componentKey: 'memo', value: { note: 'こん棒' } });
+  store.dispatch('ADD_BUFF', { tokenId: 't1', id: 'b1', name: '祝福', paramId: 'core:hp', delta: 3 });
+
+  const source = store.state.tokens.t1;
+  store.dispatch('ADD_CHARACTER', { id: 't2', name: source.name, x: 125, y: 125, ownerId: 'pl' });
+  store.dispatch('RESTORE_CHARACTER_SNAPSHOT', { id: 't2', snapshot: buildTokenSnapshot(source) });
+  const copy = store.state.tokens.t2;
+
+  for (const key of ['name', 'color', 'image', 'imageCrop', 'size', 'textColor', 'visible', 'parameters', 'components', 'buffs']) {
+    assert.deepEqual(copy[key], source[key], `${key} が同じ`);
+  }
+  assert.equal(copy.ownerId, 'pl');
+  assert.equal(copy.x, 125);
 });
 
 test('ADD_CARD / ADD_DECK: 重複とid欠落は何もしない', () => {

@@ -1,11 +1,11 @@
 ---
 source: js/parameters/sheet-source.js
-lines: 83
+lines: 98
 exports: 4
 imported_by: 5
-api_sha: fab39d80a72d
+api_sha: 7ad3f7cbbc88
 prose_sha: fab39d80a72d
-generated: 2026-09-13
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -25,10 +25,10 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 29 | fn | createAppspotSheetSource | `createAppspotSheetSource({ label, pathSegment })` | character-sheets.appspot.com のシートを受け付ける宣言を作る。 |
-| 45 | fn | sheetText | `sheetText(value)` | シートの文字列欄を読む。 |
-| 53 | fn | assignSheetNumber | `assignSheetNumber(target, paramId, raw)` | シートの数値欄を、取り込み先のパラメータへ入れる。 |
-| 73 | fn | sheetRichText | `sheetRichText(value)` | シートの「効果」のような、書式の入った文字列欄を読む。 |
+| 37 | fn | createAppspotSheetSource | `createAppspotSheetSource({ label, pathSegment, secret })` | character-sheets.appspot.com のシートを受け付ける宣言を作る。 |
+| 60 | fn | sheetText | `sheetText(value)` | シートの文字列欄を読む。 |
+| 68 | fn | assignSheetNumber | `assignSheetNumber(target, paramId, raw)` | シートの数値欄を、取り込み先のパラメータへ入れる。 |
+| 88 | fn | sheetRichText | `sheetRichText(value)` | シートの「効果」のような、書式の入った文字列欄を読む。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（4）
 
@@ -37,10 +37,10 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 29 | createAppspotSheetSource | `createAppspotSheetSource({ label, pathSegment })` | 12 | ✓ |
-| 45 | sheetText | `sheetText(value)` | 3 | ✓ |
-| 53 | assignSheetNumber | `assignSheetNumber(target, paramId, raw)` | 5 | ✓ |
-| 73 | sheetRichText | `sheetRichText(value)` | 10 | ✓ |
+| 37 | createAppspotSheetSource | `createAppspotSheetSource({ label, pathSegment, secret })` | 19 | ✓ |
+| 60 | sheetText | `sheetText(value)` | 3 | ✓ |
+| 68 | assignSheetNumber | `assignSheetNumber(target, paramId, raw)` | 5 | ✓ |
+| 88 | sheetRichText | `sheetRichText(value)` | 10 | ✓ |
 
 ## 依存
 

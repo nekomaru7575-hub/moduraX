@@ -1,11 +1,11 @@
 ---
 source: js/help/help-content.js
-lines: 1669
+lines: 1681
 exports: 8
 imported_by: 1
 api_sha: 5c378e323788
 prose_sha: 5c378e323788
-generated: 2026-09-13
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -26,13 +26,13 @@ tags: [codemap]
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
 | 34 | const | GREETINGS | `GREETINGS` | あいさつ。 |
-| 731 | const | CORE_HELP | `CORE_HELP` |  |
-| 755 | const | PLUGIN_HELP | `PLUGIN_HELP` | --- プラグイン（ゲームシステム固有）--- キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
-| 1485 | const | PLUGIN_COMMAND_HELP | `PLUGIN_COMMAND_HELP` | キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
-| 1613 | fn | buildCommandListHelp | `buildCommandListHelp(activePlugin)` | 「コマンド一覧」のノードを組む。 |
-| 1627 | const | whoIsDediDevi | `whoIsDediDevi` | 会話用の選択肢たち |
-| 1638 | const | howToEraceYou | `howToEraceYou` |  |
-| 1658 | fn | buildHelpRoot | `buildHelpRoot(activePlugin)` | この部屋で出すヘルプのルート層を組む。 |
+| 741 | const | CORE_HELP | `CORE_HELP` |  |
+| 765 | const | PLUGIN_HELP | `PLUGIN_HELP` | --- プラグイン（ゲームシステム固有）--- キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
+| 1497 | const | PLUGIN_COMMAND_HELP | `PLUGIN_COMMAND_HELP` | キーは js/parameters/registry.js の PLUGINS のキー＝ room.activePlugin の値。 |
+| 1625 | fn | buildCommandListHelp | `buildCommandListHelp(activePlugin)` | 「コマンド一覧」のノードを組む。 |
+| 1639 | const | whoIsDediDevi | `whoIsDediDevi` | 会話用の選択肢たち |
+| 1650 | const | howToEraceYou | `howToEraceYou` |  |
+| 1670 | fn | buildHelpRoot | `buildHelpRoot(activePlugin)` | この部屋で出すヘルプのルート層を組む。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -41,8 +41,8 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 1613 | buildCommandListHelp | `buildCommandListHelp(activePlugin)` | 9 | ✓ |
-| 1658 | buildHelpRoot | `buildHelpRoot(activePlugin)` | 11 | ✓ |
+| 1625 | buildCommandListHelp | `buildCommandListHelp(activePlugin)` | 9 | ✓ |
+| 1670 | buildHelpRoot | `buildHelpRoot(activePlugin)` | 11 | ✓ |
 
 ## 依存
 

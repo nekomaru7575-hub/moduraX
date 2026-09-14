@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-13
+generated: 2026-09-14
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-13
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 169 | 764 | 1288 | 57 | 0 |
+| 170 | 770 | 1296 | 58 | 2 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -89,6 +89,7 @@ generated: 2026-09-13
 | [[js.log-export-dialog\|js/log-export-dialog.js]] | 「ログを保存」のタブ選択ダイアログ。 | 1 | 1 |
 | [[js.log-export\|js/log-export.js]] | チャットログを「読み物として読めるHTML」へ書き出す。 | 1 | 1 |
 | [[js.main\|js/main.js]] |  | 0 | 0 |
+| [[js.marker-style\|js/marker-style.js]] | 簡易マーカー（色と形だけで描くパネル。js/store/panels.jsのnormalizeMarker）の見た目を、 1つの要素へ当てる。 | 3 | 2 |
 | [[js.mobile-layout\|js/mobile-layout.js]] | 狭幅（スマホ）向けの縦積みレイアウト。 | 1 | 1 |
 | [[js.net-chunk\|js/net-chunk.js]] | DataChannelで大きなメッセージを運ぶための分割と組み直し。 | 5 | 2 |
 | [[js.net-host-rules\|js/net-host-rules.js]] | ホスト権威P2Pのホスト役（js/net-host.js）が使う判定そのもの。連打よけ・記入中の集計・入室メッセージの重複判定・控えを送る間引き。サーバーと共有する上限もここに置く。 | 9 | 3 |
@@ -137,7 +138,7 @@ generated: 2026-09-13
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
-| [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 1 | 1 |
+| [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] |  | 3 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |
 | [[js.room-authority-rules\|js/room-authority-rules.js]] | 「部屋そのものを左右する操作をしてよいのは誰か」の規則そのもの。 | 2 | 3 |
@@ -179,7 +180,7 @@ generated: 2026-09-13
 | [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 10 | 1 |
 | [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 10 | 10 |
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
-| [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）と「簡易マーカー」（marker）の形と、その正規化。 | 10 | 4 |
+| [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）と「簡易マーカー」（marker）の形と、その正規化。 | 11 | 4 |
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 9 | 16 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
@@ -212,3 +213,10 @@ generated: 2026-09-13
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |
 | [[js.visibility\|js/visibility.js]] | 11 |
+
+## 散文が要更新
+
+export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
+
+- [[js.parameters.sheet-source\|js/parameters/sheet-source.js]]
+- [[js.parameters.stella-knights\|js/parameters/stella-knights.js]]

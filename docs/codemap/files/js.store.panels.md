@@ -1,11 +1,11 @@
 ---
 source: js/store/panels.js
-lines: 177
-exports: 10
+lines: 205
+exports: 11
 imported_by: 4
-api_sha: 8c234dff01e0
-prose_sha: 8c234dff01e0
-generated: 2026-09-13
+api_sha: b68054ac62cd
+prose_sha: b68054ac62cd
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-パネルの項目のうち、外から来た値をそのまま使うと危ないものの検証を集めた場所。clickAction は押すと何かが起きるので normalizeClickAction、marker は色と種類がCSSへ渡るので normalizeMarker で形を絞る（種類はSetで持ちキー参照しない）。hydrate（[[js.game-store]]）は normalizePanels で両方を通し、ADD_PANEL・SET_PANEL_CLICK_ACTION（[[js.store.handlers.board]]）と SET_PANEL_MARKER もここを使う。見た目への変換は [[js.marker-style]]、押したときの実行は [[js.board-data-driven]] が持つ。
+パネルの項目のうち、外から来た値をそのまま使うと危ないものの検証を集めた場所。clickAction は押すと何かが起きるので normalizeClickAction、marker は色と種類がCSSへ渡るので normalizeMarker で形を絞る（種類はSetで持ちキー参照しない）。hydrate（[[js.game-store]]）は normalizePanels で両方を通し、ADD_PANEL・SET_PANEL_CLICK_ACTION（[[js.store.handlers.board]]）と SET_PANEL_MARKER もここを使う。複製（パネルメニューの「複製」）で投げる ADD_PANEL の payload も buildPanelCopyPayload としてここで組む（位置・id以外を引き継ぎ、固定は外す。ストッカー化は呼び出し側が続ける）。見た目への変換は [[js.marker-style]]、押したときの実行とメニューは [[js.board-data-driven]] が持つ。
 <!-- /prose:role -->
 
-## export（10）
+## export（11）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -34,9 +34,10 @@ tags: [codemap]
 | 105 | const | DEFAULT_MARKER | `DEFAULT_MARKER` |  |
 | 125 | fn | normalizeMarker | `normalizeMarker(value)` | markerを正規化する。 |
 | 143 | fn | sameMarker | `sameMarker(a, b)` | 2つのmarkerが同じ見た目か（正規化済みの値どうしを比べる） |
-| 154 | fn | normalizePanels | `normalizePanels(panels)` | パネルのマップを、clickActionとmarkerだけ正規化して返す。 |
+| 162 | fn | buildPanelCopyPayload | `buildPanelCopyPayload(panel, { id, x, y })` | パネルの「複製」（js/board-data-driven.jsのパネルメニュー）で投げるADD_PANELのpayloadを組む。 |
+| 182 | fn | normalizePanels | `normalizePanels(panels)` | パネルのマップを、clickActionとmarkerだけ正規化して返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（5）
+## トップレベル関数（LOCAL TASKS 候補）（6）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -47,7 +48,8 @@ tags: [codemap]
 | 112 | clampInt | `clampInt(value, min, max, fallback)` | 5 |  |
 | 125 | normalizeMarker | `normalizeMarker(value)` | 16 | ✓ |
 | 143 | sameMarker | `sameMarker(a, b)` | 6 | ✓ |
-| 154 | normalizePanels | `normalizePanels(panels)` | 23 | ✓ |
+| 162 | buildPanelCopyPayload | `buildPanelCopyPayload(panel, { id, x, y })` | 15 | ✓ |
+| 182 | normalizePanels | `normalizePanels(panels)` | 23 | ✓ |
 
 ## 依存
 

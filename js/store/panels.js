@@ -148,6 +148,34 @@ export function sameMarker(a, b) {
 }
 
 /**
+ * パネルの「複製」（js/board-data-driven.jsのパネルメニュー）で投げるADD_PANELのpayloadを組む。
+ * 位置とid以外の見た目・振る舞いはそのまま引き継ぐ。
+ *
+ * - lockedは引き継がない：固定のまま元の上に重なって出ると、その上のドラッグが盤面パンに
+ *   吸われて複製を動かせないため。
+ * - ストッカーかどうかはADD_PANELが持たないので、呼び出し側がSET_PANEL_STOCKERで続ける。
+ *   中のカードは複製しない（カードは1枚1実体）。
+ *
+ * @param {object} panel 複製元
+ * @param {{ id: string, x: number, y: number }} placement
+ */
+export function buildPanelCopyPayload(panel, { id, x, y }) {
+  return {
+    id, x, y,
+    image: panel.image ?? null,
+    text: panel.text || '',
+    cols: panel.cols,
+    rows: panel.rows,
+    locked: false,
+    textAudience: panel.textAudience ?? null,
+    keepOnSceneChange: !!panel.keepOnSceneChange,
+    stackOrder: panel.stackOrder,
+    clickAction: panel.clickAction ?? null,
+    marker: panel.marker ?? null
+  };
+}
+
+/**
  * パネルのマップを、clickActionとmarkerだけ正規化して返す。hydrateから通す。
  * 変わるものが1つも無ければ元の参照をそのまま返す（差分検知に使っているため）。
  */

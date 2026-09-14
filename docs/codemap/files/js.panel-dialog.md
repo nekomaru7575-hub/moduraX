@@ -5,7 +5,7 @@ exports: 1
 imported_by: 1
 api_sha: 182320ce1626
 prose_sha: 182320ce1626
-generated: 2026-09-13
+generated: 2026-09-14
 tags: [codemap]
 ---
 
@@ -41,7 +41,7 @@ tags: [codemap]
 
 ## 依存
 
-- import → [[js.aspect-lock-field]], [[js.dialog-host]], [[js.image-dimensions]], [[js.image-field]], [[js.store.panels]]
+- import → [[js.aspect-lock-field]], [[js.dialog-host]], [[js.image-dimensions]], [[js.image-field]], [[js.marker-style]], [[js.store.panels]]
 - imported by → [[js.board-data-driven]]
 
 ## 注意

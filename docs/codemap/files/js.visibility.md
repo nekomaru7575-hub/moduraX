@@ -2,7 +2,7 @@
 source: js/visibility.js
 lines: 121
 exports: 9
-imported_by: 12
+imported_by: 13
 api_sha: 6eb71a2f606d
 prose_sha: 6eb71a2f606d
 generated: 2026-09-14
@@ -55,7 +55,7 @@ storeにも DOM にも触らない純粋関数だけを置くこと。状態を�
 ## 依存
 
 - import → なし
-- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.info-panel]], [[js.log-export]], [[js.main]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]], [[js.room-authority]]
+- imported by → [[js.audience-picker]], [[js.board-data-driven]], [[js.character-dialog]], [[js.character-panel]], [[js.check-view.dice-draft-view]], [[js.info-panel]], [[js.log-export]], [[js.main]], [[js.parameters.futarisousa]], [[js.parameters.shinobigami-ougi-box]], [[js.parameters.shinobigami]], [[js.parameters.stella-knights]], [[js.room-authority]]
 
 ## 注意
 

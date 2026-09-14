@@ -20,13 +20,17 @@ const CHARGE_COMMAND_HINT_PATTERN = /^charge\(\s*\d*\s*\)$/i;
 const PETIT_LUCKY_COMMAND_PATTERN = /^プチラッキー\(\s*(\d+)\s*[>＞]\s*(\d+)\s*\)$/;
 const PETIT_LUCKY_COST_PER_STEP = 3;
 
-// ブーケを払うだけのコマンド（下の runBouquetSpend）。
-// ダイス追加(n) … 1個につき4、nは3個まで。リロール … 一律5。
-// プールも出目も動かさないのは、卓が実際にどう振り直すかまでは決めないため
-// （プールへ目を足したいときはCore共通の dice.add、目を変えるなら dice.change がある）。
-const DICE_ADD_COMMAND_PATTERN = /^ダイス追加\(\s*(\d+)\s*\)$/;
+// ダイス追加(n) / ダイス追加(n>コマ名) … ブーケを1個につき4払い、アタックダイス補正(DB)に
+// +n のバフ（判定終了で消滅）を付ける。nは3個まで。払うのはコマンドを打ったコマで、
+// 「>コマ名」を書くとバフだけがそのコマへ付く（下の runDiceAdd）。区切りは全角の＞も受ける。
+// 名前は後ろの空白を落として完全一致で引く（チャットの「バフ>コマ名(...)」と同じ）。
+const DICE_ADD_COMMAND_PATTERN = /^ダイス追加\(\s*(\d+)\s*(?:[>＞]\s*(.+?)\s*)?\)$/;
 const DICE_ADD_COST_PER_DIE = 4;
 const DICE_ADD_MAX_COUNT = 3;
+const DICE_ADD_BUFF_NAME = 'ダイス追加';
+// リロール … ブーケを一律5払うだけ（下の runReroll）。
+// プールも出目も動かさないのは、卓が実際にどう振り直すかまでは決めないため
+// （振り直した目をプールへ入れたいときはCore共通の dice.add / dice.change、charge を使う）。
 // リロールは引数を取らないが、他のコマンドと揃えて「リロール()」の形も受ける。
 const REROLL_COMMAND_PATTERN = /^リロール(?:\(\s*\))?$/;
 const REROLL_COST = 5;
@@ -96,7 +100,7 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
 });
 
 // --- コマのパラメータ ---
-// どれも手で増減させる値なので editable:true。locked:true は削除させないためと、
+// DB以外は手で増減させる値なので editable:true。locked:true は削除させないためと、
 // 既にこのシステムで動いている部屋のコマにも後から補完させるため
 // （js/parameters/registry.jsのwithMissingPluginParameters）。
 //
@@ -109,9 +113,18 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
 // （下のルーム変数）とは別物で、あちらはブーケのスタンプが押された回数の集計、
 // こちらは各コマの持ち点。paramIdもラベルも違うので、チャットの
 // {ブーケ} / {ブーケ合計} も取り違えない。
+//
+// アタックダイス補正(DB)はバフ/デバフの受け取り口。手では動かさない（editable:false）し、
+// 常に0の行が一覧に増えても邪魔なだけなので出さない（visible:false）。
+// ダブルクロスの判定のように自動でダイス数へ足す仕組みは無く、卓がこの値を読んで振る
+// （charge の個数にも足さない）。値は更新画面に読むだけの行で出す。
+// キーが短いのはバフ()コマンドの都合。ラベルに「(」を含むパラメータはキー名で指定する仕様
+// （js/main.jsのtryHandleBuffCommand）なので、「バフ(名前,DB,+1,判定)」と書ける
+// （js/parameters/dracurouge.jsの目標値修正(TB)と同じ）。
 const DEFENSE_PARAM_ID = 'STELLA_KNIGHTS:defense';
 const CHARGE_PARAM_ID = 'STELLA_KNIGHTS:charge';
 const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
+const ATTACK_DICE_BONUS_PARAM_ID = 'STELLA_KNIGHTS:DB';
 
 // 耐久力はCoreの既定パラメータ（HP）を流用し、ラベルだけ「耐久力」へ差し替える
 // （renameHpToEndurance。js/parameters/dracurouge.jsの「存在点」と同じやり方）。
@@ -143,7 +156,8 @@ const CHARACTER_PARAMETERS = [
   { key: 'charType', label: '種別', value: CHAR_TYPE_BRINGER, visible: false, locked: true, editable: true },
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
-  { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true }
+  { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true },
+  { key: 'DB', label: 'アタックダイス補正(DB)', value: 0, visible: false, locked: true, editable: false }
 ];
 
 export function buildStellaKnightsCharacterParameters() {
@@ -290,7 +304,7 @@ function renameHpToEndurance({ readParameters, dispatch, tokenId }) {
 
 function renderStellaKnightsCharacterPanel({
   container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents,
-  dispatch, getToken, tokenId, myParticipantId = null
+  dispatch, getToken, getEffectiveParameterValue, tokenId, myParticipantId = null
 }) {
   container.innerHTML = '';
 
@@ -399,6 +413,26 @@ function renderStellaKnightsCharacterPanel({
 
       return { paramId, input };
     });
+
+    // --- アタックダイス補正(DB)（読むだけ）---
+    // 動かすのはバフ/デバフだけなので入力欄は出さない（getValuesにも入れない＝基礎値を潰さない）。
+    // それでも今いくつ乗っているかは見えないと困るので、実効値を文字で出す
+    // （js/parameters/dracurouge.jsの目標値修正(TB)と同じ見せ方）。能力を持たない種別には出さない。
+    if (rule.dice) {
+      const bonusRow = makeRow(list, current[ATTACK_DICE_BONUS_PARAM_ID]?.label
+        ?? PARAM_FALLBACK_LABELS.get(ATTACK_DICE_BONUS_PARAM_ID));
+      const bonusValue = document.createElement('span');
+      bonusValue.style.alignSelf = 'center';
+      bonusValue.style.color = 'var(--text-body-strong)';
+      bonusValue.style.fontSize = '0.85rem';
+      bonusValue.title = 'バフ/デバフで増減します。「ダイス追加(n)」でも付きます';
+      const token = getToken?.() ?? null;
+      const bonus = Number(token && getEffectiveParameterValue
+        ? getEffectiveParameterValue(token, ATTACK_DICE_BONUS_PARAM_ID)
+        : current[ATTACK_DICE_BONUS_PARAM_ID]?.value) || 0;
+      bonusValue.textContent = `${bonus > 0 ? '+' : ''}${bonus}（バフ/デバフで増減）`;
+      bonusRow.appendChild(bonusValue);
+    }
 
     // NPCのスキルは持ち主以外にはボタンごと出さない（シノビガミの忍具と同じ。件数も伏せる）。
     // 判定はプルダウンで選んでいる種別で行う（保存前でも見え方を確かめられるように）
@@ -542,52 +576,18 @@ function runPetitLucky(input, { token, dispatch }) {
   return true;
 }
 
-/**
- * ブーケを払うだけのコマンド（ダイス追加(n) / リロール）。
- *
- * プールにも出目にも触れず、対価の支払いと残高の記録だけを引き受ける。実際にダイスを
- * 足したり振り直したりするのは卓の運用に任せる（必要ならCore共通の dice.add / dice.change、
- * charge を使う）。プチラッキーと違って「払ったのに効果が出ない」の心配が無いぶん、
- * 順番に気を遣う必要も無い。
- *
- * @returns {boolean} このコマンドとして処理したか（書式が違えばfalse）
- */
-function runBouquetSpend(input, { token, dispatch }) {
-  const diceAdd = input.match(DICE_ADD_COMMAND_PATTERN);
-  const reroll = input.match(REROLL_COMMAND_PATTERN);
-  if (!diceAdd && !reroll) return false;
-
-  if (!token) {
-    alert('キャラクターを選択してください。');
-    return true;
-  }
-
-  let label;
-  let cost;
-  if (diceAdd) {
-    const count = Number(diceAdd[1]);
-    if (count < 1 || count > DICE_ADD_MAX_COUNT) {
-      alert(`ダイス追加の個数は 1〜${DICE_ADD_MAX_COUNT} で指定してください。`);
-      return true;
-    }
-    label = `ダイス追加: ${count}個`;
-    cost = count * DICE_ADD_COST_PER_DIE;
-  } else {
-    label = 'リロール';
-    cost = REROLL_COST;
-  }
-
-  // 読むのも書くのも基礎値（runPetitLuckyと同じ理由。docs/plugin-guide.mdの7章）。
+// ブーケの残高を確かめる。足りなければ理由を出してnull、足りれば今の残高を返す。
+// 読むのも書くのも基礎値（runPetitLuckyと同じ理由。docs/plugin-guide.mdの7章）。
+function readPayableBouquet(token, cost) {
   const current = Number(token.parameters?.[BOUQUET_PARAM_ID]?.value) || 0;
   if (current - cost < 0) {
     alert(`ブーケが足りません（必要 ${cost} / 現在 ${current}）。`);
-    return true;
+    return null;
   }
+  return current;
+}
 
-  dispatch('SET_PARAMETER', {
-    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
-  });
-
+function logBouquetSpend(dispatch, token, input, lines) {
   dispatch('ADD_CHAT_MESSAGE', {
     tabId: MAIN_TAB_ID,
     entry: {
@@ -596,9 +596,119 @@ function runBouquetSpend(input, { token, dispatch }) {
       characterId: token.id || null,
       color: token.textColor || null,
       command: input,
-      resultText: `${label}\nブーケ -${cost}（${current} → ${current - cost}）`
+      resultText: lines.join('\n')
     }
   });
+}
+
+/**
+ * ダイス追加(n) / ダイス追加(n>コマ名)。ブーケを1個につき4払い、アタックダイス補正(DB)へ
+ * +n のバフ（判定終了で消滅）を付ける。払うのは打ったコマ、バフが付くのは名前を書けばそのコマ。
+ *
+ * DBは自動でダイス数へ足されない。卓がこの値を読んでアタック判定を振り、そのロールで
+ * このバフは剥がれる（js/main.jsの「判定終了で消滅」バフの剥がし）。
+ *
+ * 【順番が要】状態を1つも変えないうちに断る理由を全部見る（個数・対象・シース・残高）。
+ * 途中で断ると「ブーケだけ減ってバフが付かない」が起きる。
+ *
+ * @returns {boolean} このコマンドとして処理したか（書式が違えばfalse）
+ */
+function runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId }) {
+  const match = input.match(DICE_ADD_COMMAND_PATTERN);
+  if (!match) return false;
+
+  if (!token) {
+    alert('キャラクターを選択してください。');
+    return true;
+  }
+
+  const count = Number(match[1]);
+  if (count < 1 || count > DICE_ADD_MAX_COUNT) {
+    alert(`ダイス追加の個数は 1〜${DICE_ADD_MAX_COUNT} で指定してください。`);
+    return true;
+  }
+
+  const targetName = match[2];
+  let target = token;
+  if (targetName !== undefined) {
+    if (typeof findTokenByName !== 'function') {
+      alert('この画面では他のコマを指定できません。部屋の中で実行してください。');
+      return true;
+    }
+    target = findTokenByName(targetName);
+    if (!target) {
+      alert(`コマ「${targetName}」が見つかりません。`);
+      return true;
+    }
+  }
+
+  // シースは能力を持たないので、DBのバフも受け取れない（打ったコマのシースはハンドラの頭で断っている）
+  if (!rulesOf(target).dice) {
+    alert(`${target.name}はシースなので、ダイス追加のバフを付けられません。`);
+    return true;
+  }
+  if (typeof generateBuffId !== 'function') {
+    alert('この画面ではバフを付けられません。部屋の中で実行してください。');
+    return true;
+  }
+
+  const cost = count * DICE_ADD_COST_PER_DIE;
+  const current = readPayableBouquet(token, cost);
+  if (current === null) return true;
+
+  dispatch('SET_PARAMETER', {
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
+  });
+
+  // DBが入る前に作られたコマは、状態にまだDBの値を持たない（宣言からの補完は、パラメータが
+  // 何か動いたときに初めて走る）。持たないままバフを付けても実効値が読めないので、先に補わせる。
+  // IMPORT_CHARACTER_DATAは中身を渡さなければ、宣言の補完と自動計算だけを通す。
+  if (!target.parameters?.[ATTACK_DICE_BONUS_PARAM_ID]) {
+    dispatch('IMPORT_CHARACTER_DATA', { id: target.id });
+  }
+
+  dispatch('ADD_BUFF', {
+    tokenId: target.id,
+    id: generateBuffId(),
+    name: DICE_ADD_BUFF_NAME,
+    paramId: ATTACK_DICE_BONUS_PARAM_ID,
+    delta: count,
+    expirePhase: 'check'
+  });
+
+  // 誰に付いたかは、自分に付けたときも書く（「>コマ名」を書き忘れたのに気づけるように）
+  logBouquetSpend(dispatch, token, input, [
+    `ダイス追加: ${count}個 → ${target.name}のアタックダイス補正(DB) +${count}（判定終了で消滅）`,
+    `ブーケ -${cost}（${current} → ${current - cost}）`
+  ]);
+
+  return true;
+}
+
+/**
+ * リロール。ブーケを払うだけで、プールにも出目にも触れない
+ * （実際に振り直すのは卓の運用に任せる。必要なら charge / dice.add / dice.change）。
+ *
+ * @returns {boolean} このコマンドとして処理したか（書式が違えばfalse）
+ */
+function runReroll(input, { token, dispatch }) {
+  if (!REROLL_COMMAND_PATTERN.test(input)) return false;
+
+  if (!token) {
+    alert('キャラクターを選択してください。');
+    return true;
+  }
+
+  const current = readPayableBouquet(token, REROLL_COST);
+  if (current === null) return true;
+
+  dispatch('SET_PARAMETER', {
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - REROLL_COST
+  });
+  logBouquetSpend(dispatch, token, input, [
+    'リロール',
+    `ブーケ -${REROLL_COST}（${current} → ${current - REROLL_COST}）`
+  ]);
 
   return true;
 }
@@ -621,7 +731,9 @@ function readImplicitChargeCount(token, roomParameters, getEffectiveParameterVal
 // 個数の検証・コマ未選択・ダイスを振れない画面の案内は runDiceDraftRoll がまとめて行うので、
 // ここは書式の判定と、個数を書かない形の個数を決めることだけをする。
 function handleStellaKnightsChatCommand(
-  rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters }
+  rawInput, {
+    token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters, findTokenByName, generateBuffId
+  }
 ) {
   const input = String(rawInput).trim();
 
@@ -636,7 +748,8 @@ function handleStellaKnightsChatCommand(
   }
 
   if (runPetitLucky(input, { token, dispatch })) return true;
-  if (runBouquetSpend(input, { token, dispatch })) return true;
+  if (runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })) return true;
+  if (runReroll(input, { token, dispatch })) return true;
 
   const match = input.match(CHARGE_COMMAND_PATTERN);
   if (!match) return false;

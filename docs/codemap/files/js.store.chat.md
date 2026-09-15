@@ -2,10 +2,10 @@
 source: js/store/chat.js
 lines: 103
 exports: 9
-imported_by: 6
+imported_by: 7
 api_sha: d279cb20df81
 prose_sha: d279cb20df81
-generated: 2026-09-14
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -52,7 +52,7 @@ _(未記入)_
 ## 依存
 
 - import → [[js.store.audio]], [[js.store.patch]]
-- imported by → [[js.game-store]], [[js.store.handlers.audio]], [[js.store.handlers.buffs]], [[js.store.handlers.chat]], [[js.store.handlers.round]], [[js.store.handlers.scenes]]
+- imported by → [[js.game-store]], [[js.store.handlers.audio]], [[js.store.handlers.buffs]], [[js.store.handlers.chat]], [[js.store.handlers.room]], [[js.store.handlers.round]], [[js.store.handlers.scenes]]
 
 ## 注意
 

@@ -83,3 +83,15 @@ export function generateInfoSectionId() {
   infoSectionIdCounter += 1;
   return `info-section-${Date.now()}-${infoSectionIdCounter}`;
 }
+
+let roomExtensionItemIdCounter = 0;
+
+// 拡張ルーム設定の中の1件（ステラナイツの始まりの部屋の1回の発動など）のid。
+// 誰でも同時に発動できるので、別のブラウザが同じミリ秒に作っても重ならないよう乱数も混ぜる
+// （重なるとreducerが後の方を「既にある」として捨て、発動が1回ぶん消える）。
+// generateBuffIdと同じく、呼び出し側で作ってpayloadに載せること。
+export function generateRoomExtensionItemId() {
+  roomExtensionItemIdCounter += 1;
+  const random = Math.random().toString(36).slice(2, 8);
+  return `roomext-${Date.now()}-${roomExtensionItemIdCounter}-${random}`;
+}

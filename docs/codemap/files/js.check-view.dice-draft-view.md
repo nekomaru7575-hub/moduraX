@@ -1,11 +1,11 @@
 ---
 source: js/check-view/dice-draft-view.js
-lines: 562
+lines: 600
 exports: 1
 imported_by: 1
 api_sha: 05b9b1af510f
 prose_sha: 05b9b1af510f
-generated: 2026-09-14
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -35,7 +35,7 @@ tags: [codemap]
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
 | 55 | renderDieFace | `renderDieFace(die)` | 35 |  |
-| 99 | createDiceDraftView | `createDiceDraftView()` | **463** | ✓ |
+| 99 | createDiceDraftView | `createDiceDraftView()` | **501** | ✓ |
 
 ## 依存
 

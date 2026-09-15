@@ -1,11 +1,11 @@
 ---
 source: js/check-panel.js
-lines: 263
+lines: 264
 exports: 1
 imported_by: 1
 api_sha: 4661efefbe14
 prose_sha: 4661efefbe14
-generated: 2026-09-14
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -34,11 +34,11 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 36 | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | **227** | ✓ |
+| 36 | initCheckPanel | `initCheckPanel({ onCharacterChange = null } = {})` | **228** | ✓ |
 
 ## 依存
 
-- import → [[js.BCdice]], [[js.EventBus]], [[js.board-data-driven]], [[js.check-view.index]], [[js.floating-panel]], [[js.local-identity]], [[js.parameters.registry]], [[js.room-authority]]
+- import → [[js.EventBus]], [[js.board-data-driven]], [[js.check-view.index]], [[js.floating-panel]], [[js.local-identity]], [[js.parameters.registry]], [[js.room-authority]], [[js.room-roll]]
 - imported by → [[js.main]]
 
 ## 注意

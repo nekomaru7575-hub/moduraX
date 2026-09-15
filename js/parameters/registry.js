@@ -387,6 +387,126 @@ export function getPluginDiceDraftSpec(pluginId) {
   return PLUGINS[pluginId]?.diceDraft ?? null;
 }
 
+// ------------------------------------------------------------------
+// 拡張ルーム設定（room.extensions）
+// ------------------------------------------------------------------
+// 部屋全体に掛かる、そのシステム固有の設定・効果の置き場（ステラナイツの「始まりの部屋」）。
+// 形は { [pluginId]: { [key]: value } }。何を持つかはプラグインの roomExtensions が宣言し、
+// Coreは中身を解釈しない。更新は値を丸ごと送らず「操作」で送る（UPDATE_ROOM_EXTENSION）ので、
+// 2人が同時に書いても片方が消えない。
+//
+// 宣言の形:
+//   roomExtensions: [{
+//     key, label,
+//     normalize(value),                 保存データ・取り込んだJSONを正規形へ（信用しない入力）
+//     reduce(value, op, args),          → { value, logText } | null（nullなら何もしない）
+//     resetOnPhaseEnd?(value, phase),   → { value, logText }（変わらなければ同じ参照）
+//     renderSection({ container, value, dispatchOp, roundActive })  「⋯」→「拡張ルーム設定」の欄
+//   }]
+
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function ownValue(object, key) {
+  return isPlainObject(object) && Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined;
+}
+
+/**
+ * その部屋のシステムが宣言した拡張ルーム設定の一覧。
+ * @param {string|null} pluginId
+ * @returns {object[]}
+ */
+export function listPluginRoomExtensions(pluginId) {
+  return PLUGINS[pluginId]?.roomExtensions ?? [];
+}
+
+/**
+ * 保存データ・取り込んだ部屋データの room.extensions を整える。
+ * 知らないプラグイン・宣言の無いキーは落とし、値は各宣言の normalize を通す。
+ * システムを切り替えても前のシステムの分は残す（戻したときに消えていないように）。
+ */
+export function normalizePluginRoomExtensions(raw) {
+  const result = {};
+  if (!isPlainObject(raw)) return result;
+  Object.entries(PLUGINS).forEach(([pluginId, plugin]) => {
+    const data = ownValue(raw, pluginId);
+    if (!isPlainObject(data)) return;
+    const entries = {};
+    (plugin.roomExtensions ?? []).forEach(def => {
+      const value = ownValue(data, def.key);
+      if (value !== undefined) entries[def.key] = def.normalize(value);
+    });
+    if (Object.keys(entries).length > 0) result[pluginId] = entries;
+  });
+  return result;
+}
+
+/** そのシステムの拡張ルーム設定の値（無ければ正規形の空） */
+export function readPluginRoomExtension(extensions, pluginId, key) {
+  const def = listPluginRoomExtensions(pluginId).find(entry => entry.key === key);
+  if (!def) return undefined;
+  return def.normalize(ownValue(ownValue(extensions, pluginId), key));
+}
+
+/**
+ * 拡張ルーム設定への操作を、今の状態に当てる（UPDATE_ROOM_EXTENSION）。
+ * @returns {{ extensions: object, logText: string }|null} 何もしないならnull
+ */
+export function reducePluginRoomExtension(pluginId, extensions, key, op, args) {
+  const def = listPluginRoomExtensions(pluginId).find(entry => entry.key === key);
+  if (!def || typeof op !== 'string') return null;
+  const reduced = def.reduce(readPluginRoomExtension(extensions, pluginId, key), op, args ?? {});
+  if (!reduced) return null;
+  return {
+    extensions: withPluginRoomExtensionValue(extensions, pluginId, key, def.normalize(reduced.value)),
+    logText: reduced.logText || ''
+  };
+}
+
+function withPluginRoomExtensionValue(extensions, pluginId, key, value) {
+  const base = isPlainObject(extensions) ? extensions : {};
+  return { ...base, [pluginId]: { ...(ownValue(base, pluginId) ?? {}), [key]: value } };
+}
+
+/**
+ * フェーズ終了（ラウンド終了など）で、拡張ルーム設定の後始末をさせる。
+ * 呼ぶのは適用中のシステムの分だけ。フェーズの入れ子はCore側（js/store/buffs.js）が1段ずつ渡す。
+ * @returns {{ extensions: object, logTexts: string[] }} 変化が無ければ extensions は同じ参照
+ */
+export function resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase) {
+  let next = extensions;
+  const logTexts = [];
+  listPluginRoomExtensions(pluginId).forEach(def => {
+    if (!def.resetOnPhaseEnd) return;
+    const current = ownValue(ownValue(next, pluginId), def.key);
+    if (current === undefined) return;
+    const reset = def.resetOnPhaseEnd(current, phase);
+    if (!reset || reset.value === current) return;
+    next = withPluginRoomExtensionValue(next, pluginId, def.key, def.normalize(reset.value));
+    if (reset.logText) logTexts.push(reset.logText);
+  });
+  return { extensions: next, logTexts };
+}
+
+/**
+ * BCDiceのロール結果を、そのシステムの部屋の効果に合わせて書き換えさせる
+ * （ステラナイツの始まりの部屋で出目を変える）。呼ぶのは js/room-roll.js だけ。
+ * @param {string|null} pluginId
+ * @param {{ command: string, result: object, extensions: object }} context
+ *   extensions は room.extensions 全体（プラグインは自分の分を読む）
+ * @returns {object} 書き換えた結果（変えないなら同じ参照）
+ */
+export function applyPluginRollTransform(pluginId, { command, result, extensions }) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.transformRollResult || !result?.success) return result;
+  const own = {};
+  (plugin.roomExtensions ?? []).forEach(def => {
+    own[def.key] = def.normalize(ownValue(ownValue(extensions, pluginId), def.key));
+  });
+  return plugin.transformRollResult({ command, result, extensions: own }) ?? result;
+}
+
 // 拡張判定UI：記述子のどのキーを宣言したかで、どのビューで描くかが決まる。
 // プラグインは「自分がどの判定UIを使うか」を宣言するだけで、中身をCoreは解釈しない。
 // ビューの実体は js/check-view/ にあり、この表の view はそちらのキーと揃える。

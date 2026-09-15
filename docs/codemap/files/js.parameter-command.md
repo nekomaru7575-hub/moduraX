@@ -1,11 +1,11 @@
 ---
 source: js/parameter-command.js
-lines: 129
-exports: 5
+lines: 168
+exports: 7
 imported_by: 1
-api_sha: c87c51f41106
-prose_sha: c87c51f41106
-generated: 2026-09-14
+api_sha: 8898784fee61
+prose_sha: 8898784fee61
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -18,32 +18,35 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-_(未記入)_
+チャットの「+HP(3)」「=メモ(集合済み)」「+HP,-t.HP(1D6)」のようなパラメータ変更コマンドを、DOMもstoreも触らずに解釈する。名前の引き当て（参照キャラクター → ルーム変数の順）・ターゲットを指す「t.」の剥がし・かっこの中身の分類（数値／ダイス式／文字列）・変更後の値の計算までを持ち、ダイスを振ること・dispatch・ログの組み立ては [[js.main]] の tryHandleParameterCommand が行う。
 <!-- /prose:role -->
 
-## export（5）
+## export（7）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 22 | fn | toNumericValue | `toNumericValue(value)` | 値を数値として読めればNumberを、読めなければnullを返す。 |
-| 35 | fn | classifyAmount | `classifyAmount(raw)` | かっこの中身を、数値・ダイス式・文字列のどれかに分ける。 |
-| 44 | fn | parseParameterTargets | `parseParameterTargets(rawTargets)` | "+HP,-MP" のようなカンマ区切りの指定を { operator, name } の配列に分解する。 |
-| 68 | fn | resolveParameterCommand | `resolveParameterCommand({ rawInput, character, roomParameters })` | コマンド文字列を解釈し、対象と値を確定させる。 |
-| 124 | fn | computeNextValue | `computeNextValue(operator, before, amount)` | 変更後の値。 |
+| 22 | const | TARGET_PARAMETER_PREFIX | `TARGET_PARAMETER_PREFIX` | ターゲットを指す名前の頭。 |
+| 29 | fn | stripTargetPrefix | `stripTargetPrefix(name)` | 「t.HP」ならターゲットを指す名前として「HP」を、そうでなければnullを返す。 |
+| 40 | fn | toNumericValue | `toNumericValue(value)` | 値を数値として読めればNumberを、読めなければnullを返す。 |
+| 53 | fn | classifyAmount | `classifyAmount(raw)` | かっこの中身を、数値・ダイス式・文字列のどれかに分ける。 |
+| 62 | fn | parseParameterTargets | `parseParameterTargets(rawTargets)` | "+HP,-MP" のようなカンマ区切りの指定を { operator, name } の配列に分解する。 |
+| 89 | fn | resolveParameterCommand | `resolveParameterCommand({ rawInput, character, target = null, roomParameters })` | コマンド文字列を解釈し、対象と値を確定させる。 |
+| 163 | fn | computeNextValue | `computeNextValue(operator, before, amount)` | 変更後の値。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（6）
+## トップレベル関数（LOCAL TASKS 候補）（7）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 22 | toNumericValue | `toNumericValue(value)` | 7 | ✓ |
-| 35 | classifyAmount | `classifyAmount(raw)` | 6 | ✓ |
-| 44 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 | ✓ |
-| 52 | findParamByName | `findParamByName(parameters, name)` | 3 |  |
-| 68 | resolveParameterCommand | `resolveParameterCommand({ rawInput, character, roomParameters })` | 49 | ✓ |
-| 124 | computeNextValue | `computeNextValue(operator, before, amount)` | 5 | ✓ |
+| 29 | stripTargetPrefix | `stripTargetPrefix(name)` | 5 | ✓ |
+| 40 | toNumericValue | `toNumericValue(value)` | 7 | ✓ |
+| 53 | classifyAmount | `classifyAmount(raw)` | 6 | ✓ |
+| 62 | parseParameterTargets | `parseParameterTargets(rawTargets)` | 7 | ✓ |
+| 70 | findParamByName | `findParamByName(parameters, name)` | 3 |  |
+| 89 | resolveParameterCommand | `resolveParameterCommand({ rawInput, character, target = null, roomParameters })` | 67 | ✓ |
+| 163 | computeNextValue | `computeNextValue(operator, before, amount)` | 5 | ✓ |
 
 ## 依存
 

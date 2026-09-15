@@ -14,7 +14,7 @@
 
 import { EventBus } from './EventBus.js';
 import { buildDefaultRoomParameters } from './parameters/core.js';
-import { buildRoomParameters, listPlugins } from './parameters/registry.js';
+import { buildRoomParameters, listPlugins, normalizePluginRoomExtensions } from './parameters/registry.js';
 import {
   normalizeCardBack, normalizeCardMap, normalizeDeckMap, normalizeDeckTemplateMap,
   withoutLostStockerCards
@@ -228,7 +228,10 @@ export class ImmutableStore {
         // この機能より前に保存された状態にはroom.scenesが無いため、既定値を補う
         scenes: newState.room?.scenes || {},
         // 同上、ラウンド進行の設定（イニシアチブプロセスを挟むか）も既定値を補う
-        roundSettings: newState.room?.roundSettings || { useInitiativeProcess: false }
+        roundSettings: newState.room?.roundSettings || { useInitiativeProcess: false },
+        // 拡張ルーム設定（ステラナイツの始まりの部屋など）。取り込んだ部屋データ（信用しないJSON）も
+        // ここを通るので、知らないシステム・キーを落とし、値の形は各プラグインの宣言で整える
+        extensions: normalizePluginRoomExtensions(newState.room?.extensions)
       }
     };
 
@@ -405,7 +408,12 @@ export function createInitialGameState({ name = '', activePlugin = null, bcdiceS
       // { [id]: { id, name, text, bgmTrackId, backgroundImage, backgroundImageKey,
       //           boardWidth, boardHeight, showGrid, panels } }
       // bgmTrackId は null=BGMを変えない / SCENE_BGM_STOP=止める / audioTracksのid=その曲。
-      scenes: {}
+      scenes: {},
+
+      // 拡張ルーム設定（「⋯」→「拡張ルーム設定」）。部屋全体に掛かる、システム固有の設定・効果。
+      // { [pluginId]: { [key]: value } }。何を持つかはプラグインの roomExtensions が宣言する
+      // （js/parameters/registry.js）。更新は UPDATE_ROOM_EXTENSION の操作で行う。
+      extensions: {}
     },
 
     tokens: {},

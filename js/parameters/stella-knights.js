@@ -6,6 +6,10 @@ import { runDiceDraftRoll } from './dice-draft/dice-draft-roll.js';
 import { runDiceChange } from './dice-draft/dice-draft-pool.js';
 import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
 import { canViewOwnerOnly } from '../visibility.js';
+import {
+  STARTING_ROOM_EXTENSION_MODEL, STARTING_ROOM_KEY, transformStellaKnightsRoll
+} from './stella-knights-starting-room.js';
+import { renderStartingRoomSection } from './stella-knights-starting-room-section.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 // charge(n) … n個振る。charge / charge() … 個数を書かない形で、チャットに
@@ -887,6 +891,15 @@ export const STELLA_KNIGHTS_PLUGIN = {
   looksLikeOwnChatCommand: looksLikeStellaKnightsChatCommand,
   resetComponentsOnPhaseEnd: resetStellaKnightsComponentsOnPhaseEnd,
   diceDraft: STELLA_KNIGHTS_DRAFT_SPEC,
+  // 「⋯」→「拡張ルーム設定」に出す、部屋全体に掛かる効果。
+  // 始まりの部屋：振ったd6の目aをbとして扱う（ラウンド終了まで。js/parameters/stella-knights-starting-room.js）
+  roomExtensions: [
+    { ...STARTING_ROOM_EXTENSION_MODEL, renderSection: renderStartingRoomSection }
+  ],
+  // 部屋の中で振ったダイスの結果に、始まりの部屋を当てる（js/room-roll.js から呼ばれる）
+  transformRollResult: ({ command, result, extensions }) => transformStellaKnightsRoll({
+    command, result, rules: extensions[STARTING_ROOM_KEY]?.rules ?? []
+  }),
   stamps: [
     {id:`bouquet`, label : `ブーケ`,file:`bouquet.png`}
   ],

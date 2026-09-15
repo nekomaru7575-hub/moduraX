@@ -6,7 +6,7 @@
 // 点呼(confirmation)はPL各自の意思表示なのでソフトな可視化のみで、進行操作は止めない。
 
 import { getRoundPhaseTemplate } from '../../parameters/registry.js';
-import { applyPhaseEnd, resetPluginComponentsForPhase } from '../buffs.js';
+import { applyPhaseEnd, applyRoomExtensionsPhaseEnd, resetPluginComponentsForPhase } from '../buffs.js';
 import { withSystemLog } from '../chat.js';
 import { usesInitiativeProcess, withDerivedRoomParameters } from '../room.js';
 import {
@@ -115,6 +115,8 @@ export const ROUND_HANDLERS = {
     const useInitiativeProcess = usesInitiativeProcess(prevState);
 
     let tokensForRound = nextTokensState;
+    // フェーズ完了で部屋の拡張ルーム設定が変わりうる（applyRoomExtensionsPhaseEnd）
+    let roomForRound = prevState.room;
     let phaseIndex = round.phaseIndex;
     let roundNumber = round.roundNumber;
     let acted = round.acted || [];
@@ -206,6 +208,10 @@ export const ROUND_HANDLERS = {
         const { tokens, logText } = applyPhaseEnd(tokensForRound, activePlugin, currentPhase.expirePhaseOnComplete);
         tokensForRound = tokens;
         logParts.push(logText);
+        // 部屋に掛かっている効果（ステラナイツの始まりの部屋）も同じ時に終わる
+        const extensionsEnd = applyRoomExtensionsPhaseEnd(roomForRound, activePlugin, currentPhase.expirePhaseOnComplete);
+        roomForRound = extensionsEnd.room;
+        if (extensionsEnd.logText) logParts.push(extensionsEnd.logText);
       }
 
       let nextPhaseIndex = phaseIndex + 1;
@@ -296,7 +302,7 @@ export const ROUND_HANDLERS = {
         // confirmationは手番/フェーズが進んでも維持する（「割り込みなし」の宣言は
         // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
       },
-      room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, nextRound),
+      room: withDerivedRoomParameters(roomForRound, prevState.stampCounts, nextRound),
       chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'), payload?.time)
     });
   },
@@ -563,6 +569,9 @@ export const ROUND_HANDLERS = {
     // バフの期限切れ（applyPhaseEnd）まで通さないのは、ここで消すと決めていない
     // 「ラウンド終了まで」のバフの扱いを、この変更で一緒に変えてしまわないため。
     let tokensAfterEnd = resetPluginComponentsForPhase(nextTokensState, activePlugin, 'round');
+    // 部屋に掛かっている「ラウンド終了まで」の効果（ステラナイツの始まりの部屋）は終わらせる。
+    // バフと違い、これは次の戦闘へ持ち越すと出目が変わったままになり、気づきにくいため
+    const extensionsEnd = applyRoomExtensionsPhaseEnd(prevState.room, activePlugin, 'round');
 
     // プロットから決まっていた値は平常時のものへ戻す。
     // 引き直しには「参加者が誰だったか」が要るので、終了後の空の状態ではなく
@@ -577,8 +586,12 @@ export const ROUND_HANDLERS = {
       tokens: tokensAfterEnd,
       round: clearedRound,
       // 進行が終われば「現在のラウンド」は0へ戻る
-      room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, clearedRound),
-      chatLogs: withSystemLog(prevState.chatLogs, `ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, payload?.time)
+      room: withDerivedRoomParameters(extensionsEnd.room, prevState.stampCounts, clearedRound),
+      chatLogs: withSystemLog(
+        prevState.chatLogs,
+        [`ラウンド進行を終了しました（合計${round.roundNumber}ラウンド）。`, extensionsEnd.logText].filter(Boolean).join('\n'),
+        payload?.time
+      )
     });
   },
 

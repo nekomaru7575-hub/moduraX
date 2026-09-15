@@ -5,7 +5,7 @@
 // 触れない。「シーンチェンジで残す」指定のパネルはどのシーンにも属さない。
 
 import { SCENE_BGM_STOP } from '../audio.js';
-import { applyPhaseEnd } from '../buffs.js';
+import { applyPhaseEnd, applyRoomExtensionsPhaseEnd } from '../buffs.js';
 import { releaseStockerCards } from '../cards.js';
 import { withBgmLog, withSystemLog, withSystemTabLog } from '../chat.js';
 import { normalizeImageRef } from '../images.js';
@@ -115,6 +115,8 @@ export const SCENES_HANDLERS = {
     // 前のシーンが終わったので、終了条件が「シーン」のバフ/デバフを消す（EXPIRE_BUFFSと同じ処理）。
     // シーンの内側であるラウンド/プロセス/判定のバフもここで一緒に消える。
     const { tokens, logText } = applyPhaseEnd(nextTokensState, activePlugin, 'scene');
+    // シーンが終われば、その内側のラウンドに掛かっていた部屋の効果（始まりの部屋）も終わる
+    const extensionsEnd = applyRoomExtensionsPhaseEnd(prevState.room, activePlugin, 'scene');
 
     // 触るのはパネルだけで、カード・デッキ（state.cards／state.decks）には手を付けない。
     // コマと同じ扱いで、引いた手札や場に出ている札が場面転換で巻き戻ったり消えたり
@@ -138,7 +140,7 @@ export const SCENES_HANDLERS = {
 
     commit({
       room: {
-        ...room,
+        ...extensionsEnd.room,
         // 背景に「シーンチェンジで残す」が付いている間は、背景・盤面サイズを上書きしない
         // （js/background-dialog.js）。フラグ自体は...roomに乗ってそのまま残る。
         ...(room.keepBackgroundOnSceneChange ? {} : {
@@ -159,7 +161,7 @@ export const SCENES_HANDLERS = {
       chatLogs: (() => {
         const afterScene = withSystemLog(
           withSystemTabLog(prevState.chatLogs, logText, payload.time),
-          `シーン「${scene.name}」を開始しました。`,
+          [extensionsEnd.logText, `シーン「${scene.name}」を開始しました。`].filter(Boolean).join('\n'),
           payload.time
         );
         if (nextBgm?.trackId === playback.bgm?.trackId) return afterScene;

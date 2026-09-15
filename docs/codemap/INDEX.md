@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-14
+generated: 2026-09-15
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-14
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 170 | 780 | 1307 | 57 | 1 |
+| 176 | 814 | 1356 | 56 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -38,7 +38,7 @@ generated: 2026-09-14
 | [[js.audio-player\|js/audio-player.js]] | 部屋の音楽（BGM・効果音）とシステム音（入室音・チャット送信音）の再生エンジン（UIは持たない。操作は[[js.audio-dialog]]側）。 | 10 | 4 |
 | [[js.background-dialog\|js/background-dialog.js]] | 盤面の「背景設定」ダイアログ。 | 1 | 1 |
 | [[js.bcdice-catalog\|js/bcdice-catalog.js]] | BCDiceの「システム一覧」と「システム情報（command_pattern / help_message）」を 取得するクライアント共通モジュール。 | 4 | 2 |
-| [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 3 |
+| [[js.BCdice\|js/BCdice.js]] | BCDice の公開 API を叩いてダイス判定を実行する唯一の口。 | 1 | 2 |
 | [[js.board-data-driven\|js/board-data-driven.js]] | 盤面（コマ・パネル・カード／デッキ・背景）の描画と操作を受け持つ、クライアント最大の UI 層。 | 13 | 8 |
 | [[js.boot-guard\|js/boot-guard.js]] | ページに必要なファイルが1本でも届かなかったとき、**利用者に分かる形で知らせる**。 | 0 | 0 |
 | [[js.buff-dialog\|js/buff-dialog.js]] | コマ（トークン）へのバフ/デバフの付与・一覧表示ダイアログ。 | 2 | 2 |
@@ -60,11 +60,12 @@ generated: 2026-09-14
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
-| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 39 |
+| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 40 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
+| [[js.dice-roll-recompute\|js/dice-roll-recompute.js]] | BCDiceで振った後に出目だけを差し替えたとき、結果の文字列をこちらで組み立て直す。 | 3 | 1 |
 | [[js.drag-gesture\|js/drag-gesture.js]] | ドラッグと長押しの共通ヘルパー。 | 2 | 4 |
-| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 17 |
+| [[js.EventBus\|js/EventBus.js]] | 購読と発火だけを持つ最小のイベントバス。 | 1 | 18 |
 | [[js.file-uploader\|js/file-uploader.js]] | 汎用のファイル選択・読み込みユーティリティ。 | 4 | 8 |
 | [[js.floating-panel\|js/floating-panel.js]] | ドラッグで移動・つまみで拡縮できる浮動パネルの汎用ユーティリティ。 | 1 | 5 |
 | [[js.game-store\|js/game-store.js]] | 状態遷移ロジック（ImmutableStoreとその状態）だけを持つ、DOM/windowに一切依存しない 純粋なモジュール。 | 4 | 18 |
@@ -104,12 +105,12 @@ generated: 2026-09-14
 | [[js.original-table-list-dialog\|js/original-table-list-dialog.js]] | 登録済みのオリジナル表（room.originalTables）のタイトル一覧ダイアログ。 | 1 | 1 |
 | [[js.p2p-import-handoff\|js/p2p-import-handoff.js]] | P2P卓を「ファイルから作る」ときに、読み込んだ状態を部屋一覧ページから盤面ページへ渡す。 | 4 | 2 |
 | [[js.panel-dialog\|js/panel-dialog.js]] | パネル（マップタイル状オブジェクト）の追加・編集ダイアログ。 | 1 | 1 |
-| [[js.parameter-command\|js/parameter-command.js]] | [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([値]) でパラメータを直接変更する コマンドの解釈。 | 5 | 1 |
+| [[js.parameter-command\|js/parameter-command.js]] | [演算子(+/-/=)][パラメータ名](,[演算子][パラメータ名])* ([値]) でパラメータを直接変更する コマンドの解釈。 | 7 | 1 |
 | [[js.parameters.arianrhod-ability-box\|js/parameters/arianrhod-ability-box.js]] | アリアンロッドの「能力ボーナス」7種とレベル（CL）をまとめて表示・編集するボックス。 | 3 | 1 |
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
 | [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
 | [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 4 |
-| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 19 | 6 |
+| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 21 | 6 |
 | [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |
 | [[js.parameters.dice-draft.dice-draft-use\|js/parameters/dice-draft/dice-draft-use.js]] | ダイスドラフトの「発動」。 | 1 | 2 |
@@ -125,7 +126,7 @@ generated: 2026-09-14
 | [[js.parameters.gcrest-unit-box\|js/parameters/gcrest-unit-box.js]] | グランクレストの「部隊」（マスコンバット）を編集するボックス。 | 1 | 1 |
 | [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 33 | 1 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
-| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 24 | 17 |
+| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 30 | 19 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 2 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 32 | 3 |
@@ -138,6 +139,8 @@ generated: 2026-09-14
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
+| [[js.parameters.stella-knights-starting-room-section\|js/parameters/stella-knights-starting-room-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「始まりの部屋」の欄。 | 1 | 1 |
+| [[js.parameters.stella-knights-starting-room\|js/parameters/stella-knights-starting-room.js]] | 銀剣のステラナイツのスキル「始まりの部屋」：発動するとラウンド終了まで、振ったd6の目aをbとして扱う。 | 11 | 2 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] | 銀剣のステラナイツのプラグイン記述子（コマの種別・パラメータ・スキルとダイスドラフト・ブーケのコマンド・シートの取り込み）。 | 10 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |
@@ -146,9 +149,11 @@ generated: 2026-09-14
 | [[js.room-delete-dialog\|js/room-delete-dialog.js]] | 部屋削除の確認ダイアログ。 | 1 | 1 |
 | [[js.room-entry-dialog\|js/room-entry-dialog.js]] | 入室パスワードの入力ダイアログ。 | 2 | 1 |
 | [[js.room-entry\|js/room-entry.js]] | 部屋の入室パスワードを、このブラウザに覚えておくところ。 | 4 | 5 |
+| [[js.room-extension-dialog\|js/room-extension-dialog.js]] | 「拡張ルーム設定」ダイアログ（「⋯」ルームメニューから開く）。 | 1 | 1 |
 | [[js.room-import\|js/room-import.js]] | 部屋データの取り込み（room-import.html）。 | 0 | 0 |
 | [[js.room-index\|js/room-index.js]] | 部屋一覧ページ（index.html）のロジック。 | 0 | 0 |
 | [[js.room-parameters-dialog\|js/room-parameters-dialog.js]] | ルーム変数（room.parameters）専用の一覧編集ダイアログ。 | 1 | 1 |
+| [[js.room-roll\|js/room-roll.js]] | 部屋の中で振るダイスの入口。 | 2 | 2 |
 | [[js.room-stamp-dialog\|js/room-stamp-dialog.js]] | 部屋のスタンプ1件の登録・編集ダイアログ。 | 1 | 1 |
 | [[js.room-stamp-list-dialog\|js/room-stamp-list-dialog.js]] | 部屋に登録したスタンプ（room.stamps）の一覧ダイアログ。 | 1 | 1 |
 | [[js.round-panel\|js/round-panel.js]] | ラウンド進行の状態バー。 | 2 | 1 |
@@ -163,9 +168,9 @@ generated: 2026-09-14
 | [[js.stamp-registry\|js/stamp-registry.js]] | 「この部屋で使えるスタンプ」を1か所で決める。 | 5 | 7 |
 | [[js.state-import\|js/state-import.js]] | 「部屋の全データ読み込み」で取り込んだ状態を、この部屋で使える形へ均す。 | 2 | 4 |
 | [[js.store.audio\|js/store/audio.js]] | 音楽（BGM・効果音）まわりの語彙。 | 3 | 5 |
-| [[js.store.buffs\|js/store/buffs.js]] | バフ/デバフの終了条件（フェーズ）と、フェーズ終了時の後始末。 | 8 | 4 |
+| [[js.store.buffs\|js/store/buffs.js]] | バフ/デバフの終了条件（フェーズ）と、フェーズ終了時の後始末。 | 9 | 4 |
 | [[js.store.cards\|js/store/cards.js]] | カード・デッキ・カードストッカーの形を整える処理と、その上限。 | 36 | 4 |
-| [[js.store.chat\|js/store/chat.js]] | チャットタブとログへの追記。 | 9 | 6 |
+| [[js.store.chat\|js/store/chat.js]] | チャットタブとログへの追記。 | 9 | 7 |
 | [[js.store.handlers.audio\|js/store/handlers/audio.js]] | 部屋の音楽（BGM・効果音）の登録と再生。 | 1 | 1 |
 | [[js.store.handlers.board\|js/store/handlers/board.js]] | 盤面に載るもののうち、コマ以外――パネル（マップタイル状のオブジェクト）と カード・デッキ・カードストッカー、そしてデッキの作り置き（deckTemplates）。 | 1 | 1 |
 | [[js.store.handlers.buffs\|js/store/handlers/buffs.js]] | バフ/デバフの付け外しと、フェーズ終了による消滅。 | 1 | 1 |
@@ -177,7 +182,7 @@ generated: 2026-09-14
 | [[js.store.handlers.room\|js/store/handlers/room.js]] | 部屋そのものの設定（名前・システム・プラグイン・背景・盤面の振る舞い）と、 部屋に置いておくもの（ルーム変数・オリジナル表）。 | 1 | 1 |
 | [[js.store.handlers.round\|js/store/handlers/round.js]] | ラウンド進行（Core機能）。 | 1 | 1 |
 | [[js.store.handlers.scenes\|js/store/handlers/scenes.js]] | シーン（GMが場面ごとに盤面の見た目を保存し、1クリックで切り替えるための入れ物）。 | 1 | 1 |
-| [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 10 | 1 |
+| [[js.store.ids\|js/store/ids.js]] | 盤面のオブジェクト（コマ・パネル・カード・デッキ・バフ・プロット枠・情報）のIDを作る。 | 11 | 2 |
 | [[js.store.images\|js/store/images.js]] | 画像URLの検分と列挙。 | 10 | 10 |
 | [[js.store.info\|js/store/info.js]] | 「情報」（タイトル＋区画の共有メモ）の形を整える処理と、伏せ字（masks）の扱い。 | 9 | 2 |
 | [[js.store.panels\|js/store/panels.js]] | パネルの「クリックしたときの振る舞い」（clickAction）と「簡易マーカー」（marker）の形と、その正規化。 | 11 | 4 |
@@ -186,6 +191,7 @@ generated: 2026-09-14
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
 | [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 23 | 4 |
 | [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 12 | 9 |
+| [[js.store.targets\|js/store/targets.js]] | ターゲット（Core機能）：参加者が「いま狙っているコマ」を1体だけ指定する仕組みの、状態の形と読み取り。 | 4 | 3 |
 | [[js.theme-boot\|js/theme-boot.js]] | 明るい表示を選んでいる人の画面に、**最初の描画より前に** data-theme="light" を付ける。 | 0 | 0 |
 | [[js.theme\|js/theme.js]] | 部屋の画面の表示（暗い／明るい）の切り替え。 | 3 | 1 |
 | [[js.token-library-dialog\|js/token-library-dialog.js]] | 「保存したコマから追加」——部屋の外のコマ作成ツールで作って棚（js/token-library.js）に 残したコマを、この部屋のバックヤードへ引き込む。 | 2 | 1 |
@@ -203,19 +209,13 @@ generated: 2026-09-14
 
 | ファイル | 被import |
 |---|---:|
-| [[js.dialog-host\|js/dialog-host.js]] | 39 |
+| [[js.dialog-host\|js/dialog-host.js]] | 40 |
+| [[js.parameters.registry\|js/parameters/registry.js]] | 19 |
+| [[js.EventBus\|js/EventBus.js]] | 18 |
 | [[js.game-store\|js/game-store.js]] | 18 |
-| [[js.EventBus\|js/EventBus.js]] | 17 |
-| [[js.parameters.registry\|js/parameters/registry.js]] | 17 |
 | [[js.local-identity\|js/local-identity.js]] | 16 |
 | [[js.store.patch\|js/store/patch.js]] | 16 |
 | [[js.visibility\|js/visibility.js]] | 13 |
 | [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |
-
-## 散文が要更新
-
-export の顔ぶれかシグネチャが変わったのに `## 役割` が書き直されていないファイル。
-
-- [[js.parameters.sheet-source\|js/parameters/sheet-source.js]]

@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/scenes.js
-lines: 170
+lines: 172
 exports: 1
 imported_by: 1
 api_sha: fb28cc2fa9f5
 prose_sha: fb28cc2fa9f5
-generated: 2026-09-14
+generated: 2026-09-15
 tags: [codemap]
 ---
 

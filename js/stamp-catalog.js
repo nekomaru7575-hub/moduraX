@@ -44,4 +44,4 @@ export const STAMPS = [
 // 判定の権威はサーバー（server/index.jsのallowStamp）にあり、画面側（js/stamp-panel.js）は
 // 同じ数字で押せない時間を出すためだけに読む。両方に書くと必ずどちらかがずれるので、
 // 数字はここ1か所に置く。
-export const STAMP_RATE_LIMIT = Object.freeze({ windowMs: 5_000, max: 10 });
+export const STAMP_RATE_LIMIT = Object.freeze({ windowMs: 1_000, max: 10 });

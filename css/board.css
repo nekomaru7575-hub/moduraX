@@ -330,24 +330,35 @@ h1 {
    ダイス(z-index:40)より手前・浮動パネル(60)より奥。盤面のパン・コマのドラッグを
    邪魔しないよう、レイヤーもスタンプ自身もポインタを素通しにする。 */
 #stampLayer {
-  --stamp-column-width: 84px;
+  --stamp-area-width: 120px;
+  --stamp-area-height: 110px;
+  --stamp-size: 64px;
   position: absolute;
   top: 8px;
   right: 8px;
-  /* 列は右詰めで左へ伸びる。上限5列分の幅を確保しておく */
-  width: calc(5 * var(--stamp-column-width));
+  /* 枠は右詰めで左へ伸びる。上限5枠分の幅を確保しておく（js/stamp-layer.jsのMAX_AREAS） */
+  width: calc(5 * var(--stamp-area-width));
   height: 0; /* 中身はabsoluteなので高さは要らない。盤面のクリック領域を奪わない */
   z-index: 50;
   pointer-events: none;
 }
 
+/* 参加者1人ぶんの枠。何枚出してもこの大きさの中へランダムに置く */
+.stamp-area {
+  position: absolute;
+  top: 0;
+  width: var(--stamp-area-width);
+  height: var(--stamp-area-height);
+  pointer-events: none;
+}
+
+/* 置き場所はJSが0〜1の割合（--stamp-x / --stamp-y）で渡し、ここで枠の余白に掛ける */
 .stamp-item {
   position: absolute;
-  width: var(--stamp-column-width);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  left: calc(var(--stamp-x, 0.5) * (100% - var(--stamp-size)));
+  top: calc(var(--stamp-y, 0.5) * (100% - var(--stamp-size)));
+  width: var(--stamp-size);
+  height: var(--stamp-size);
   pointer-events: none;
   /* 出た瞬間だけふわっと入れる。消えるのはJS側のsetTimeout（1分） */
   animation: stamp-pop 0.18s ease-out;
@@ -359,8 +370,9 @@ h1 {
 }
 
 .stamp-item-image {
-  width: 64px;
-  height: 64px;
+  display: block;
+  width: var(--stamp-size);
+  height: var(--stamp-size);
   object-fit: contain;
   /* 盤面の背景が明るくても暗くても見えるように、輪郭を落とす */
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
@@ -369,8 +381,8 @@ h1 {
 /* 画像がまだ置かれていないときの代わり（js/stamp-layer.jsのerrorハンドラ）。
    仕組みだけ先に動かして確かめられるようにするためのもの。 */
 .stamp-item-fallback {
-  width: 64px;
-  height: 64px;
+  width: var(--stamp-size);
+  height: var(--stamp-size);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -385,8 +397,12 @@ h1 {
   border-radius: 8px;
 }
 
-.stamp-item-name {
-  max-width: 100%;
+/* 送信者名。枠の真下に1つだけ出す（連投しても同じ名前が並ばない） */
+.stamp-area-name {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   font-size: 0.7rem;
   color: var(--board-label);
   text-align: center;
@@ -394,12 +410,6 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px var(--board-label-halo);
-}
-
-/* 列（＝参加者）ごとに、名前を出すのは一番新しい1枚だけ。連投すると同じ名前が
-   縦に並んで読みづらいため（js/stamp-layer.jsのrefreshColumnNames）。 */
-.stamp-item.is-name-hidden .stamp-item-name {
-  display: none;
 }
 
 /* スタンプ送信パネル（js/stamp-panel.js）。浮動パネルの中身なので、枠の見た目は

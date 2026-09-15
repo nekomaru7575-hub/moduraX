@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dice-draft/dice-draft-model.js
-lines: 587
-exports: 19
+lines: 635
+exports: 21
 imported_by: 6
-api_sha: 58fe9088b049
-prose_sha: 58fe9088b049
-generated: 2026-09-14
+api_sha: ff7f24c43280
+prose_sha: ff7f24c43280
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-ダイスドラフトの保存形（token.components.diceDraft ＝ pool と placements）と、何を置けるか・いつ発動できるかの規則を純関数で持つ。DOMもstoreも触らない：server/index.js から import 連鎖で読まれるため。ドラッグ・ダイスの絵・store操作は [[js.check-view.dice-draft-view]]、プールへ足すコマンドは [[js.parameters.dice-draft.dice-draft-pool]] が持つ。目標値の欄の読み取り（parseSumTarget）と修正値（readTargetModifier）もここにある。コマごとに使わせない・中身を伏せる宣言（`unavailableReason` / `canViewSkillDetails`）を読むのも diceDraftUnavailableReason / canViewDiceDraftSkillDetails のここだけで、振る・dice.*・発動の入口とパネルが同じ答えを出す。
+ダイスドラフトの保存形（token.components.diceDraft ＝ pool と placements）と、何を置けるか・いつ発動できるかの規則を純関数で持つ。DOMもstoreも触らない：server/index.js から import 連鎖で読まれるため。ドラッグ・ダイスの絵・store操作は [[js.check-view.dice-draft-view]]、プールへ足す／目を変えるコマンドは [[js.parameters.dice-draft.dice-draft-pool]] が持つ（目の書き換えそのもの changePoolDice はここ）。「自動で置く」の規則（supportsAutoPlace / autoPlaceDice。対応する数字が決まっている match 規則だけ）、目標値の欄の読み取り（parseSumTarget）と修正値（readTargetModifier）もここにある。コマごとに使わせない・中身を伏せる宣言（`unavailableReason` / `canViewSkillDetails`）を読むのも diceDraftUnavailableReason / canViewDiceDraftSkillDetails のここだけで、振る・dice.*・発動の入口とパネルが同じ答えを出す。
 <!-- /prose:role -->
 
-## export（19）
+## export（21）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -42,10 +42,12 @@ tags: [codemap]
 | 458 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
 | 490 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
 | 542 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
-| 570 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
-| 584 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
+| 570 | fn | supportsAutoPlace | `supportsAutoPlace(spec)` | 「自動で置く」を使える規則か。 |
+| 590 | fn | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | プールのダイスを、対応する数字のスキルへまとめて置く。 |
+| 618 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
+| 632 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（23）
+## トップレベル関数（LOCAL TASKS 候補）（25）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -73,8 +75,10 @@ tags: [codemap]
 | 490 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
 | 512 | extractDie | `extractDie(draft, dieId)` | 24 |  |
 | 542 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
-| 570 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
-| 584 | clearDraft | `clearDraft()` | 3 | ✓ |
+| 570 | supportsAutoPlace | `supportsAutoPlace(spec)` | 3 | ✓ |
+| 590 | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | 22 | ✓ |
+| 618 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
+| 632 | clearDraft | `clearDraft()` | 3 | ✓ |
 
 ## 依存
 

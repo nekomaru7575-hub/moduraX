@@ -1,11 +1,11 @@
 ---
 source: js/game-store.js
-lines: 462
+lines: 471
 exports: 4
 imported_by: 18
 api_sha: a787e28853cd
 prose_sha: a787e28853cd
-generated: 2026-09-14
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -25,10 +25,10 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 143 | class | ImmutableStore | `ImmutableStore` |  |
-| 322 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
-| 326 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
-| 461 | const | store | `store` |  |
+| 144 | class | ImmutableStore | `ImmutableStore` |  |
+| 326 | const | DEFAULT_BCDICE_SYSTEM | `DEFAULT_BCDICE_SYSTEM` |  |
+| 330 | fn | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 新規部屋の初期状態を組み立てる。 |
+| 470 | const | store | `store` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（1）
 
@@ -37,7 +37,7 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 326 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 134 | ✓ |
+| 330 | createInitialGameState | `createInitialGameState({ name = '', activePlugin = null, bcdiceSystem = DEFAULT_BCDICE_SYSTEM } = {})` | 139 | ✓ |
 
 ## 依存
 

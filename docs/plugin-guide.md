@@ -141,6 +141,8 @@ const PLUGINS = {
 | `bcdiceSystem` | `string` | このシステムを選んだときの BCDice のシステムID（[3.11](#311-bcdicesystem)） |
 | `diceDraft` | `spec` | 拡張判定UIに「ダイスドラフト」を出す宣言（[3.12](#312-拡張判定ui)） |
 | `skillTableCheck` | `spec` | 拡張判定UIに「特技表判定」を出す宣言（[3.12](#312-拡張判定ui)） |
+| `roomExtensions` | `{ key, label, normalize, reduce, resetOnPhaseEnd, renderSection }[]` | 部屋全体に掛かる設定・効果を「⋯」→「拡張ルーム設定」に出す（[3.13](#313-拡張ルーム設定roomextensions)） |
+| `transformRollResult` | `({ command, result, extensions }) => result` | 部屋の中で振ったダイスの結果を書き換える（[3.14](#314-ロール結果の書き換えtransformrollresult)） |
 
 以下、それぞれの詳細。
 
@@ -915,6 +917,68 @@ skillTableCheck: {
 
 ---
 
+### 3.13 拡張ルーム設定（`roomExtensions`）
+
+コマではなく**部屋全体に掛かる**、そのシステム固有の設定・効果の置き場。ヘッダーの「⋯」→
+「拡張ルーム設定」に、宣言したものが見出し付きで並ぶ（宣言が無いシステムでは項目ごと出ない）。
+ステラナイツの「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）がこれ。
+
+値は `room.extensions[pluginId][key]` に入る。Core は中身を解釈しない。
+
+```js
+roomExtensions: [{
+  key: 'startingRoom',
+  label: '始まりの部屋',
+  // 保存データ・取り込んだ部屋データ（信用しないJSON）を正規形へ。壊れた値は落とす
+  normalize: (value) => ({ rules: ... }),
+  // 操作を今の状態に当てる。何もしないならnull。logTextはMainのログに出る
+  reduce: (value, op, args) => ({ value: nextValue, logText: '…を発動しました' }),
+  // 任意。フェーズ終了で後始末する。変わらなければ同じ参照の value を返す
+  resetOnPhaseEnd: (value, phase) => ({ value, logText: '' }),
+  // 「拡張ルーム設定」の欄。dispatchOp(op, args) で reduce へ届く
+  renderSection: ({ container, value, dispatchOp, roundActive }) => { ... }
+}]
+```
+
+**値を丸ごと送らず「操作」で送る**（`UPDATE_ROOM_EXTENSION { key, op, args }`）。reducer が
+その時点の状態に `reduce` を当てるので、2人が同時に書いても片方が消えない。
+`args` に載せる id は**呼び出し側で発番する**（reducer はクライアントとサーバーの両方で走るため。
+`js/store/ids.js` の `generateRoomExtensionItemId`）。
+
+`resetOnPhaseEnd` は、部屋全体のフェーズが終わる所（ラウンド進行のクリンナップ完了・進行の終了・
+シーンの遷移・部屋全体の EXPIRE_BUFFS）で、コマの `resetComponentsOnPhaseEnd` と同じく入れ子を
+1段ずつ渡されて呼ばれる。
+
+誰が操作してよいかは Core が決めない（`UPDATE_ROOM_EXTENSION` は GM 限定ではない）。
+画面に出す文字は必ず `textContent` で入れること（値は部屋の誰かが決めたもの）。
+
+---
+
+### 3.14 ロール結果の書き換え（`transformRollResult`）
+
+部屋の中で振ったダイス（チャットのロール・パラメータ変更やバフの値・オリジナル表・
+プラグインのコマンドと拡張判定UI）は、すべて `js/room-roll.js` の `rollRoomDice` を通る。
+BCDice の結果が返ったあと、適用中のシステムの `transformRollResult` に渡され、書き換えた結果が
+3Dダイス・ログ・ダイスドラフトのプールへそのまま流れる。
+
+```js
+transformRollResult: ({ command, result, extensions }) => result
+// command    … BCDiceへ送った文字列（繰り返し・シークレットの前置きを含む）
+// result     … { success, resultText, diceValues, secret }（js/BCdice.js の形）
+// extensions … このシステムの拡張ルーム設定 { [key]: 正規化済みの値 }
+```
+
+変えないなら**同じ参照**を返す。BCDice には「この目で計算して」と頼めないので、出目を変えたら
+結果の文字列も組み立て直す必要がある。加算ロール・バラ振り・繰り返しは
+`js/dice-roll-recompute.js` の `recomputeRollText` が BCDice と同じ見た目で作り直す
+（システム固有の書式は `parsers` で先に試させる。ステラナイツの SK が例）。
+
+> **最後の「＞」の後ろを最終値のまま保つこと。** パラメータ変更やオリジナル表は、そこだけを
+> 読んで出目にしている（`js/main.js` の `parseFinalDiceNumber`）。説明の行を足すなら結果の**前**に置く。
+> 組み立て直せない書式は、黙って近い書式で数えず、元の結果を残して「反映できなかった」と添える。
+
+---
+
 ## 4. パラメータ
 
 ### 形
@@ -1241,6 +1305,7 @@ footerNote: ({ skills, parameters }) => ({
 | `SET_PARAMETER` | `{ characterId, paramId, value }` | パラメータの**基礎値**を書き換える |
 | `SET_COMPONENT` | `{ id, componentKey, value }` | components を保存する |
 | `ADD_CHAT_MESSAGE` | `{ tabId: 'main', entry: {...} }` | チャットへ結果を流す |
+| `UPDATE_ROOM_EXTENSION` | `{ key, op, args }` | 拡張ルーム設定への操作（[3.13](#313-拡張ルーム設定roomextensions)） |
 
 盤面のカードとデッキを扱うものは別系統にある（`js/game-store.js` の「カード／デッキ」の節）。
 

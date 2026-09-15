@@ -1,11 +1,11 @@
 ---
 source: js/store/ids.js
-lines: 86
-exports: 10
-imported_by: 1
-api_sha: 7a49ac4321ae
-prose_sha: 7a49ac4321ae
-generated: 2026-09-14
+lines: 98
+exports: 11
+imported_by: 2
+api_sha: eceaa6088659
+prose_sha: eceaa6088659
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-盤面のオブジェクト（コマ・パネル・カード・デッキ・デッキ定義・部屋スタンプ・バフ・プロット枠・情報）のIDを作るだけの場所。どれも「時刻＋モジュール内の連番」で、同じミリ秒に続けて作っても衝突しない。IDの形を決める以外のことは持たず、上限も正規化も各スライス（[[js.store.cards]]・[[js.store.stamps]] など）の仕事。
+盤面のオブジェクト（コマ・パネル・カード・デッキ・デッキ定義・部屋スタンプ・バフ・プロット枠・情報・拡張ルーム設定の1件）のIDを作るだけの場所。どれも「時刻＋モジュール内の連番」で、同じミリ秒に続けて作っても衝突しない。拡張ルーム設定の1件（generateRoomExtensionItemId）だけは、別のブラウザが同じミリ秒に作っても重ならないよう乱数も混ぜる（誰でも同時に発動でき、重なると reducer が後の方を捨てるため）。IDの形を決める以外のことは持たず、上限も正規化も各スライス（[[js.store.cards]]・[[js.store.stamps]] など）の仕事。
 <!-- /prose:role -->
 
-## export（10）
+## export（11）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -35,8 +35,9 @@ tags: [codemap]
 | 68 | fn | generatePlotSlotId | `generatePlotSlotId()` | 1つのコマに増やしたプロット選択（round.plotExtras）のid。 |
 | 75 | fn | generateInfoEntryId | `generateInfoEntryId()` |  |
 | 82 | fn | generateInfoSectionId | `generateInfoSectionId()` |  |
+| 93 | fn | generateRoomExtensionItemId | `generateRoomExtensionItemId()` | 拡張ルーム設定の中の1件（ステラナイツの始まりの部屋の1回の発動など）のid。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（10）
+## トップレベル関数（LOCAL TASKS 候補）（11）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -53,11 +54,12 @@ tags: [codemap]
 | 68 | generatePlotSlotId | `generatePlotSlotId()` | 4 | ✓ |
 | 75 | generateInfoEntryId | `generateInfoEntryId()` | 4 | ✓ |
 | 82 | generateInfoSectionId | `generateInfoSectionId()` | 4 | ✓ |
+| 93 | generateRoomExtensionItemId | `generateRoomExtensionItemId()` | 5 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.game-store]]
+- imported by → [[js.game-store]], [[js.parameters.stella-knights-starting-room-section]]
 
 ## 注意
 

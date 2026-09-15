@@ -1,6 +1,6 @@
 // js/main.js
 
-import { rollBCDice } from './BCdice.js';
+import { rollRoomDice } from './room-roll.js';
 import { parseUntrustedJson } from './untrusted-json.js';
 import { escapeHtml, safeCssColor } from './html-escape.js';
 import { fetchGameSystems, fetchGameSystemInfo, getCommandPattern } from './bcdice-catalog.js';
@@ -45,11 +45,12 @@ import { showChatTabDialog } from './chat-tab-dialog.js';
 import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK, visibleChatEntry, canViewSecretDice } from './visibility.js';
 import {
   handlePluginChatCommand, findPluginForChatCommand,
-  parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem
+  parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem, listPluginRoomExtensions
 } from './parameters/registry.js';
 import { looksLikeDiceDraftPoolCommand } from './parameters/dice-draft/dice-draft-pool.js';
 import { looksLikeItemCommand } from './parameters/skill/item-use.js';
 import { showRoomParametersDialog } from './room-parameters-dialog.js';
+import { showRoomExtensionDialog } from './room-extension-dialog.js';
 import { showOriginalTableDialog } from './original-table-dialog.js';
 import { showOriginalTableListDialog } from './original-table-list-dialog.js';
 import { showRoomStampDialog } from './room-stamp-dialog.js';
@@ -1136,6 +1137,11 @@ if (roomMenuBtn && roomSettingsDialog) {
         label: 'ルーム変数',
         onSelect: openRoomParametersDialog
       },
+      // 部屋全体に掛かる、システム固有の設定・効果（ステラナイツの始まりの部屋）。
+      // 宣言の無いシステムでは開いても空なので、項目ごと出さない
+      ...(listPluginRoomExtensions(store.state.room?.activePlugin ?? null).length > 0
+        ? [{ label: '拡張ルーム設定', onSelect: () => showRoomExtensionDialog({ store }) }]
+        : []),
       {
         label: 'オリジナル表一覧',
         onSelect: openOriginalTableListDialog
@@ -1417,7 +1423,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     // 半角スペースしか区切りと見なさない。ここへ渡す分だけ全角スペースを半角へそろえる。
     const toCommand = repeatPrefix + (isStartsChoice ? `${command} ${comment.replaceAll("\u3000", " ")}` : command);
 
-    const { success, unsupported, resultText, diceValues, secret } = await rollBCDice(system, toCommand);
+    const { success, unsupported, resultText, diceValues, secret } = await rollRoomDice(store.state, system, toCommand);
     if (!success) {
       if (unsupported) {
         // 正規表現上はダイスコマンドに見えても、BCDice側がそのシステムの構文として
@@ -1458,7 +1464,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     }
 
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
-    // ロールに乗ってから消えるよう、rollBCDiceの後に置いている（{パラメータ名}の実効値置換は
+    // ロールに乗ってから消えるよう、rollRoomDiceの後に置いている（{パラメータ名}の実効値置換は
     // このイベントが発火する前に済んでいるので、ここで消しても値には影響しない）。
     // ダイスコマンドでない発言・BCDiceが構文を認識できなかった入力は、上のreturnで
     // ここへ来ないため対象にならない。
@@ -1625,7 +1631,7 @@ function tryHandleParameterCommand(rawInput, character, tabId = activeTabId, cha
   if (amount.kind === 'dice') {
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンド
     // （combo.chk等）と同様に結果を待たずtrueを返し、完了時にパラメータ反映・ログ追記を行う。
-    rollBCDice(store.state.room.bcdiceSystem, amount.expr).then(({ success, resultText, diceValues }) => {
+    rollRoomDice(store.state, store.state.room.bcdiceSystem, amount.expr).then(({ success, resultText, diceValues }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
         return;
@@ -1773,7 +1779,7 @@ function tryHandleBuffCommand(rawInput, character, tabId = activeTabId) {
     // ダイス式だけを渡し、符号（増減の向き）はこちら側でロール結果に適用する。
     // ダイスロールはBCDice APIへの非同期通信を伴うため、他のプラグインコマンドと同様に
     // 結果を待たずtrueを返し、完了時にバフ付与・ログ追記を行う。
-    rollBCDice(store.state.room.bcdiceSystem, diceExpr).then(({ success, resultText, diceValues }) => {
+    rollRoomDice(store.state, store.state.room.bcdiceSystem, diceExpr).then(({ success, resultText, diceValues }) => {
       if (!success) {
         alert(`ダイスロールに失敗しました: ${resultText}`);
         return;
@@ -1933,7 +1939,8 @@ function tryHandlePluginChatCommand(rawInput, character) {
       dispatch: store.dispatch.bind(store),
       getEffectiveParameterValue,
       generateBuffId,
-      rollBCDice,
+      // 部屋に掛かっている効果（ステラナイツの始まりの部屋）を当てて振る（js/room-roll.js）
+      rollBCDice: (system, command) => rollRoomDice(store.state, system, command),
       // 他のコマを名前で引く口。コマンドが自分以外のコマへ働きかけるプラグイン
       // （フタリソウサのアクションコストが、パートナーの「余裕」を減らす）が使う。
       // キャラクター更新画面（js/character-dialog.js）には前から渡してある。
@@ -1984,7 +1991,7 @@ function tryHandleOriginalTableCommand(rawInput, character, tabId = activeTabId)
   const table = store.state.room.originalTables?.[rawInput.trim()];
   if (!table) return false;
 
-  rollBCDice(store.state.room.bcdiceSystem, table.dice).then(({ success, resultText }) => {
+  rollRoomDice(store.state, store.state.room.bcdiceSystem, table.dice).then(({ success, resultText }) => {
     if (!success) {
       alert(`ダイスロールに失敗しました: ${resultText}`);
       return;

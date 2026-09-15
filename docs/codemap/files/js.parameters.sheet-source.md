@@ -4,8 +4,8 @@ lines: 98
 exports: 4
 imported_by: 5
 api_sha: 7ad3f7cbbc88
-prose_sha: fab39d80a72d
-generated: 2026-09-14
+prose_sha: 7ad3f7cbbc88
+generated: 2026-09-15
 tags: [codemap]
 ---
 
@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-「URLから取り込む」の受け付け先の宣言（createAppspotSheetSource）と、シートの値を読む小道具を持つ。小道具はURL経路とファイル経路の両方から使う：sheetText は未記入を空文字へ、assignSheetNumber は読めない値のキーを生やさない（既定値が残る）、sheetRichText は効果欄のHTML実体参照と <br> を元へ戻す。復号した文字列は textContent と input.value にしか渡らない前提なので、innerHTML へ流す実装を足すなら [[js.html-escape]] の escapeHtml を通すこと。DOMに触れない（server/index.js が [[js.parameters.registry]] 経由で import する）。
+「URLから取り込む」の受け付け先の宣言（createAppspotSheetSource。秘匿欄を取りに行くかの判定と、取れなかったときの案内も宣言に含む）と、シートの値を読む小道具を持つ。小道具はURL経路とファイル経路の両方から使う：sheetText は未記入を空文字へ、assignSheetNumber は読めない値のキーを生やさない（既定値が残る）、sheetRichText は効果欄のHTML実体参照と <br> を元へ戻す。実際の取得は [[js.character-sheet-import]] とサーバー側の中継が行う。復号した文字列は textContent と input.value にしか渡らない前提なので、innerHTML へ流す実装を足すなら [[js.html-escape]] の escapeHtml を通すこと。DOMに触れない（server/index.js が [[js.parameters.registry]] 経由で import する）。
 <!-- /prose:role -->
 
 ## export（4）

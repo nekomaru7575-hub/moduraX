@@ -4,8 +4,8 @@
 // 実効値の計算（getEffectiveParameterValue）は delta しか見ないので、
 // ここで基礎値（parameters）を書き換えることはない。
 
-import { applyPhaseEnd } from '../buffs.js';
-import { withSystemTabLog } from '../chat.js';
+import { applyPhaseEnd, applyRoomExtensionsPhaseEnd } from '../buffs.js';
+import { withSystemLog, withSystemTabLog } from '../chat.js';
 import { patchCharacter } from '../patch.js';
 
 export const BUFFS_HANDLERS = {
@@ -93,9 +93,14 @@ export const BUFFS_HANDLERS = {
 
     // 「〈フェーズ〉終了。消滅したバフ/デバフ: …」はコマの状態の後始末で、卓の流れそのもの
     // ではない。ラウンド進行の通知（Main）に混ぜず、システムタブへ寄せる。
+    // 部屋に掛かっている効果（ステラナイツの始まりの部屋）も同じフェーズで終わる。
+    // 終わったこと自体は卓の流れに関わる（出目が元に戻る）ので、Mainにも出す
+    const extensionsEnd = applyRoomExtensionsPhaseEnd(prevState.room, activePlugin, phase);
+    const chatLogs = withSystemTabLog(prevState.chatLogs, logText, payload?.time);
     commit({
       tokens,
-      chatLogs: withSystemTabLog(prevState.chatLogs, logText, payload?.time)
+      ...(extensionsEnd.room === prevState.room ? {} : { room: extensionsEnd.room }),
+      chatLogs: extensionsEnd.logText ? withSystemLog(chatLogs, extensionsEnd.logText, payload?.time) : chatLogs
     });
   },
 };

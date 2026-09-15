@@ -2578,3 +2578,51 @@
 .check-panel-content .sf-skill-table-status {
   font-size: 0.72rem;
 }
+
+/* 拡張ルーム設定（js/room-extension-dialog.js）。システムが宣言した欄を1つずつ区切って並べる */
+.room-extension-dialog {
+  width: 100%;
+  max-width: 480px;
+}
+
+.room-extension-section + .room-extension-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.room-extension-section h4 {
+  margin: 0 0 6px;
+  color: var(--text-emphasis);
+}
+
+/* 始まりの部屋（js/parameters/stella-knights-starting-room-section.js）の出目のプルダウン。
+   .dialog-custom-row input の flex:1 は select には効かないので、幅を中身なりに詰める */
+.starting-room-face {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-width: 0;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 6px 4px;
+}
+
+.starting-room-add {
+  flex-wrap: wrap;
+  color: var(--text-body);
+  font-size: 0.9rem;
+}
+
+/* .dialog-add-row-btn は width:100% で1行を占めるので、プルダウンと同じ行に残りの幅で並べる */
+.starting-room-add .dialog-add-row-btn {
+  flex: 1 1 72px;
+  width: auto;
+  margin: 0;
+}
+
+/* 発動中の一覧の下の「振った目の扱い」。一覧と追加の行のあいだを空けすぎない */
+.starting-room-outcome {
+  margin: 0;
+}

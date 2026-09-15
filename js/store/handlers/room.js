@@ -6,7 +6,8 @@
 // ここでは見ず、js/room-authority.js とサーバー側が決める。
 
 import { EventBus } from '../../EventBus.js';
-import { applyPluginDerivedParameters, buildRoomParameters } from '../../parameters/registry.js';
+import { withSystemLog } from '../chat.js';
+import { applyPluginDerivedParameters, buildRoomParameters, reducePluginRoomExtension } from '../../parameters/registry.js';
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
 import { findRetiredImage, nextRetiredImages, normalizeImageRef, normalizeRetiredImages } from '../images.js';
 import { patchCharacter, withMapEntry, withoutMapEntry } from '../patch.js';
@@ -72,6 +73,23 @@ export const ROOM_HANDLERS = {
     });
 
     EventBus.emit('ActivePluginChanged', { pluginId });
+  },
+
+  // 拡張ルーム設定（「⋯」→「拡張ルーム設定」。ステラナイツの始まりの部屋など）への操作。
+  // 値を丸ごと受け取らず、適用中のシステムの reduce に今の状態へ当てさせる。こうすると
+  // 2人が同時に発動しても、後から届いた方が先の方を消さない。
+  // 誰でも行える（PCのスキルの発動なので、GM_ONLY_ACTIONSには入れない）。
+  UPDATE_ROOM_EXTENSION({ prevState, payload, activePlugin, commit }) {
+    const { key, op, args } = payload || {};
+    const reduced = reducePluginRoomExtension(activePlugin, prevState.room.extensions, key, op, args);
+    if (!reduced) return;
+
+    commit({
+      room: { ...prevState.room, extensions: reduced.extensions },
+      ...(reduced.logText
+        ? { chatLogs: withSystemLog(prevState.chatLogs, reduced.logText, payload?.time) }
+        : {})
+    });
   },
 
   // BCDiceのシステム（ダイスロールの解釈規則）を切り替える。キャラクターパラメータ用の

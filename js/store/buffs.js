@@ -5,7 +5,7 @@
 // 外側が終われば内側もすべて終わったものとして扱う。その連鎖を1段ずつ回して、
 // バフの削除・プラグイン側の後始末・ログ本文の組み立てまでを applyPhaseEnd が受け持つ。
 
-import { resetPluginComponentsOnPhaseEnd } from '../parameters/registry.js';
+import { resetPluginComponentsOnPhaseEnd, resetPluginRoomExtensionsOnPhaseEnd } from '../parameters/registry.js';
 
 // バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
 export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ', check: '判定', process: 'プロセス' };
@@ -84,6 +84,24 @@ export function resetPluginComponentsForPhase(tokensState, activePlugin, phase, 
     }
   });
   return nextTokens;
+}
+
+// フェーズ終了で、部屋の拡張ルーム設定（ステラナイツの始まりの部屋など）の後始末をさせる。
+// コマ側の applyPhaseEnd と対になるもので、部屋全体のフェーズが終わる所（1コマ分ではない所）で
+// 一緒に呼ぶ。入れ子の扱いも同じで、指定フェーズから内側へ1段ずつ渡す。
+// 変化が無ければ同じroomを返し、logTextは空文字。
+export function applyRoomExtensionsPhaseEnd(room, activePlugin, phase) {
+  let extensions = room?.extensions;
+  const logTexts = [];
+  getPhaseChain(phase).forEach(chainPhase => {
+    const reset = resetPluginRoomExtensionsOnPhaseEnd(activePlugin, extensions, chainPhase);
+    extensions = reset.extensions;
+    logTexts.push(...reset.logTexts);
+  });
+  return {
+    room: extensions === room?.extensions ? room : { ...room, extensions },
+    logText: logTexts.join('\n')
+  };
 }
 
 // フェーズ（シーン/ラウンド/シナリオ/判定/プロセス）が終了したときの共通処理。

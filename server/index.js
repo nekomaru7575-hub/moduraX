@@ -294,13 +294,15 @@ function isDeveloperToken(roomId, authToken) {
   return equalsSecret(expected, authToken);
 }
 
-// --- 旧方式の参加者の後始末 ---
+// --- 名乗りの導出の版 ---
 // 導出の種を変えるたびに、それ以前に登録された参加者IDは誰も名乗れないものになる。
-// GMの印が付いたまま残ると、その部屋にはもう名乗れないGMが居座り、GMが1人もいない部屋では
-// 最初に名乗った人がGMになる規則（game-store.jsのREGISTER_PARTICIPANT）が働かなくなる。
-// そこで部屋ごとに一度だけ、旧方式の参加者からGMの印を外す（名前と持ち主表示は残す）。
+// どの版で作られた部屋かは認証情報のmeta.versionに控える。
 //   version 2 … participantIdをauthTokenから導出する形に変えたとき
 //   version 3 … 種を「合言葉」から「表示名」に変えたとき（入力欄の一本化）
+// 次に種を変えるときは、この値を上げたうえで、旧版の部屋の後始末（もう名乗れないGMの印を
+// 外す等）をそのとき書くこと。GMの印が残ったままだと「GMが1人もいない部屋では最初に
+// 名乗った人がGMになる」規則（game-store.jsのREGISTER_PARTICIPANT）が働かなくなる。
+// version 2→3の後始末のコードは、本番の部屋がすべてversion 3になった時点で消した。
 const CURRENT_AUTH_VERSION = 3;
 
 function authMetaKey(roomId) {
@@ -405,18 +407,6 @@ function entryPasswordFromHeaders(req) {
   } catch {
     return '';
   }
-}
-
-// 旧方式で付いていたGMの印を外す。既に処理済みの部屋、GMがいない部屋では何もしない。
-function clearLegacyGmFlags(roomId, store) {
-  const participants = store.state.participants || {};
-  const legacyGmIds = Object.values(participants).filter(p => p.isGm).map(p => p.id);
-  if (legacyGmIds.length === 0) return false;
-
-  legacyGmIds.forEach(id => store.dispatch('SET_PARTICIPANT_GM', { id, isGm: false }));
-  console.log(`[server] ${roomId}: 旧方式の参加者${legacyGmIds.length}人からGMの印を外しました`
-    + '（名前を入れて名乗り直した最初の人がGMになります）');
-  return true;
 }
 
 // 部屋そのものを左右する操作をしてよいか。規則の本体はjs/room-authority-rules.jsにあり、
@@ -723,13 +713,12 @@ function isDeletingRoom(roomId) {
 }
 
 // 部屋IDの形。RedisのキーとR2の接頭辞（rooms/<id>/）にそのまま入るので、英数字と
-// ハイフンだけに絞る。2つ認めているのは移行のため：
-//   room-<16進10桁> … 現行。generateRoomIdが作る
-//   room-<数字>     … 固定スロット時代（room-1 .. room-5）。既存の部屋とブックマークが
-//                      生きているので受け続ける
+// ハイフンだけに絞る。認めるのはgenerateRoomIdが作る形だけ。
+// 固定スロット時代の room-<数字>（room-1 .. room-5）も受けていたが、その形の部屋が
+// 本番から無くなった時点で外した。
 function isValidRoomId(id) {
   if (typeof id !== 'string') return false;
-  return /^room-[0-9a-f]{10}$/.test(id) || /^room-[1-9]\d*$/.test(id);
+  return /^room-[0-9a-f]{10}$/.test(id);
 }
 
 // 新しい部屋のID。40ビットあれば衝突はまず起きないが、万一ぶつかっても困らないよう
@@ -851,9 +840,6 @@ async function getOrLoadRoom(roomId) {
   // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
   // 経由で同じ補完を受けるが、ここだけそれを素通りしていた）。hydrate()を通して
   // クライアントの再接続時と同じ後方互換の穴埋めを適用してから使う。
-  // 旧方式の参加者の後始末（clearLegacyGmFlags参照）は部屋ごとに一度だけ行う。
-  // 済んだかどうかは同期される状態とは別のところに控える（状態に混ぜると、ユーザーが
-  // 書き出した古いファイルを読み込み直したときに一緒に巻き戻ってしまうため）。
   async function buildEntry(savedState) {
     const store = new ImmutableStore(createInitialGameState());
     store.hydrate(savedState);
@@ -863,18 +849,6 @@ async function getOrLoadRoom(roomId) {
       meta = await readAuthMeta(roomId);
     } catch (error) {
       console.warn(`[server] ${roomId} の認証情報の読み込みに失敗しました:`, error.message);
-    }
-
-    if (meta.version !== CURRENT_AUTH_VERSION) {
-      const changed = clearLegacyGmFlags(roomId, store);
-      // 入室パスワードも同じ認証情報に入っているので、混ぜて書く（丸ごと置き換えない）
-      meta = { ...meta, version: CURRENT_AUTH_VERSION };
-      await writeAuthMeta(roomId, meta)
-        .catch((error) => console.warn(`[server] ${roomId} の認証情報の保存に失敗しました:`, error.message));
-      if (changed) {
-        await writeRoomState(roomId, store.state)
-          .catch((error) => console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message));
-      }
     }
 
     // 入室パスワードは接続のたびに参照するので、部屋と一緒にメモリへ載せておく
@@ -2408,10 +2382,7 @@ async function handleExportRoom(req, res, roomId) {
   } catch {
     // バックヤードの情報が無くても書き出し自体はできる（付け替えができなくなるだけ）
   }
-  // 旧フィールド名(myBackyardTokenIds)も受ける。ブラウザが古いまま繋がっている間に
-  // 書き出しても、バックヤードのコマが落ちないようにするため。
-  const backyardTokenIds = Array.isArray(body?.backyardTokenIds) ? body.backyardTokenIds
-    : (Array.isArray(body?.myBackyardTokenIds) ? body.myBackyardTokenIds : []);
+  const backyardTokenIds = Array.isArray(body?.backyardTokenIds) ? body.backyardTokenIds : [];
 
   // 埋め込んでよい量は、設定した上限と「今の残りメモリ」の小さいほう。混んでいるときは
   // 埋め込みを減らして書き出し自体は通す（超えたぶんはURLのまま残る＝skippedに数えられ、

@@ -54,28 +54,20 @@ export function createInitialRoundState() {
 }
 
 // 保存済み・同期されてきたround状態に欠けているキーを補う（hydrate専用）。
-// turnIndex方式で保存された古い状態は、そのインデックスまでを行動済みと見なして
-// 新しいモデルへ読み替える（進行中の部屋を壊さないため）。
+// turnIndex方式（2026-08-04より前）で保存された状態の読み替えは、その形の部屋が
+// 残らなくなったので外した。
 export function normalizeRoundState(round) {
   if (!round) return createInitialRoundState();
 
   const base = createInitialRoundState();
   const participants = round.participants || [];
 
-  // 新形式（actedを持つ）ならそのまま。旧形式ならturnIndexから作り直す。
-  const migrated = round.acted
-    ? {}
-    : {
-      acted: participants.slice(0, round.turnIndex || 0),
-      currentActorId: participants[round.turnIndex || 0] || null,
-      step: 'act'
-    };
-
   const next = {
     ...base,
     ...round,
-    ...migrated,
     participants,
+    // ラウンド進行より前の状態にはキーが無い。下のまとまりと同じ理由で埋め直す。
+    acted: round.acted || base.acted,
     // 値がundefinedのキーもスプレッドで既定値を上書きしてしまうので、参照される
     // まとまりだけは最後に埋め直す（round-panel.jsがreadyEntriesを直接読むため）
     confirmation: round.confirmation || base.confirmation,
@@ -89,7 +81,6 @@ export function normalizeRoundState(round) {
     // 戦闘離脱機能より前の状態にはキーが無い。上と同じ理由で埋め直す。
     withdrawn: round.withdrawn || base.withdrawn
   };
-  delete next.turnIndex; // 旧キーは残さない（参照元が無いのに値だけ残ると誤読の元になる）
   return next;
 }
 

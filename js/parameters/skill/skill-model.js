@@ -646,16 +646,23 @@ export function resetSkillUsageOnPhaseEnd(spec, rawList, phase) {
 
   let changed = false;
   const next = rawList.map(raw => {
-    // 旧形式のまま保存されているコマもあるため、置き場は両方見る
+    // 読むときの置き場は両方見る（旧形式＝limits直下に期間キーが並ぶ、のまま保存されて
+    // いるコマもあるため）。ただし書き戻しは必ず新しい形（limits.counts）にする。
+    // 以前はここだけ旧形式のまま書き戻していたので、旧形式のコマは触られ続ける限り
+    // 旧形式のまま延命されていた。新しい形へ寄せておけば、いずれ読み替えも要らなくなる。
     const counts = raw?.limits?.counts ?? raw?.limits;
     const limit = counts?.[phase];
     if (!limit || (limit.current || 0) === 0) return raw;
     changed = true;
 
-    const nextLimit = { ...limit, current: 0 };
-    return raw?.limits?.counts
-      ? { ...raw, limits: { ...raw.limits, counts: { ...raw.limits.counts, [phase]: nextLimit } } }
-      : { ...raw, limits: { ...raw.limits, [phase]: nextLimit } };
+    const nextCounts = { ...counts, [phase]: { ...limit, current: 0 } };
+    // 旧形式のlimits直下にconditionsが混ざっていた場合に、それをcountsへ持ち込まない
+    delete nextCounts.conditions;
+    const conditions = raw?.limits?.conditions;
+    return {
+      ...raw,
+      limits: conditions ? { counts: nextCounts, conditions } : { counts: nextCounts }
+    };
   });
 
   return changed ? next : rawList;

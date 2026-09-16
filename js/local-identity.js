@@ -114,6 +114,12 @@ async function sha256Hex(text) {
 // 公開IDをauthTokenから導出する規則。サーバーも同じ計算で名乗りを検算するため、
 // 変えるときは必ずserver/index.jsのderiveParticipantIdも揃えること。
 // 公開IDは状態の中に何度も現れるので、短くしても衝突が問題にならない長さに切り詰める。
+//
+// 【mojulaX の綴りは直さないこと】アプリ名は「もじゅらX」＝mojuraX で、ファイル形式の
+// マーカー（js/character-snapshot.js等）はそちらを使っている。だがこのハッシュの種と
+// localStorageのキーだけは初期からの綴り（mojulaX、L）で固定されている。揃えたくなるが、
+// ここを変えると全部屋の全参加者の公開IDが変わり、GMを含む全員が名乗れなくなる
+// （server/index.jsのCURRENT_AUTH_VERSIONを上げて後始末を書く事態になる）。
 export const PARTICIPANT_ID_LENGTH = 32;
 
 export async function deriveParticipantId(authToken) {

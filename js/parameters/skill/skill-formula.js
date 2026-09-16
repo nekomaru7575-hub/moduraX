@@ -27,9 +27,8 @@
 export function normalizeFormula(mod) {
   if (mod === null || mod === undefined) return '';
   if (typeof mod === 'string') return mod;
-  // 最初期のDX3データは修正値を素の数値で持っていた（combo:{checkDice: 2}）。
-  // 旧dx3-formula.jsはこれを読めず黙って0にしていたが、意図は明らかなので拾う。
-  if (typeof mod === 'number') return Number.isFinite(mod) ? String(mod) : '';
+  // 最初期のDX3データ（2026-07-25まで）は修正値を素の数値で持っていた（combo:{checkDice: 2}）。
+  // その形を拾う分岐は、対象が1日分しか無かったので外した。
   if (typeof mod.formula === 'string') return mod.formula;
   if (typeof mod.value === 'number' || mod.mode) {
     const value = mod.value || 0;

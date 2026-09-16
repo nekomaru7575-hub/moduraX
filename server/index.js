@@ -18,7 +18,7 @@
 import 'dotenv/config';
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { readFile, writeFile, mkdir, access, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -76,7 +76,6 @@ const CHAT_SEND_SOUND_URL = process.env.CHAT_SEND_SOUND_URL || '';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
 const ROOMS_DIR = path.join(__dirname, 'rooms');
-const LEGACY_STATE_FILE = path.join(__dirname, 'state.json');
 // 操作が途切れてから保存するまでの待ち時間と、操作が続いている場合でも必ず保存する上限。
 // 上限を延ばすほどRedisへの書き込み回数は減るが、プロセスが異常終了したときに失われる
 // 操作の幅も広がる（通常の停止では終了時に書き出すので失われない。flushAllPendingSaves参照）。
@@ -104,11 +103,6 @@ const USE_REDIS = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_R
 const redis = USE_REDIS
   ? Redis.fromEnv({ responseEncoding: false, enableTelemetry: false })
   : null;
-
-// Redis運用へ移る前のローカルファイルを、Redisに無い部屋の代わりとして読むかどうか。
-// 既定はオフ。オンにすると「Redis側で削除した部屋が、古いローカルファイルから勝手に
-// 復活する」ことが起きるため（実際に起きた）、移行が必要なときだけ明示的に有効化する。
-const MIGRATE_LEGACY_ROOM_FILES = process.env.MIGRATE_LEGACY_ROOM_FILES === '1';
 
 // 部屋の名簿にも同じ保存先を使わせる（Redisが無ければローカルファイル）。
 configureRoomDirectory(redis, path.join(ROOMS_DIR, 'directory.json'));
@@ -193,15 +187,6 @@ async function deleteRoomState(roomId) {
 //
 // 置き場はserver/room-directory.jsの名簿（全部屋分を1つのハッシュにまとめたもの）。
 // 部屋数の上限を外したので、1部屋1キーで持つと一覧のために部屋数ぶんの往復が要る。
-// 下のLEGACY_*は、その名簿より前に使っていた1部屋1キーの形（移行のときだけ読む）。
-function legacySummaryKey(roomId) {
-  return `roomMeta:${roomId}`;
-}
-
-function legacySummaryFilePath(roomId) {
-  return path.join(ROOMS_DIR, `${roomId}.meta.json`);
-}
-
 // 最終更新時刻をこの粒度に切り捨ててから要約へ載せる。
 // 素の時刻をそのまま入れると要約のJSONが保存のたびに変わり、syncRoomSummaryの
 // 「前回と同じなら書かない」が毎回すり抜けて保存先への書き込みが倍になる。
@@ -229,10 +214,6 @@ function readRoomSummary(roomId) {
 
 async function deleteRoomSummary(roomId) {
   await removeRoomSummary(roomId);
-  // 名簿より前の形（1部屋1キー）の残りも一緒に片付ける。消し忘れると、Redis側に
-  // 誰からも読まれないキーが残り続ける。
-  if (USE_REDIS) await redis.del(legacySummaryKey(roomId)).catch(() => {});
-  await unlink(legacySummaryFilePath(roomId)).catch(() => {});
 }
 
 // 要約が前回書いたものと変わっていれば書き直す。名前やプラグインの変更はめったに
@@ -250,44 +231,6 @@ async function syncRoomSummary(roomId, entry) {
   } catch (error) {
     console.warn(`[server] ${roomId} の一覧用の要約の保存に失敗しました:`, error.message);
   }
-}
-
-// --- 名簿への移行 ---
-// 部屋の要約を1部屋1キー（roomMeta:room-N）で持っていた頃のデータを、名簿へ移す。
-// 対象は固定スロット時代のIDだけ（room-1 .. room-LEGACY_ROOM_SLOTS）。それ以外のIDは
-// この形で保存されたことが無い。名簿に既に何か入っていれば移行済みとして何もしない。
-//
-// 部屋の状態そのもの（room:<id>）とR2のファイルには一切触らない。ここで移すのは
-// 「一覧に出すための要約」だけなので、失敗しても部屋は無事で、次に読み込まれた時点で
-// summarizeRoomから作り直される。
-const LEGACY_ROOM_SLOTS = 5;
-
-async function migrateLegacySummariesIfNeeded() {
-  if (roomCount() > 0) return;
-
-  let moved = 0;
-  for (let n = 1; n <= LEGACY_ROOM_SLOTS; n++) {
-    const roomId = `room-${n}`;
-    try {
-      let summary = null;
-      if (USE_REDIS) {
-        summary = (await redis.get(legacySummaryKey(roomId))) || null;
-      } else {
-        try {
-          summary = JSON.parse(await readFile(legacySummaryFilePath(roomId), 'utf-8'));
-        } catch (error) {
-          if (error.code !== 'ENOENT') throw error;
-        }
-      }
-      if (!summary) continue;
-      await upsertRoomSummary(roomId, summary);
-      moved += 1;
-    } catch (error) {
-      console.warn(`[server] ${roomId} の要約を名簿へ移せませんでした:`, error.message);
-    }
-  }
-
-  if (moved > 0) console.log(`[server] ${moved}件の部屋を名簿へ移行しました`);
 }
 
 // --- 参加者の名乗りの検証 ---
@@ -896,8 +839,6 @@ function roomFilePath(roomId) {
 // 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければ保存先
 // （Redis、またはローカルモードならファイル）から読み込む。見つからなければ
 // 「まだ作られていない空き部屋」としてnullを返す。
-// MIGRATE_LEGACY_ROOM_FILES=1 のときだけ、Redisに無い部屋を旧ローカルファイルから
-// 読み込んでRedisへ移行する（既定では行わない。理由は宣言箇所のコメント参照）。
 async function getOrLoadRoom(roomId) {
   const cached = rooms.get(roomId);
   // 削除中の部屋は「もう無い部屋」として返す。ここで下へ進めてしまうと、まだ消し終えて
@@ -990,30 +931,8 @@ async function getOrLoadRoom(roomId) {
     console.warn(`[server] ${roomId} の読み込みに失敗しました:`, error.message);
   }
 
-  // ここから下は旧ローカルファイルからの移行。既定では行わない（Redis側で消した部屋が
-  // 復活してしまうため）。ローカルモードでは上のreadRoomStateが既にファイルを読んでいる。
-  if (!USE_REDIS || !MIGRATE_LEGACY_ROOM_FILES) return null;
-
-  try {
-    const raw = await readFile(roomFilePath(roomId), 'utf-8');
-    const savedState = JSON.parse(raw);
-    const entry = await buildEntry(savedState);
-    rooms.set(roomId, entry);
-
-    // Redisへの移行はあくまで「ついで」の処理。ここが失敗しても、ディスクからの
-    // 読み込み自体は成功しているので、awaitで待って巻き込み失敗にはしない
-    // （待ってしまうと、Redisが一時的に落ちているだけで部屋が見つからない扱いになる）。
-    writeRoomState(roomId, entry.store.state)
-      .then(() => console.log(`[server] ${roomId} をローカルファイルからRedisへ移行しました`))
-      .catch((error) => console.warn(`[server] ${roomId} のRedisへの移行に失敗しました:`, error.message));
-
-    return entry;
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.warn(`[server] ${roomId} のローカルファイル読み込みに失敗しました:`, error.message);
-    }
-    return null;
-  }
+  // ローカルモードでは上のreadRoomStateが既にファイルを読んでいる。
+  return null;
 }
 
 // 保存する形へ整える。チャットログは上限なしに伸び続けるので（game-store.jsのwithChatEntry
@@ -1629,34 +1548,10 @@ function sweepExpiredRoomsInBackground() {
     .catch((error) => console.warn('[server] 部屋の自動削除に失敗しました:', error.message));
 }
 
-// 起動時、まだserver/rooms/が無ければ作成する。既存のserver/state.json（本機能より前の
-// 単一部屋運用のデータ）があれば、それを「部屋1」としてrooms/room-1.jsonへ複製する
-// （元のstate.jsonは安全のため残したまま削除しない）。
-async function migrateLegacyStateIfNeeded() {
-  try {
-    await access(ROOMS_DIR);
-    return; // 既にrooms/があるので移行済み
-  } catch {
-    // rooms/がまだ無い→続行
-  }
-
+// 起動時、まだserver/rooms/が無ければ作成する（ローカルモードの保存先。Redis運用でも
+// 名簿のローカル控えの置き場になる）。
+async function ensureRoomsDir() {
   await mkdir(ROOMS_DIR, { recursive: true });
-
-  try {
-    const raw = await readFile(LEGACY_STATE_FILE, 'utf-8');
-    const legacyState = JSON.parse(raw);
-    const migrated = {
-      ...legacyState,
-      room: { ...legacyState.room, name: legacyState.room?.name || '部屋1' }
-    };
-    await writeFile(roomFilePath('room-1'), JSON.stringify(migrated));
-    console.log('[server] 既存のstate.jsonを部屋1(rooms/room-1.json)へ移行しました（元ファイルはそのまま残します）');
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.warn('[server] 旧state.jsonの移行に失敗しました:', error.message);
-    }
-    // state.jsonが無ければ何もしない（新規デプロイ等）
-  }
 }
 
 // Content-Typeから拡張子を決める。R2上のキーを見たときに何のファイルか分かるようにするだけで、
@@ -3163,11 +3058,10 @@ async function withHeavySlot(req, res, kind, bodyBytes, handler, hardMaxBytes = 
   }
 }
 
-await migrateLegacyStateIfNeeded();
+await ensureRoomsDir();
 // 名簿はこの後のあらゆる判断（一覧・検索・掃除・ID の空き確認）の土台になるので、
 // リクエストを受け付ける前に読み終えておく。
 await loadRoomDirectory();
-await migrateLegacySummariesIfNeeded();
 
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);

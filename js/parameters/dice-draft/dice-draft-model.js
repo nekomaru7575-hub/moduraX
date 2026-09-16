@@ -152,16 +152,12 @@ const REQUIREMENT_KINDS = new Set(['match', 'sum']);
  *                              falseならパネルのスキルのカードを「名前は??・ダイスの置き場だけ」にする
  *                              （ステラナイツのNPCを持ち主以外が見るとき）。表示だけの絞り込みで、
  *                              発動の規則は変わらない。宣言しなければ常に見せる。
- *   legacyCountParameters?: { paramId: string, value: number }[]
- *     ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行元。
- *     宣言しておくと、値が残っているときだけパネルに「プールへ移す」ボタンが出る
- *     （ステラナイツの face1..face6 がこれ）。編集できるパラメータであること。
  * }} definition
  */
 export function createDiceDraftSpec(definition) {
   const {
     id, label, diceSides = 6, bcdiceSystem,
-    skillSpec = null, requirement = null, legacyCountParameters = [],
+    skillSpec = null, requirement = null,
     skillTabs = [], expiresCheckPhaseOnUse = false,
     unavailableReason = null, canViewSkillDetails = null
   } = definition;
@@ -182,8 +178,7 @@ export function createDiceDraftSpec(definition) {
     canViewSkillDetails: typeof canViewSkillDetails === 'function' ? canViewSkillDetails : null,
     diceSides: Number.isInteger(diceSides) && diceSides > 0 ? diceSides : 6,
     requirement: requirement ? Object.freeze({ ...requirement }) : null,
-    skillTabs: Object.freeze(skillTabs.map(tab => Object.freeze({ ...tab }))),
-    legacyCountParameters: Object.freeze(legacyCountParameters.map(entry => Object.freeze({ ...entry })))
+    skillTabs: Object.freeze(skillTabs.map(tab => Object.freeze({ ...tab })))
   });
 }
 

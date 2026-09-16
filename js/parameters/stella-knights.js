@@ -90,6 +90,7 @@ const STELLA_KNIGHTS_SKILL_SPEC = createSkillSpec({
 //
 // かつては出目の在庫を face1..face6 というパラメータで数えていたが、ドラフトのプールが
 // その役目を引き継いだので廃止した（このシステムはコマ固有のパラメータを持たない）。
+// 移行用の「プールへ移す」ボタンも役目を終えたので消してある。
 const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
   id: 'stella-knights-draft',
   label: '出目',

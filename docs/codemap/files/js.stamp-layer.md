@@ -1,11 +1,11 @@
 ---
 source: js/stamp-layer.js
-lines: 190
+lines: 218
 exports: 2
 imported_by: 2
 api_sha: 592ee42af932
 prose_sha: 592ee42af932
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 
@@ -25,8 +25,8 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 162 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
-| 184 | fn | initStampLayer | `initStampLayer()` |  |
+| 190 | fn | requestStamp | `requestStamp(stampId)` | スタンプを送る。 |
+| 212 | fn | initStampLayer | `initStampLayer()` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（9）
 
@@ -35,15 +35,15 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 35 | pickColumnIndex | `pickColumnIndex()` | 7 |  |
-| 44 | claimColumn | `claimColumn(participantId)` | 18 |  |
-| 66 | refreshColumnNames | `refreshColumnNames(column)` | 6 |  |
-| 74 | removeItem | `removeItem(participantId, item)` | 11 |  |
-| 88 | buildStampElement | `buildStampElement(stamp, name)` | 37 |  |
-| 127 | showStamp | `showStamp({ stampId, participantId, name })` | 22 |  |
-| 162 | requestStamp | `requestStamp(stampId)` | 4 | ✓ |
-| 173 | countStamp | `countStamp(stampId)` | 10 |  |
-| 184 | initStampLayer | `initStampLayer()` | 6 | ✓ |
+| 43 | pickAreaIndex | `pickAreaIndex()` | 7 |  |
+| 52 | claimArea | `claimArea(participantId)` | 28 |  |
+| 83 | pickPosition | `pickPosition(area)` | 15 |  |
+| 100 | removeItem | `removeItem(participantId, item)` | 10 |  |
+| 112 | buildStampElement | `buildStampElement(stamp)` | 32 |  |
+| 146 | showStamp | `showStamp({ stampId, participantId, name })` | 32 |  |
+| 190 | requestStamp | `requestStamp(stampId)` | 4 | ✓ |
+| 201 | countStamp | `countStamp(stampId)` | 10 |  |
+| 212 | initStampLayer | `initStampLayer()` | 6 | ✓ |
 
 ## 依存
 

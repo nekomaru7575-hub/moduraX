@@ -92,8 +92,8 @@ function applyChannel(channel, entry, tracks) {
   if (!track) return;
 
   state.appliedPlayId = entry.playId;
-  // dataUrlへのフォールバックは、URL参照へ移行する前に登録された部屋のデータを鳴らすため
-  audio.src = track.url || track.dataUrl;
+  // R2が無い環境ではここにデータURLが入る（js/image-upload.js と同じ扱い）
+  audio.src = track.url;
   audio.loop = Boolean(track.loop);
   audio.volume = getChannelVolume(channel);
   audio.muted = isMuted();

@@ -2321,7 +2321,3 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
-
-window.moveToken = (id, x, y) => {
-  store.dispatch('MOVE_TOKEN', { id, x, y });
-};

@@ -893,23 +893,6 @@ h1 {
   font-size: 0.66rem;
 }
 
-.dice-draft-migrate-btn {
-  flex: 0 0 auto;
-  width: 100%;
-  padding: 5px;
-  background-color: var(--surface-base);
-  color: var(--text-body-dim);
-  border: 1px dashed var(--border-default);
-  border-radius: 4px;
-  font-size: 0.72rem;
-  cursor: pointer;
-}
-
-.dice-draft-migrate-btn:hover {
-  background-color: var(--surface-raised);
-  color: var(--text-emphasis);
-}
-
 /* ラウンド進行（Core機能）の常時表示ステータスバー。js/round-panel.js参照 */
 .round-panel-bar {
   flex: 0 0 auto;

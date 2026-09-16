@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-15
+generated: 2026-09-16
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-15
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 176 | 814 | 1356 | 56 | 0 |
+| 176 | 814 | 1352 | 56 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 

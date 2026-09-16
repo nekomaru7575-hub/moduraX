@@ -18,8 +18,8 @@
 import { downloadJSON, parseJsonText } from './character-snapshot.js';
 import { pickFileAsText } from './file-uploader.js';
 
-// 旧形式（改行区切りテキスト1本）のキー。移行のために読むだけで、消しはしない（切り戻せるように）
-const LEGACY_STORAGE_KEY = 'chatPalette';
+// 「1ブラウザ＝改行区切りテキスト1本」だった頃のキー（chatPalette）からの引き継ぎは、
+// 2026-08-03の導入から6週間が過ぎたので外した。キー名にV2が残るのはそのなごり。
 const STORAGE_KEY = 'chatPaletteV2';
 
 // パレットのファイル保存形式のマーカー。コマのスナップショット（character-snapshot.js）と
@@ -66,13 +66,6 @@ export function loadChatPaletteState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return normalizeState(JSON.parse(raw));
-
-    // 旧形式（テキスト1本）が残っていれば、名前なしのタブ1枚として引き継ぐ
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy) {
-      const tab = createTab('', legacy);
-      return { version: 1, activeTabId: tab.id, tabs: [tab] };
-    }
   } catch {
     // 壊れたJSON・localStorageが使えない環境では既定の空パレットで始める
   }

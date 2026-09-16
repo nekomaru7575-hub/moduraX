@@ -131,7 +131,8 @@ export function createDiceDraftView() {
     renderKey: ({ spec, token }) => ({
       draft: token?.components?.[DICE_DRAFT_COMPONENT_KEY] ?? null,
       skills: (spec?.skillSpec && token?.components?.[spec.skillSpec.componentKey]) ?? null,
-      // 移行ボタンの出し入れに効くので、移行元パラメータの参照も見る
+      // スキルの式（js/parameters/skill/skill-formula.js）はパラメータを参照できるので、
+      // 目標値や要件の表示がパラメータで動く。ここを見ないと値を変えても古い表示が残る
       parameters: token?.parameters ?? null,
       // 目標値の修正はバフ/デバフで動く。ADD_BUFFはparametersを書き換えないので、
       // ここでbuffsを見ないと修正を足しても目標値の表示が古いまま残る
@@ -480,42 +481,6 @@ export function createDiceDraftView() {
         return card;
       }
 
-      // ドラフト導入前に「目ごとの個数」をパラメータで持っていたシステムのための移行
-      // （ステラナイツのface1..face6）。自動でやらないのは、これらが手入力もできる値で、
-      // 黙って書き換えると利用者の意図を壊しうるため。
-      function buildMigration() {
-        const entries = (spec.legacyCountParameters ?? [])
-          .map(entry => ({ ...entry, count: Number(token.parameters?.[entry.paramId]?.value) || 0 }))
-          .filter(entry => entry.count > 0);
-        if (entries.length === 0) return null;
-
-        const total = entries.reduce((sum, entry) => sum + entry.count, 0);
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'dice-draft-migrate-btn';
-        button.textContent = `出目パラメータをプールへ移す（${total}個）`;
-        button.addEventListener('click', () => {
-          const latest = getToken();
-          if (!latest) return;
-
-          const skills = readSkills(spec, latest);
-          const draft = readDraft(latest.components, skills.map(skill => skill.name));
-          const dice = entries.flatMap(entry =>
-            Array.from({ length: entry.count }, () => createDie(spec.diceSides, entry.value))
-          );
-
-          // 先にプールへ入れてから元の値を0にする。逆にすると、途中で失敗したときに
-          // 数え札だけが消えて戻せない。
-          saveDraft({ pool: [...draft.pool, ...dice], placements: { ...draft.placements } });
-          entries.forEach(entry => {
-            dispatch('SET_PARAMETER', { characterId: latest.id, paramId: entry.paramId, value: 0 });
-          });
-        });
-
-        return button;
-      }
-
       // --- 組み立て -------------------------------------------------
 
       const skills = readSkills(spec, token);
@@ -588,11 +553,6 @@ export function createDiceDraftView() {
           hiddenNote.textContent = `ここに出ていない${spec.skillSpec.noun}に ${hiddenDice}個 乗っています。`;
           skillSection.appendChild(hiddenNote);
         }
-      }
-
-      if (canEdit) {
-        const migrate = buildMigration();
-        if (migrate) container.appendChild(migrate);
       }
     }
   };

@@ -205,7 +205,6 @@ export class ImmutableStore {
       // この機能より前に保存された状態には参加者一覧が無いため、既定値を補う
       participants: newState.participants || {},
       // この機能より前に保存された状態にはround（ラウンド進行）が無いため、既定値を補う。
-      // turnIndex方式で保存された進行中の状態もここで新しい手番モデルへ読み替える。
       round: normalizeRoundState(newState.round),
       // この機能より前に保存された状態にはroom.bcdiceSystem/nameが無いため、既定値を補う
       room: {

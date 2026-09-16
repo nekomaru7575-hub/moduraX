@@ -1,11 +1,11 @@
 ---
 source: js/parameters/dice-draft/dice-draft-model.js
-lines: 635
+lines: 630
 exports: 21
 imported_by: 6
 api_sha: ff7f24c43280
 prose_sha: ff7f24c43280
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 
@@ -31,21 +31,21 @@ tags: [codemap]
 | 59 | fn | normalizeDraft | `normalizeDraft(raw, knownSkillNames = null)` | 保存済みのドラフトを正規化する。 |
 | 97 | fn | countDice | `countDice(draft)` | そのドラフトが持っているダイスの総数（プール＋配置済み）。 |
 | 104 | fn | placedDice | `placedDice(draft, skillName)` | そのスキルに乗っているダイス。 |
-| 161 | fn | createDiceDraftSpec | `createDiceDraftSpec(definition)` | ダイスドラフトの宣言。 |
-| 197 | fn | diceDraftUnavailableReason | `diceDraftUnavailableReason(spec, token)` | そのコマがドラフトを使えない理由。 |
-| 209 | fn | canViewDiceDraftSkillDetails | `canViewDiceDraftSkillDetails(spec, token, participantId)` | パネルでスキルの中身（状態の1行・判定値の欄）を見せてよいか。 |
-| 258 | fn | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。 |
-| 274 | fn | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。 |
-| 289 | fn | parseSumTarget | `parseSumTarget(raw)` | 目標値の欄を読む。 |
-| 316 | fn | acceptsDie | `acceptsDie(spec, skill, die)` | その目をそのスキルへ置いてよいか。 |
-| 360 | fn | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 今そのスキルに乗っているダイスで発動できるか。 |
-| 458 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
-| 490 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
-| 542 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
-| 570 | fn | supportsAutoPlace | `supportsAutoPlace(spec)` | 「自動で置く」を使える規則か。 |
-| 590 | fn | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | プールのダイスを、対応する数字のスキルへまとめて置く。 |
-| 618 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
-| 632 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
+| 157 | fn | createDiceDraftSpec | `createDiceDraftSpec(definition)` | ダイスドラフトの宣言。 |
+| 192 | fn | diceDraftUnavailableReason | `diceDraftUnavailableReason(spec, token)` | そのコマがドラフトを使えない理由。 |
+| 204 | fn | canViewDiceDraftSkillDetails | `canViewDiceDraftSkillDetails(spec, token, participantId)` | パネルでスキルの中身（状態の1行・判定値の欄）を見せてよいか。 |
+| 253 | fn | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 一覧の絞り込み（skillTabs）を1つ選んで、そこに出すスキルだけを返す。 |
+| 269 | fn | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 目標値へ足す修正の実効値（ドラクルージュの「目標値修正(TB)」）。 |
+| 284 | fn | parseSumTarget | `parseSumTarget(raw)` | 目標値の欄を読む。 |
+| 311 | fn | acceptsDie | `acceptsDie(spec, skill, die)` | その目をそのスキルへ置いてよいか。 |
+| 355 | fn | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 今そのスキルに乗っているダイスで発動できるか。 |
+| 453 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
+| 485 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
+| 537 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
+| 565 | fn | supportsAutoPlace | `supportsAutoPlace(spec)` | 「自動で置く」を使える規則か。 |
+| 585 | fn | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | プールのダイスを、対応する数字のスキルへまとめて置く。 |
+| 613 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
+| 627 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（25）
 
@@ -60,25 +60,25 @@ tags: [codemap]
 | 59 | normalizeDraft | `normalizeDraft(raw, knownSkillNames = null)` | 36 | ✓ |
 | 97 | countDice | `countDice(draft)` | 5 | ✓ |
 | 104 | placedDice | `placedDice(draft, skillName)` | 3 | ✓ |
-| 161 | createDiceDraftSpec | `createDiceDraftSpec(definition)` | 28 | ✓ |
-| 197 | diceDraftUnavailableReason | `diceDraftUnavailableReason(spec, token)` | 5 | ✓ |
-| 209 | canViewDiceDraftSkillDetails | `canViewDiceDraftSkillDetails(spec, token, participantId)` | 4 | ✓ |
-| 221 | acceptsAnyDie | `acceptsAnyDie(requirement, skill)` | 5 |  |
-| 228 | readNumberField | `readNumberField(skill, fieldKey)` | 6 |  |
-| 258 | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 4 | ✓ |
-| 274 | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 7 | ✓ |
-| 289 | parseSumTarget | `parseSumTarget(raw)` | 16 | ✓ |
-| 307 | applyTargetModifier | `applyTargetModifier(value, modifier, floor)` | 4 |  |
-| 316 | acceptsDie | `acceptsDie(spec, skill, die)` | 17 | ✓ |
-| 360 | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 92 | ✓ |
-| 458 | addDiceToPool | `addDiceToPool(draft, dice)` | 14 | ✓ |
-| 490 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
-| 512 | extractDie | `extractDie(draft, dieId)` | 24 |  |
-| 542 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
-| 570 | supportsAutoPlace | `supportsAutoPlace(spec)` | 3 | ✓ |
-| 590 | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | 22 | ✓ |
-| 618 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
-| 632 | clearDraft | `clearDraft()` | 3 | ✓ |
+| 157 | createDiceDraftSpec | `createDiceDraftSpec(definition)` | 27 | ✓ |
+| 192 | diceDraftUnavailableReason | `diceDraftUnavailableReason(spec, token)` | 5 | ✓ |
+| 204 | canViewDiceDraftSkillDetails | `canViewDiceDraftSkillDetails(spec, token, participantId)` | 4 | ✓ |
+| 216 | acceptsAnyDie | `acceptsAnyDie(requirement, skill)` | 5 |  |
+| 223 | readNumberField | `readNumberField(skill, fieldKey)` | 6 |  |
+| 253 | filterSkillsByTab | `filterSkillsByTab(skills, tab)` | 4 | ✓ |
+| 269 | readTargetModifier | `readTargetModifier(spec, token, getEffectiveParameterValue)` | 7 | ✓ |
+| 284 | parseSumTarget | `parseSumTarget(raw)` | 16 | ✓ |
+| 302 | applyTargetModifier | `applyTargetModifier(value, modifier, floor)` | 4 |  |
+| 311 | acceptsDie | `acceptsDie(spec, skill, die)` | 17 | ✓ |
+| 355 | evaluatePlacement | `evaluatePlacement(spec, skill, dice = [], { targetValue = null, targetModifier = 0 } = {})` | 92 | ✓ |
+| 453 | addDiceToPool | `addDiceToPool(draft, dice)` | 14 | ✓ |
+| 485 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
+| 507 | extractDie | `extractDie(draft, dieId)` | 24 |  |
+| 537 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
+| 565 | supportsAutoPlace | `supportsAutoPlace(spec)` | 3 | ✓ |
+| 585 | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | 22 | ✓ |
+| 613 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
+| 627 | clearDraft | `clearDraft()` | 3 | ✓ |
 
 ## 依存
 

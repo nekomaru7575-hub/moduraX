@@ -1,11 +1,11 @@
 ---
 source: js/chat-palette.js
-lines: 441
+lines: 434
 exports: 6
 imported_by: 1
 api_sha: 38d7d777e3d4
 prose_sha: 38d7d777e3d4
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 
@@ -27,10 +27,10 @@ tags: [codemap]
 |---:|---|---|---|---|
 | 27 | const | CHAT_PALETTE_FORMAT | `CHAT_PALETTE_FORMAT` | パレットのファイル保存形式のマーカー。 |
 | 65 | fn | loadChatPaletteState | `loadChatPaletteState()` |  |
-| 82 | fn | saveChatPaletteState | `saveChatPaletteState(state)` |  |
-| 90 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
-| 105 | fn | isChatPaletteHeading | `isChatPaletteHeading(line)` | 見出しの行か。 |
-| 121 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
+| 75 | fn | saveChatPaletteState | `saveChatPaletteState(state)` |  |
+| 83 | fn | parseChatPaletteLines | `parseChatPaletteLines(text)` |  |
+| 98 | fn | isChatPaletteHeading | `isChatPaletteHeading(line)` | 見出しの行か。 |
+| 114 | fn | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | パレットのUIを描画する。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（9）
 
@@ -43,11 +43,11 @@ tags: [codemap]
 | 35 | createTab | `createTab(name = '', text = '')` | 3 |  |
 | 39 | emptyState | `emptyState()` | 4 |  |
 | 46 | normalizeState | `normalizeState(raw)` | 18 |  |
-| 65 | loadChatPaletteState | `loadChatPaletteState()` | 16 | ✓ |
-| 82 | saveChatPaletteState | `saveChatPaletteState(state)` | 7 | ✓ |
-| 90 | parseChatPaletteLines | `parseChatPaletteLines(text)` | 6 | ✓ |
-| 105 | isChatPaletteHeading | `isChatPaletteHeading(line)` | 3 | ✓ |
-| 121 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **320** | ✓ |
+| 65 | loadChatPaletteState | `loadChatPaletteState()` | 9 | ✓ |
+| 75 | saveChatPaletteState | `saveChatPaletteState(state)` | 7 | ✓ |
+| 83 | parseChatPaletteLines | `parseChatPaletteLines(text)` | 6 | ✓ |
+| 98 | isChatPaletteHeading | `isChatPaletteHeading(line)` | 3 | ✓ |
+| 114 | renderChatPalette | `renderChatPalette({ container, onSend, findTokenByName })` | **320** | ✓ |
 
 ## 依存
 

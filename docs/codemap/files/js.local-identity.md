@@ -1,11 +1,11 @@
 ---
 source: js/local-identity.js
-lines: 162
+lines: 168
 exports: 15
 imported_by: 16
 api_sha: d8594b0ef669
 prose_sha: d8594b0ef669
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 
@@ -34,12 +34,12 @@ tags: [codemap]
 | 91 | fn | getStoredDevPassphrase | `getStoredDevPassphrase(roomId)` |  |
 | 95 | fn | setStoredDevPassphrase | `setStoredDevPassphrase(roomId, passphrase)` |  |
 | 103 | fn | isRoomIdentityAvailable | `isRoomIdentityAvailable()` | 導出にはWeb Crypto（SHA-256）を使う。 |
-| 117 | const | PARTICIPANT_ID_LENGTH | `PARTICIPANT_ID_LENGTH` | 公開IDをauthTokenから導出する規則。 |
-| 119 | fn | deriveParticipantId | `async deriveParticipantId(authToken)` |  |
-| 130 | fn | deriveRoomIdentity | `async deriveRoomIdentity(roomId, seed)` | 種（通常は表示名、開発用の合言葉を入れているときはそちら）から、その部屋での 参加者IDと名乗り用トークンを導出する。 |
-| 148 | fn | activateRoomIdentity | `async activateRoomIdentity(roomId, seed)` | 種から識別情報を導出して、この画面の「自分」として設定する。 |
-| 153 | fn | getCurrentParticipantId | `getCurrentParticipantId()` |  |
-| 159 | fn | getCurrentAuthToken | `getCurrentAuthToken()` | サーバーが「この公開IDを名乗ってよいか」を検証するための値。 |
+| 123 | const | PARTICIPANT_ID_LENGTH | `PARTICIPANT_ID_LENGTH` | 公開IDをauthTokenから導出する規則。 |
+| 125 | fn | deriveParticipantId | `async deriveParticipantId(authToken)` |  |
+| 136 | fn | deriveRoomIdentity | `async deriveRoomIdentity(roomId, seed)` | 種（通常は表示名、開発用の合言葉を入れているときはそちら）から、その部屋での 参加者IDと名乗り用トークンを導出する。 |
+| 154 | fn | activateRoomIdentity | `async activateRoomIdentity(roomId, seed)` | 種から識別情報を導出して、この画面の「自分」として設定する。 |
+| 159 | fn | getCurrentParticipantId | `getCurrentParticipantId()` |  |
+| 165 | fn | getCurrentAuthToken | `getCurrentAuthToken()` | サーバーが「この公開IDを名乗ってよいか」を検証するための値。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（18）
 
@@ -61,11 +61,11 @@ tags: [codemap]
 | 95 | setStoredDevPassphrase | `setStoredDevPassphrase(roomId, passphrase)` | 4 | ✓ |
 | 103 | isRoomIdentityAvailable | `isRoomIdentityAvailable()` | 3 | ✓ |
 | 107 | sha256Hex | `async sha256Hex(text)` | 6 |  |
-| 119 | deriveParticipantId | `async deriveParticipantId(authToken)` | 3 | ✓ |
-| 130 | deriveRoomIdentity | `async deriveRoomIdentity(roomId, seed)` | 9 | ✓ |
-| 148 | activateRoomIdentity | `async activateRoomIdentity(roomId, seed)` | 4 | ✓ |
-| 153 | getCurrentParticipantId | `getCurrentParticipantId()` | 3 | ✓ |
-| 159 | getCurrentAuthToken | `getCurrentAuthToken()` | 3 | ✓ |
+| 125 | deriveParticipantId | `async deriveParticipantId(authToken)` | 3 | ✓ |
+| 136 | deriveRoomIdentity | `async deriveRoomIdentity(roomId, seed)` | 9 | ✓ |
+| 154 | activateRoomIdentity | `async activateRoomIdentity(roomId, seed)` | 4 | ✓ |
+| 159 | getCurrentParticipantId | `getCurrentParticipantId()` | 3 | ✓ |
+| 165 | getCurrentAuthToken | `getCurrentAuthToken()` | 3 | ✓ |
 
 ## 依存
 

@@ -1,11 +1,11 @@
 ---
 source: js/board-data-driven.js
-lines: 2328
+lines: 2324
 exports: 13
 imported_by: 8
 api_sha: f19a94199345
 prose_sha: f19a94199345
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 

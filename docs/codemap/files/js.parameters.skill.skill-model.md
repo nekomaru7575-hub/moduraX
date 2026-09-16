@@ -1,11 +1,11 @@
 ---
 source: js/parameters/skill/skill-model.js
-lines: 663
+lines: 670
 exports: 18
 imported_by: 12
 api_sha: 4be371c9a6c9
 prose_sha: 4be371c9a6c9
-generated: 2026-09-15
+generated: 2026-09-16
 tags: [codemap]
 ---
 
@@ -76,7 +76,7 @@ tags: [codemap]
 | 563 | checkSkillUsable | `checkSkillUsable(spec, skill, context)` | 31 | ✓ |
 | 599 | collectModProblems | `collectModProblems(spec, skills, context)` | 19 | ✓ |
 | 623 | bumpSkillUsage | `bumpSkillUsage(spec, skills, skillNames)` | 14 | ✓ |
-| 643 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 20 | ✓ |
+| 643 | resetSkillUsageOnPhaseEnd | `resetSkillUsageOnPhaseEnd(spec, rawList, phase)` | 27 | ✓ |
 
 ## 依存
 

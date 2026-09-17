@@ -6,7 +6,7 @@
 // ここでは見ず、js/room-authority.js とサーバー側が決める。
 
 import { EventBus } from '../../EventBus.js';
-import { withExtensionEntries, withSystemLog } from '../chat.js';
+import { withExtensionEntries, withSystemLog, withSystemTabLog } from '../chat.js';
 import { applyPluginDerivedParameters, buildRoomParameters, reducePluginRoomExtension } from '../../parameters/registry.js';
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
 import { findRetiredImage, nextRetiredImages, normalizeImageRef, normalizeRetiredImages } from '../images.js';
@@ -84,10 +84,14 @@ export const ROOM_HANDLERS = {
     const reduced = reducePluginRoomExtension(activePlugin, prevState.room.extensions, key, op, args);
     if (!reduced) return;
 
-    // システム発言（logText）と、表示名を宣言側が決める発言（entries。ステラナイツの舞台の
-    // 「今すぐ発動」）の両方がありうる。どちらも無ければchatLogsには触らない。
+    // 知らせは3通りありうる（js/parameters/registry.jsの「宣言の形」の節）。
+    //   logText    … Mainへ「システム」の1行（始まりの部屋の発動・解除）
+    //   noticeText … システムタブへ1行（舞台の設定の切り替え。卓の流れではないので逃がす）
+    //   entries    … Mainへ表示名つきの発言（舞台の「今すぐ発動」）
+    // どれも無ければchatLogsには触らない。
     let chatLogs = prevState.chatLogs;
     if (reduced.logText) chatLogs = withSystemLog(chatLogs, reduced.logText, payload?.time);
+    if (reduced.noticeText) chatLogs = withSystemTabLog(chatLogs, reduced.noticeText, payload?.time);
     chatLogs = withExtensionEntries(chatLogs, reduced.entries, payload?.time);
 
     commit({

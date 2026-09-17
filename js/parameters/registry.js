@@ -400,15 +400,26 @@ export function getPluginDiceDraftSpec(pluginId) {
 //     key, label,
 //     gmOnly?: boolean,                 trueなら「拡張ルーム設定」にGM以外へ節ごと出さない（下記）
 //     normalize(value),                 保存データ・取り込んだJSONを正規形へ（信用しない入力）
-//     reduce(value, op, args),          → { value, logText?, entries? } | null（nullなら何もしない）
+//     reduce(value, op, args),          → { value, logText?, noticeText?, entries? } | null
 //     resetOnPhaseEnd?(value, phase),   → { value, logText }（変わらなければ同じ参照）
-//     applyRoundEvent?(value, event),   → { value, entries? } | null（下記）
-//     renderSection({ container, value, dispatchOp, roundActive, isGm })  「⋯」→「拡張ルーム設定」の欄
+//     applyRoundEvent?(value, event),   → { value, entries?, logText? } | null（下記）
+//     renderSection({ container, value, getValue, dispatchOp, roundActive, isGm })
+//                                       「⋯」→「拡張ルーム設定」の欄（下記）
 //   }]
 //
-// entries は Mainタブへ出す発言 [{ system, resultText }]。logText（「システム」の1行）と違って
-// 表示名を宣言側が決められる（ステラナイツの舞台が [予兆] [舞台] として流すため）。
+// 出せる知らせは3通り。どこへ出すかで選ぶ。
+//   logText    … Mainタブへ「システム」の1行。卓の流れとして読むもの
+//                （始まりの部屋の発動・解除は、PLがスキルを使った知らせなのでこちら）
+//   noticeText … システムタブへ1行。GMが手元の設定を切り替えただけの、読み流してよい事務連絡
+//                （舞台のループ方法・進行の前後・EX移行の切り替え）。
+//                振り分けの基準は js/store/chat.js の SYSTEM_CHAT_TAB_ID のコメントが正
+//   entries    … Mainタブへ [{ system, resultText }]。**表示名を宣言側が決められる**
+//                （舞台が [予兆] [舞台] として流すため）
 // Coreは中身を読まず、そのまま withChatEntry へ渡すだけ。
+//
+// renderSection の getValue() は**最新の値**を読む口。欄を開いたまま何度も操作するとき
+// （舞台のボックス）はこちらを使う。第1引数の value は描いた時点のスナップショット。
+// renderCharacterPanel の getComponents() と同じ役割。
 //
 // applyRoundEvent は、ラウンド進行の節目でこの拡張の値を進めるためのフック
 // （resetOnPhaseEnd と対。呼ぶのは js/store/handlers/round.js だけ）。
@@ -491,11 +502,14 @@ export function reducePluginRoomExtension(pluginId, extensions, key, op, args) {
   if (!reduced) return null;
   return {
     extensions: withPluginRoomExtensionValue(extensions, pluginId, key, def.normalize(reduced.value)),
-    logText: reduced.logText || '',
-    // 表示名を宣言側が決める発言（ステラナイツの舞台の「今すぐ発動」）。宣言の形の節を参照
+    logText: normalizeExtensionLogText(reduced.logText),
+    // システムタブへ逃がす事務連絡（舞台の設定の切り替え）。宣言の形の節を参照
+    noticeText: normalizeExtensionLogText(reduced.noticeText),
+    // 表示名を宣言側が決める発言（ステラナイツの舞台の「今すぐ発動」）。同じく宣言の形の節
     entries: normalizeExtensionEntries(reduced.entries)
   };
 }
+
 
 // applyRoundEvent / reduce が返した発言を、Coreが扱える形だけに絞る。
 // ここへ来る値はプラグインが組んだものだが、部屋の誰かが入力した文字を含むので
@@ -504,6 +518,11 @@ export function reducePluginRoomExtension(pluginId, extensions, key, op, args) {
 const MAX_EXTENSION_ENTRIES = 8;
 // システム発言へ混ぜる1件の長さ。進行のたびに出るものなので、ログを埋めない程度に切る
 const MAX_EXTENSION_LOG_TEXT = 200;
+
+// 宣言側が返した1行（logText / noticeText）を、Coreが扱える形だけに絞る。
+function normalizeExtensionLogText(text) {
+  return typeof text === 'string' ? text.slice(0, MAX_EXTENSION_LOG_TEXT) : '';
+}
 
 function normalizeExtensionEntries(entries) {
   if (!Array.isArray(entries)) return [];
@@ -560,7 +579,7 @@ export function applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)
     if (!result) return;
     entries.push(...normalizeExtensionEntries(result.entries));
     if (typeof result.logText === 'string' && result.logText !== '') {
-      logTexts.push(result.logText.slice(0, MAX_EXTENSION_LOG_TEXT));
+      logTexts.push(normalizeExtensionLogText(result.logText));
     }
     if (result.value === current) return;
     next = withPluginRoomExtensionValue(next, pluginId, def.key, def.normalize(result.value));

@@ -2735,3 +2735,22 @@
 .room-extension-section[open] > summary {
   margin-bottom: 6px;
 }
+
+/* 舞台のルーチン一覧ボックス（js/parameters/stella-knights-stage-box.js）。
+   拡張ルーム設定の上へ重ねて開く。1行の中身が多いので、幅はスキルのボックスに合わせる */
+.stage-box-dialog {
+  width: 100%;
+  max-width: 640px;
+}
+
+/* 列を開く3つのボタン。.dialog-add-row-btn は width:100% で1行を占めるので、横に並べ直す */
+.stage-kind-buttons {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stage-kind-button {
+  flex: 1 1 140px;
+  width: auto;
+  margin-bottom: 0;
+}

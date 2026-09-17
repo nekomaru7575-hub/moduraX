@@ -1,8 +1,8 @@
 ---
 source: js/parameters/stella-knights-stage.js
-lines: 497
+lines: 502
 exports: 23
-imported_by: 2
+imported_by: 3
 api_sha: 38386113e8c0
 prose_sha: 38386113e8c0
 generated: 2026-09-17
@@ -57,8 +57,8 @@ buildRoundPhaseTemplate が `steps` として宣言する（**このファイル
 | 184 | fn | describeRoutine | `describeRoutine(kind, index, routine)` | ログ1行ぶんの本文。 |
 | 251 | fn | applyStageRoundEvent | `applyStageRoundEvent(value, event)` | ラウンド進行の節目を受けて舞台を進める（Coreの拡張ルーム設定の applyRoundEvent）。 |
 | 340 | fn | describeCursor | `describeCursor(stage, kind)` | 「次はセットNo.2「◯◯」」のような1行。 |
-| 356 | fn | reduceStage | `reduceStage(value, op, args)` | 舞台の編集とGMの進行操作。 |
-| 487 | const | STAGE_EXTENSION_MODEL | `STAGE_EXTENSION_MODEL` | 「⋯」→「拡張ルーム設定」へ出す宣言（renderSection と applyRoundEvent は画面側・記述子側で足す） |
+| 361 | fn | reduceStage | `reduceStage(value, op, args)` | 【知らせはすべて noticeText（システムタブ）】GMが手元の設定を直しているだけで、卓の流れでは ない。 |
+| 492 | const | STAGE_EXTENSION_MODEL | `STAGE_EXTENSION_MODEL` | 「⋯」→「拡張ルーム設定」へ出す宣言（renderSection と applyRoundEvent は画面側・記述子側で足す） |
 
 ## トップレベル関数（LOCAL TASKS 候補）（19）
 
@@ -85,12 +85,12 @@ buildRoundPhaseTemplate が `steps` として宣言する（**このファイル
 | 328 | routineLabel | `routineLabel(kind, index, routine)` | 4 |  |
 | 335 | cursorMax | `cursorMax(stage, kind)` | 3 |  |
 | 340 | describeCursor | `describeCursor(stage, kind)` | 6 | ✓ |
-| 356 | reduceStage | `reduceStage(value, op, args)` | 129 | ✓ |
+| 361 | reduceStage | `reduceStage(value, op, args)` | 129 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.parameters.stella-knights-stage-section]], [[js.parameters.stella-knights]]
+- imported by → [[js.parameters.stella-knights-stage-box]], [[js.parameters.stella-knights-stage-section]], [[js.parameters.stella-knights]]
 
 ## 注意
 

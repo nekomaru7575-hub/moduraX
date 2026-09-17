@@ -74,6 +74,10 @@ function render() {
     def.renderSection({
       container: section,
       value: readPluginRoomExtension(extensions, pluginId, def.key),
+      // 描いた時点のvalueはスナップショット。欄から別のダイアログ（舞台のボックス）を開いて
+      // 続けて操作するときは、こちらで**最新の値**を読み直す。dispatchはローカルへ即時に
+      // 当たる（js/net-sync.js）ので、dispatchOpの直後に呼べば新しい値が返る。
+      getValue: () => readPluginRoomExtension(store.state.room?.extensions, pluginId, def.key),
       dispatchOp: (op, args) => store.dispatch('UPDATE_ROOM_EXTENSION', { key: def.key, op, args }),
       roundActive: !!state.round?.active,
       isGm

@@ -1,6 +1,6 @@
 ---
 source: js/room-extension-dialog.js
-lines: 121
+lines: 125
 exports: 1
 imported_by: 1
 api_sha: 484a2e6270ea
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 90 | fn | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` |  |
+| 94 | fn | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,8 +34,8 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 30 | render | `render()` | 56 |  |
-| 90 | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` | 31 | ✓ |
+| 30 | render | `render()` | 60 |  |
+| 94 | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` | 31 | ✓ |
 
 ## 依存
 

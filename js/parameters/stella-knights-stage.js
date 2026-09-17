@@ -351,8 +351,13 @@ export function describeCursor(stage, kind) {
  * @param {object} value 今の状態
  * @param {string} op
  * @param {object} args
- * @returns {{ value: object, logText?: string, entries?: object[] }|null} 何もしないならnull
+ * @returns {{ value: object, noticeText?: string, entries?: object[] }|null} 何もしないならnull
+ *   noticeText … システムタブへ出す1行（設定の切り替えは卓の流れではないため）。
+ *   entries    … Mainへ出す表示名つきの発言（卓へ見せる「今すぐ発動」だけ）。
  */
+// 【知らせはすべて noticeText（システムタブ）】GMが手元の設定を直しているだけで、卓の流れでは
+// ない。Mainへ出すと、盤面下のカレントチャット欄（Mainの最新1件だけを映す）が埋まって直前の
+// 台詞が読めなくなる。卓へ見せる「今すぐ発動」だけが entries でMainへ出る。
 export function reduceStage(value, op, args) {
   const stage = normalizeStage(value);
   const kind = args?.kind;
@@ -415,7 +420,7 @@ export function reduceStage(value, op, args) {
     if (next.mode === stage.loop.mode && next.from === stage.loop.from && next.to === stage.loop.to) return null;
     return {
       value: { ...stage, loop: next },
-      logText: next.mode === 'repeat'
+      noticeText: next.mode === 'repeat'
         ? `${STAGE_LABEL}: セットルーチンを撃ち切った後は、No.${next.from}〜No.${next.to}を繰り返します。`
         : `${STAGE_LABEL}: セットルーチンを撃ち切った後は、以降実行しません。`
     };
@@ -437,7 +442,7 @@ export function reduceStage(value, op, args) {
     const moved = op === 'stepBack' ? '巻き戻しました' : '進めました';
     return {
       value: { ...stage, cursor },
-      logText: `${STAGE_LABEL}: 進行を${moved}。${describeCursor({ ...stage, cursor }, kind)}`
+      noticeText: `${STAGE_LABEL}: 進行を${moved}。${describeCursor({ ...stage, cursor }, kind)}`
     };
   }
 
@@ -448,7 +453,7 @@ export function reduceStage(value, op, args) {
     const cursor = { ...stage.cursor, [kind]: next };
     return {
       value: { ...stage, cursor },
-      logText: `${STAGE_LABEL}: ${describeCursor({ ...stage, cursor }, kind)}`
+      noticeText: `${STAGE_LABEL}: ${describeCursor({ ...stage, cursor }, kind)}`
     };
   }
 
@@ -458,7 +463,7 @@ export function reduceStage(value, op, args) {
     const cursor = { ...stage.cursor, inEx: on, ...(on ? { ex: 0 } : {}) };
     return {
       value: { ...stage, cursor },
-      logText: on
+      noticeText: on
         ? `${STAGE_LABEL}: EXルーチンへ移行しました。`
         : `${STAGE_LABEL}: EXルーチンへの移行を取り消しました。`
     };
@@ -477,7 +482,7 @@ export function reduceStage(value, op, args) {
   if (op === 'resetProgress') {
     const reset = withResetProgress(stage);
     if (!reset) return null;
-    return { value: reset, logText: `${STAGE_LABEL}: 進行を最初へ戻しました。` };
+    return { value: reset, noticeText: `${STAGE_LABEL}: 進行を最初へ戻しました。` };
   }
 
   return null;

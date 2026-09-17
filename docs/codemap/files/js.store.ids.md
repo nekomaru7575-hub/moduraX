@@ -59,7 +59,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.game-store]], [[js.parameters.stella-knights-stage-section]], [[js.parameters.stella-knights-starting-room-section]]
+- imported by → [[js.game-store]], [[js.parameters.stella-knights-stage-box]], [[js.parameters.stella-knights-starting-room-section]]
 
 ## 注意
 

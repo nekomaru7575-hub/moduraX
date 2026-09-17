@@ -16,7 +16,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ImmutableStore, createInitialGameState, MAIN_CHAT_TAB_ID, listPhaseSteps } from '../js/game-store.js';
+import {
+  ImmutableStore, createInitialGameState, listPhaseSteps,
+  MAIN_CHAT_TAB_ID, SYSTEM_CHAT_TAB_ID
+} from '../js/game-store.js';
 import {
   applyStageRoundEvent, createStageState, describeRoutine, MAX_ROUTINES_PER_KIND,
   nextActionRoutine, nextSetRoutine, normalizeStage, OMEN_DECLARATION, reduceStage,
@@ -287,7 +290,9 @@ test('巻き戻し：1つ戻すと、次に発動するものが戻る', () => {
 
   const back = reduceStage(stage, 'stepBack', { kind: 'action' });
   assert.equal(normalizeStage(back.value).cursor.action, 1);
-  assert.match(back.logText, /次はNo\.2/);
+  // 設定の切り替えなので、Mainではなくシステムタブへ出す1行を返す
+  assert.equal(back.logText, undefined);
+  assert.match(back.noticeText, /次はNo\.2/);
 });
 
 test('今すぐ発動：ログは出るが、次に発動する位置は動かない', () => {
@@ -398,6 +403,8 @@ function seedStage(store) {
 
 const stageOf = (store) => store.state.room.extensions?.STELLA_KNIGHTS?.stage;
 const mainLog = (store) => store.state.chatLogs[MAIN_CHAT_TAB_ID];
+// 設定の切り替えはこちらへ逃がす（Mainの最新1件はカレントチャット欄に映るため）
+const systemTabLog = (store) => store.state.chatLogs[SYSTEM_CHAT_TAB_ID];
 const stageEntries = (store) => mainLog(store)
   .filter(entry => entry.system === '予兆' || entry.system === '舞台')
   .map(entry => `${entry.system}:${entry.resultText.split('\n')[0]}`);
@@ -570,7 +577,8 @@ test('ROUND_STEP_BACK：段を1つ戻す。先頭では何もしない', () => {
 
   store.dispatch('ROUND_STEP_BACK', {});
   assert.equal(store.state.round.step, STAGE_STEPS.revealSet);
-  assert.match(mainLog(store).at(-1).resultText, /段を1つ戻しました/);
+  // GMが押しすぎを直しているだけなので、Mainではなくシステムタブへ
+  assert.match(systemTabLog(store).at(-1).resultText, /段を1つ戻しました/);
 });
 
 test('ラウンド進行：シースは手番の列に出ない（skipWhen）', () => {
@@ -721,6 +729,83 @@ test('舞台を登録していない部屋では、手番の知らせは今ま�
 
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // NPCの手番終了
   assert.match(mainLog(store).at(-1).resultText, /アクション: ブリンガーの手番です。/);
+});
+
+// --- 通知の宛先 ---------------------------------------------------------------
+
+test('設定の切り替えは noticeText（システムタブ）で、logText は返さない', () => {
+  const stage = buildStage();
+  const ops = [
+    ['setLoop', { mode: 'repeat', from: 1, to: 2 }],
+    ['stepBack', { kind: 'action' }],
+    ['stepForward', { kind: 'action' }],
+    ['setCursor', { kind: 'action', index: 2 }],
+    ['setExMode', { on: true }]
+  ];
+  ops.forEach(([op, args]) => {
+    const result = reduceStage(stage, op, args);
+    assert.ok(result, `${op} が何も返していない`);
+    assert.equal(result.logText, undefined, `${op} が Main へ出そうとしている`);
+    assert.equal(typeof result.noticeText, 'string');
+  });
+
+  // resetProgress は進んだ状態からでないと変化しない
+  const moved = normalizeStage(press(stage, STAGE_STEPS.routine).stage);
+  const reset = reduceStage(moved, 'resetProgress', {});
+  assert.equal(reset.logText, undefined);
+  assert.match(reset.noticeText, /進行を最初へ戻しました/);
+});
+
+test('「今すぐ発動」だけは Main へ出す（卓へ見せる発動そのものなので）', () => {
+  const stage = buildStage();
+  const fired = reduceStage(stage, 'fireNow', { kind: 'action', id: 'a1' });
+  assert.deepEqual(fired.entries.map(entry => entry.system), ['舞台']);
+  assert.equal(fired.noticeText, undefined);
+});
+
+test('ストア：舞台の設定を切り替えるとシステムタブが増え、Main は増えない', () => {
+  const store = newRoom();
+  seedStage(store);
+  const beforeMain = mainLog(store).length;
+  const beforeSystem = systemTabLog(store).length;
+
+  store.dispatch('UPDATE_ROOM_EXTENSION', {
+    key: 'stage', op: 'setLoop', args: { mode: 'repeat', from: 1, to: 2 }
+  });
+  assert.equal(mainLog(store).length, beforeMain);
+  assert.equal(systemTabLog(store).length, beforeSystem + 1);
+  assert.match(systemTabLog(store).at(-1).resultText, /繰り返します/);
+
+  // 「今すぐ発動」は Main のまま
+  store.dispatch('UPDATE_ROOM_EXTENSION', {
+    key: 'stage', op: 'fireNow', args: { kind: 'set', id: 'set1' }
+  });
+  assert.equal(mainLog(store).length, beforeMain + 1);
+  assert.equal(mainLog(store).at(-1).system, '舞台');
+});
+
+test('「始まりの部屋」の発動・解除は Main のまま（一律に移していない）', () => {
+  const store = newRoom();
+  const beforeSystem = systemTabLog(store).length;
+
+  store.dispatch('UPDATE_ROOM_EXTENSION', {
+    key: 'startingRoom', op: 'add', args: { id: 'r1', from: 1, to: 5 }
+  });
+  assert.match(mainLog(store).at(-1).resultText, /始まりの部屋を発動しました/);
+
+  store.dispatch('UPDATE_ROOM_EXTENSION', { key: 'startingRoom', op: 'remove', args: { id: 'r1' } });
+  assert.match(mainLog(store).at(-1).resultText, /始まりの部屋を解除しました/);
+  assert.equal(systemTabLog(store).length, beforeSystem);
+});
+
+test('手番の知らせ（applyRoundEvent の logText）は Main のまま', () => {
+  const store = newRoom();
+  addToken(store, 'br', 'ブリンガー', 'ブリンガー');
+  seedStage(store);
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['br'] });
+  for (let i = 0; i < 3; i += 1) store.dispatch('ROUND_ADVANCE_PHASE', {});
+  assert.match(mainLog(store).at(-1).resultText, /ブリンガーの手番。予兆を公開します/);
 });
 
 test('hydrate：壊れた舞台・知らないシステムの値は落ちる', () => {

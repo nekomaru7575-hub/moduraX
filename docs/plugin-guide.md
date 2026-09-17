@@ -987,14 +987,14 @@ roomExtensions: [{
   gmOnly: false,
   // 保存データ・取り込んだ部屋データ（信用しないJSON）を正規形へ。壊れた値は落とす
   normalize: (value) => ({ rules: ... }),
-  // 操作を今の状態に当てる。何もしないならnull
-  reduce: (value, op, args) => ({ value: nextValue, logText: '…を発動しました', entries: [] }),
+  // 操作を今の状態に当てる。何もしないならnull。知らせの出し分けは下記
+  reduce: (value, op, args) => ({ value: nextValue, logText: '', noticeText: '', entries: [] }),
   // 任意。フェーズ終了で後始末する。変わらなければ同じ参照の value を返す
   resetOnPhaseEnd: (value, phase) => ({ value, logText: '' }),
   // 任意。ラウンド進行の節目でこの値を進める（下記）
-  applyRoundEvent: (value, event) => ({ value: nextValue, entries: [] }),
+  applyRoundEvent: (value, event) => ({ value: nextValue, entries: [], logText: '' }),
   // 「拡張ルーム設定」の欄。dispatchOp(op, args) で reduce へ届く
-  renderSection: ({ container, value, dispatchOp, roundActive, isGm }) => { ... }
+  renderSection: ({ container, value, getValue, dispatchOp, roundActive, isGm }) => { ... }
 }]
 ```
 
@@ -1007,9 +1007,19 @@ roomExtensions: [{
 シーンの遷移・部屋全体の EXPIRE_BUFFS）で、コマの `resetComponentsOnPhaseEnd` と同じく入れ子を
 1段ずつ渡されて呼ばれる。
 
-#### 表示名つきの発言（`entries`）
+#### 知らせをどこへ出すか（`logText` / `noticeText` / `entries`）
 
-`logText` は「システム」の1行になる。表示名を自分で決めたいときは `entries` を返す。
+| 返すもの | 出る先 | 何を出すか |
+|---|---|---|
+| `logText` | Main の「システム」の1行 | **卓の流れとして読むもの**（始まりの部屋の発動・解除は、PLがスキルを使った知らせなのでこちら） |
+| `noticeText` | システムタブの1行 | **GMが手元の設定を切り替えただけ**の、読み流してよい事務連絡（舞台のループ方法・進行の前後・EX移行） |
+| `entries` | Main。**表示名を自分で決める** | 舞台が `[予兆]` `[舞台]` として流すもの |
+
+> **Main へ出しすぎないこと。** 盤面下のカレントチャット欄は Main の最新1件だけを映すので、
+> 設定を切り替えるたびに1行出すと、直前の台詞が押し流されて読めなくなる。
+> 振り分けの基準は `js/store/chat.js` の `SYSTEM_CHAT_TAB_ID` のコメントが正。
+
+表示名を自分で決めたいときは `entries` を返す。
 
 ```js
 entries: [{ system: '予兆', resultText: `${name}
@@ -1063,6 +1073,28 @@ Coreの文言が出る。
 
 **コマの種別のような判断は記述子の側で解いてから渡すこと。** モデルのファイルから
 プラグイン本体を読むと循環 import になる（ステラナイツは `isBringer` を足して渡している）。
+
+#### 欄から別のダイアログを開く（`getValue`）
+
+欄が縦に長くなるなら、ボックス（`<dialog>` を重ねたもの）へ切り出せる。
+ステラナイツの舞台が、セット／アクション／EXの3列をそれぞれのボックスへ出している。
+
+```js
+renderSection: ({ container, value, getValue, dispatchOp }) => { ... }
+// value    … 描いた時点のスナップショット
+// getValue … **最新の値**を読む。欄を開いたまま何度も操作するならこちら
+```
+
+`dispatchOp` はローカルへ即時に当たるので、**撃った直後に `getValue()` を読めば新しい値が返る**。
+ボックスはこれで自分を描き直す（`renderCharacterPanel` の `getComponents()` と同じ役割）。
+
+入れ子のモーダルは既にある（`js/parameters/shinobigami-ougi-box.js` → 公開先ピッカー、
+`js/parameters/gcrest-unit-box.js` → `showSkillBox`）。`js/dialog-host.js` の
+`createDialogHost()` で `<dialog>` を作り置きして `showModal()` を重ねる。
+
+> **組み直すのは並びや印が変わる操作だけにすること。** 入力欄の編集でも組み直すと、
+> 打ち終えた直後にフォーカスとカーソル位置を奪う。入力欄には既に打った値が入っているので、
+> そこでは組み直さなくてよい（`js/parameters/stella-knights-stage-box.js` が実例）。
 
 #### 誰が触れるか
 

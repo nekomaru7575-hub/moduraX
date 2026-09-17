@@ -1,6 +1,6 @@
 ---
 source: js/parameters/registry.js
-lines: 719
+lines: 738
 exports: 31
 imported_by: 19
 api_sha: 0972d5cc175c
@@ -48,18 +48,18 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 359 | fn | listPluginStamps | `listPluginStamps(pluginId)` | プラグインが足すスタンプの宣言（記述子のstamps）をそのまま返す。 |
 | 373 | fn | getPluginBcdiceSystem | `getPluginBcdiceSystem(pluginId)` | そのシステムで使うBCDiceのシステムID（記述子のbcdiceSystem）をそのまま返す。 |
 | 386 | fn | getPluginDiceDraftSpec | `getPluginDiceDraftSpec(pluginId)` | ダイスドラフト（振った目をスキルへ割り当てて使う仕組み）の宣言をそのまま返す。 |
-| 451 | fn | listPluginRoomExtensions | `listPluginRoomExtensions(pluginId)` | その部屋のシステムが宣言した拡張ルーム設定の一覧。 |
-| 460 | fn | normalizePluginRoomExtensions | `normalizePluginRoomExtensions(raw)` | 保存データ・取り込んだ部屋データの room.extensions を整える。 |
-| 477 | fn | readPluginRoomExtension | `readPluginRoomExtension(extensions, pluginId, key)` | そのシステムの拡張ルーム設定の値（無ければ正規形の空） |
-| 487 | fn | reducePluginRoomExtension | `reducePluginRoomExtension(pluginId, extensions, key, op, args)` | 拡張ルーム設定への操作を、今の状態に当てる（UPDATE_ROOM_EXTENSION）。 |
-| 529 | fn | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | フェーズ終了（ラウンド終了など）で、拡張ルーム設定の後始末をさせる。 |
-| 551 | fn | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、拡張ルーム設定へ知らせる。 |
-| 579 | fn | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | BCDiceのロール結果を、そのシステムの部屋の効果に合わせて書き換えさせる （ステラナイツの始まりの部屋で出目を変える）。 |
-| 605 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
-| 664 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
-| 690 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 462 | fn | listPluginRoomExtensions | `listPluginRoomExtensions(pluginId)` | その部屋のシステムが宣言した拡張ルーム設定の一覧。 |
+| 471 | fn | normalizePluginRoomExtensions | `normalizePluginRoomExtensions(raw)` | 保存データ・取り込んだ部屋データの room.extensions を整える。 |
+| 488 | fn | readPluginRoomExtension | `readPluginRoomExtension(extensions, pluginId, key)` | そのシステムの拡張ルーム設定の値（無ければ正規形の空） |
+| 498 | fn | reducePluginRoomExtension | `reducePluginRoomExtension(pluginId, extensions, key, op, args)` | 拡張ルーム設定への操作を、今の状態に当てる（UPDATE_ROOM_EXTENSION）。 |
+| 548 | fn | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | フェーズ終了（ラウンド終了など）で、拡張ルーム設定の後始末をさせる。 |
+| 570 | fn | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、拡張ルーム設定へ知らせる。 |
+| 598 | fn | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | BCDiceのロール結果を、そのシステムの部屋の効果に合わせて書き換えさせる （ステラナイツの始まりの部屋で出目を変える）。 |
+| 624 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
+| 683 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
+| 709 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（37）
+## トップレベル関数（LOCAL TASKS 候補）（38）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -88,21 +88,22 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 359 | listPluginStamps | `listPluginStamps(pluginId)` | 4 | ✓ |
 | 373 | getPluginBcdiceSystem | `getPluginBcdiceSystem(pluginId)` | 4 | ✓ |
 | 386 | getPluginDiceDraftSpec | `getPluginDiceDraftSpec(pluginId)` | 3 | ✓ |
-| 438 | isPlainObject | `isPlainObject(value)` | 3 |  |
-| 442 | ownValue | `ownValue(object, key)` | 3 |  |
-| 451 | listPluginRoomExtensions | `listPluginRoomExtensions(pluginId)` | 3 | ✓ |
-| 460 | normalizePluginRoomExtensions | `normalizePluginRoomExtensions(raw)` | 15 | ✓ |
-| 477 | readPluginRoomExtension | `readPluginRoomExtension(extensions, pluginId, key)` | 5 | ✓ |
-| 487 | reducePluginRoomExtension | `reducePluginRoomExtension(pluginId, extensions, key, op, args)` | 12 | ✓ |
-| 508 | normalizeExtensionEntries | `normalizeExtensionEntries(entries)` | 10 |  |
-| 519 | withPluginRoomExtensionValue | `withPluginRoomExtensionValue(extensions, pluginId, key, value)` | 4 |  |
-| 529 | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | 14 | ✓ |
-| 551 | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | 19 | ✓ |
-| 579 | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | 9 | ✓ |
-| 605 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
-| 634 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
-| 664 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
-| 690 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 449 | isPlainObject | `isPlainObject(value)` | 3 |  |
+| 453 | ownValue | `ownValue(object, key)` | 3 |  |
+| 462 | listPluginRoomExtensions | `listPluginRoomExtensions(pluginId)` | 3 | ✓ |
+| 471 | normalizePluginRoomExtensions | `normalizePluginRoomExtensions(raw)` | 15 | ✓ |
+| 488 | readPluginRoomExtension | `readPluginRoomExtension(extensions, pluginId, key)` | 5 | ✓ |
+| 498 | reducePluginRoomExtension | `reducePluginRoomExtension(pluginId, extensions, key, op, args)` | 14 | ✓ |
+| 523 | normalizeExtensionLogText | `normalizeExtensionLogText(text)` | 3 |  |
+| 527 | normalizeExtensionEntries | `normalizeExtensionEntries(entries)` | 10 |  |
+| 538 | withPluginRoomExtensionValue | `withPluginRoomExtensionValue(extensions, pluginId, key, value)` | 4 |  |
+| 548 | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | 14 | ✓ |
+| 570 | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | 19 | ✓ |
+| 598 | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | 9 | ✓ |
+| 624 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
+| 653 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
+| 683 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
+| 709 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 

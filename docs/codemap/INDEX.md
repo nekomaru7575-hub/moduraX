@@ -20,7 +20,7 @@ generated: 2026-09-17
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 178 | 844 | 1392 | 55 | 0 |
+| 179 | 845 | 1396 | 54 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -60,7 +60,7 @@ generated: 2026-09-17
 | [[js.deck-editor-dialog\|js/deck-editor-dialog.js]] | デッキ（カードの束）の作成／編集ダイアログ。 | 1 | 1 |
 | [[js.deck-file\|js/deck-file.js]] | デッキの定義（room.deckTemplates の1件）をJSONファイルへ書き出す／読み込む。 | 5 | 1 |
 | [[js.deck-list-dialog\|js/deck-list-dialog.js]] | デッキ一覧。 | 1 | 1 |
-| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 40 |
+| [[js.dialog-host\|js/dialog-host.js]] | モーダルダイアログの入れ物（<dialog>要素）を1つだけ用意して使い回すための小道具。 | 2 | 41 |
 | [[js.dice-animation\|js/dice-animation.js]] | 盤面の上で3Dダイスを転がす演出（UIは持たない。js/audio-player.jsと同じ構え）。 | 1 | 1 |
 | [[js.dice-notation\|js/dice-notation.js]] | BCDice APIが返す出目の配列（rands）を、3Dダイス（vendor/dice-box-threejs）へ渡す ダイス記法へ変換する。 | 2 | 3 |
 | [[js.dice-roll-recompute\|js/dice-roll-recompute.js]] | BCDiceで振った後に出目だけを差し替えたとき、結果の文字列をこちらで組み立て直す。 | 3 | 1 |
@@ -139,8 +139,9 @@ generated: 2026-09-17
 | [[js.parameters.skill.skill-formula\|js/parameters/skill/skill-formula.js]] | スキル（キャラが選んで取得する能力。DX3のエフェクト、シノビガミの忍法等）の各所に書ける 「式」を数値・真偽値へ解決する。 | 9 | 2 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
-| [[js.parameters.stella-knights-stage-section\|js/parameters/stella-knights-stage-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「舞台」の欄（GMだけに出る）。 | 1 | 1 |
-| [[js.parameters.stella-knights-stage\|js/parameters/stella-knights-stage.js]] | 銀剣のステラナイツの「舞台」：シナリオ側の仕掛けを、GMの押下に合わせてMainへ流す。 | 23 | 2 |
+| [[js.parameters.stella-knights-stage-box\|js/parameters/stella-knights-stage-box.js]] | 舞台のルーチン一覧を編集するボックス（セット／アクション／EXのうち1種別ぶん）。 | 1 | 1 |
+| [[js.parameters.stella-knights-stage-section\|js/parameters/stella-knights-stage-section.js]] | 「拡張ルーム設定」に出す舞台の欄。卓の最中に見る進行の現在地と、列ごとのボックスを開くボタン。 | 1 | 1 |
+| [[js.parameters.stella-knights-stage\|js/parameters/stella-knights-stage.js]] | 銀剣のステラナイツの「舞台」：シナリオ側の仕掛けを、GMの押下に合わせてMainへ流す。 | 23 | 3 |
 | [[js.parameters.stella-knights-starting-room-section\|js/parameters/stella-knights-starting-room-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「始まりの部屋」の欄。 | 1 | 1 |
 | [[js.parameters.stella-knights-starting-room\|js/parameters/stella-knights-starting-room.js]] | 銀剣のステラナイツのスキル「始まりの部屋」：発動するとラウンド終了まで、振ったd6の目aをbとして扱う。 | 11 | 2 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] | 銀剣のステラナイツのプラグイン記述子（コマの種別・パラメータ・スキルとダイスドラフト・ブーケのコマンド・シートの取り込み）。 | 10 | 1 |
@@ -211,7 +212,7 @@ generated: 2026-09-17
 
 | ファイル | 被import |
 |---|---:|
-| [[js.dialog-host\|js/dialog-host.js]] | 40 |
+| [[js.dialog-host\|js/dialog-host.js]] | 41 |
 | [[js.parameters.registry\|js/parameters/registry.js]] | 19 |
 | [[js.EventBus\|js/EventBus.js]] | 18 |
 | [[js.game-store\|js/game-store.js]] | 18 |

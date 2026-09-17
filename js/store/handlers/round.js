@@ -9,7 +9,7 @@ import { getRoundPhaseTemplate } from '../../parameters/registry.js';
 import {
   applyPhaseEnd, applyRoomExtensionsPhaseEnd, applyRoomExtensionsRoundEvent, resetPluginComponentsForPhase
 } from '../buffs.js';
-import { withExtensionEntries, withSystemLog } from '../chat.js';
+import { withExtensionEntries, withSystemLog, withSystemTabLog } from '../chat.js';
 import { usesInitiativeProcess, withDerivedRoomParameters } from '../room.js';
 import {
   applyRoundPhaseStart, createInitialRoundState, hasUnchosenPlot, joinTokenNames, listPhaseSteps,
@@ -434,7 +434,9 @@ export const ROUND_HANDLERS = {
     const previous = steps[index - 1];
     commit({
       round: { ...round, step: previous.id },
-      chatLogs: withSystemLog(
+      // 【システムタブへ】GMが押しすぎを直しているだけで、卓の流れではない
+      // （舞台の「← 戻す」と扱いを揃える。js/store/chat.jsのSYSTEM_CHAT_TAB_IDの節）。
+      chatLogs: withSystemTabLog(
         prevState.chatLogs,
         `段を1つ戻しました（次: ${previous.label}）。`,
         payload?.time

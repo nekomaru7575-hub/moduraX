@@ -412,9 +412,16 @@ export function getPluginDiceDraftSpec(pluginId) {
 //
 // applyRoundEvent は、ラウンド進行の節目でこの拡張の値を進めるためのフック
 // （resetOnPhaseEnd と対。呼ぶのは js/store/handlers/round.js だけ）。
-//   event = { type: 'phaseStart' | 'turnStart' | 'turnEnd', phase, actor, roundNumber }
-//     phase … 今の段（テンプレートの1件そのまま）
-//     actor … 手番のコマ。turnStart / turnEnd のときだけ入り、それ以外は null
+//   event = { type: 'phaseStart' | 'turnStart' | 'step', phase, actor, roundNumber, stepId }
+//     phaseStart … 段に入った（押下なしで発火）
+//     turnStart  … 手番が決まった（押下なしで発火）
+//     step       … フェーズが宣言した段（steps）を1つ押した。stepId にその段のid
+//     phase  … 今の段（テンプレートの1件そのまま）
+//     actor  … 手番のコマ。手番のあるフェーズでだけ入り、それ以外は null
+//     stepId … step のときだけ入り、それ以外は null
+//
+// 【手番の終わりは step で受ける】steps の最後の段が手番の終わりにあたるので、
+// 'turnEnd' のような別のイベントは持たない（二重に飛ぶため）。
 // 何もしないなら null、値が変わらないなら同じ参照の value を返すこと。
 //
 // 【gmOnly は本当の制御ではない】UPDATE_ROOM_EXTENSION はGM限定アクションではない

@@ -21,7 +21,7 @@ import { createIcon, setIconText } from './icons.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
 import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
 import {
-  canActInPhase, listUnactedParticipants, listTiedPlotSlotKeys, getEffectiveParameterValue,
+  canActInPhase, listPhaseSteps, listUnactedParticipants, listTiedPlotSlotKeys, getEffectiveParameterValue,
   listPlotSlots, resolvedPlotSlot, listPlotSlotRows,
   plotSlotKey, describePlotSlotName, generatePlotSlotId
 } from './game-store.js';
@@ -524,7 +524,13 @@ export function initRoundPanel() {
         || (remainingAfterCurrent.length === 0 && !round.interruptId));
     const isLastPhaseOfTemplate = round.phaseIndex >= (round.template?.length || 1) - 1;
 
+    // フェーズが段（steps）を宣言していれば、次に押す段のラベルをそのまま出す。
+    // 宣言したラベルが「ラウンド終了へ」より優先される（最終フェーズに段を宣言したら、
+    // そのラベルが出る）。イニシアチブプロセス中は listPhaseSteps が空を返すので当たらない。
+    const stepLabel = listPhaseSteps(state.tokens, round).find(entry => entry.id === round.step)?.label;
+
     actionBtn.textContent = isUnrevealedPlot ? 'プロットを公開'
+      : stepLabel ? stepLabel
       : (isLastStepOfPhase && isLastPhaseOfTemplate) ? 'ラウンド終了へ'
       : isPreTurnStep(round) ? '手番を開始'
       : phase?.kind === 'perCharacter' ? '手番を終了'
@@ -605,6 +611,11 @@ export function initRoundPanel() {
             });
           }
         },
+        // 段を刻むフェーズでだけ出す（宣言の無いシステムには意味が無い項目なので並べない）
+        ...(listPhaseSteps(store.state.tokens, store.state.round).length > 0 ? [{
+          label: '段を1つ戻す',
+          onSelect: () => store.dispatch('ROUND_STEP_BACK', {})
+        }] : []),
         {
           label: 'ラウンド進行を終了',
           danger: true,

@@ -1,6 +1,6 @@
 ---
 source: js/room-authority-rules.js
-lines: 115
+lines: 117
 exports: 2
 imported_by: 3
 api_sha: e51908621897

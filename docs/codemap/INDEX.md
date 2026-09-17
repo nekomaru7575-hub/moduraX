@@ -20,7 +20,7 @@ generated: 2026-09-17
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 178 | 839 | 1387 | 56 | 0 |
+| 178 | 844 | 1391 | 55 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -140,7 +140,7 @@ generated: 2026-09-17
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 「キャラが選んで取得するタイプの能力」＝スキルの、システムに依存しないデータモデル。 | 18 | 12 |
 | [[js.parameters.skill.skill-use\|js/parameters/skill/skill-use.js]] | スキルの「使用」。 | 4 | 8 |
 | [[js.parameters.stella-knights-stage-section\|js/parameters/stella-knights-stage-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「舞台」の欄（GMだけに出る）。 | 1 | 1 |
-| [[js.parameters.stella-knights-stage\|js/parameters/stella-knights-stage.js]] | 銀剣のステラナイツの「舞台」：シナリオ側の仕掛けを、ラウンド進行に合わせて自動で流す。 | 20 | 2 |
+| [[js.parameters.stella-knights-stage\|js/parameters/stella-knights-stage.js]] | 銀剣のステラナイツの「舞台」：シナリオ側の仕掛けを、GMの押下に合わせてMainへ流す。 | 23 | 2 |
 | [[js.parameters.stella-knights-starting-room-section\|js/parameters/stella-knights-starting-room-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「始まりの部屋」の欄。 | 1 | 1 |
 | [[js.parameters.stella-knights-starting-room\|js/parameters/stella-knights-starting-room.js]] | 銀剣のステラナイツのスキル「始まりの部屋」：発動するとラウンド終了まで、振ったd6の目aをbとして扱う。 | 11 | 2 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] | 銀剣のステラナイツのプラグイン記述子（コマの種別・パラメータ・スキルとダイスドラフト・ブーケのコマンド・シートの取り込み）。 | 10 | 1 |
@@ -191,7 +191,7 @@ generated: 2026-09-17
 | [[js.store.params\|js/store/params.js]] | パラメータマップ（コマの parameters / room.parameters）を差し替えるための道具立て。 | 6 | 4 |
 | [[js.store.patch\|js/store/patch.js]] | dispatch 内で繰り返し現れる更新パターンの共通処理。 | 9 | 16 |
 | [[js.store.room\|js/store/room.js]] | 部屋そのものの既定値と、部屋の設定を読むための小さな述語。 | 10 | 7 |
-| [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 24 | 4 |
+| [[js.store.round-state\|js/store/round-state.js]] | ラウンド進行（Core機能）の状態そのものと、その状態から導ける読み取り。 | 26 | 4 |
 | [[js.store.stamps\|js/store/stamps.js]] | 部屋ごとに登録するスタンプ（room.stamps）の形と上限。 | 12 | 9 |
 | [[js.store.targets\|js/store/targets.js]] | ターゲット（Core機能）：参加者が「いま狙っているコマ」を1体だけ指定する仕組みの、状態の形と読み取り。 | 4 | 3 |
 | [[js.theme-boot\|js/theme-boot.js]] | 明るい表示を選んでいる人の画面に、**最初の描画より前に** data-theme="light" を付ける。 | 0 | 0 |

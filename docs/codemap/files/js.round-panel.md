@@ -1,6 +1,6 @@
 ---
 source: js/round-panel.js
-lines: 637
+lines: 648
 exports: 2
 imported_by: 1
 api_sha: 607d81b1a1a8
@@ -50,7 +50,7 @@ tags: [codemap]
 | 364 | describePlotStatus | `describePlotStatus(state, round)` | 24 |  |
 | 394 | renderPlotSection | `renderPlotSection(plotEl, state, round)` | 37 |  |
 | 435 | startRoundProgression | `startRoundProgression()` | 9 | ✓ |
-| 445 | initRoundPanel | `initRoundPanel()` | 192 | ✓ |
+| 445 | initRoundPanel | `initRoundPanel()` | **203** | ✓ |
 
 ## 依存
 

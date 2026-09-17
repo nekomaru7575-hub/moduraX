@@ -10,7 +10,9 @@ import {
   STARTING_ROOM_EXTENSION_MODEL, STARTING_ROOM_KEY, transformStellaKnightsRoll
 } from './stella-knights-starting-room.js';
 import { renderStartingRoomSection } from './stella-knights-starting-room-section.js';
-import { applyStageRoundEvent, STAGE_EXTENSION_MODEL, STAGE_SET_PHASE_ID } from './stella-knights-stage.js';
+import {
+  applyStageRoundEvent, STAGE_EXTENSION_MODEL, STAGE_SET_PHASE_ID, STAGE_STEPS
+} from './stella-knights-stage.js';
 import { renderStageSection } from './stella-knights-stage-section.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
@@ -236,11 +238,17 @@ function rulesOf(token) {
 // Coreはこの数値が何を表すかを知らず、並べることと0を飛ばすことだけをする。
 const TURN_ORDER_PARAM_ID = 'STELLA_KNIGHTS:turnOrder';
 const TURN_ORDER_NONE = 0;
+const TURN_ORDER_NPC = 1;
+const TURN_ORDER_BRINGER = 2;
 const TURN_ORDER_BY_CHAR_TYPE = Object.freeze({
-  [CHAR_TYPE_NPC]: 1,
-  [CHAR_TYPE_BRINGER]: 2,
+  [CHAR_TYPE_NPC]: TURN_ORDER_NPC,
+  [CHAR_TYPE_BRINGER]: TURN_ORDER_BRINGER,
   [CHAR_TYPE_SHEATH]: TURN_ORDER_NONE
 });
+
+// 「この段はブリンガーの手番にだけ出す」の宣言（Coreの steps の onlyWhen）。
+// Coreはこの値が何を表すかを知らず、手番のコマの実効値と等しいかだけを見る。
+const BRINGER_ONLY = Object.freeze({ paramId: TURN_ORDER_PARAM_ID, value: TURN_ORDER_BRINGER });
 
 /**
  * 種別から手番順を導く。返すのは変えたいものだけ（Coreが差分として当てる）。
@@ -264,12 +272,29 @@ function computeStellaKnightsDerivedParameters(parameters) {
  */
 function buildStellaKnightsRoundPhaseTemplate() {
   return [
-    { id: STAGE_SET_PHASE_ID, label: 'セット', kind: 'once' },
+    {
+      id: STAGE_SET_PHASE_ID, label: 'セット', kind: 'once',
+      // 開示を押すまでセットルーチンは出ない（GMが読み上げる用意をしてから撃つため）
+      steps: [
+        { id: STAGE_STEPS.revealSet, label: 'セットルーチンを開示' },
+        { id: STAGE_STEPS.setDone, label: '次へ進む' }
+      ]
+    },
     { id: 'charge', label: 'チャージ判定', kind: 'once' },
     {
       id: 'action', label: 'アクション', kind: 'perCharacter',
       turnOrder: { paramId: TURN_ORDER_PARAM_ID, direction: 'asc' },
-      skipWhen: { paramId: TURN_ORDER_PARAM_ID, value: TURN_ORDER_NONE }
+      skipWhen: { paramId: TURN_ORDER_PARAM_ID, value: TURN_ORDER_NONE },
+      // 【NPCは turnEnd の1段だけ】onlyWhen が付いていない段はその1つなので、
+      // NPCの手番は「手番終了」を1回押して終わる（ブリンガーは5回）。
+      // 「最後の当てはまる段が手番を終わらせる」という1つの規則で両方が出る。
+      steps: [
+        { id: STAGE_STEPS.omen, label: '予兆を開示', onlyWhen: BRINGER_ONLY },
+        { id: STAGE_STEPS.actionStart, label: 'アクション開始', onlyWhen: BRINGER_ONLY },
+        { id: STAGE_STEPS.turnEnd, label: '手番終了' },
+        { id: STAGE_STEPS.routine, label: 'ルーチン発動', onlyWhen: BRINGER_ONLY },
+        { id: STAGE_STEPS.actionEnd, label: 'アクション終了', onlyWhen: BRINGER_ONLY }
+      ]
     },
     { id: 'cut', label: 'カット', kind: 'once', expirePhaseOnComplete: 'round' }
   ];

@@ -79,7 +79,10 @@ export function normalizeRoundState(round) {
     plotExtras: round.plotExtras || base.plotExtras,
     plotChoice: round.plotChoice || base.plotChoice,
     // 戦闘離脱機能より前の状態にはキーが無い。上と同じ理由で埋め直す。
-    withdrawn: round.withdrawn || base.withdrawn
+    withdrawn: round.withdrawn || base.withdrawn,
+    // 段（steps）を刻むフェーズでは step に宣言されたidが入る。undefinedのまま残ると
+    // 「一覧に無いid」として次の1押しで手番が終わるので実害は無いが、形は揃えておく。
+    step: round.step || base.step
   };
   return next;
 }
@@ -401,12 +404,64 @@ export function listTiedPlotTokenIds(round) {
  * ステラナイツのシース（手番を持たない種別）がこれで手番の列から外れる。
  * 宣言が無ければ全員が対象＝これまでどおり。
  */
+// フェーズの宣言（skipWhen / onlyWhen）と、コマの実効値を比べる。Coreはその数値が
+// 何を表すかを知らず、宣言された値と等しいかだけを見る。
+function matchesParamCondition(tokensState, condition, tokenId) {
+  const token = tokensState[tokenId];
+  if (!token) return false;
+  return getEffectiveParameterValue(token, condition.paramId) === condition.value;
+}
+
 export function canActInPhase(tokensState, phase, tokenId) {
   const skip = phase?.skipWhen;
   if (!skip?.paramId) return true;
-  const token = tokensState[tokenId];
-  if (!token) return true;
-  return getEffectiveParameterValue(token, skip.paramId) !== skip.value;
+  if (!tokensState[tokenId]) return true;
+  return !matchesParamCondition(tokensState, skip, tokenId);
+}
+
+// フェーズが宣言できる段の上限。round.template は取り込んだ部屋のJSONからも来るうえ、
+// ラベルは進行ボタンの文字になる。読む口はlistStepsForPhase1つなので、ここで丸めれば足りる
+// （canActInPhaseがskipWhenの唯一の口なのと同じ）。
+const MAX_PHASE_STEPS = 8;
+const MAX_PHASE_STEP_LABEL = 20;
+
+// 段のidに使えない名前。round.step はこれらと同じ入れ物なので、宣言で奪わせない。
+const RESERVED_STEP_IDS = new Set(['act', 'preTurn']);
+
+/**
+ * そのフェーズで、その手番のコマに当てはまる段（steps）の一覧。
+ *
+ * 宣言が無ければ空配列＝これまでどおり主ボタン1回で完了する。
+ * onlyWhen は手番のコマを見る宣言なので、手番を持たないフェーズ（kind:'once'等）では
+ * 無視して常に含める（宣言ミスで段が黙って消えるより、出ているほうが気付ける）。
+ */
+export function listStepsForPhase(tokensState, phase, actorId) {
+  const steps = phase?.steps;
+  if (!Array.isArray(steps) || steps.length === 0) return [];
+  const perCharacter = phase.kind === 'perCharacter';
+
+  const result = [];
+  for (const step of steps) {
+    if (result.length >= MAX_PHASE_STEPS) break;
+    if (typeof step?.id !== 'string' || step.id === '' || RESERVED_STEP_IDS.has(step.id)) continue;
+    if (perCharacter && step.onlyWhen?.paramId
+      && !matchesParamCondition(tokensState, step.onlyWhen, actorId)) continue;
+    result.push({ id: step.id, label: String(step.label ?? '').slice(0, MAX_PHASE_STEP_LABEL) });
+  }
+  return result;
+}
+
+/**
+ * 今いる段の、今の手番のコマに当てはまる段の一覧。画面（js/round-panel.js）と
+ * 進行（js/store/handlers/round.js）が同じ答えを見るための一本道。
+ * イニシアチブプロセスの最中は数えない（まだ手番の主が決まっていない）。
+ */
+export function listPhaseSteps(tokensState, round) {
+  const phase = round?.template?.[round.phaseIndex];
+  if (phase?.kind === 'perCharacter' && round.step === 'preTurn') return [];
+  return listStepsForPhase(
+    tokensState, phase, phase?.kind === 'perCharacter' ? round.currentActorId : null
+  );
 }
 
 export function listUnactedParticipants(tokensState, round) {
@@ -436,10 +491,16 @@ export function pickNextActor(tokensState, round) {
   return listUnactedParticipants(tokensState, round)[0] || null;
 }
 
-// フェーズに入るときのサブステップを決める。イニシアチブプロセスを挟む設定で、かつ
-// そのフェーズが「手番の前に挟む段」を宣言しているときだけ'preTurn'から始める。
-export function initialStepForPhase(phase, useInitiativeProcess) {
-  return (useInitiativeProcess && phase?.kind === 'perCharacter' && phase.preTurnStep) ? 'preTurn' : 'act';
+/**
+ * フェーズ／手番に入るときの round.step を決める。
+ *
+ * イニシアチブプロセスが最優先（'preTurn'）、次に宣言された最初の段のid、
+ * どちらも無ければ 'act'（＝段を刻まない、これまでどおりの振る舞い）。
+ * 段は onlyWhen で手番のコマを見るので、**手番の主を決めた後に呼ぶこと**。
+ */
+export function startStepForTurn(tokensState, phase, actorId, useInitiativeProcess) {
+  if (useInitiativeProcess && phase?.kind === 'perCharacter' && phase.preTurnStep) return 'preTurn';
+  return listStepsForPhase(tokensState, phase, actorId)[0]?.id ?? 'act';
 }
 
 // ログ表示用にコマ名を並べる（見つからないidはそのまま出す）。

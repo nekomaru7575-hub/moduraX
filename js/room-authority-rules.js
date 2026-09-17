@@ -53,6 +53,8 @@ export const GM_ONLY_ACTIONS = new Set([
   'ROUND_PROGRESSION_END',
   // 行動済みの付け外し・次の手番への割り込み指定・ラウンド進行の設定も進行操作の一部
   'ROUND_SET_ACTED',
+  // 段（steps）を1つ戻す。進行そのものを巻き戻す操作なのでROUND_ADVANCE_PHASEと同じ扱い
+  'ROUND_STEP_BACK',
   'ROUND_SET_INTERRUPT',
   // 戦闘離脱の付け外しも進行操作の一部（上と同じ理由）
   'ROUND_SET_WITHDRAWN',

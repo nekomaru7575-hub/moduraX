@@ -37,9 +37,26 @@ export const STAGE_LABEL = '舞台';
 export const OMEN_LOG_NAME = '予兆';
 export const STAGE_LOG_NAME = '舞台';
 
+// ブリンガーの手番が始まったときに出す前口上。中身（予兆そのもの）はGMが
+// 「予兆を開示」を押すまで出さない。
+export const OMEN_DECLARATION = '予兆を発動します';
+
 // セットルーチンを撃つ段。buildRoundPhaseTemplateの宣言と突き合わせるので、
 // 定義はここ1か所にして、テンプレート側がこれを読む。
 export const STAGE_SET_PHASE_ID = 'set';
+
+// GMが押して進める段（Coreの steps）のid。テンプレート（js/parameters/stella-knights.js）が
+// これを読んでラベルを付ける。**このファイルからは stella-knights.js を読めない**
+// （循環import）ので、突き合わせる名前はこちら側に置く。
+export const STAGE_STEPS = Object.freeze({
+  revealSet:   'stageRevealSet',   // セットルーチンを開示
+  setDone:     'stageSetDone',     // セットの段を抜ける
+  omen:        'stageOmen',        // 予兆を開示
+  actionStart: 'stageActionStart', // ブリンガーの行動開始を告げる
+  turnEnd:     'stageTurnEnd',     // 手番終了（NPCはこの1段だけ）
+  routine:     'stageRoutine',     // アクション／EXルーチンを適用
+  actionEnd:   'stageActionEnd'    // アクションの処理が終わった。次の手番へ
+});
 
 export const ROUTINE_KINDS = ['set', 'action', 'ex'];
 export const ROUTINE_KIND_LABELS = { set: 'セット', action: 'アクション', ex: 'EX' };
@@ -138,9 +155,10 @@ export function normalizeStage(raw) {
 
 // --- 読み出し（画面とログが同じ答えを見るための一本道） -----------------------
 
-/** 次に発動するセットルーチン。撃ち切っていればnull */
+/** 次に発動するセットルーチンと、その位置。撃ち切っていれば routine が null */
 export function nextSetRoutine(stage) {
-  return stage.set[stage.cursor.set] ?? null;
+  const index = stage.cursor.set;
+  return { index, routine: stage.set[index] ?? null };
 }
 
 /**
@@ -149,20 +167,29 @@ export function nextSetRoutine(stage) {
  */
 export function nextActionRoutine(stage) {
   const kind = stage.cursor.inEx ? 'ex' : 'action';
-  return { kind, routine: stage[kind][stage.cursor[kind]] ?? null };
+  const index = stage.cursor[kind];
+  return { kind, index, routine: stage[kind][index] ?? null };
 }
 
-/** ログ1行ぶんの本文。名前も効果も空の行は流さない（nullを返す） */
-export function describeRoutine(routine) {
+/**
+ * 何番目のルーチンかの呼び名。ログ・拡張ルーム設定の欄・進行の現在地が
+ * **すべてこの関数を通る**ので、卓とGMが同じ言い方で番号を指せる。
+ */
+export function routineNumberLabel(kind, index) {
+  return kind === 'ex' ? `EX（${index + 1}）` : `No.（${index + 1}）`;
+}
+
+/** ログ1行ぶんの本文。名前も効果も空の行は流さない（番号だけの発言に意味は無い） */
+export function describeRoutine(kind, index, routine) {
   if (!routine) return null;
   const name = routine.name.trim();
   const effect = routine.effect.trim();
   if (name === '' && effect === '') return null;
-  return [name, effect].filter(Boolean).join('\n');
+  return [`${routineNumberLabel(kind, index)}${name}`, effect].filter(Boolean).join('\n');
 }
 
-function entryFor(system, routine) {
-  const resultText = describeRoutine(routine);
+function entryFor(system, kind, index, routine) {
+  const resultText = describeRoutine(kind, index, routine);
   return resultText === null ? null : { system, resultText };
 }
 
@@ -196,50 +223,94 @@ function withExTransition(cursor, routine) {
 /**
  * ラウンド進行の節目を受けて舞台を進める（Coreの拡張ルーム設定の applyRoundEvent）。
  *
+ * **発動はすべてGMの押下で起きる。** 押していないものは出ない。押す段の並びは
+ * テンプレート（js/parameters/stella-knights.js）が STAGE_STEPS で宣言する。
+ *
  * @param {object} value 今の舞台（正規形でなくてもよい）
- * @param {{ type: string, phase: object, isBringer: boolean }} event
+ * @param {{ type: string, phase: object, stepId: string|null,
+ *          actor: object|null, isBringer: boolean }} event
  *   isBringer … 手番のコマが種別「ブリンガー」か。種別の判定は js/parameters/stella-knights.js 側で
- *   解いてから渡す（このファイルが stella-knights.js を読むと循環importになるため）
+ *   解いてから渡す（このファイルが stella-knights.js を読むと循環importになるため）。
+ *   **見るのは2か所だけ**：Coreが無条件に撃つ turnStart と、全員に出る turnEnd の段。
+ *   それ以外の段は onlyWhen でブリンガーにしか出ないので、ここで重ねて見ない
+ *   （2か所で同じ判断をすると、片方だけ直したときにズレる）。
  * @returns {{ value: object, entries: object[] }|null} 何もしないならnull
  */
 export function applyStageRoundEvent(value, event) {
   const stage = normalizeStage(value);
-  const type = event?.type;
 
-  // セットの段に入った。1ラウンドに1つずつ消費する
-  if (type === 'phaseStart' && event?.phase?.id === STAGE_SET_PHASE_ID) {
-    const routine = nextSetRoutine(stage);
-    if (!routine) return null;
-    const cursor = withExTransition({ ...stage.cursor, ...advancedSetCursor(stage) }, routine);
-    return { value: { ...stage, cursor }, entries: [entryFor(STAGE_LOG_NAME, routine)].filter(Boolean) };
+  // ブリンガーの手番が始まった。これから予兆を出すことだけ告げる（中身は omen の押下で）
+  if (event?.type === 'turnStart') {
+    return event.isBringer
+      ? { value, entries: [{ system: STAGE_LOG_NAME, resultText: OMEN_DECLARATION }] }
+      : null;
   }
+  if (event?.type !== 'step') return null;
 
-  // ブリンガーの手番の前。予告するだけで、進行は動かさない
-  if (type === 'turnStart' && event?.isBringer) {
-    const { routine } = nextActionRoutine(stage);
-    const omen = entryFor(OMEN_LOG_NAME, routine);
-    return omen ? { value, entries: [omen] } : null;
+  switch (event.stepId) {
+    // セットルーチンを開示する。1ラウンドに1つずつ消費する
+    case STAGE_STEPS.revealSet: {
+      const { index, routine } = nextSetRoutine(stage);
+      if (!routine) return null;
+      const cursor = withExTransition({ ...stage.cursor, ...advancedSetCursor(stage) }, routine);
+      return {
+        value: { ...stage, cursor },
+        entries: [entryFor(STAGE_LOG_NAME, 'set', index, routine)].filter(Boolean)
+      };
+    }
+
+    // 予兆を開示する。予告するだけで進行は動かさない
+    case STAGE_STEPS.omen: {
+      const { kind, index, routine } = nextActionRoutine(stage);
+      const omen = entryFor(OMEN_LOG_NAME, kind, index, routine);
+      return omen ? { value, entries: [omen] } : null;
+    }
+
+    // ブリンガーの行動開始を告げる
+    case STAGE_STEPS.actionStart: {
+      const name = event.actor?.name?.trim() || '？';
+      return { value, entries: [{ system: STAGE_LOG_NAME, resultText: `「${name}」の行動開始` }] };
+    }
+
+    // 手番終了。これからルーチンを適用することを告げる（NPCの手番はここで終わる＝何も出さない）
+    case STAGE_STEPS.turnEnd: {
+      if (!event.isBringer) return null;
+      const { kind } = nextActionRoutine(stage);
+      return {
+        value,
+        entries: [{
+          system: STAGE_LOG_NAME,
+          resultText: `${ROUTINE_KIND_LABELS[kind]}ルーチンを発動します`
+        }]
+      };
+    }
+
+    // アクション／EXルーチンを適用して1つ進める。予兆と同じ中身になるのは
+    // どちらも nextActionRoutine 一本を通るから
+    case STAGE_STEPS.routine: {
+      const { kind, index, routine } = nextActionRoutine(stage);
+      if (!routine) return null;
+      const cursor = withExTransition(
+        { ...stage.cursor, [kind]: (index + 1) % stage[kind].length },
+        routine
+      );
+      return {
+        value: { ...stage, cursor },
+        entries: [entryFor(STAGE_LOG_NAME, kind, index, routine)].filter(Boolean)
+      };
+    }
+
+    // 段を抜けるだけ（セットの段を出る・アクションの処理を終えて次の手番へ）
+    default:
+      return null;
   }
-
-  // ブリンガーの手番の終了。予兆と同じ中身を適用して1つ進める
-  if (type === 'turnEnd' && event?.isBringer) {
-    const { kind, routine } = nextActionRoutine(stage);
-    if (!routine) return null;
-    const cursor = withExTransition(
-      { ...stage.cursor, [kind]: (stage.cursor[kind] + 1) % stage[kind].length },
-      routine
-    );
-    return { value: { ...stage, cursor }, entries: [entryFor(STAGE_LOG_NAME, routine)].filter(Boolean) };
-  }
-
-  return null;
 }
 
 // --- GMの操作（拡張ルーム設定の欄から） ---------------------------------------
 
 function routineLabel(kind, index, routine) {
   const name = routine?.name?.trim();
-  return `${ROUTINE_KIND_LABELS[kind]}No.${index + 1}` + (name ? `「${name}」` : '');
+  return routineNumberLabel(kind, index) + (name ? `「${name}」` : '');
 }
 
 // その列の進行の位置を動かせる上限。
@@ -380,8 +451,8 @@ export function reduceStage(value, op, args) {
   // 巻き戻したうえで「代わりにこれを撃つ」ためのものなので、次に撃つものは戻したままにする。
   if (op === 'fireNow') {
     if (!isRoutineKind(kind)) return null;
-    const routine = stage[kind].find(item => item.id === args?.id);
-    const fired = entryFor(STAGE_LOG_NAME, routine);
+    const index = stage[kind].findIndex(item => item.id === args?.id);
+    const fired = index < 0 ? null : entryFor(STAGE_LOG_NAME, kind, index, stage[kind][index]);
     if (!fired) return null;
     return { value: stage, entries: [fired] };
   }

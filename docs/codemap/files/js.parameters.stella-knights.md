@@ -1,6 +1,6 @@
 ---
 source: js/parameters/stella-knights.js
-lines: 988
+lines: 1013
 exports: 10
 imported_by: 1
 api_sha: 7017adbeff91
@@ -27,16 +27,16 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 152 | const | STELLA_KNIGHTS_CHAR_TYPES | `STELLA_KNIGHTS_CHAR_TYPES` |  |
-| 174 | fn | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` |  |
-| 179 | fn | readStellaKnightsCharType | `readStellaKnightsCharType(parameters)` |  |
-| 198 | const | STELLA_KNIGHTS_TYPE_RULES | `STELLA_KNIGHTS_TYPE_RULES` | 種別ごとに何を持つか。 |
-| 299 | fn | buildStellaKnightsTypeOverrides | `buildStellaKnightsTypeOverrides(charType, ownerId)` | 種別を切り替えたときに揃える、コマの見え方（js/character-dialog.jsのgetCharacterOverridesの形）。 |
-| 313 | fn | stellaKnightsDraftUnavailableReason | `stellaKnightsDraftUnavailableReason(token)` | そのコマでダイスドラフト（とこのシステムのコマンド）を使えない理由。 |
-| 318 | fn | canViewStellaKnightsSkills | `canViewStellaKnightsSkills(token, participantId)` | そのコマのスキルの中身を見てよいか（NPCは持ち主だけ。js/visibility.jsのcanViewOwnerOnly） |
-| 864 | const | STELLA_KNIGHTS_SHEET_SOURCE | `STELLA_KNIGHTS_SHEET_SOURCE` | URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。 |
-| 917 | fn | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | Webキャラクターシート（銀剣のステラナイツ）のJSONを取り込む。 |
-| 949 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
+| 154 | const | STELLA_KNIGHTS_CHAR_TYPES | `STELLA_KNIGHTS_CHAR_TYPES` |  |
+| 176 | fn | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` |  |
+| 181 | fn | readStellaKnightsCharType | `readStellaKnightsCharType(parameters)` |  |
+| 200 | const | STELLA_KNIGHTS_TYPE_RULES | `STELLA_KNIGHTS_TYPE_RULES` | 種別ごとに何を持つか。 |
+| 324 | fn | buildStellaKnightsTypeOverrides | `buildStellaKnightsTypeOverrides(charType, ownerId)` | 種別を切り替えたときに揃える、コマの見え方（js/character-dialog.jsのgetCharacterOverridesの形）。 |
+| 338 | fn | stellaKnightsDraftUnavailableReason | `stellaKnightsDraftUnavailableReason(token)` | そのコマでダイスドラフト（とこのシステムのコマンド）を使えない理由。 |
+| 343 | fn | canViewStellaKnightsSkills | `canViewStellaKnightsSkills(token, participantId)` | そのコマのスキルの中身を見てよいか（NPCは持ち主だけ。js/visibility.jsのcanViewOwnerOnly） |
+| 889 | const | STELLA_KNIGHTS_SHEET_SOURCE | `STELLA_KNIGHTS_SHEET_SOURCE` | URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。 |
+| 942 | fn | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | Webキャラクターシート（銀剣のステラナイツ）のJSONを取り込む。 |
+| 974 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（26）
 
@@ -45,32 +45,32 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 174 | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` | 3 | ✓ |
-| 179 | readStellaKnightsCharType | `readStellaKnightsCharType(parameters)` | 4 | ✓ |
-| 224 | rulesOf | `rulesOf(token)` | 3 |  |
-| 249 | computeStellaKnightsDerivedParameters | `computeStellaKnightsDerivedParameters(parameters)` | 5 |  |
-| 265 | buildStellaKnightsRoundPhaseTemplate | `buildStellaKnightsRoundPhaseTemplate()` | 12 |  |
-| 282 | applyStellaKnightsStageRoundEvent | `applyStellaKnightsStageRoundEvent(value, event)` | 8 |  |
-| 299 | buildStellaKnightsTypeOverrides | `buildStellaKnightsTypeOverrides(charType, ownerId)` | 12 | ✓ |
-| 313 | stellaKnightsDraftUnavailableReason | `stellaKnightsDraftUnavailableReason(token)` | 3 | ✓ |
-| 318 | canViewStellaKnightsSkills | `canViewStellaKnightsSkills(token, participantId)` | 3 | ✓ |
-| 335 | buildStellaKnightsRoomParameters | `buildStellaKnightsRoomParameters()` | 3 |  |
-| 339 | computeStellaKnightsDerivedRoomParameters | `computeStellaKnightsDerivedRoomParameters(parameters, context = {})` | 8 |  |
-| 348 | looksLikeStellaKnightsChatCommand | `looksLikeStellaKnightsChatCommand(rawInput)` | 9 |  |
-| 359 | readStellaKnightsSkills | `readStellaKnightsSkills(components)` | 3 |  |
-| 368 | renameHpToEndurance | `renameHpToEndurance({ readParameters, dispatch, tokenId })` | 10 |  |
-| 379 | renderStellaKnightsCharacterPanel | `renderStellaKnightsCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, tokenId, myParticipantId = null })` | **201** |  |
-| 584 | resetStellaKnightsComponentsOnPhaseEnd | `resetStellaKnightsComponentsOnPhaseEnd(components, phase)` | 7 |  |
-| 598 | runPetitLucky | `runPetitLucky(input, { token, dispatch })` | 54 |  |
-| 655 | readPayableBouquet | `readPayableBouquet(token, cost)` | 8 |  |
-| 664 | logBouquetSpend | `logBouquetSpend(dispatch, token, input, lines)` | 13 |  |
-| 690 | runDiceAdd | `runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })` | 71 |  |
-| 768 | runReroll | `runReroll(input, { token, dispatch })` | 21 |  |
-| 793 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
-| 807 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters, findTokenByName, generateBuffId } )` | 39 |  |
-| 877 | skillNumberForRow | `skillNumberForRow(index)` | 3 |  |
-| 892 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 18 |  |
-| 917 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 31 | ✓ |
+| 176 | buildStellaKnightsCharacterParameters | `buildStellaKnightsCharacterParameters()` | 3 | ✓ |
+| 181 | readStellaKnightsCharType | `readStellaKnightsCharType(parameters)` | 4 | ✓ |
+| 226 | rulesOf | `rulesOf(token)` | 3 |  |
+| 257 | computeStellaKnightsDerivedParameters | `computeStellaKnightsDerivedParameters(parameters)` | 5 |  |
+| 273 | buildStellaKnightsRoundPhaseTemplate | `buildStellaKnightsRoundPhaseTemplate()` | 29 |  |
+| 307 | applyStellaKnightsStageRoundEvent | `applyStellaKnightsStageRoundEvent(value, event)` | 8 |  |
+| 324 | buildStellaKnightsTypeOverrides | `buildStellaKnightsTypeOverrides(charType, ownerId)` | 12 | ✓ |
+| 338 | stellaKnightsDraftUnavailableReason | `stellaKnightsDraftUnavailableReason(token)` | 3 | ✓ |
+| 343 | canViewStellaKnightsSkills | `canViewStellaKnightsSkills(token, participantId)` | 3 | ✓ |
+| 360 | buildStellaKnightsRoomParameters | `buildStellaKnightsRoomParameters()` | 3 |  |
+| 364 | computeStellaKnightsDerivedRoomParameters | `computeStellaKnightsDerivedRoomParameters(parameters, context = {})` | 8 |  |
+| 373 | looksLikeStellaKnightsChatCommand | `looksLikeStellaKnightsChatCommand(rawInput)` | 9 |  |
+| 384 | readStellaKnightsSkills | `readStellaKnightsSkills(components)` | 3 |  |
+| 393 | renameHpToEndurance | `renameHpToEndurance({ readParameters, dispatch, tokenId })` | 10 |  |
+| 404 | renderStellaKnightsCharacterPanel | `renderStellaKnightsCharacterPanel({ container, mode, canEdit = true, parameters = {}, components, onComponentChange, getComponents, dispatch, getToken, getEffectiveParameterValue, tokenId, myParticipantId = null })` | **201** |  |
+| 609 | resetStellaKnightsComponentsOnPhaseEnd | `resetStellaKnightsComponentsOnPhaseEnd(components, phase)` | 7 |  |
+| 623 | runPetitLucky | `runPetitLucky(input, { token, dispatch })` | 54 |  |
+| 680 | readPayableBouquet | `readPayableBouquet(token, cost)` | 8 |  |
+| 689 | logBouquetSpend | `logBouquetSpend(dispatch, token, input, lines)` | 13 |  |
+| 715 | runDiceAdd | `runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })` | 71 |  |
+| 793 | runReroll | `runReroll(input, { token, dispatch })` | 21 |  |
+| 818 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
+| 832 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters, findTokenByName, generateBuffId } )` | 39 |  |
+| 902 | skillNumberForRow | `skillNumberForRow(index)` | 3 |  |
+| 917 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 18 |  |
+| 942 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 31 | ✓ |
 
 ## 依存
 

@@ -1,6 +1,6 @@
 ---
 source: js/parameters/stella-knights-stage-section.js
-lines: 339
+lines: 340
 exports: 1
 imported_by: 1
 api_sha: be07cf397e86
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 307 | fn | renderStageSection | `renderStageSection({ container, value, dispatchOp, roundActive })` | container: HTMLElement, value: object, dispatchOp: (op: string, args: object) => void, roundActive: boolean,… |
+| 308 | fn | renderStageSection | `renderStageSection({ container, value, dispatchOp, roundActive })` | container: HTMLElement, value: object, dispatchOp: (op: string, args: object) => void, roundActive: boolean,… |
 
 ## トップレベル関数（LOCAL TASKS 候補）（10）
 
@@ -40,10 +40,10 @@ _(未記入)_
 | 52 | button | `button(text, onClick, { className = 'dialog-remove-row', title = '', disabled = false } = {})` | 10 |  |
 | 63 | textField | `textField({ value, placeholder, maxLength, focusKey, multiline = false })` | 12 |  |
 | 78 | renderProgress | `renderProgress(container, stage, dispatchOp)` | 43 |  |
-| 124 | renderRoutineRow | `renderRoutineRow(list, stage, kind, routine, index, dispatchOp)` | 73 |  |
-| 200 | renderLoop | `renderLoop(container, stage, dispatchOp)` | 61 |  |
-| 270 | renderKind | `renderKind(container, stage, kind, dispatchOp)` | 27 |  |
-| 307 | renderStageSection | `renderStageSection({ container, value, dispatchOp, roundActive })` | 32 | ✓ |
+| 124 | renderRoutineRow | `renderRoutineRow(list, stage, kind, routine, index, dispatchOp)` | 74 |  |
+| 201 | renderLoop | `renderLoop(container, stage, dispatchOp)` | 61 |  |
+| 271 | renderKind | `renderKind(container, stage, kind, dispatchOp)` | 27 |  |
+| 308 | renderStageSection | `renderStageSection({ container, value, dispatchOp, roundActive })` | 32 | ✓ |
 
 ## 依存
 

@@ -16,6 +16,12 @@ import { listPluginRoomExtensions, readPluginRoomExtension } from './parameters/
 
 const ensureDialog = createDialogHost('room-extension-dialog');
 
+// どの節を開いていたか（`${pluginId}:${key}` → true）。**既定は閉じた状態**で、
+// 目的の節だけ開いて使う（節が増えると開いた瞬間に縦へ長く伸びるため）。
+// このブラウザの画面だけの状態で、部屋には載せない
+// （js/parameters/stella-knights-starting-room-section.js の lastChoice と同じ流儀）。
+const openedSections = new Set();
+
 // 開いている間だけ中身を持つ。閉じたらnull（STATE_CHANGEDの購読は1回だけ張って使い回す。
 // EventBusに購読の解除が無いため）
 let current = null;
@@ -50,10 +56,18 @@ function render() {
   }
 
   definitions.forEach(def => {
-    const section = document.createElement('section');
+    const section = document.createElement('details');
     section.className = 'room-extension-section';
 
-    const heading = document.createElement('h4');
+    // 中身を組み直すたびに details も作り直されるので、覚えた開閉を当て直す
+    const openKey = `${pluginId}:${def.key}`;
+    section.open = openedSections.has(openKey);
+    section.addEventListener('toggle', () => {
+      if (section.open) openedSections.add(openKey);
+      else openedSections.delete(openKey);
+    });
+
+    const heading = document.createElement('summary');
     heading.textContent = def.label;
     section.appendChild(heading);
 

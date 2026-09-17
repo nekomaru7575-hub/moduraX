@@ -12,9 +12,9 @@ import {
 import { withExtensionEntries, withSystemLog } from '../chat.js';
 import { usesInitiativeProcess, withDerivedRoomParameters } from '../room.js';
 import {
-  applyRoundPhaseStart, createInitialRoundState, hasUnchosenPlot, initialStepForPhase,
-  joinTokenNames, listPlotSlotRows, listTiedPlotTokenIds, normalizePlotSlotLabel, pickNextActor,
-  recomputeDerivedForRound, sortByInitiative, sortForTurnOrder
+  applyRoundPhaseStart, createInitialRoundState, hasUnchosenPlot, joinTokenNames, listPhaseSteps,
+  listPlotSlotRows, listTiedPlotTokenIds, normalizePlotSlotLabel, pickNextActor,
+  recomputeDerivedForRound, sortByInitiative, sortForTurnOrder, startStepForTurn
 } from '../round-state.js';
 
 export const ROUND_HANDLERS = {
@@ -30,16 +30,20 @@ export const ROUND_HANDLERS = {
     const participants = sortByInitiative(nextTokensState, participantIds);
 
     const firstPhase = template[0];
-    const step = initialStepForPhase(firstPhase, usesInitiativeProcess(prevState));
+    const useInitiativeProcess = usesInitiativeProcess(prevState);
     // 先頭がいきなりキャラクター行動フェーズのテンプレートもありうるので、その場合は
     // ここで最初の手番を決めておく（'preTurn'から始まるなら手番はまだ決めない）。
     // 決め方はROUND_ADVANCE_PHASE側と同じpickNextActorへ通す（手番順の宣言と、
     // 手番を持たない種別のskipWhenを、開始時にも同じように効かせるため）。
-    const currentActorId = (firstPhase.kind === 'perCharacter' && step === 'act')
+    const startsWithPreTurn = useInitiativeProcess && firstPhase.kind === 'perCharacter'
+      && !!firstPhase.preTurnStep;
+    const currentActorId = (firstPhase.kind === 'perCharacter' && !startsWithPreTurn)
       ? pickNextActor(nextTokensState, {
         ...createInitialRoundState(), template, phaseIndex: 0, participants
       })
       : null;
+    // 段（steps）はonlyWhenで手番のコマを見るので、主を決めた後に決める
+    const step = startStepForTurn(nextTokensState, firstPhase, currentActorId, useInitiativeProcess);
 
     const participantNames = joinTokenNames(nextTokensState, participants);
     const logText = participants.length > 0
@@ -165,12 +169,13 @@ export const ROUND_HANDLERS = {
     // 手番を終えた効果が先に出ないと、次の手番の予告より後ろに回って読む順が崩れる。
     const preLogEntries = [];
     const postLogEntries = [];
-    const fireRoundEvent = (type, phase, actorId, sink) => {
+    const fireRoundEvent = (type, phase, actorId, sink, stepId = null) => {
       const fired = applyRoomExtensionsRoundEvent(roomForRound, activePlugin, {
         type,
         phase,
         actor: actorId ? tokensForRound[actorId] ?? null : null,
-        roundNumber
+        roundNumber,
+        stepId
       });
       roomForRound = fired.room;
       sink.push(...fired.entries);
@@ -180,74 +185,94 @@ export const ROUND_HANDLERS = {
     // 下のフェーズ完了処理へ落ちる（once種別のフェーズは常に完了扱い）。
     let phaseCompleted = false;
 
-    if (currentPhase.kind === 'plot' && !plotsRevealed) {
-      // 一斉公開。ここが「主ボタンを1回押すと公開して止まる」の実体で、次の一押しで
-      // 下のphaseCompletedへ落ちて手番のフェーズへ進む。
-      plotsRevealed = true;
-
-      // 公開されて初めて値をログに残す（提出のたびに出すと伏せている意味が無くなる）。
-      // 並べ替えにはplotsRevealed:trueを渡す。sortForTurnOrderは公開前だと従来の並びへ
-      // 落とすので、ここでroundをそのまま渡すと手番順にならない。
-      const revealedRound = { ...round, plots, plotExtras, plotChoice, plotsRevealed: true };
-      const tokenOrder = sortForTurnOrder(tokensForRound, revealedRound, round.participants);
-      // 増やした枠は別の行として、それぞれの値の位置に並べる（画面の詳細リストと同じ展開）。
-      const revealed = listPlotSlotRows(tokensForRound, revealedRound, tokenOrder)
-        .map(row => `${row.name}: ${Number.isFinite(row.value) ? row.value : '未提出'}`);
-      logParts.push(`${currentPhase.label}公開。${revealed.join('、')}`);
-
-      // 複数のプロットに出ているコマは、どれで動くかがまだ決まっていない。手番順もコストの
-      // 上限もそれ待ちなので、卓に知らせておく（選んだこと自体は通知しない）。
-      const unchosen = tokenOrder.filter(id => hasUnchosenPlot(revealedRound, id));
-      if (unchosen.length > 0) {
-        logParts.push(
-          `複数のプロットに出ているコマ: ${joinTokenNames(tokensForRound, unchosen)}`
-          + `（どれで動くかは所有者が選びます）`
-        );
+    // フェーズが宣言した段（steps）。押すたびに1段進み、最後の段を押すと下の
+    // これまでどおりの処理へ落ちて手番／フェーズが完了する。
+    // 【stepが一覧に無ければ何も撃たずに落ちる】手番のコマが参加者から外れて段が減った・
+    // 古い保存データ・取り込んだJSONが壊れていた、のどれでも「次の1押しで完了」へ収まる。
+    // 添字で持たないのはこのため（このファイル冒頭とround-state.jsの手番の持ち方と同じ理由）。
+    const phaseSteps = listPhaseSteps(tokensForRound, round);
+    const currentStep = phaseSteps.find(entry => entry.id === step);
+    let advancedStepOnly = false;
+    if (currentStep) {
+      fireRoundEvent('step', currentPhase, currentActorId, preLogEntries, currentStep.id);
+      const nextStep = phaseSteps[phaseSteps.indexOf(currentStep) + 1];
+      if (nextStep) {
+        step = nextStep.id;
+        advancedStepOnly = true;
       }
+    }
 
-      // 同値も手番順（＝便宜上の順番）で並べる。提出順のままだと画面の並びと食い違う。
-      const tied = sortForTurnOrder(tokensForRound, revealedRound, listTiedPlotTokenIds(revealedRound));
-      if (tied.length > 0) {
-        // ルール上は同時処理。手番自体は便宜上の順番（sortForTurnOrder参照）で回すので、
-        // 「同時である」ことは卓が知っている必要がある。
-        logParts.push(`同値: ${joinTokenNames(tokensForRound, tied)}（ルール上は同時処理です）`);
-      }
-    } else if (currentPhase.kind === 'perCharacter' && step === 'preTurn') {
-      // イニシアチブプロセスを終える。ここで初めて次の行動者を確定させるので、
-      // この段の最中に行動値が変わっていれば新しい順序で選ばれる。
-      const actor = pickNextActor(tokensForRound, { ...round, acted });
-      if (actor) {
-        currentActorId = actor;
-        interruptId = null; // 割り込み指定は手番が決まった時点で消費する
-        step = 'act';
-        logParts.push(`${currentPhase.preTurnStep?.label || 'イニシアチブプロセス'}終了。${nameOf(actor)}の手番です。`);
-        fireRoundEvent('turnStart', currentPhase, actor, postLogEntries);
+    if (!advancedStepOnly) {
+      if (currentPhase.kind === 'plot' && !plotsRevealed) {
+        // 一斉公開。ここが「主ボタンを1回押すと公開して止まる」の実体で、次の一押しで
+        // 下のphaseCompletedへ落ちて手番のフェーズへ進む。
+        plotsRevealed = true;
+
+        // 公開されて初めて値をログに残す（提出のたびに出すと伏せている意味が無くなる）。
+        // 並べ替えにはplotsRevealed:trueを渡す。sortForTurnOrderは公開前だと従来の並びへ
+        // 落とすので、ここでroundをそのまま渡すと手番順にならない。
+        const revealedRound = { ...round, plots, plotExtras, plotChoice, plotsRevealed: true };
+        const tokenOrder = sortForTurnOrder(tokensForRound, revealedRound, round.participants);
+        // 増やした枠は別の行として、それぞれの値の位置に並べる（画面の詳細リストと同じ展開）。
+        const revealed = listPlotSlotRows(tokensForRound, revealedRound, tokenOrder)
+          .map(row => `${row.name}: ${Number.isFinite(row.value) ? row.value : '未提出'}`);
+        logParts.push(`${currentPhase.label}公開。${revealed.join('、')}`);
+
+        // 複数のプロットに出ているコマは、どれで動くかがまだ決まっていない。手番順もコストの
+        // 上限もそれ待ちなので、卓に知らせておく（選んだこと自体は通知しない）。
+        const unchosen = tokenOrder.filter(id => hasUnchosenPlot(revealedRound, id));
+        if (unchosen.length > 0) {
+          logParts.push(
+            `複数のプロットに出ているコマ: ${joinTokenNames(tokensForRound, unchosen)}`
+            + `（どれで動くかは所有者が選びます）`
+          );
+        }
+
+        // 同値も手番順（＝便宜上の順番）で並べる。提出順のままだと画面の並びと食い違う。
+        const tied = sortForTurnOrder(tokensForRound, revealedRound, listTiedPlotTokenIds(revealedRound));
+        if (tied.length > 0) {
+          // ルール上は同時処理。手番自体は便宜上の順番（sortForTurnOrder参照）で回すので、
+          // 「同時である」ことは卓が知っている必要がある。
+          logParts.push(`同値: ${joinTokenNames(tokensForRound, tied)}（ルール上は同時処理です）`);
+        }
+      } else if (currentPhase.kind === 'perCharacter' && step === 'preTurn') {
+        // イニシアチブプロセスを終える。ここで初めて次の行動者を確定させるので、
+        // この段の最中に行動値が変わっていれば新しい順序で選ばれる。
+        const actor = pickNextActor(tokensForRound, { ...round, acted });
+        if (actor) {
+          currentActorId = actor;
+          interruptId = null; // 割り込み指定は手番が決まった時点で消費する
+          // イニシアチブプロセスは今抜けたので、ここでは挟み直さない（第4引数false）
+          step = startStepForTurn(tokensForRound, currentPhase, actor, false);
+          logParts.push(`${currentPhase.preTurnStep?.label || 'イニシアチブプロセス'}終了。${nameOf(actor)}の手番です。`);
+          fireRoundEvent('turnStart', currentPhase, actor, postLogEntries);
+        } else {
+          phaseCompleted = true; // 未行動者がいない（参加者が外された等）
+        }
+      } else if (currentPhase.kind === 'perCharacter') {
+        // 手番を終える。行動済みに加えたうえで、まだ手番が残っていれば次へ送る。
+        // 【ここで拡張ルーム設定へ知らせることはしない】段（steps）の最後の段がそれにあたる。
+        // 二重に持つと、段を宣言したフェーズで同じ効果が2回飛ぶ。
+        if (currentActorId && !acted.includes(currentActorId)) acted = [...acted, currentActorId];
+
+        const nextActor = pickNextActor(tokensForRound, { ...round, acted, interruptId });
+        if (!nextActor) {
+          phaseCompleted = true;
+        } else if (useInitiativeProcess && currentPhase.preTurnStep) {
+          // 次の行動者はイニシアチブプロセスを抜ける時に決め直すので、ここでは確定させない
+          step = 'preTurn';
+          currentActorId = null;
+          logParts.push(`${currentPhase.preTurnStep.label}を行います。`);
+        } else {
+          currentActorId = nextActor;
+          interruptId = null;
+          step = startStepForTurn(tokensForRound, currentPhase, nextActor, false);
+          logParts.push(`${currentPhase.label}: ${nameOf(nextActor)}の手番です。`);
+          fireRoundEvent('turnStart', currentPhase, nextActor, postLogEntries);
+        }
       } else {
-        phaseCompleted = true; // 未行動者がいない（参加者が外された等）
-      }
-    } else if (currentPhase.kind === 'perCharacter') {
-      // 手番を終える。行動済みに加えたうえで、まだ手番が残っていれば次へ送る。
-      // 【行動済みに加える前に節目を撃つ】舞台のルーチンは「手番を終えたコマ」に対して
-      // 効くので、まだそのコマが手番の主であるうちに知らせる。
-      if (currentActorId) fireRoundEvent('turnEnd', currentPhase, currentActorId, preLogEntries);
-      if (currentActorId && !acted.includes(currentActorId)) acted = [...acted, currentActorId];
-
-      const nextActor = pickNextActor(tokensForRound, { ...round, acted, interruptId });
-      if (!nextActor) {
         phaseCompleted = true;
-      } else if (useInitiativeProcess && currentPhase.preTurnStep) {
-        // 次の行動者はイニシアチブプロセスを抜ける時に決め直すので、ここでは確定させない
-        step = 'preTurn';
-        currentActorId = null;
-        logParts.push(`${currentPhase.preTurnStep.label}を行います。`);
-      } else {
-        currentActorId = nextActor;
-        interruptId = null;
-        logParts.push(`${currentPhase.label}: ${nameOf(nextActor)}の手番です。`);
-        fireRoundEvent('turnStart', currentPhase, nextActor, postLogEntries);
       }
-    } else {
-      phaseCompleted = true;
     }
 
     if (phaseCompleted) {
@@ -302,14 +327,17 @@ export const ROUND_HANDLERS = {
       // 手番を決める前に撃つので、ルーチンが手番順を動かす作りにしても辻褄が合う。
       fireRoundEvent('phaseStart', newPhase, null, postLogEntries);
 
-      step = initialStepForPhase(newPhase, useInitiativeProcess);
-      if (newPhase.kind === 'perCharacter' && step === 'act') {
+      // 【手番の主を先に決めてから段を決める】段（steps）は onlyWhen で手番のコマを見るため。
+      const entersPreTurn = useInitiativeProcess && newPhase.kind === 'perCharacter'
+        && !!newPhase.preTurnStep;
+      if (newPhase.kind === 'perCharacter' && !entersPreTurn) {
         currentActorId = pickNextActor(
           tokensForRound,
           { ...round, phaseIndex, plots, plotExtras, plotChoice, acted: [], interruptId: null }
         );
-        if (currentActorId) fireRoundEvent('turnStart', newPhase, currentActorId, postLogEntries);
       }
+      step = startStepForTurn(tokensForRound, newPhase, currentActorId, useInitiativeProcess);
+      if (currentActorId) fireRoundEvent('turnStart', newPhase, currentActorId, postLogEntries);
 
       // プロットはラウンドごとに引き直すので、その段に入るところで捨てる。
       // 手番のフェーズの間は公開済みの値を残しておく（手番順の根拠であり、
@@ -352,6 +380,15 @@ export const ROUND_HANDLERS = {
     tokensForRound = { ...tokensForRound };
     recomputeDerivedForRound(tokensForRound, activePlugin, nextRound);
 
+    // 押されたぶんの効果 → 進行の知らせ → 段に入った効果・次の手番の予告、の順に並べる。
+    // 【進行の知らせが空なら出さない】段の途中の押下では logParts が空になる。空の
+    // システム発言を積むと、盤面下のカレントチャット欄（Mainの最新1件だけを映す。
+    // js/main.js）が空行で埋まり、直前の台詞が読めなくなる。
+    const systemLog = logParts.filter(Boolean).join('\n');
+    let nextChatLogs = withExtensionEntries(prevState.chatLogs, preLogEntries, payload?.time);
+    if (systemLog) nextChatLogs = withSystemLog(nextChatLogs, systemLog, payload?.time);
+    nextChatLogs = withExtensionEntries(nextChatLogs, postLogEntries, payload?.time);
+
     commit({
       tokens: tokensForRound,
       round: {
@@ -360,14 +397,30 @@ export const ROUND_HANDLERS = {
         // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
       },
       room: withDerivedRoomParameters(roomForRound, prevState.stampCounts, nextRound),
-      // 手番を終えた効果 → 進行の知らせ → 段に入った効果・次の手番の予告、の順に並べる
-      chatLogs: withExtensionEntries(
-        withSystemLog(
-          withExtensionEntries(prevState.chatLogs, preLogEntries, payload?.time),
-          logParts.join('\n'),
-          payload?.time
-        ),
-        postLogEntries,
+      chatLogs: nextChatLogs
+    });
+  },
+
+  // 段（steps）を1つ戻す。押しすぎたときの手当てで、GM限定
+  // （js/room-authority-rules.js の GM_ONLY_ACTIONS）。
+  //
+  // 【戻すのは「次に押す段」だけ】既に流れた発言は消さないし、プラグイン側の進行も
+  // 動かさない（ステラナイツの舞台のカーソルは、拡張ルーム設定の「← 戻す」で戻す）。
+  // 段を宣言していないフェーズ・先頭の段・stepが一覧に無いときは何もしない。
+  ROUND_STEP_BACK({ prevState, payload, nextTokensState, commit }) {
+    const round = prevState.round;
+    if (!round.active) return;
+
+    const steps = listPhaseSteps(nextTokensState, round);
+    const index = steps.findIndex(entry => entry.id === round.step);
+    if (index <= 0) return;
+
+    const previous = steps[index - 1];
+    commit({
+      round: { ...round, step: previous.id },
+      chatLogs: withSystemLog(
+        prevState.chatLogs,
+        `段を1つ戻しました（次: ${previous.label}）。`,
         payload?.time
       )
     });

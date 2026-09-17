@@ -2591,11 +2591,6 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-.room-extension-section h4 {
-  margin: 0 0 6px;
-  color: var(--text-emphasis);
-}
-
 /* 始まりの部屋（js/parameters/stella-knights-starting-room-section.js）の出目のプルダウン。
    .dialog-custom-row input の flex:1 は select には効かないので、幅を中身なりに詰める */
 .starting-room-face {
@@ -2719,4 +2714,24 @@
   border: 1px solid var(--border-default);
   border-radius: 4px;
   padding: 4px;
+}
+
+/* 拡張ルーム設定の節はたためる（js/room-extension-dialog.js）。既定は閉じていて、
+   見出しを押すと開く。節が増えると開いた瞬間に縦へ長く伸びるため。
+   .effect-box-advanced（スキル1件の畳み）と同じ作りにしてある。 */
+.room-extension-section > summary {
+  color: var(--text-emphasis);
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 0;
+  list-style-position: inside;
+  user-select: none;
+}
+
+.room-extension-section > summary:hover {
+  color: var(--text-body-strong);
+}
+
+.room-extension-section[open] > summary {
+  margin-bottom: 6px;
 }

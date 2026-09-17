@@ -12,7 +12,7 @@
 import { generateRoomExtensionItemId } from '../store/ids.js';
 import {
   describeCursor, MAX_ROUTINE_EFFECT_LENGTH, MAX_ROUTINE_NAME_LENGTH, MAX_ROUTINES_PER_KIND,
-  MAX_STAGE_NAME_LENGTH, normalizeStage, ROUTINE_KIND_LABELS
+  MAX_STAGE_NAME_LENGTH, normalizeStage, ROUTINE_KIND_LABELS, routineNumberLabel
 } from './stella-knights-stage.js';
 
 // 直前まで触っていた欄と、その中のカーソル位置。誰かの操作で欄が組み直された後、
@@ -129,7 +129,8 @@ function renderRoutineRow(list, stage, kind, routine, index, dispatchOp) {
 
   const no = document.createElement('span');
   no.className = 'stage-routine-no';
-  no.textContent = `No.${index + 1}`;
+  // ログと同じ言い方で番号を出す（卓とGMが同じ番号を指せるように）
+  no.textContent = routineNumberLabel(kind, index);
   row.appendChild(no);
 
   const fields = document.createElement('div');

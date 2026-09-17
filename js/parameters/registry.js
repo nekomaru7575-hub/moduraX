@@ -412,16 +412,23 @@ export function getPluginDiceDraftSpec(pluginId) {
 //
 // applyRoundEvent は、ラウンド進行の節目でこの拡張の値を進めるためのフック
 // （resetOnPhaseEnd と対。呼ぶのは js/store/handlers/round.js だけ）。
-//   event = { type: 'phaseStart' | 'turnStart' | 'step', phase, actor, roundNumber, stepId }
-//     phaseStart … 段に入った（押下なしで発火）
-//     turnStart  … 手番が決まった（押下なしで発火）
-//     step       … フェーズが宣言した段（steps）を1つ押した。stepId にその段のid
-//     phase  … 今の段（テンプレートの1件そのまま）
+//   event = { type: 'phaseStart' | 'turnStart' | 'step' | 'progressionEnd',
+//             phase, actor, roundNumber, stepId }
+//     phaseStart    … 段に入った（押下なしで発火）
+//     turnStart     … 手番が決まった（押下なしで発火）
+//     step          … フェーズが宣言した段（steps）を1つ押した。stepId にその段のid
+//     progressionEnd… ラウンド進行そのものが終わった（押下なしで発火）
+//     phase  … 今の段（テンプレートの1件そのまま）。progressionEnd では null
 //     actor  … 手番のコマ。手番のあるフェーズでだけ入り、それ以外は null
 //     stepId … step のときだけ入り、それ以外は null
 //
 // 【手番の終わりは step で受ける】steps の最後の段が手番の終わりにあたるので、
 // 'turnEnd' のような別のイベントは持たない（二重に飛ぶため）。
+//
+// 【ラウンドの終わりと進行の終わりは別】resetOnPhaseEnd は「毎ラウンドのカット」と
+// 「進行の終了」の両方から同じ 'round' で呼ばれるので、2つを区別できない。
+// 「戦闘が終わったので最初へ戻す」は progressionEnd で受けること
+// （resetOnPhaseEnd でやると毎ラウンド巻き戻る）。
 // 何もしないなら null、値が変わらないなら同じ参照の value を返すこと。
 //
 // 【gmOnly は本当の制御ではない】UPDATE_ROOM_EXTENSION はGM限定アクションではない
@@ -495,6 +502,8 @@ export function reducePluginRoomExtension(pluginId, extensions, key, op, args) {
 // 想定外の形（オブジェクト・巨大な配列）はここで落としておく。
 // 本文のエスケープは表示側（js/main.jsのbuildLogHtml）が全部行う。
 const MAX_EXTENSION_ENTRIES = 8;
+// システム発言へ混ぜる1件の長さ。進行のたびに出るものなので、ログを埋めない程度に切る
+const MAX_EXTENSION_LOG_TEXT = 200;
 
 function normalizeExtensionEntries(entries) {
   if (!Array.isArray(entries)) return [];
@@ -533,15 +542,16 @@ export function resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)
 }
 
 /**
- * ラウンド進行の節目（段に入る・手番の開始・手番の終了）を、拡張ルーム設定へ知らせる。
+ * ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、拡張ルーム設定へ知らせる。
  * 呼ぶのは適用中のシステムの分だけで、宣言していない拡張は素通りする。
  * Coreはeventの中身もentriesの中身も解釈しない（registry.jsの「宣言の形」の節を参照）。
- * @returns {{ extensions: object, entries: {system:string, resultText:string}[] }}
+ * @returns {{ extensions: object, entries: {system:string, resultText:string}[], logTexts: string[] }}
  *   変化が無ければ extensions は同じ参照
  */
 export function applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event) {
   let next = extensions;
   const entries = [];
+  const logTexts = [];
   listPluginRoomExtensions(pluginId).forEach(def => {
     if (!def.applyRoundEvent) return;
     const current = ownValue(ownValue(next, pluginId), def.key);
@@ -549,10 +559,13 @@ export function applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)
     const result = def.applyRoundEvent(current, event);
     if (!result) return;
     entries.push(...normalizeExtensionEntries(result.entries));
+    if (typeof result.logText === 'string' && result.logText !== '') {
+      logTexts.push(result.logText.slice(0, MAX_EXTENSION_LOG_TEXT));
+    }
     if (result.value === current) return;
     next = withPluginRoomExtensionValue(next, pluginId, def.key, def.normalize(result.value));
   });
-  return { extensions: next, entries };
+  return { extensions: next, entries, logTexts };
 }
 
 /**

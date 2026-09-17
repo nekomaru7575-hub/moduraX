@@ -1,6 +1,6 @@
 ---
 source: js/store/buffs.js
-lines: 157
+lines: 161
 exports: 10
 imported_by: 4
 api_sha: 2183a84ed26f
@@ -36,7 +36,7 @@ applyRoomExtensionsRoundEvent だけは「終わり」ではなく**進行その
 | 77 | fn | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | removeExpiredBuffsと同じ「フェーズが終了した」タイミングで、プラグイン固有のcomponents （DX3ならエフェクトの使用回数）もリセットする。 |
 | 95 | fn | applyRoomExtensionsPhaseEnd | `applyRoomExtensionsPhaseEnd(room, activePlugin, phase)` | フェーズ終了で、部屋の拡張ルーム設定（ステラナイツの始まりの部屋など）の後始末をさせる。 |
 | 118 | fn | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | フェーズ（シーン/ラウンド/シナリオ/判定/プロセス）が終了したときの共通処理。 |
-| 150 | fn | applyRoomExtensionsRoundEvent | `applyRoomExtensionsRoundEvent(room, activePlugin, event)` | ラウンド進行の節目（段に入る・手番の開始・手番の終了）を、部屋の拡張ルーム設定へ知らせる。 |
+| 153 | fn | applyRoomExtensionsRoundEvent | `applyRoomExtensionsRoundEvent(room, activePlugin, event)` | ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、 部屋の拡張ルーム設定へ知らせる。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（8）
 
@@ -52,7 +52,7 @@ applyRoomExtensionsRoundEvent だけは「終わり」ではなく**進行その
 | 77 | resetPluginComponentsForPhase | `resetPluginComponentsForPhase(tokensState, activePlugin, phase, onlyTokenId = null)` | 13 | ✓ |
 | 95 | applyRoomExtensionsPhaseEnd | `applyRoomExtensionsPhaseEnd(room, activePlugin, phase)` | 13 | ✓ |
 | 118 | applyPhaseEnd | `applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = null)` | 26 | ✓ |
-| 150 | applyRoomExtensionsRoundEvent | `applyRoomExtensionsRoundEvent(room, activePlugin, event)` | 7 | ✓ |
+| 153 | applyRoomExtensionsRoundEvent | `applyRoomExtensionsRoundEvent(room, activePlugin, event)` | 8 | ✓ |
 
 ## 依存
 

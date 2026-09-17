@@ -37,9 +37,10 @@ export const STAGE_LABEL = '舞台';
 export const OMEN_LOG_NAME = '予兆';
 export const STAGE_LOG_NAME = '舞台';
 
-// ブリンガーの手番が始まったときに出す前口上。中身（予兆そのもの）はGMが
-// 「予兆を開示」を押すまで出さない。
-export const OMEN_DECLARATION = '予兆を発動します';
+// ブリンガーの手番が始まったときに、手番の知らせへ足す前口上。中身（予兆そのもの）は
+// GMが「予兆を開示」を押すまで出さない。ボタンの名前（開示）と、卓へ告げる言い回し（公開）は
+// 揃えなくてよい——押す操作の名前と、読み上げる文は別のものなので。
+export const OMEN_DECLARATION = '予兆を公開します';
 
 // セットルーチンを撃つ段。buildRoundPhaseTemplateの宣言と突き合わせるので、
 // 定義はここ1か所にして、テンプレート側がこれを読む。
@@ -176,7 +177,7 @@ export function nextActionRoutine(stage) {
  * **すべてこの関数を通る**ので、卓とGMが同じ言い方で番号を指せる。
  */
 export function routineNumberLabel(kind, index) {
-  return kind === 'ex' ? `EX（${index + 1}）` : `No.（${index + 1}）`;
+  return kind === 'ex' ? `EX${index + 1}` : `No.${index + 1}`;
 }
 
 /** ログ1行ぶんの本文。名前も効果も空の行は流さない（番号だけの発言に意味は無い） */
@@ -185,7 +186,9 @@ export function describeRoutine(kind, index, routine) {
   const name = routine.name.trim();
   const effect = routine.effect.trim();
   if (name === '' && effect === '') return null;
-  return [`${routineNumberLabel(kind, index)}${name}`, effect].filter(Boolean).join('\n');
+  // 名前があるときだけ区切る（無いまま繋ぐと「No.1　」という尻切れの行になる）
+  const head = name ? `${routineNumberLabel(kind, index)}　${name}` : routineNumberLabel(kind, index);
+  return [head, effect].filter(Boolean).join('\n');
 }
 
 function entryFor(system, kind, index, routine) {
@@ -214,6 +217,15 @@ function advancedSetCursor(stage) {
   return { set: set.length, setLooping: false };
 }
 
+// 進行だけを最初へ戻した舞台（登録した内容はそのまま）。
+// 戦闘が終わったとき（progressionEnd）とGMの「進行を最初へ戻す」が同じものを通る。
+function withResetProgress(stage) {
+  const cursor = createStageState().cursor;
+  const same = ROUTINE_KINDS.every(kind => cursor[kind] === stage.cursor[kind])
+    && cursor.setLooping === stage.cursor.setLooping && cursor.inEx === stage.cursor.inEx;
+  return same ? null : { ...stage, cursor };
+}
+
 // 発動した1件が「EXへ移行」を持っていたら、以降はEXだけを繰り返す
 function withExTransition(cursor, routine) {
   if (routine?.toEx !== true || cursor.inEx) return cursor;
@@ -239,11 +251,22 @@ function withExTransition(cursor, routine) {
 export function applyStageRoundEvent(value, event) {
   const stage = normalizeStage(value);
 
-  // ブリンガーの手番が始まった。これから予兆を出すことだけ告げる（中身は omen の押下で）
+  // 戦闘が終わった。次の戦闘はラウンド1から始まるので、進行も最初へ戻す。
+  // 【黙って戻す】終わったことは「ラウンド進行を終了しました」で卓に見えている。
+  if (event?.type === 'progressionEnd') {
+    const reset = withResetProgress(stage);
+    return reset ? { value: reset, entries: [] } : null;
+  }
+
+  // 手番が始まった。誰の手番かを告げ、ブリンガーならこれから予兆を出すことも添える。
+  // 【Coreの「○○の手番です。」の代わりに出る】logTextを返すと、Coreは自分の知らせを
+  // 出さない（js/parameters/registry.js の「宣言の形」の節）。だからNPCのぶんも出す。
   if (event?.type === 'turnStart') {
-    return event.isBringer
-      ? { value, entries: [{ system: STAGE_LOG_NAME, resultText: OMEN_DECLARATION }] }
-      : null;
+    const name = event.actor?.name?.trim() || '？';
+    return {
+      value,
+      logText: event.isBringer ? `${name}の手番。${OMEN_DECLARATION}` : `${name}の手番。`
+    };
   }
   if (event?.type !== 'step') return null;
 
@@ -276,13 +299,7 @@ export function applyStageRoundEvent(value, event) {
     case STAGE_STEPS.turnEnd: {
       if (!event.isBringer) return null;
       const { kind } = nextActionRoutine(stage);
-      return {
-        value,
-        entries: [{
-          system: STAGE_LOG_NAME,
-          resultText: `${ROUTINE_KIND_LABELS[kind]}ルーチンを発動します`
-        }]
-      };
+      return { value, logText: `${ROUTINE_KIND_LABELS[kind]}ルーチンを発動します` };
     }
 
     // アクション／EXルーチンを適用して1つ進める。予兆と同じ中身になるのは
@@ -458,11 +475,9 @@ export function reduceStage(value, op, args) {
   }
 
   if (op === 'resetProgress') {
-    const fresh = createStageState().cursor;
-    const same = ROUTINE_KINDS.every(name => fresh[name] === stage.cursor[name])
-      && fresh.setLooping === stage.cursor.setLooping && fresh.inEx === stage.cursor.inEx;
-    if (same) return null;
-    return { value: { ...stage, cursor: fresh }, logText: `${STAGE_LABEL}: 進行を最初へ戻しました。` };
+    const reset = withResetProgress(stage);
+    if (!reset) return null;
+    return { value: reset, logText: `${STAGE_LABEL}: 進行を最初へ戻しました。` };
   }
 
   return null;

@@ -34,29 +34,33 @@ function buildStage(overrides = {}) {
   });
 }
 
-// 段を1つ押して、出た発言（表示名:1行目）と次の状態を返す
+// 段を1つ押して、出た発言と次の状態を返す。
+// entries は表示名つきの発言（[予兆] [舞台]）、logText は「システム」の1行に混ざるもの。
 function press(stage, stepId, extra = {}) {
   const result = applyStageRoundEvent(stage, { type: 'step', stepId, isBringer: true, ...extra });
-  if (!result) return { stage, entries: [] };
+  if (!result) return { stage, entries: [], logText: '' };
   return {
-    stage: normalizeStage(result.value),
-    entries: result.entries.map(entry => `${entry.system}:${entry.resultText.split('\n')[0]}`)
+    stage: result.value ? normalizeStage(result.value) : stage,
+    entries: (result.entries ?? []).map(entry => `${entry.system}:${entry.resultText.split('\n')[0]}`),
+    logText: result.logText ?? ''
   };
 }
 
-// ブリンガーの手番1回ぶん（予兆を開示 → アクション開始 → 手番終了 → ルーチン発動 → アクション終了）
+// ブリンガーの手番1回ぶん。出たものを「表示名:本文」の形で順に並べる
+// （logText は「システム」として出るので [システム] と書く）。
 function bringerTurn(stage, actor = { name: 'ブリンガー君' }) {
-  const entries = [];
+  const out = [];
   let next = stage;
   const start = applyStageRoundEvent(next, { type: 'turnStart', isBringer: true, actor });
-  if (start) entries.push(...start.entries.map(e => `${e.system}:${e.resultText.split('\n')[0]}`));
+  if (start?.logText) out.push(`システム:${start.logText}`);
   for (const id of [STAGE_STEPS.omen, STAGE_STEPS.actionStart, STAGE_STEPS.turnEnd,
     STAGE_STEPS.routine, STAGE_STEPS.actionEnd]) {
     const result = press(next, id, { actor });
     next = result.stage;
-    entries.push(...result.entries);
+    if (result.logText) out.push(`システム:${result.logText}`);
+    out.push(...result.entries);
   }
-  return { stage: next, entries };
+  return { stage: next, entries: out };
 }
 
 // --- 正規化 -------------------------------------------------------------------
@@ -107,13 +111,15 @@ test('normalize：EXルーチンはEX移行の印を持たない', () => {
 
 // --- 番号の表記 ---------------------------------------------------------------
 
-test('番号の表記：セット／アクションは No.（X）、EXは EX（X）', () => {
-  assert.equal(routineNumberLabel('set', 0), 'No.（1）');
-  assert.equal(routineNumberLabel('action', 2), 'No.（3）');
-  assert.equal(routineNumberLabel('ex', 0), 'EX（1）');
+test('番号の表記：セット／アクションは No.N、EXは EXN。名前とは全角スペースで区切る', () => {
+  assert.equal(routineNumberLabel('set', 0), 'No.1');
+  assert.equal(routineNumberLabel('action', 2), 'No.3');
+  assert.equal(routineNumberLabel('ex', 0), 'EX1');
 
-  assert.equal(describeRoutine('set', 0, routine('s1', 'セ1')), 'No.（1）セ1\nセ1の効果');
-  assert.equal(describeRoutine('ex', 1, { id: 'e2', name: 'EX2', effect: '' }), 'EX（2）EX2');
+  assert.equal(describeRoutine('set', 0, routine('s1', 'セ1')), 'No.1　セ1\nセ1の効果');
+  assert.equal(describeRoutine('ex', 1, { id: 'e2', name: 'EX2', effect: '' }), 'EX2　EX2');
+  // 名前が空の行は、区切りだけが残って「No.1　」と尻切れにならないこと
+  assert.equal(describeRoutine('set', 0, { id: 'x', name: '', effect: '効果だけ' }), 'No.1\n効果だけ');
   // 名前も効果も空なら流さない（番号だけの発言に意味は無い）
   assert.equal(describeRoutine('set', 0, { id: 'x', name: '', effect: '' }), null);
 });
@@ -126,7 +132,7 @@ test('セット：段に入っただけでは出ない。開示を押して初�
   assert.equal(applyStageRoundEvent(stage, { type: 'phaseStart', phase: { id: 'set' } }), null);
 
   const revealed = press(stage, STAGE_STEPS.revealSet);
-  assert.deepEqual(revealed.entries, ['舞台:No.（1）セ1']);
+  assert.deepEqual(revealed.entries, ['舞台:No.1　セ1']);
   assert.equal(revealed.stage.cursor.set, 1);
 });
 
@@ -139,8 +145,8 @@ test('セット：1ラウンドに1つずつ。撃ち切ったら指定の範囲
     fired.push(...result.entries);
   }
   assert.deepEqual(fired, [
-    '舞台:No.（1）セ1', '舞台:No.（2）セ2', '舞台:No.（3）セ3',
-    '舞台:No.（1）セ1', '舞台:No.（2）セ2', '舞台:No.（1）セ1'
+    '舞台:No.1　セ1', '舞台:No.2　セ2', '舞台:No.3　セ3',
+    '舞台:No.1　セ1', '舞台:No.2　セ2', '舞台:No.1　セ1'
   ]);
 });
 
@@ -153,8 +159,8 @@ test('セット：範囲が1件だけなら、その1件を繰り返す', () => 
     fired.push(...result.entries);
   }
   assert.deepEqual(fired, [
-    '舞台:No.（1）セ1', '舞台:No.（2）セ2', '舞台:No.（3）セ3',
-    '舞台:No.（2）セ2', '舞台:No.（2）セ2'
+    '舞台:No.1　セ1', '舞台:No.2　セ2', '舞台:No.3　セ3',
+    '舞台:No.2　セ2', '舞台:No.2　セ2'
   ]);
 });
 
@@ -167,15 +173,16 @@ test('セット：繰り返さない設定なら、撃ち切った後は押し�
 
 // --- アクション／EXルーチン ------------------------------------------------------
 
-test('手番1回ぶんの発言が、宣言 → 予兆 → 行動開始 → 予告 → 適用 の順に出る', () => {
+test('手番1回ぶんの発言が、手番の知らせ → 予兆 → 行動開始 → 予告 → 適用 の順に出る', () => {
   const stage = buildStage();
   const { entries, stage: after } = bringerTurn(stage);
+  // 手番の知らせと「発動します」の予告は「システム」へ寄せた（表示名を増やさない）
   assert.deepEqual(entries, [
-    `舞台:${OMEN_DECLARATION}`,
-    '予兆:No.（1）ア1',
+    `システム:ブリンガー君の手番。${OMEN_DECLARATION}`,
+    '予兆:No.1　ア1',
     '舞台:「ブリンガー君」の行動開始',
-    '舞台:アクションルーチンを発動します',
-    '舞台:No.（1）ア1'
+    'システム:アクションルーチンを発動します',
+    '舞台:No.1　ア1'
   ]);
   assert.equal(after.cursor.action, 1);
 });
@@ -184,11 +191,11 @@ test('予兆と適用は同じ中身を指し、進めるのは「ルーチン�
   const stage = buildStage();
 
   const omen = press(stage, STAGE_STEPS.omen);
-  assert.deepEqual(omen.entries, ['予兆:No.（1）ア1']);
+  assert.deepEqual(omen.entries, ['予兆:No.1　ア1']);
   assert.deepEqual(omen.stage.cursor, stage.cursor); // 予告しただけ
 
   const applied = press(stage, STAGE_STEPS.routine);
-  assert.deepEqual(applied.entries, ['舞台:No.（1）ア1']);
+  assert.deepEqual(applied.entries, ['舞台:No.1　ア1']);
   assert.equal(applied.stage.cursor.action, 1);
 
   // 表示名以外まったく同じ本文
@@ -206,8 +213,8 @@ test('アクション：末尾まで行くとNo.1へ戻る', () => {
     fired.push(...result.entries);
   }
   assert.deepEqual(fired, [
-    '舞台:No.（1）ア1', '舞台:No.（2）ア2',
-    '舞台:No.（1）ア1', '舞台:No.（2）ア2', '舞台:No.（1）ア1'
+    '舞台:No.1　ア1', '舞台:No.2　ア2',
+    '舞台:No.1　ア1', '舞台:No.2　ア2', '舞台:No.1　ア1'
   ]);
 });
 
@@ -220,8 +227,8 @@ test('EX移行：アクション由来。以降はアクションの代わりに
     fired.push(...result.entries);
   }
   assert.deepEqual(fired, [
-    '舞台:No.（1）ア1', '舞台:No.（2）ア2', '舞台:No.（3）ア3',
-    '舞台:EX（1）EX1', '舞台:EX（2）EX2', '舞台:EX（1）EX1'
+    '舞台:No.1　ア1', '舞台:No.2　ア2', '舞台:No.3　ア3',
+    '舞台:EX1　EX1', '舞台:EX2　EX2', '舞台:EX1　EX1'
   ]);
   assert.equal(stage.cursor.inEx, true);
   assert.equal(nextActionRoutine(stage).kind, 'ex');
@@ -231,8 +238,8 @@ test('EX移行：セット由来でも同じように移り、予告も「EXル�
   const stage = buildStage({ set: [routine('s1', 'セ1', true)], action: [routine('a1', 'ア1')] });
   const afterSet = press(stage, STAGE_STEPS.revealSet).stage;
   assert.equal(afterSet.cursor.inEx, true);
-  assert.deepEqual(press(afterSet, STAGE_STEPS.omen).entries, ['予兆:EX（1）EX1']);
-  assert.deepEqual(press(afterSet, STAGE_STEPS.turnEnd).entries, ['舞台:EXルーチンを発動します']);
+  assert.deepEqual(press(afterSet, STAGE_STEPS.omen).entries, ['予兆:EX1　EX1']);
+  assert.equal(press(afterSet, STAGE_STEPS.turnEnd).logText, 'EXルーチンを発動します');
 });
 
 test('EXが1件も無い舞台では、移行しても何も出ない（落ちない）', () => {
@@ -243,9 +250,13 @@ test('EXが1件も無い舞台では、移行しても何も出ない（落ち�
   assert.equal(applyStageRoundEvent(afterSet, { type: 'step', stepId: STAGE_STEPS.routine }), null);
 });
 
-test('ブリンガー以外では、手番の宣言も「発動します」の予告も出ない', () => {
+test('ブリンガー以外では、手番は知らせるが「発動します」の予告は出ない', () => {
   const stage = buildStage();
-  assert.equal(applyStageRoundEvent(stage, { type: 'turnStart', isBringer: false }), null);
+  // 手番の知らせはCoreの代わりに出すので、NPCのぶんも出す（出さないと誰の手番か分からない）
+  const npcTurn = applyStageRoundEvent(stage, {
+    type: 'turnStart', isBringer: false, actor: { name: '敵NPC' }
+  });
+  assert.equal(npcTurn.logText, '敵NPCの手番。');
   assert.equal(
     applyStageRoundEvent(stage, { type: 'step', stepId: STAGE_STEPS.turnEnd, isBringer: false }),
     null
@@ -276,7 +287,7 @@ test('巻き戻し：1つ戻すと、次に発動するものが戻る', () => {
 
   const back = reduceStage(stage, 'stepBack', { kind: 'action' });
   assert.equal(normalizeStage(back.value).cursor.action, 1);
-  assert.match(back.logText, /次はNo\.（2）/);
+  assert.match(back.logText, /次はNo\.2/);
 });
 
 test('今すぐ発動：ログは出るが、次に発動する位置は動かない', () => {
@@ -287,7 +298,7 @@ test('今すぐ発動：ログは出るが、次に発動する位置は動か�
 
   const fired = reduceStage(rewound, 'fireNow', { kind: 'action', id: 'a2' });
   assert.deepEqual(fired.entries.map(entry => entry.system), ['舞台']);
-  assert.match(fired.entries[0].resultText, /^No\.（2）ア2/);
+  assert.match(fired.entries[0].resultText, /^No\.2　ア2/);
   assert.deepEqual(normalizeStage(fired.value).cursor, rewound.cursor);
 });
 
@@ -428,7 +439,7 @@ test('ラウンド進行：開始しただけではセットルーチンが出�
   assert.equal(store.state.round.step, STAGE_STEPS.revealSet);
 
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // 開示
-  assert.deepEqual(stageEntries(store), ['舞台:No.（1）セ1']);
+  assert.deepEqual(stageEntries(store), ['舞台:No.1　セ1']);
   // 段を進めただけなのでフェーズは動かない
   assert.equal(phaseIdOf(store), 'set');
   assert.equal(store.state.round.step, STAGE_STEPS.setDone);
@@ -445,20 +456,24 @@ test('ラウンド進行：ブリンガーの手番は5回押し、押すたび�
   store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['br'] });
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // セット開示
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // → チャージ判定
-  store.dispatch('ROUND_ADVANCE_PHASE', {}); // → アクション（手番開始＝宣言が出る）
-  assert.deepEqual(stageEntries(store).slice(1), [`舞台:${OMEN_DECLARATION}`]);
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // → アクション（手番の知らせが出る）
+  // 手番の知らせはシステム発言へ統合した。Coreの「アクション: ○○の手番です。」は出ない
+  assert.match(mainLog(store).at(-1).resultText, /ブリンガー君の手番。予兆を公開します/);
+  assert.equal(mainLog(store).at(-1).system, 'システム');
+  assert.deepEqual(stageEntries(store).slice(1), []);
 
   const pressed = [];
   for (let i = 0; i < 5; i += 1) {
     store.dispatch('ROUND_ADVANCE_PHASE', {});
-    pressed.push(stageEntries(store).at(-1));
+    const last = mainLog(store).at(-1);
+    pressed.push(`${last.system}:${last.resultText.split('\n')[0]}`);
   }
   assert.deepEqual(pressed, [
-    '予兆:No.（1）ア1',
+    '予兆:No.1　ア1',
     '舞台:「ブリンガー君」の行動開始',
-    '舞台:アクションルーチンを発動します',
-    '舞台:No.（1）ア1',
-    '舞台:No.（1）ア1' // 5回目は何も出さないので直前のまま
+    'システム:アクションルーチンを発動します',
+    '舞台:No.1　ア1',
+    'システム:ラウンド1 - カット開始。' // 5回目は何も出さず、手番が終わって次の段へ
   ]);
   // 5回目の押下で手番が終わり、次の段（カット）へ移っている
   assert.equal(phaseIdOf(store), 'cut');
@@ -475,12 +490,15 @@ test('ラウンド進行：NPCの手番は1回押すだけで、予兆もルー�
   store.dispatch('ROUND_ADVANCE_PHASE', {});
   store.dispatch('ROUND_ADVANCE_PHASE', {});
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // → アクション（NPCの手番）
+  // NPCの手番も舞台が知らせる（Coreの代わりに出すので、出さないと誰の手番か分からない）
+  assert.match(mainLog(store).at(-1).resultText, /エネミーの手番。$/);
   const before = stageEntries(store).length;
 
   store.dispatch('ROUND_ADVANCE_PHASE', {}); // NPCの手番終了
   assert.equal(store.state.round.currentActorId, 'br');
-  // NPCの手番では何も出ず、ブリンガーの手番が始まって宣言だけが出る
-  assert.deepEqual(stageEntries(store).slice(before), [`舞台:${OMEN_DECLARATION}`]);
+  // NPCの手番では予兆もルーチンも出ず、ブリンガーの手番の知らせだけが出る
+  assert.deepEqual(stageEntries(store).slice(before), []);
+  assert.match(mainLog(store).at(-1).resultText, /ブリンガーの手番。予兆を公開します/);
 });
 
 test('段の途中の押下では、空のシステム発言が増えない', () => {
@@ -597,7 +615,7 @@ test('ラウンド進行：2周してもセットは1ラウンドに1つずつ�
   // ラウンドが変わっても登録は残っている（resetOnPhaseEndを持たない）
   assert.equal(stageOf(store).set.length, 2);
   store.dispatch('ROUND_ADVANCE_PHASE', {});
-  assert.equal(stageEntries(store).at(-1), '舞台:No.（2）セ2');
+  assert.equal(stageEntries(store).at(-1), '舞台:No.2　セ2');
 });
 
 test('ラウンド進行：舞台を登録していない部屋では、発言も状態も増えない', () => {
@@ -608,6 +626,101 @@ test('ラウンド進行：舞台を登録していない部屋では、発言�
   for (let i = 0; i < 9; i += 1) store.dispatch('ROUND_ADVANCE_PHASE', {});
   assert.deepEqual(stageEntries(store), []);
   assert.equal(stageOf(store), undefined);
+});
+
+// --- 進行の終了で舞台を戻す ---------------------------------------------------
+
+test('progressionEnd：進行だけが最初へ戻り、登録した内容は残る', () => {
+  let stage = buildStage();
+  stage = press(stage, STAGE_STEPS.revealSet).stage;
+  for (let i = 0; i < 3; i += 1) stage = press(stage, STAGE_STEPS.routine).stage; // EXへ移行する
+  assert.equal(stage.cursor.inEx, true);
+
+  const ended = applyStageRoundEvent(stage, { type: 'progressionEnd' });
+  const after = normalizeStage(ended.value);
+  assert.deepEqual(after.cursor, createStageState().cursor);
+  assert.equal(after.set.length, 3);
+  assert.equal(after.action.length, 3);
+  assert.deepEqual(ended.entries, []); // 黙って戻す
+  assert.equal(ended.logText, undefined);
+
+  // もう一度撃っても変化しない（同じ参照を返さず null）
+  assert.equal(applyStageRoundEvent(after, { type: 'progressionEnd' }), null);
+});
+
+test('ラウンド進行：終了すると舞台が最初へ戻り、次の戦闘はNo.1から始まる', () => {
+  const store = newRoom();
+  addToken(store, 'br', 'ブリンガー', 'ブリンガー');
+  seedStage(store);
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['br'] });
+  // セット2回 → チャージ1回 → 手番5回 → カット1回 で1ラウンド
+  for (let i = 0; i < 9; i += 1) store.dispatch('ROUND_ADVANCE_PHASE', {});
+  assert.equal(stageOf(store).cursor.set, 1); // 次はセ2
+  assert.equal(stageOf(store).cursor.action, 1);
+
+  const before = mainLog(store).length;
+  store.dispatch('ROUND_PROGRESSION_END', {});
+  assert.deepEqual(stageOf(store).cursor, createStageState().cursor);
+  assert.equal(stageOf(store).set.length, 2); // 登録は残る
+  // 黙って戻す（増えるのは「ラウンド進行を終了しました」の1件だけ）
+  assert.equal(mainLog(store).length - before, 1);
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['br'] });
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // セットルーチンを開示
+  assert.equal(stageEntries(store).at(-1), '舞台:No.1　セ1');
+});
+
+test('ラウンド進行：毎ラウンドのカットでは舞台が戻らない', () => {
+  // resetOnPhaseEnd で書くとここが壊れる（カットも進行の終了も同じ round で呼ばれるため）
+  const store = newRoom();
+  addToken(store, 'br', 'ブリンガー', 'ブリンガー');
+  seedStage(store);
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['br'] });
+  for (let i = 0; i < 9; i += 1) store.dispatch('ROUND_ADVANCE_PHASE', {}); // ラウンド2へ
+  assert.equal(store.state.round.roundNumber, 2);
+  assert.equal(stageOf(store).cursor.set, 1); // 戻っていない
+
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // ラウンド2のセットを開示
+  assert.equal(stageEntries(store).at(-1), '舞台:No.2　セ2');
+});
+
+// --- 手番の知らせの統合 ---------------------------------------------------------
+
+test('ラウンド進行：段に入った直後は「開始。」と手番の知らせが1件にまとまる', () => {
+  const store = newRoom();
+  addToken(store, 'npc', 'エネミー', 'NPC');
+  addToken(store, 'br', 'ブリンガー', 'ブリンガー');
+  seedStage(store);
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['npc', 'br'] });
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // セット開示
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // → チャージ判定
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // → アクション（NPCの手番）
+
+  const last = mainLog(store).at(-1);
+  assert.equal(last.system, 'システム');
+  assert.deepEqual(last.resultText.split('|SPLIT|'.replace('|SPLIT|', String.fromCharCode(10))), [
+    'ラウンド1 - アクション開始。',
+    'エネミーの手番。'
+  ]);
+  // Coreの「（手番: ○○）」は出ない（同じことを2回言わない）
+  assert.equal(last.resultText.includes('（手番:'), false);
+});
+
+test('舞台を登録していない部屋では、手番の知らせは今までどおりCoreの文言', () => {
+  const store = newRoom();
+  addToken(store, 'npc', 'エネミー', 'NPC');
+  addToken(store, 'br', 'ブリンガー', 'ブリンガー');
+  // seedStage を呼ばない＝拡張の値が無いので applyRoundEvent 自体が届かない
+
+  store.dispatch('ROUND_PROGRESSION_START', { participantIds: ['npc', 'br'] });
+  for (let i = 0; i < 3; i += 1) store.dispatch('ROUND_ADVANCE_PHASE', {});
+  assert.match(mainLog(store).at(-1).resultText, /（手番: エネミー）/);
+
+  store.dispatch('ROUND_ADVANCE_PHASE', {}); // NPCの手番終了
+  assert.match(mainLog(store).at(-1).resultText, /アクション: ブリンガーの手番です。/);
 });
 
 test('hydrate：壊れた舞台・知らないシステムの値は落ちる', () => {

@@ -6,8 +6,10 @@
 // 点呼(confirmation)はPL各自の意思表示なのでソフトな可視化のみで、進行操作は止めない。
 
 import { getRoundPhaseTemplate } from '../../parameters/registry.js';
-import { applyPhaseEnd, applyRoomExtensionsPhaseEnd, resetPluginComponentsForPhase } from '../buffs.js';
-import { withSystemLog } from '../chat.js';
+import {
+  applyPhaseEnd, applyRoomExtensionsPhaseEnd, applyRoomExtensionsRoundEvent, resetPluginComponentsForPhase
+} from '../buffs.js';
+import { withExtensionEntries, withSystemLog } from '../chat.js';
 import { usesInitiativeProcess, withDerivedRoomParameters } from '../room.js';
 import {
   applyRoundPhaseStart, createInitialRoundState, hasUnchosenPlot, initialStepForPhase,
@@ -31,8 +33,12 @@ export const ROUND_HANDLERS = {
     const step = initialStepForPhase(firstPhase, usesInitiativeProcess(prevState));
     // 先頭がいきなりキャラクター行動フェーズのテンプレートもありうるので、その場合は
     // ここで最初の手番を決めておく（'preTurn'から始まるなら手番はまだ決めない）。
+    // 決め方はROUND_ADVANCE_PHASE側と同じpickNextActorへ通す（手番順の宣言と、
+    // 手番を持たない種別のskipWhenを、開始時にも同じように効かせるため）。
     const currentActorId = (firstPhase.kind === 'perCharacter' && step === 'act')
-      ? (sortByInitiative(nextTokensState, participants)[0] || null)
+      ? pickNextActor(nextTokensState, {
+        ...createInitialRoundState(), template, phaseIndex: 0, participants
+      })
       : null;
 
     const participantNames = joinTokenNames(nextTokensState, participants);
@@ -55,6 +61,23 @@ export const ROUND_HANDLERS = {
     // （ドラクルージュの喝采点+1はラウンド1から走る）。ROUND_ADVANCE_PHASE側と対。
     const startPhaseLog = applyRoundPhaseStart(nextTokensState, activePlugin, firstPhase, startedRound);
 
+    // 部屋の拡張ルーム設定にも同じ節目を知らせる（ステラナイツの舞台のセットルーチンが
+    // ラウンド1のセットで発動し、続けて最初の手番の予兆が出る）。ROUND_ADVANCE_PHASE側と対。
+    let roomForStart = prevState.room;
+    const startEntries = [];
+    const fireStartEvent = (type, actorId) => {
+      const fired = applyRoomExtensionsRoundEvent(roomForStart, activePlugin, {
+        type,
+        phase: firstPhase,
+        actor: actorId ? nextTokensState[actorId] ?? null : null,
+        roundNumber: 1
+      });
+      roomForStart = fired.room;
+      startEntries.push(...fired.entries);
+    };
+    fireStartEvent('phaseStart', null);
+    if (currentActorId) fireStartEvent('turnStart', currentActorId);
+
     // 戦闘が始まった時点でも自動計算を引き直す。プロットの公開・ラウンドの終了と同じで、
     // コマ自体は触っていないのに計算の前提（roundActive・ラウンド番号）が変わるため。
     // ここを飛ばすと、シノビガミの「ラウンド」が0のまま＝ラウンド1のプロット公開前に
@@ -67,10 +90,14 @@ export const ROUND_HANDLERS = {
       round: startedRound,
       // ルーム変数「現在のラウンド」を追随させる（進行中でなければ0）。
       // 以下ROUND_ADVANCE_PHASE・ROUND_PROGRESSION_ENDも対。
-      room: withDerivedRoomParameters(prevState.room, prevState.stampCounts, startedRound),
-      chatLogs: withSystemLog(
-        prevState.chatLogs,
-        [logText, startPhaseLog].filter(Boolean).join('\n'),
+      room: withDerivedRoomParameters(roomForStart, prevState.stampCounts, startedRound),
+      chatLogs: withExtensionEntries(
+        withSystemLog(
+          prevState.chatLogs,
+          [logText, startPhaseLog].filter(Boolean).join('\n'),
+          payload?.time
+        ),
+        startEntries,
         payload?.time
       )
     });
@@ -133,6 +160,22 @@ export const ROUND_HANDLERS = {
     const currentPhase = round.template[phaseIndex];
     const nameOf = (id) => tokensForRound[id]?.name || '？';
 
+    // 部屋の拡張ルーム設定へ、ラウンド進行の節目を知らせる（ステラナイツの舞台）。
+    // 発言の並びは「手番終了ぶん → 進行の知らせ → 段に入るぶん・次の手番の予兆」。
+    // 手番を終えた効果が先に出ないと、次の手番の予告より後ろに回って読む順が崩れる。
+    const preLogEntries = [];
+    const postLogEntries = [];
+    const fireRoundEvent = (type, phase, actorId, sink) => {
+      const fired = applyRoomExtensionsRoundEvent(roomForRound, activePlugin, {
+        type,
+        phase,
+        actor: actorId ? tokensForRound[actorId] ?? null : null,
+        roundNumber
+      });
+      roomForRound = fired.room;
+      sink.push(...fired.entries);
+    };
+
     // このフェーズ内でまだやることが残っているかを先に決める。残っていなければ
     // 下のフェーズ完了処理へ落ちる（once種別のフェーズは常に完了扱い）。
     let phaseCompleted = false;
@@ -178,11 +221,15 @@ export const ROUND_HANDLERS = {
         interruptId = null; // 割り込み指定は手番が決まった時点で消費する
         step = 'act';
         logParts.push(`${currentPhase.preTurnStep?.label || 'イニシアチブプロセス'}終了。${nameOf(actor)}の手番です。`);
+        fireRoundEvent('turnStart', currentPhase, actor, postLogEntries);
       } else {
         phaseCompleted = true; // 未行動者がいない（参加者が外された等）
       }
     } else if (currentPhase.kind === 'perCharacter') {
       // 手番を終える。行動済みに加えたうえで、まだ手番が残っていれば次へ送る。
+      // 【行動済みに加える前に節目を撃つ】舞台のルーチンは「手番を終えたコマ」に対して
+      // 効くので、まだそのコマが手番の主であるうちに知らせる。
+      if (currentActorId) fireRoundEvent('turnEnd', currentPhase, currentActorId, preLogEntries);
       if (currentActorId && !acted.includes(currentActorId)) acted = [...acted, currentActorId];
 
       const nextActor = pickNextActor(tokensForRound, { ...round, acted, interruptId });
@@ -197,6 +244,7 @@ export const ROUND_HANDLERS = {
         currentActorId = nextActor;
         interruptId = null;
         logParts.push(`${currentPhase.label}: ${nameOf(nextActor)}の手番です。`);
+        fireRoundEvent('turnStart', currentPhase, nextActor, postLogEntries);
       }
     } else {
       phaseCompleted = true;
@@ -226,9 +274,13 @@ export const ROUND_HANDLERS = {
       currentActorId = null;
       interruptId = null;
 
-      // 参加者0人でperCharacterフェーズに入ってしまう場合は手番の主がいないので、
-      // もう一段先（同じ規則で完了扱い）へ進める防御処理
-      if (round.template[phaseIndex].kind === 'perCharacter' && round.participants.length === 0) {
+      // 手番の主が1人もいないperCharacterフェーズに入ってしまう場合は、もう一段先
+      // （同じ規則で完了扱い）へ進める防御処理。参加者0人のときと、参加者は居ても
+      // 全員がその段では手番を持たない種別だったとき（ステラナイツのシースだけが残った等）。
+      if (round.template[phaseIndex].kind === 'perCharacter'
+        && !pickNextActor(tokensForRound, {
+          ...round, phaseIndex, acted: [], interruptId: null
+        })) {
         nextPhaseIndex = phaseIndex + 1;
         if (nextPhaseIndex >= round.template.length) {
           nextPhaseIndex = 0;
@@ -246,12 +298,17 @@ export const ROUND_HANDLERS = {
         tokensForRound, activePlugin, newPhase, { ...round, roundNumber }
       );
 
+      // 部屋の拡張ルーム設定にも同じ節目を知らせる（ステラナイツの舞台のセットルーチン）。
+      // 手番を決める前に撃つので、ルーチンが手番順を動かす作りにしても辻褄が合う。
+      fireRoundEvent('phaseStart', newPhase, null, postLogEntries);
+
       step = initialStepForPhase(newPhase, useInitiativeProcess);
       if (newPhase.kind === 'perCharacter' && step === 'act') {
         currentActorId = pickNextActor(
           tokensForRound,
-          { ...round, plots, plotExtras, plotChoice, acted: [], interruptId: null }
+          { ...round, phaseIndex, plots, plotExtras, plotChoice, acted: [], interruptId: null }
         );
+        if (currentActorId) fireRoundEvent('turnStart', newPhase, currentActorId, postLogEntries);
       }
 
       // プロットはラウンドごとに引き直すので、その段に入るところで捨てる。
@@ -303,7 +360,16 @@ export const ROUND_HANDLERS = {
         // 各自が明示的にトグルするまで持続する。手番ごとの自動リセットはしない）
       },
       room: withDerivedRoomParameters(roomForRound, prevState.stampCounts, nextRound),
-      chatLogs: withSystemLog(prevState.chatLogs, logParts.join('\n'), payload?.time)
+      // 手番を終えた効果 → 進行の知らせ → 段に入った効果・次の手番の予告、の順に並べる
+      chatLogs: withExtensionEntries(
+        withSystemLog(
+          withExtensionEntries(prevState.chatLogs, preLogEntries, payload?.time),
+          logParts.join('\n'),
+          payload?.time
+        ),
+        postLogEntries,
+        payload?.time
+      )
     });
   },
 

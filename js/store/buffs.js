@@ -5,7 +5,9 @@
 // 外側が終われば内側もすべて終わったものとして扱う。その連鎖を1段ずつ回して、
 // バフの削除・プラグイン側の後始末・ログ本文の組み立てまでを applyPhaseEnd が受け持つ。
 
-import { resetPluginComponentsOnPhaseEnd, resetPluginRoomExtensionsOnPhaseEnd } from '../parameters/registry.js';
+import {
+  applyPluginRoomExtensionsRoundEvent, resetPluginComponentsOnPhaseEnd, resetPluginRoomExtensionsOnPhaseEnd
+} from '../parameters/registry.js';
 
 // バフ/デバフの終了条件（フェーズ）のラベル。ログ表示・チャットコマンド解釈の両方で使う。
 export const BUFF_PHASE_LABELS = { scene: 'シーン', round: 'ラウンド', scenario: 'シナリオ', check: '判定', process: 'プロセス' };
@@ -137,5 +139,18 @@ export function applyPhaseEnd(tokensState, activePlugin, phase, onlyTokenId = nu
     logText: removedNames.length > 0
       ? `${headline}消滅したバフ/デバフ: ${removedNames.join('、')}`
       : headline
+  };
+}
+
+// ラウンド進行の節目（段に入る・手番の開始・手番の終了）を、部屋の拡張ルーム設定へ知らせる。
+// applyRoomExtensionsPhaseEnd と対になるもので、こちらは「終わり」ではなく進行そのものを
+// 進めるためのもの（ステラナイツの舞台のルーチンが1つずつ発動する）。
+// 返すentriesは表示名つきの発言（[予兆] [舞台]）で、呼び出し側（js/store/handlers/round.js）が
+// Mainタブへ並べる。変化が無ければ同じroomを返し、entriesは空配列。
+export function applyRoomExtensionsRoundEvent(room, activePlugin, event) {
+  const result = applyPluginRoomExtensionsRoundEvent(activePlugin, room?.extensions, event);
+  return {
+    room: result.extensions === room?.extensions ? room : { ...room, extensions: result.extensions },
+    entries: result.entries
   };
 }

@@ -21,7 +21,7 @@ import { createIcon, setIconText } from './icons.js';
 import { getLocalUserId, getNickname } from './local-identity.js';
 import { canOperateAsGm, canOperateToken, GM_ONLY_REASON } from './room-authority.js';
 import {
-  listUnactedParticipants, listTiedPlotSlotKeys, getEffectiveParameterValue,
+  canActInPhase, listUnactedParticipants, listTiedPlotSlotKeys, getEffectiveParameterValue,
   listPlotSlots, resolvedPlotSlot, listPlotSlotRows,
   plotSlotKey, describePlotSlotName, generatePlotSlotId
 } from './game-store.js';
@@ -74,7 +74,14 @@ function listTurnOrderRows(state, round) {
 
   if (current && round.participants.includes(current)) tokenIds.push(current);
   unacted.forEach(id => { if (id !== current) tokenIds.push(id); });
-  round.participants.forEach(id => { if (!tokenIds.includes(id)) tokenIds.push(id); });
+  // 残り（行動済み）を末尾へ。ただしその段で手番を持たない種別（ステラナイツのシース）は
+  // 並べない。手番が回ってこないだけで行動を済ませたわけではないので、行動済みの群に
+  // 混ぜると卓が読み違える。
+  const phase = round.template?.[round.phaseIndex];
+  round.participants.forEach(id => {
+    if (tokenIds.includes(id) || !canActInPhase(state.tokens, phase, id)) return;
+    tokenIds.push(id);
+  });
 
   if (!usesPlotTurnOrder(round) || !round.plotsRevealed) {
     return tokenIds.map(tokenId => ({

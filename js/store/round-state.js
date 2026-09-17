@@ -393,11 +393,31 @@ export function listTiedPlotTokenIds(round) {
 // まだこのラウンドで行動していない参加者を、手番順で返す。
 // 呼ばれるたびに並べ替え直すので、バフ/デバフで行動値が変わっていれば次の手番の順序に
 // そのまま反映される（＝「イニシアチブプロセスで順番を計算し直す」の実体）。
+/**
+ * その段で手番を持ちうるコマか。フェーズの skipWhen 宣言に当たるコマを外す。
+ *
+ * 【Coreは値の意味を解釈しない】宣言されたパラメータの**実効値を宣言された値と比べるだけ**で、
+ * それが何を表すかは知らない（turnOrder: { paramId, direction } と同じ流儀）。
+ * ステラナイツのシース（手番を持たない種別）がこれで手番の列から外れる。
+ * 宣言が無ければ全員が対象＝これまでどおり。
+ */
+export function canActInPhase(tokensState, phase, tokenId) {
+  const skip = phase?.skipWhen;
+  if (!skip?.paramId) return true;
+  const token = tokensState[tokenId];
+  if (!token) return true;
+  return getEffectiveParameterValue(token, skip.paramId) !== skip.value;
+}
+
 export function listUnactedParticipants(tokensState, round) {
   const acted = round.acted || [];
   const withdrawn = round.withdrawn || [];
+  // 手番を持たない種別（ステラナイツのシース）もここで外す。手番の決定（pickNextActor）と
+  // 画面の手番順リスト（js/round-panel.js）の両方がこの関数を通るので、絞り込みはここ1か所。
+  const phase = round.template?.[round.phaseIndex];
   return sortForTurnOrder(tokensState, round,
-    round.participants.filter(id => !acted.includes(id) && !withdrawn.includes(id)));
+    round.participants.filter(id => !acted.includes(id) && !withdrawn.includes(id)
+      && canActInPhase(tokensState, phase, id)));
 }
 
 // 次に手番を得るコマ。割り込み指定が最優先で、無ければ未行動者のうち行動値が最大のもの。
@@ -407,8 +427,12 @@ export function listUnactedParticipants(tokensState, round) {
 // 二重の安全策として離脱済みのコマは割り込み優先の対象からも除く。
 export function pickNextActor(tokensState, round) {
   const withdrawn = round.withdrawn || [];
+  // 割り込み指定でも、その段で手番を持たない種別は飛ばす（シースへ割り込ませない）
   if (round.interruptId && round.participants.includes(round.interruptId)
-    && !withdrawn.includes(round.interruptId)) return round.interruptId;
+    && !withdrawn.includes(round.interruptId)
+    && canActInPhase(tokensState, round.template?.[round.phaseIndex], round.interruptId)) {
+    return round.interruptId;
+  }
   return listUnactedParticipants(tokensState, round)[0] || null;
 }
 

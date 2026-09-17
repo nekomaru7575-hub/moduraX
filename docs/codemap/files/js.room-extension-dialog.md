@@ -1,11 +1,11 @@
 ---
 source: js/room-extension-dialog.js
-lines: 98
+lines: 107
 exports: 1
 imported_by: 1
 api_sha: 484a2e6270ea
 prose_sha: 484a2e6270ea
-generated: 2026-09-16
+generated: 2026-09-17
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ tags: [codemap]
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 67 | fn | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` |  |
+| 76 | fn | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（2）
 
@@ -34,12 +34,12 @@ tags: [codemap]
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 23 | render | `render()` | 40 |  |
-| 67 | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` | 31 | ✓ |
+| 24 | render | `render()` | 48 |  |
+| 76 | showRoomExtensionDialog | `showRoomExtensionDialog({ store })` | 31 | ✓ |
 
 ## 依存
 
-- import → [[js.EventBus]], [[js.dialog-host]], [[js.parameters.registry]]
+- import → [[js.EventBus]], [[js.dialog-host]], [[js.parameters.registry]], [[js.room-authority]]
 - imported by → [[js.main]]
 
 ## 注意

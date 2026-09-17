@@ -141,7 +141,7 @@ const PLUGINS = {
 | `bcdiceSystem` | `string` | このシステムを選んだときの BCDice のシステムID（[3.11](#311-bcdicesystem)） |
 | `diceDraft` | `spec` | 拡張判定UIに「ダイスドラフト」を出す宣言（[3.12](#312-拡張判定ui)） |
 | `skillTableCheck` | `spec` | 拡張判定UIに「特技表判定」を出す宣言（[3.12](#312-拡張判定ui)） |
-| `roomExtensions` | `{ key, label, normalize, reduce, resetOnPhaseEnd, renderSection }[]` | 部屋全体に掛かる設定・効果を「⋯」→「拡張ルーム設定」に出す（[3.13](#313-拡張ルーム設定roomextensions)） |
+| `roomExtensions` | `{ key, label, gmOnly, normalize, reduce, resetOnPhaseEnd, applyRoundEvent, renderSection }[]` | 部屋全体に掛かる設定・効果を「⋯」→「拡張ルーム設定」に出す（[3.13](#313-拡張ルーム設定roomextensions)） |
 | `transformRollResult` | `({ command, result, extensions }) => result` | 部屋の中で振ったダイスの結果を書き換える（[3.14](#314-ロール結果の書き換えtransformrollresult)） |
 
 以下、それぞれの詳細。
@@ -389,6 +389,7 @@ function buildMyRoundPhaseTemplate() {
 | `preTurnStep` | 各手番の直前に挟む段（`perCharacter` のみ）。`{ id, label }` |
 | `plot` | 出せる数字の範囲 `{ min, max }`（`kind: 'plot'` のみ） |
 | `turnOrder` | 手番順の根拠（`perCharacter` のみ）。省略で `'initiative'`、`'plot'` ならプロット値の降順、`{ paramId, direction }` ならそのパラメータの実効値順 |
+| `skipWhen` | そのフェーズで**手番を持たない**コマの宣言（`perCharacter` のみ）。`{ paramId, value }` で、そのパラメータの実効値が `value` と等しいコマは手番の列に出ない |
 
 `kind: 'plot'` を使うと、伏せて提出 → 進行役が一斉公開 → 公開値で手番順、という流れが
 Core 側だけで完結する。提出値は **公開されるまで他人の画面に出ない**。
@@ -419,6 +420,23 @@ function computeDracurougeDerivedParameters(parameters) {
 
 読むのは実効値（バフ込み）なので、`ADD_BUFF` で手番順を前後させることもできる。
 そのパラメータを持たないコマは最後尾に回る（手番が消えるより軽い扱い）。
+
+#### 手番を持たないコマを外す
+
+「その段では手番が回ってこない」コマは `skipWhen` で外す。ステラナイツのシースがこれ。
+
+```js
+skipWhen: { paramId: 'STELLA_KNIGHTS:turnOrder', value: 0 }   // この実効値のコマは手番を持たない
+```
+
+Core は**宣言されたパラメータの実効値を宣言された値と比べるだけ**で、それが何を表すかは
+知らない（`turnOrder` と同じ流儀）。外れたコマは手番の列にも手番順の詳細リストにも出ず、
+「次の手番に割り込ませる」の相手にもならない。宣言しなければ今までどおり全員が対象。
+
+**「行動済み」とは別**。行動を済ませたわけではないので、詳細リストの行動済みの群にも
+並べない（並べると卓が読み違える）。参加者から外すのとも違い、外すと復帰させる手間が要る。
+
+その段で手番を持てるコマが1人もいなければ、段ごと素通りする（参加者0人のときと同じ扱い）。
 
 ---
 
@@ -917,7 +935,8 @@ skillTableCheck: {
 
 コマではなく**部屋全体に掛かる**、そのシステム固有の設定・効果の置き場。ヘッダーの「⋯」→
 「拡張ルーム設定」に、宣言したものが見出し付きで並ぶ（宣言が無いシステムでは項目ごと出ない）。
-ステラナイツの「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）がこれ。
+ステラナイツの「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）と
+「舞台」（シナリオ側の仕掛けをラウンド進行に合わせて流す）がこれ。
 
 値は `room.extensions[pluginId][key]` に入る。Core は中身を解釈しない。
 
@@ -925,14 +944,18 @@ skillTableCheck: {
 roomExtensions: [{
   key: 'startingRoom',
   label: '始まりの部屋',
+  // 任意。trueならGM以外には節ごと出さない（下記）
+  gmOnly: false,
   // 保存データ・取り込んだ部屋データ（信用しないJSON）を正規形へ。壊れた値は落とす
   normalize: (value) => ({ rules: ... }),
-  // 操作を今の状態に当てる。何もしないならnull。logTextはMainのログに出る
-  reduce: (value, op, args) => ({ value: nextValue, logText: '…を発動しました' }),
+  // 操作を今の状態に当てる。何もしないならnull
+  reduce: (value, op, args) => ({ value: nextValue, logText: '…を発動しました', entries: [] }),
   // 任意。フェーズ終了で後始末する。変わらなければ同じ参照の value を返す
   resetOnPhaseEnd: (value, phase) => ({ value, logText: '' }),
+  // 任意。ラウンド進行の節目でこの値を進める（下記）
+  applyRoundEvent: (value, event) => ({ value: nextValue, entries: [] }),
   // 「拡張ルーム設定」の欄。dispatchOp(op, args) で reduce へ届く
-  renderSection: ({ container, value, dispatchOp, roundActive }) => { ... }
+  renderSection: ({ container, value, dispatchOp, roundActive, isGm }) => { ... }
 }]
 ```
 
@@ -945,8 +968,51 @@ roomExtensions: [{
 シーンの遷移・部屋全体の EXPIRE_BUFFS）で、コマの `resetComponentsOnPhaseEnd` と同じく入れ子を
 1段ずつ渡されて呼ばれる。
 
+#### 表示名つきの発言（`entries`）
+
+`logText` は「システム」の1行になる。表示名を自分で決めたいときは `entries` を返す。
+
+```js
+entries: [{ system: '予兆', resultText: `${name}
+${effect}` }]   // → [予兆] として流れる
+```
+
+Core は中身を読まず、そのまま Main タブへ並べるだけ（`reduce` と `applyRoundEvent` の
+両方で返せる）。1回の操作で流せるのは8件まで。本文のエスケープは表示側がすべて行う。
+
+#### ラウンド進行の節目（`applyRoundEvent`）
+
+`resetOnPhaseEnd`（フェーズの**終わり**）と対になる、進行そのものを進めるためのフック。
+ステラナイツの舞台のルーチンが1つずつ発動するのがこれ。
+
+```js
+applyRoundEvent: (value, event) => { ... }
+// event.type  … 'phaseStart'（段に入った） | 'turnStart'（手番の開始） | 'turnEnd'（手番の終了）
+// event.phase … 今の段（テンプレートの1件そのまま）
+// event.actor … 手番のコマ。turnStart / turnEnd のときだけ入り、それ以外は null
+// event.roundNumber … 何ラウンド目か
+```
+
+何もしないなら `null`、値が変わらないなら**同じ参照**の `value` を返す。
+発言の並びは「`turnEnd` のぶん → 進行の知らせ（○○の手番です）→ `phaseStart` と
+`turnStart` のぶん」。手番を終えた効果が、次の手番の予告より先に出る。
+
+**コマの種別のような判断は記述子の側で解いてから渡すこと。** モデルのファイルから
+プラグイン本体を読むと循環 import になる（ステラナイツは `isBringer` を足して渡している）。
+
+#### 誰が触れるか
+
 誰が操作してよいかは Core が決めない（`UPDATE_ROOM_EXTENSION` は GM 限定ではない）。
+`gmOnly: true` はその節を GM 以外の画面に出さないだけで、**本当の制御ではない**
+（状態は全員へ配られ、開発者ツールからは読める）。シナリオ側の仕掛けが PL の画面に
+うっかり出ないようにするためのもの。
+
 画面に出す文字は必ず `textContent` で入れること（値は部屋の誰かが決めたもの）。
+
+**入力欄は `change`（確定時）で `dispatchOp` すること。** ダイアログは `extensions` が
+変わるたびに欄を組み直すので、`input` ごとに送ると毎打鍵で描き直しになる。
+それでも組み直しは起きるので、直前まで触っていた欄へカーソルごと戻す手当てが要る
+（`js/parameters/stella-knights-stage-section.js` の `restoreFocus` が実例）。
 
 ---
 

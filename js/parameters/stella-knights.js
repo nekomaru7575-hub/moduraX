@@ -10,6 +10,8 @@ import {
   STARTING_ROOM_EXTENSION_MODEL, STARTING_ROOM_KEY, transformStellaKnightsRoll
 } from './stella-knights-starting-room.js';
 import { renderStartingRoomSection } from './stella-knights-starting-room-section.js';
+import { applyStageRoundEvent, STAGE_EXTENSION_MODEL, STAGE_SET_PHASE_ID } from './stella-knights-stage.js';
+import { renderStageSection } from './stella-knights-stage-section.js';
 
 const STELLA_KNIGHTS_BCDICE_SYSTEM = 'StellarKnights';
 // charge(n) … n個振る。charge / charge() … 個数を書かない形で、チャットに
@@ -162,7 +164,11 @@ const CHARACTER_PARAMETERS = [
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true },
-  { key: 'DB', label: 'アタックダイス補正(DB)', value: 0, visible: false, locked: true, editable: false }
+  { key: 'DB', label: 'アタックダイス補正(DB)', value: 0, visible: false, locked: true, editable: false },
+  // 手番順（buildRoundPhaseTemplateのturnOrderとskipWhenが読む受け皿）。種別から自動で決まるので
+  // 手入力させない。Coreは数値の意味を知らず、小さい順に並べて0のコマを飛ばすだけ
+  // （TURN_ORDER_BY_CHAR_TYPE参照）。自動計算の受け皿なのでlocked:trueが要る
+  { key: 'turnOrder', label: '手番順', value: 2, visible: false, locked: true, editable: false }
 ];
 
 export function buildStellaKnightsCharacterParameters() {
@@ -217,6 +223,69 @@ const TYPED_VISIBLE_PARAM_IDS = [
 
 function rulesOf(token) {
   return STELLA_KNIGHTS_TYPE_RULES[readStellaKnightsCharType(token?.parameters)];
+}
+
+// --- 手番順（ラウンド進行） ---
+//
+// ルールの並びは「エネミー（NPC）のアクション → ブリンガーのアクション」。段を2つに割らず、
+// 1つの段のままこの数値の小さい順で並べる（ドラクルージュの「道」と同じ手口。
+// docs/plugin-guide.md の 3.6）。同値はイニシアチブ降順で解けるので、ブリンガーどうしの
+// 並びは行動値のまま。
+//
+// シースは手番を持たないので0を割り当て、テンプレートの skipWhen で手番の列から外す。
+// Coreはこの数値が何を表すかを知らず、並べることと0を飛ばすことだけをする。
+const TURN_ORDER_PARAM_ID = 'STELLA_KNIGHTS:turnOrder';
+const TURN_ORDER_NONE = 0;
+const TURN_ORDER_BY_CHAR_TYPE = Object.freeze({
+  [CHAR_TYPE_NPC]: 1,
+  [CHAR_TYPE_BRINGER]: 2,
+  [CHAR_TYPE_SHEATH]: TURN_ORDER_NONE
+});
+
+/**
+ * 種別から手番順を導く。返すのは変えたいものだけ（Coreが差分として当てる）。
+ * @param {object} parameters そのコマの全パラメータ（基礎値）
+ */
+function computeStellaKnightsDerivedParameters(parameters) {
+  return {
+    [TURN_ORDER_PARAM_ID]: TURN_ORDER_BY_CHAR_TYPE[readStellaKnightsCharType(parameters)]
+  };
+}
+
+/**
+ * ラウンド進行の段。ルールブックの「セット → チャージ判定 → アクション → カット」に合わせる。
+ *
+ * ・セット   … セットルーチンの発動（js/parameters/stella-knights-stage.js）。
+ *              1ターンめのコマ配置もここで行う（卓の手順なので実装は持たない）
+ * ・チャージ判定 … エネミーとブリンガーが charge を行う
+ * ・アクション  … エネミー（NPC）→ ブリンガーの順に手番。ブリンガーの手番だけが
+ *              予兆とアクション/EXルーチンを伴う（舞台側が種別を見て決める）
+ * ・カット   … ラウンド終了。「ラウンド終了まで」のバフと始まりの部屋がここで切れる
+ */
+function buildStellaKnightsRoundPhaseTemplate() {
+  return [
+    { id: STAGE_SET_PHASE_ID, label: 'セット', kind: 'once' },
+    { id: 'charge', label: 'チャージ判定', kind: 'once' },
+    {
+      id: 'action', label: 'アクション', kind: 'perCharacter',
+      turnOrder: { paramId: TURN_ORDER_PARAM_ID, direction: 'asc' },
+      skipWhen: { paramId: TURN_ORDER_PARAM_ID, value: TURN_ORDER_NONE }
+    },
+    { id: 'cut', label: 'カット', kind: 'once', expirePhaseOnComplete: 'round' }
+  ];
+}
+
+/**
+ * 舞台へラウンド進行の節目を渡す。種別の判定はここで解いてから渡す
+ * （stella-knights-stage.js が このファイルを読むと循環importになるため）。
+ */
+function applyStellaKnightsStageRoundEvent(value, event) {
+  return applyStageRoundEvent(value, {
+    ...event,
+    isBringer: event?.actor
+      ? readStellaKnightsCharType(event.actor.parameters) === CHAR_TYPE_BRINGER
+      : false
+  });
 }
 
 /**
@@ -881,10 +950,13 @@ export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
   // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータは
-  // 種別と、防御力・チャージダイス数・ブーケ（持ち点）の3つ
+  // 種別・防御力・チャージダイス数・ブーケ（持ち点）と、自動計算の2つ（DB・手番順）
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
   buildRoomParameters: buildStellaKnightsRoomParameters,
+  computeDerivedParameters: computeStellaKnightsDerivedParameters,
   computeDerivedRoomParameters: computeStellaKnightsDerivedRoomParameters,
+  // ラウンド進行（セット → チャージ判定 → アクション → カット）
+  buildRoundPhaseTemplate: buildStellaKnightsRoundPhaseTemplate,
   renderCharacterPanel: renderStellaKnightsCharacterPanel,
   importCharacterJson: importStellaKnightsCharacterJson,
   characterSheetSource: STELLA_KNIGHTS_SHEET_SOURCE,
@@ -895,7 +967,14 @@ export const STELLA_KNIGHTS_PLUGIN = {
   // 「⋯」→「拡張ルーム設定」に出す、部屋全体に掛かる効果。
   // 始まりの部屋：振ったd6の目aをbとして扱う（ラウンド終了まで。js/parameters/stella-knights-starting-room.js）
   roomExtensions: [
-    { ...STARTING_ROOM_EXTENSION_MODEL, renderSection: renderStartingRoomSection }
+    { ...STARTING_ROOM_EXTENSION_MODEL, renderSection: renderStartingRoomSection },
+    // 舞台：シナリオ側の仕掛けをラウンド進行に合わせて流す（GMだけに出る）。
+    // js/parameters/stella-knights-stage.js
+    {
+      ...STAGE_EXTENSION_MODEL,
+      renderSection: renderStageSection,
+      applyRoundEvent: applyStellaKnightsStageRoundEvent
+    }
   ],
   // 部屋の中で振ったダイスの結果に、始まりの部屋を当てる（js/room-roll.js から呼ばれる）
   transformRollResult: ({ command, result, extensions }) => transformStellaKnightsRoll({

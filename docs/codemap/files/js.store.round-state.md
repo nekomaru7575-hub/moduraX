@@ -1,11 +1,11 @@
 ---
 source: js/store/round-state.js
-lines: 425
-exports: 23
+lines: 449
+exports: 24
 imported_by: 4
-api_sha: 4c4f6aaae07e
-prose_sha: 4c4f6aaae07e
-generated: 2026-09-16
+api_sha: a1b653117445
+prose_sha: a1b653117445
+generated: 2026-09-17
 tags: [codemap]
 ---
 
@@ -18,10 +18,12 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-_(未記入)_
+ラウンド進行の状態の形（createInitialRoundState / normalizeRoundState）と、その状態から導ける読み取りだけを持つ。手番順の決め方はここに集約されていて、sortByInitiative（行動値の降順）・turnOrderSourceOf・sortForTurnOrder（プラグインが宣言した turnOrder、またはプロット値順）・listUnactedParticipants・pickNextActor がその一式。**その段で手番を持ちうるかの絞り込み（canActInPhase。フェーズの skipWhen 宣言。ステラナイツのシース）は listUnactedParticipants 1か所を通る**ので、手番の決定と画面の手番順リストが食い違わない。
+
+プロットの枠（listPlotSlots / plotValueOf / listPlotSlotRows / listTiedPlotSlotKeys）も、読む口をここ一本にしてある。状態を書き換えるのは [[js.store.handlers.round]]、描くのは [[js.round-panel]]。
 <!-- /prose:role -->
 
-## export（23）
+## export（24）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -44,12 +46,13 @@ _(未記入)_
 | 353 | fn | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 同値の判定で使う枠のキー。 |
 | 365 | fn | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | プロットが同値（同じ値を出した相手がいる）の枠のキー。 |
 | 386 | fn | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 同値の枠を持つコマのid（重複なし）。 |
-| 396 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
-| 408 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
-| 417 | fn | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | フェーズに入るときのサブステップを決める。 |
-| 422 | fn | joinTokenNames | `joinTokenNames(tokensState, ids)` | ログ表示用にコマ名を並べる（見つからないidはそのまま出す）。 |
+| 404 | fn | canActInPhase | `canActInPhase(tokensState, phase, tokenId)` | その段で手番を持ちうるコマか。 |
+| 412 | fn | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | まだこのラウンドで行動していない参加者を、手番順で返す。 |
+| 428 | fn | pickNextActor | `pickNextActor(tokensState, round)` | 次に手番を得るコマ。 |
+| 441 | fn | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | フェーズに入るときのサブステップを決める。 |
+| 446 | fn | joinTokenNames | `joinTokenNames(tokensState, ids)` | ログ表示用にコマ名を並べる（見つからないidはそのまま出す）。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（22）
+## トップレベル関数（LOCAL TASKS 候補）（23）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -74,10 +77,11 @@ _(未記入)_
 | 353 | plotSlotKey | `plotSlotKey(tokenId, slotId)` | 3 | ✓ |
 | 365 | listTiedPlotSlotKeys | `listTiedPlotSlotKeys(round)` | 18 | ✓ |
 | 386 | listTiedPlotTokenIds | `listTiedPlotTokenIds(round)` | 6 | ✓ |
-| 396 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 6 | ✓ |
-| 408 | pickNextActor | `pickNextActor(tokensState, round)` | 6 | ✓ |
-| 417 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 | ✓ |
-| 422 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 | ✓ |
+| 404 | canActInPhase | `canActInPhase(tokensState, phase, tokenId)` | 7 | ✓ |
+| 412 | listUnactedParticipants | `listUnactedParticipants(tokensState, round)` | 10 | ✓ |
+| 428 | pickNextActor | `pickNextActor(tokensState, round)` | 10 | ✓ |
+| 441 | initialStepForPhase | `initialStepForPhase(phase, useInitiativeProcess)` | 3 | ✓ |
+| 446 | joinTokenNames | `joinTokenNames(tokensState, ids)` | 3 | ✓ |
 
 ## 依存
 
@@ -87,5 +91,9 @@ _(未記入)_
 ## 注意
 
 <!-- prose:notes -->
-_(未記入)_
+プロットを読むときは `round.plots` と `round.plotExtras` を呼び出し側で足し合わせないこと。listPlotSlots を通せば、増やした枠が無いコマでも必ず長さ1の配列が返る。足し合わせを自分で書くと、画面・ログ・並べ替えのどれかが片方を見落として食い違う。
+
+公開前のプロットは並べ替えに使わない（sortForTurnOrder が plotsRevealed を見て従来の並びへ落とす）。値を伏せていても、並び順から大小が読めてしまうため。
+
+canActInPhase / sortForTurnOrder が読むのは**実効値**（バフ込み）で、Core はその数値が何を表すかを知らない。意味付けはプラグインの computeDerivedParameters 側（[[js.parameters.registry]]）。
 <!-- /prose:notes -->

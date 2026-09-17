@@ -10,6 +10,7 @@
 // 効果は発動した瞬間から卓に効くものなので、「キャンセル」で取り消せる形にしない。
 
 import { createDialogHost } from './dialog-host.js';
+import { canOperateAsGm } from './room-authority.js';
 import { EventBus } from './EventBus.js';
 import { listPluginRoomExtensions, readPluginRoomExtension } from './parameters/registry.js';
 
@@ -26,17 +27,24 @@ function render() {
   const state = store.state;
   const pluginId = state.room?.activePlugin ?? null;
   const extensions = state.room?.extensions ?? {};
-  const signature = JSON.stringify([pluginId, extensions, !!state.round?.active]);
+  // GMになった／外れたときも描き直す（gmOnlyの節の出し入れが要るため）
+  const isGm = canOperateAsGm();
+  const signature = JSON.stringify([pluginId, extensions, !!state.round?.active, isGm]);
   // 関係の無い変化（コマが動いた等）では描き直さない。選びかけのプルダウンが戻ってしまうため
   if (signature === current.signature) return;
   current.signature = signature;
 
   body.innerHTML = '';
-  const definitions = listPluginRoomExtensions(pluginId);
+  // gmOnlyの節はGM以外には出さない。【本当の制御ではない】UPDATE_ROOM_EXTENSIONはGM限定
+  // アクションではなく、状態も全員へ配られる（js/parameters/registry.jsの「宣言の形」の節）。
+  // シナリオ側の仕掛け（ステラナイツの舞台）がPLの画面にうっかり出ないようにするためのもの。
+  const definitions = listPluginRoomExtensions(pluginId).filter(def => isGm || !def.gmOnly);
   if (definitions.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'dialog-plugin-placeholder';
-    empty.textContent = 'この部屋のシステムには、拡張ルーム設定がありません。';
+    empty.textContent = listPluginRoomExtensions(pluginId).length > 0
+      ? 'この部屋の拡張ルーム設定は、GMだけが扱えます。'
+      : 'この部屋のシステムには、拡張ルーム設定がありません。';
     body.appendChild(empty);
     return;
   }
@@ -53,7 +61,8 @@ function render() {
       container: section,
       value: readPluginRoomExtension(extensions, pluginId, def.key),
       dispatchOp: (op, args) => store.dispatch('UPDATE_ROOM_EXTENSION', { key: def.key, op, args }),
-      roundActive: !!state.round?.active
+      roundActive: !!state.round?.active,
+      isGm
     });
     body.appendChild(section);
   });

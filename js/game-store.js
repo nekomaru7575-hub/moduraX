@@ -58,8 +58,9 @@ export {
   DEFAULT_TOKEN_COLOR, showsEntryMessages, snapsToGrid, usesInitiativeProcess
 } from './store/room.js';
 export {
-  describePlotSlotName, hasUnchosenPlot, listPlotSlotRows, listPlotSlots, listTiedPlotSlotKeys,
-  listTiedPlotTokenIds, listUnactedParticipants, pickNextActor, plotSlotKey, resolvedPlotSlot
+  canActInPhase, describePlotSlotName, hasUnchosenPlot, listPlotSlotRows, listPlotSlots,
+  listTiedPlotSlotKeys, listTiedPlotTokenIds, listUnactedParticipants, pickNextActor,
+  plotSlotKey, resolvedPlotSlot
 } from './store/round-state.js';
 
 export { listPlugins };

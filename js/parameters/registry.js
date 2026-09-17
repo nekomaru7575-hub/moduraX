@@ -398,11 +398,28 @@ export function getPluginDiceDraftSpec(pluginId) {
 // 宣言の形:
 //   roomExtensions: [{
 //     key, label,
+//     gmOnly?: boolean,                 trueなら「拡張ルーム設定」にGM以外へ節ごと出さない（下記）
 //     normalize(value),                 保存データ・取り込んだJSONを正規形へ（信用しない入力）
-//     reduce(value, op, args),          → { value, logText } | null（nullなら何もしない）
+//     reduce(value, op, args),          → { value, logText?, entries? } | null（nullなら何もしない）
 //     resetOnPhaseEnd?(value, phase),   → { value, logText }（変わらなければ同じ参照）
-//     renderSection({ container, value, dispatchOp, roundActive })  「⋯」→「拡張ルーム設定」の欄
+//     applyRoundEvent?(value, event),   → { value, entries? } | null（下記）
+//     renderSection({ container, value, dispatchOp, roundActive, isGm })  「⋯」→「拡張ルーム設定」の欄
 //   }]
+//
+// entries は Mainタブへ出す発言 [{ system, resultText }]。logText（「システム」の1行）と違って
+// 表示名を宣言側が決められる（ステラナイツの舞台が [予兆] [舞台] として流すため）。
+// Coreは中身を読まず、そのまま withChatEntry へ渡すだけ。
+//
+// applyRoundEvent は、ラウンド進行の節目でこの拡張の値を進めるためのフック
+// （resetOnPhaseEnd と対。呼ぶのは js/store/handlers/round.js だけ）。
+//   event = { type: 'phaseStart' | 'turnStart' | 'turnEnd', phase, actor, roundNumber }
+//     phase … 今の段（テンプレートの1件そのまま）
+//     actor … 手番のコマ。turnStart / turnEnd のときだけ入り、それ以外は null
+// 何もしないなら null、値が変わらないなら同じ参照の value を返すこと。
+//
+// 【gmOnly は本当の制御ではない】UPDATE_ROOM_EXTENSION はGM限定アクションではない
+// （js/room-authority-rules.js の GM_ONLY_ACTIONS に入れていない。始まりの部屋はPLが発動する）。
+// 状態は全員へ配られるので、開発者ツールからは読める。画面で隠すまでが守備範囲。
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -460,8 +477,27 @@ export function reducePluginRoomExtension(pluginId, extensions, key, op, args) {
   if (!reduced) return null;
   return {
     extensions: withPluginRoomExtensionValue(extensions, pluginId, key, def.normalize(reduced.value)),
-    logText: reduced.logText || ''
+    logText: reduced.logText || '',
+    // 表示名を宣言側が決める発言（ステラナイツの舞台の「今すぐ発動」）。宣言の形の節を参照
+    entries: normalizeExtensionEntries(reduced.entries)
   };
+}
+
+// applyRoundEvent / reduce が返した発言を、Coreが扱える形だけに絞る。
+// ここへ来る値はプラグインが組んだものだが、部屋の誰かが入力した文字を含むので
+// 想定外の形（オブジェクト・巨大な配列）はここで落としておく。
+// 本文のエスケープは表示側（js/main.jsのbuildLogHtml）が全部行う。
+const MAX_EXTENSION_ENTRIES = 8;
+
+function normalizeExtensionEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .filter(entry => isPlainObject(entry) && typeof entry.resultText === 'string')
+    .slice(0, MAX_EXTENSION_ENTRIES)
+    .map(entry => ({
+      system: typeof entry.system === 'string' ? entry.system : '',
+      resultText: entry.resultText
+    }));
 }
 
 function withPluginRoomExtensionValue(extensions, pluginId, key, value) {
@@ -487,6 +523,29 @@ export function resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)
     if (reset.logText) logTexts.push(reset.logText);
   });
   return { extensions: next, logTexts };
+}
+
+/**
+ * ラウンド進行の節目（段に入る・手番の開始・手番の終了）を、拡張ルーム設定へ知らせる。
+ * 呼ぶのは適用中のシステムの分だけで、宣言していない拡張は素通りする。
+ * Coreはeventの中身もentriesの中身も解釈しない（registry.jsの「宣言の形」の節を参照）。
+ * @returns {{ extensions: object, entries: {system:string, resultText:string}[] }}
+ *   変化が無ければ extensions は同じ参照
+ */
+export function applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event) {
+  let next = extensions;
+  const entries = [];
+  listPluginRoomExtensions(pluginId).forEach(def => {
+    if (!def.applyRoundEvent) return;
+    const current = ownValue(ownValue(next, pluginId), def.key);
+    if (current === undefined) return;
+    const result = def.applyRoundEvent(current, event);
+    if (!result) return;
+    entries.push(...normalizeExtensionEntries(result.entries));
+    if (result.value === current) return;
+    next = withPluginRoomExtensionValue(next, pluginId, def.key, def.normalize(result.value));
+  });
+  return { extensions: next, entries };
 }
 
 /**

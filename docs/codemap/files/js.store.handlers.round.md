@@ -1,11 +1,11 @@
 ---
 source: js/store/handlers/round.js
-lines: 612
+lines: 678
 exports: 1
 imported_by: 1
 api_sha: 41315a3e6bec
 prose_sha: 41315a3e6bec
-generated: 2026-09-16
+generated: 2026-09-17
 tags: [codemap]
 ---
 
@@ -25,7 +25,7 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 18 | const | ROUND_HANDLERS | `ROUND_HANDLERS` |  |
+| 20 | const | ROUND_HANDLERS | `ROUND_HANDLERS` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（0）
 

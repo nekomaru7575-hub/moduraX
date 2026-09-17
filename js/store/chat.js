@@ -100,3 +100,13 @@ export function withSystemLog(chatLogs, text, time) {
 export function withSystemTabLog(chatLogs, text, time) {
   return withSystemLogIn(chatLogs, SYSTEM_CHAT_TAB_ID, text, time);
 }
+
+// 拡張ルーム設定が返した発言をMainタブへ並べる（js/parameters/registry.jsの「宣言の形」の節）。
+// システム発言（withSystemLog）と違い、表示名（角括弧のタグ）を宣言した側が決められる。
+// ステラナイツの舞台が [予兆] [舞台] として流すために使う。件数はregistry側で絞ってある。
+export function withExtensionEntries(chatLogs, entries, time) {
+  return (entries || []).reduce(
+    (logs, entry) => withChatEntry(logs, MAIN_CHAT_TAB_ID, entry, time),
+    chatLogs
+  );
+}

@@ -2,10 +2,10 @@
 source: js/store/ids.js
 lines: 98
 exports: 11
-imported_by: 2
+imported_by: 3
 api_sha: eceaa6088659
 prose_sha: eceaa6088659
-generated: 2026-09-16
+generated: 2026-09-17
 tags: [codemap]
 ---
 
@@ -59,7 +59,7 @@ tags: [codemap]
 ## 依存
 
 - import → なし
-- imported by → [[js.game-store]], [[js.parameters.stella-knights-starting-room-section]]
+- imported by → [[js.game-store]], [[js.parameters.stella-knights-stage-section]], [[js.parameters.stella-knights-starting-room-section]]
 
 ## 注意
 

@@ -6,7 +6,7 @@
 // ここでは見ず、js/room-authority.js とサーバー側が決める。
 
 import { EventBus } from '../../EventBus.js';
-import { withSystemLog } from '../chat.js';
+import { withExtensionEntries, withSystemLog } from '../chat.js';
 import { applyPluginDerivedParameters, buildRoomParameters, reducePluginRoomExtension } from '../../parameters/registry.js';
 import { withEditableParamFields, withNewUserParam, withoutParam } from '../params.js';
 import { findRetiredImage, nextRetiredImages, normalizeImageRef, normalizeRetiredImages } from '../images.js';
@@ -84,11 +84,15 @@ export const ROOM_HANDLERS = {
     const reduced = reducePluginRoomExtension(activePlugin, prevState.room.extensions, key, op, args);
     if (!reduced) return;
 
+    // システム発言（logText）と、表示名を宣言側が決める発言（entries。ステラナイツの舞台の
+    // 「今すぐ発動」）の両方がありうる。どちらも無ければchatLogsには触らない。
+    let chatLogs = prevState.chatLogs;
+    if (reduced.logText) chatLogs = withSystemLog(chatLogs, reduced.logText, payload?.time);
+    chatLogs = withExtensionEntries(chatLogs, reduced.entries, payload?.time);
+
     commit({
       room: { ...prevState.room, extensions: reduced.extensions },
-      ...(reduced.logText
-        ? { chatLogs: withSystemLog(prevState.chatLogs, reduced.logText, payload?.time) }
-        : {})
+      ...(chatLogs === prevState.chatLogs ? {} : { chatLogs })
     });
   },
 

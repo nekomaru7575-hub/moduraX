@@ -2626,3 +2626,97 @@
 .starting-room-outcome {
   margin: 0;
 }
+
+/* 舞台（js/parameters/stella-knights-stage-section.js）。GMが3本の列を編集し、
+   進行の位置を戻したり任意の1件を撃ったりする欄。1行の中身が多いので縦に積む */
+.stage-kind-heading {
+  margin: 12px 0 4px;
+  color: var(--text-emphasis);
+  font-size: 0.95rem;
+}
+
+.stage-field {
+  box-sizing: border-box;
+  width: 100%;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.stage-routine {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* 次に発動する1件。進行の行と同じことを列の側でも示す */
+.stage-routine-next {
+  border-left: 3px solid var(--text-emphasis);
+  padding-left: 5px;
+}
+
+.stage-routine-no {
+  flex: 0 0 auto;
+  color: var(--text-body);
+  font-size: 0.85rem;
+  padding-top: 7px;
+}
+
+.stage-routine-fields {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stage-routine-actions {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stage-to-ex,
+.stage-ex-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-body);
+  font-size: 0.85rem;
+}
+
+.stage-progress {
+  gap: 4px;
+}
+
+.stage-loop {
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--text-body);
+  font-size: 0.85rem;
+}
+
+.stage-loop-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 「以降は実行しない」のときは範囲に意味が無い。触れないことを見た目でも示す */
+.stage-loop-range-off {
+  opacity: 0.5;
+}
+
+.stage-loop-no {
+  box-sizing: border-box;
+  width: 56px;
+  background-color: var(--surface-control);
+  color: var(--text-emphasis);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 4px;
+}

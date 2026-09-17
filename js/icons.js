@@ -37,6 +37,11 @@ const ICON_SHAPES = {
   'check-circle': '<path d="M21.8 10.6A10 10 0 1 1 16 3"/><path d="m8.5 11.5 3.5 3.5L22 5"/>',
   'chevron-left': '<path d="m15 18-6-6 6-6"/>',
 
+  // 捨てる（js/check-view/dice-draft-view.jsのダイス廃棄）。蓋・本体・中の2本線のゴミ箱。
+  trash: '<path d="M4 7h16"/><path d="M9 7V4.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4.5V7"/>'
+    + '<path d="M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7"/>'
+    + '<path d="M10 11v6"/><path d="M14 11v6"/>',
+
   // クリップボードへ写す（js/info-panel.jsの区画コピー）。重ねた紙2枚で「写し」を示す。
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/>'
     + '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',

@@ -3,15 +3,19 @@
 //
 //   dice.change(a>b,n) … プールにある目 a のダイスを n 個 b の目へ変える（,n 省略で1）
 //   dice.add(a*b)      … 目 a のダイスを b 個プールへ足す（*b 省略で1）
+//   dice.erase(a*b)    … プールにある目 a のダイスを b 個廃棄する（*b 省略で1）
 //
-// この2つは特定のシステムの能力ではなく、プール（＝Coreのダイスドラフトパネル）そのものへの
+// この3つは特定のシステムの能力ではなく、プール（＝Coreのダイスドラフトパネル）そのものへの
 // 操作なので、diceDraft を宣言しているプラグインには js/parameters/registry.js が自動で生やす。
 // プラグイン側に書くことは何も無い。
 //
 // 一方、システム固有の能力は「プールを動かす」以外の対価や条件を持つ（ステラナイツの
 // プチラッキーはブーケを払う）。そういう合成コマンドのために、コマンドの書式とは切り離した
-// runDiceChange / runDiceAdd を部品として公開している。プラグインはこれを呼んで、
+// runDiceChange / runDiceAdd / runDiceErase を部品として公開している。プラグインはこれを呼んで、
 // 自分の条件だけを足せばよい。
+//
+// パネルのゴミ箱（js/check-view/dice-draft-view.js）も runDiceDiscard を通す。消し方とログの
+// 文言を1か所にまとめるためで、画面から消したときとコマンドで消したときで結果が食い違わない。
 //
 // dice-draft-roll.js / dice-draft-use.js と同じ流儀で、dispatch などの依存は全部引数で
 // 受け取る（game-store.js を import すると
@@ -19,7 +23,8 @@
 // トップレベルで document を触らないこと（サーバーもこのファイルを読み込む）。
 
 import {
-  addDiceToPool, changePoolDice, createDie, diceDraftUnavailableReason, POOL_SAFETY_MAX
+  addDiceToPool, changePoolDice, countDice, createDie, diceDraftUnavailableReason,
+  poolDiceIdsByFace, POOL_SAFETY_MAX, removeDice
 } from './dice-draft-model.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from './dice-draft-roll.js';
 
@@ -29,6 +34,8 @@ const MAIN_TAB_ID = 'main';
 // （dice-draft-model.js の TARGET_RANGE_PATTERN と同じ扱い）。
 const DICE_CHANGE_PATTERN = /^dice\.change\(\s*(\d+)\s*[>＞]\s*(\d+)\s*(?:,\s*(\d+)\s*)?\)$/i;
 const DICE_ADD_PATTERN = /^dice\.add\(\s*(\d+)\s*(?:[*×＊]\s*(\d+)\s*)?\)$/i;
+// 消す側は足す側と同じ書式にする（目1つ＋個数）。綴りは erase で、erace（打ち間違い）は受けない。
+const DICE_ERASE_PATTERN = /^dice\.erase\(\s*(\d+)\s*(?:[*×＊]\s*(\d+)\s*)?\)$/i;
 
 // 目の上限。面数（spec.diceSides）では縛らない：能力で「振っては出ない目」を作る
 // システムがありうる（d6の盤面に7の目を置く等）ためで、一致型の置き場に対応する数字が
@@ -40,6 +47,23 @@ const MAX_FACE_VALUE = 99;
 // 目の呼び方はパネル・チャットログで揃える（「3の目」）。
 function faceLabel(value) {
   return `${value}の目`;
+}
+
+// 指定のidのダイスを、プール・スキルの下を問わず拾う（消す前の控え用）。
+function collectDice(draft, dieIds) {
+  const all = [...draft.pool, ...Object.values(draft.placements).flat()];
+  return dieIds
+    .map(dieId => all.find(die => die.id === dieId))
+    .filter(die => die !== undefined);
+}
+
+// 消したダイスを「3の目 ×2」の形で1行に並べる。目の種類が混ざったら「/」で継ぐ。
+function describeDice(dice) {
+  const counts = new Map();
+  dice.forEach(die => counts.set(die.value, (counts.get(die.value) ?? 0) + 1));
+  return [...counts.entries()]
+    .map(([value, count]) => `${faceLabel(value)} ×${count}`)
+    .join(' / ');
 }
 
 function validFace(value) {
@@ -182,16 +206,114 @@ export function runDiceAdd({
 }
 
 /**
+ * 指定のダイスを廃棄する（id指定）。パネルのゴミ箱へ落としたときはこれを直接呼ぶ。
+ *
+ * プールでもスキルの下でも、今あるところから消す（removeDice）。掴めるダイスはどこにあっても
+ * 同じに扱えるほうが、画面の操作として迷わないため。
+ *
+ * 【消えたことは必ず言う】silent を指定しない限りチャットへ1行出す。廃棄は取り消せず、
+ * 他の人から見るとダイスが黙って減るので、runDiceDraftRoll が溢れた分を必ず伝えるのと同じ作法。
+ *
+ * @param {{
+ *   spec: object, token: object|null,
+ *   dispatch: (action: string, payload: object) => void,
+ *   dieIds: string[],
+ *   knownSkillNames?: string[]|null,
+ *   chatCommand?: string,
+ *   silent?: boolean,
+ *   notify?: (message: string) => void
+ * }} options
+ * @returns {{ ok: boolean, removed: number }}
+ */
+export function runDiceDiscard({
+  spec, token, dispatch, dieIds,
+  knownSkillNames = null, chatCommand = '', silent = false,
+  notify = (message) => alert(message)
+}) {
+  const none = { ok: false, removed: 0 };
+
+  const reason = rejectReason(spec, token, [], 1);
+  if (reason) {
+    notify(reason);
+    return none;
+  }
+
+  const before = readDraft(token.components, knownSkillNames);
+  // 消す前に目を控えておく（ログの文言は「消えた物」から書き起こす。こうしておけば
+  // コマンドで消してもゴミ箱へ落としても、同じ物には同じ1行が出る）
+  const discarded = collectDice(before, dieIds);
+  const { draft, removed } = removeDice(before, dieIds);
+
+  // 描いた後に他の人が使い切っていた、など。消すものが無いだけなので静かに終える
+  if (removed === 0) return none;
+
+  dispatch('SET_COMPONENT', {
+    id: token.id, componentKey: DICE_DRAFT_COMPONENT_KEY, value: draft
+  });
+
+  if (!silent) {
+    // 残りはプールではなく**全部**の数で言う。ゴミ箱はスキルに乗っているダイスも消せるので、
+    // プールの数を出すと「乗っている分が減った」ときに数が動かず、消えたように見えない
+    // （パネルの上に出ている「全N個」と同じ数）。
+    logToChat(dispatch, spec, token, chatCommand, [
+      `${describeDice(discarded)} を廃棄（残り ${countDice(draft)}個）`
+    ]);
+  }
+
+  return { ok: true, removed };
+}
+
+/**
+ * プールにある目 value のダイスを count 個廃棄する。
+ *
+ * 【触るのはプールだけ】スキルの下に乗っているダイスは対象にしない。コマンドは目でしか
+ * 指せないので、乗っている分まで巻き込むと「どれが消えるか」が打つ前に見えない。
+ * 乗っているダイスを捨てたければ、パネルでゴミ箱へ落とすか、一度プールへ戻してもらう。
+ *
+ * 【全部そろわなければ何もしない】runDiceChange と同じ。対価を取る合成コマンドが
+ * 「半分だけ効いたのに満額払った」という壊れ方をしないようにするため。
+ *
+ * @returns {{ ok: boolean, removed: number, available: number }}
+ */
+export function runDiceErase({
+  spec, token, dispatch, value, count = 1,
+  knownSkillNames = null, chatCommand = '', silent = false, notify = (message) => alert(message)
+}) {
+  const none = { ok: false, removed: 0, available: 0 };
+
+  const reason = rejectReason(spec, token, [value], count);
+  if (reason) {
+    notify(reason);
+    return none;
+  }
+
+  const before = readDraft(token.components, knownSkillNames);
+  const { ids, available } = poolDiceIdsByFace(before, value, count);
+  if (!ids) {
+    notify(`プールに${faceLabel(value)}が ${count}個 ありません（現在 ${available}個）。`);
+    return { ...none, available };
+  }
+
+  const { ok, removed } = runDiceDiscard({
+    spec, token, dispatch, dieIds: ids, knownSkillNames, chatCommand, silent, notify
+  });
+
+  return { ok, removed, available };
+}
+
+/**
  * 「これは dice.* の書式だ」の判定。副作用を持たせないこと。
  * ドラフトを使わない部屋で打たれたときの案内（js/main.js）にも使う。
  */
 export function looksLikeDiceDraftPoolCommand(rawInput) {
   const input = String(rawInput).trim();
-  return DICE_CHANGE_PATTERN.test(input) || DICE_ADD_PATTERN.test(input);
+  return DICE_CHANGE_PATTERN.test(input)
+    || DICE_ADD_PATTERN.test(input)
+    || DICE_ERASE_PATTERN.test(input);
 }
 
 /**
- * dice.change / dice.add を実行する。registry.js が、diceDraft を宣言している
+ * dice.change / dice.add / dice.erase を実行する。registry.js が、diceDraft を宣言している
  * プラグインの部屋でだけ呼ぶ。
  *
  * @returns {boolean} 書式が合ったか。合った時点で必ず true（引数が不正で弾いたときも）。
@@ -219,6 +341,18 @@ export function handleDiceDraftPoolCommand(rawInput, { spec, token, dispatch, kn
       spec, token, dispatch,
       value: Number(add[1]),
       count: add[2] ? Number(add[2]) : 1,
+      knownSkillNames,
+      chatCommand: input
+    });
+    return true;
+  }
+
+  const erase = input.match(DICE_ERASE_PATTERN);
+  if (erase) {
+    runDiceErase({
+      spec, token, dispatch,
+      value: Number(erase[1]),
+      count: erase[2] ? Number(erase[2]) : 1,
       knownSkillNames,
       chatCommand: input
     });

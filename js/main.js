@@ -1970,7 +1970,7 @@ function tryHandlePluginChatCommand(rawInput, character) {
   // findPluginForChatCommandには載せられない。ここまで来たということは、この部屋のシステムが
   // ドラフトを使っていない＝実行のしようが無い。素通りしてただの発言になる前に理由を伝える。
   if (looksLikeDiceDraftPoolCommand(rawInput)) {
-    alert('dice.change / dice.add は、ダイスドラフトを使うシステムの部屋でだけ使えます。');
+    alert('dice.change / dice.add / dice.erase は、ダイスドラフトを使うシステムの部屋でだけ使えます。');
     return true;
   }
 

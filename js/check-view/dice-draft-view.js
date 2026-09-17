@@ -18,11 +18,13 @@
 // 丸ごと置き換えるので、落とした瞬間に1回だけ送る。
 
 import { bindDragGesture } from '../drag-gesture.js';
+import { createIcon } from '../icons.js';
 import { normalizeSkillList } from '../parameters/skill/skill-model.js';
 import {
   acceptsDie, autoPlaceDice, canViewDiceDraftSkillDetails, countDice, createDie, diceDraftUnavailableReason,
   evaluatePlacement, filterSkillsByTab, moveDie, placedDice, readTargetModifier, supportsAutoPlace
 } from '../parameters/dice-draft/dice-draft-model.js';
+import { runDiceDiscard } from '../parameters/dice-draft/dice-draft-pool.js';
 import { DICE_DRAFT_COMPONENT_KEY, readDraft } from '../parameters/dice-draft/dice-draft-roll.js';
 import { runDiceDraftUse } from '../parameters/dice-draft/dice-draft-use.js';
 import { HIDDEN_VALUE_MASK } from '../visibility.js';
@@ -195,15 +197,22 @@ export function createDiceDraftView() {
         container.querySelectorAll('.is-drop-hover').forEach(el => el.classList.remove('is-drop-hover'));
       }
 
-      // 落とし先の名前（プールならnull）。受け付けられないならundefinedを返す。
+      // 落とし先の解釈。受け付けられない場所ならnull。
+      //   { kind: 'pool' }              … プールへ戻す
+      //   { kind: 'skill', skillName }  … そのスキルへ乗せる
+      //   { kind: 'trash' }             … 廃棄する
+      // 名前だけを返す形にしないのは、'trash' のような行き先とスキル名が紛れるため。
       function resolveDrop(targetEl, skills, die) {
-        if (!targetEl) return undefined;
-        if (targetEl.dataset.dropTarget === 'pool') return null;
+        if (!targetEl) return null;
+
+        const target = targetEl.dataset.dropTarget;
+        if (target === 'pool') return { kind: 'pool' };
+        if (target === 'trash') return { kind: 'trash' };
 
         const skillName = targetEl.dataset.skillName;
         const skill = skills.find(item => item.name === skillName);
-        if (!skill) return undefined;
-        return acceptsDie(spec, skill, die).ok ? skillName : undefined;
+        if (!skill) return null;
+        return acceptsDie(spec, skill, die).ok ? { kind: 'skill', skillName } : null;
       }
 
       function bindDieDrag(dieEl, die, skills) {
@@ -221,7 +230,7 @@ export function createDiceDraftView() {
 
             clearHighlights();
             const targetEl = dropTargetAt(event.clientX, event.clientY);
-            if (resolveDrop(targetEl, skills, die) !== undefined) {
+            if (resolveDrop(targetEl, skills, die)) {
               targetEl.classList.add('is-drop-hover');
             }
           },
@@ -232,14 +241,20 @@ export function createDiceDraftView() {
             ctx.setBusy(false);
 
             const targetEl = dropTargetAt(event.clientX, event.clientY);
-            const toSkillName = resolveDrop(targetEl, skills, die);
-            if (toSkillName === undefined) {
+            const drop = resolveDrop(targetEl, skills, die);
+            if (!drop) {
               requestRender(); // 受け付けられない場所。掴む前の見た目へ戻す
               return;
             }
 
+            if (drop.kind === 'trash') {
+              discard(die, skills);
+              return;
+            }
+
+            const toSkillName = drop.kind === 'skill' ? drop.skillName : null;
             const latest = getToken();
-            const draft = readDraft(latest?.components, skills.map(skill => skill.name));
+            const draft = readDraft(latest?.components, skills.map(item => item.name));
             const skill = skills.find(item => item.name === toSkillName) ?? null;
             const next = moveDie(draft, die.id, toSkillName, { spec, skill });
 
@@ -247,6 +262,24 @@ export function createDiceDraftView() {
             if (next === draft) requestRender();
             else saveDraft(next);
           }
+        });
+      }
+
+      // ゴミ箱へ落とした1個を消す。消し方とチャットの1行は runDiceDiscard が持っている
+      // （dice.erase からも同じ関数を通すので、ここには手順を書かない）。
+      function discard(die, skills) {
+        // 取り消せない操作なので、消す前に一度だけ聞く。ここへ来る時点で影の片付けと
+        // setBusy(false) は済ませてあること——busyのまま尋ねると、答えるまでパネルが固まる。
+        if (!confirm('ダイスを廃棄しますか？')) {
+          requestRender(); // 掴む前の見た目へ戻す
+          return;
+        }
+
+        const latest = getToken();
+        if (!latest) return;
+        runDiceDiscard({
+          spec, token: latest, dispatch, dieIds: [die.id],
+          knownSkillNames: skills.map(item => item.name)
         });
       }
 
@@ -292,6 +325,19 @@ export function createDiceDraftView() {
         return btn;
       }
 
+      // プールの横のゴミ箱。押すものではなく落とし先なので、ボタンにはしない
+      // （押しても何も起きないボタンを置くと、押せば消えると読めてしまう）。
+      function buildTrash() {
+        if (!canEdit) return null;
+
+        const trash = document.createElement('div');
+        trash.className = 'dice-draft-trash';
+        trash.dataset.dropTarget = 'trash';
+        trash.title = 'ダイスをここへ落とすと廃棄する（プールの中でも、スキルに乗っていても）';
+        trash.appendChild(createIcon('trash', 'ダイスを廃棄'));
+        return trash;
+      }
+
       function buildPool(draft, skills) {
         const section = document.createElement('div');
         section.className = 'dice-draft-section';
@@ -307,6 +353,9 @@ export function createDiceDraftView() {
 
         const autoButton = buildAutoPlaceButton(draft, skills);
         if (autoButton) headingRow.appendChild(autoButton);
+
+        const trash = buildTrash();
+        if (trash) headingRow.appendChild(trash);
 
         const pool = document.createElement('div');
         pool.className = 'dice-draft-pool';

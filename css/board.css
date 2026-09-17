@@ -630,12 +630,39 @@ h1 {
   color: var(--text-body-strong);
 }
 
-/* プールの見出しと「自動で置く」ボタンを1行に並べる（js/check-view/dice-draft-view.js） */
+/* プールの見出し・「自動で置く」ボタン・ゴミ箱を1行に並べる（js/check-view/dice-draft-view.js）。
+   見出しだけを左へ寄せ、操作するものは右端へ固めて並べる。 */
 .dice-draft-heading-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 4px;
+}
+
+.dice-draft-heading-row .dice-draft-heading {
+  margin-right: auto;
+}
+
+/* ダイスの廃棄。落とし先なのでプール・置き場と同じ点線の枠で示すが、戻せない操作なので
+   ハイライトだけは赤側にして、置き場（青）と取り違えないようにする。 */
+.dice-draft-trash {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--danger-soft-text);
+  background-color: var(--surface-base);
+  border: 1px dashed var(--danger-soft-edge);
+  border-radius: 4px;
+}
+
+.dice-draft-trash.is-drop-hover {
+  color: var(--danger-soft-hover-text);
+  background-color: var(--danger-soft-hover);
+  border-color: var(--fill-danger-edge);
+  border-style: solid;
 }
 
 .dice-draft-auto-btn {

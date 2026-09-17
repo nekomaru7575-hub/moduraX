@@ -1,10 +1,10 @@
 ---
 source: js/parameters/dice-draft/dice-draft-model.js
-lines: 630
-exports: 21
+lines: 677
+exports: 23
 imported_by: 6
-api_sha: ff7f24c43280
-prose_sha: ff7f24c43280
+api_sha: 8fee1c6469e7
+prose_sha: 8fee1c6469e7
 generated: 2026-09-17
 tags: [codemap]
 ---
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-ダイスドラフトの保存形（token.components.diceDraft ＝ pool と placements）と、何を置けるか・いつ発動できるかの規則を純関数で持つ。DOMもstoreも触らない：server/index.js から import 連鎖で読まれるため。ドラッグ・ダイスの絵・store操作は [[js.check-view.dice-draft-view]]、プールへ足す／目を変えるコマンドは [[js.parameters.dice-draft.dice-draft-pool]] が持つ（目の書き換えそのもの changePoolDice はここ）。「自動で置く」の規則（supportsAutoPlace / autoPlaceDice。対応する数字が決まっている match 規則だけ）、目標値の欄の読み取り（parseSumTarget）と修正値（readTargetModifier）もここにある。コマごとに使わせない・中身を伏せる宣言（`unavailableReason` / `canViewSkillDetails`）を読むのも diceDraftUnavailableReason / canViewDiceDraftSkillDetails のここだけで、振る・dice.*・発動の入口とパネルが同じ答えを出す。
+ダイスドラフトの保存形（token.components.diceDraft ＝ pool と placements）と、何を置けるか・いつ発動できるかの規則を純関数で持つ。DOMもstoreも触らない：server/index.js から import 連鎖で読まれるため。ドラッグ・ダイスの絵・store操作は [[js.check-view.dice-draft-view]]、プールへ足す／目を変えるコマンドは [[js.parameters.dice-draft.dice-draft-pool]] が持つ（目の書き換えそのもの changePoolDice はここ）。「自動で置く」の規則（supportsAutoPlace / autoPlaceDice。対応する数字が決まっている match 規則だけ）、目標値の欄の読み取り（parseSumTarget）と修正値（readTargetModifier）もここにある。コマごとに使わせない・中身を伏せる宣言（`unavailableReason` / `canViewSkillDetails`）を読むのも diceDraftUnavailableReason / canViewDiceDraftSkillDetails のここだけで、振る・dice.*・発動の入口とパネルが同じ答えを出す。廃棄は removeDice（プールでもスキルの下でも、id で指した物を消す）と poolDiceIdsByFace（プールから目で選ぶ。そろわなければ1つも返さない）の2つに分けてあり、パネルのゴミ箱は前者だけ、dice.erase は後者を通してから前者を呼ぶ。
 <!-- /prose:role -->
 
-## export（21）
+## export（23）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -42,12 +42,14 @@ tags: [codemap]
 | 453 | fn | addDiceToPool | `addDiceToPool(draft, dice)` | プールへダイスを足す。 |
 | 485 | fn | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | プールにある目 from のダイスを count 個だけ to へ変える。 |
 | 537 | fn | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | ダイスを1個動かす。 |
-| 565 | fn | supportsAutoPlace | `supportsAutoPlace(spec)` | 「自動で置く」を使える規則か。 |
-| 585 | fn | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | プールのダイスを、対応する数字のスキルへまとめて置く。 |
-| 613 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
-| 627 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
+| 574 | fn | removeDice | `removeDice(draft, dieIds)` | 指定のダイスを消す（廃棄）。 |
+| 599 | fn | poolDiceIdsByFace | `poolDiceIdsByFace(draft, value, count = 1)` | プールにある目 value のダイスのidを、先頭から count 個。 |
+| 612 | fn | supportsAutoPlace | `supportsAutoPlace(spec)` | 「自動で置く」を使える規則か。 |
+| 632 | fn | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | プールのダイスを、対応する数字のスキルへまとめて置く。 |
+| 660 | fn | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 発動時。 |
+| 674 | fn | clearDraft | `clearDraft()` | プールも配置も全部捨てる。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（25）
+## トップレベル関数（LOCAL TASKS 候補）（27）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -75,10 +77,12 @@ tags: [codemap]
 | 485 | changePoolDice | `changePoolDice(draft, from, to, count = 1)` | 20 | ✓ |
 | 507 | extractDie | `extractDie(draft, dieId)` | 24 |  |
 | 537 | moveDie | `moveDie(draft, dieId, toSkillName, { spec = null, skill = null } = {})` | 22 | ✓ |
-| 565 | supportsAutoPlace | `supportsAutoPlace(spec)` | 3 | ✓ |
-| 585 | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | 22 | ✓ |
-| 613 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
-| 627 | clearDraft | `clearDraft()` | 3 | ✓ |
+| 574 | removeDice | `removeDice(draft, dieIds)` | 15 | ✓ |
+| 599 | poolDiceIdsByFace | `poolDiceIdsByFace(draft, value, count = 1)` | 7 | ✓ |
+| 612 | supportsAutoPlace | `supportsAutoPlace(spec)` | 3 | ✓ |
+| 632 | autoPlaceDice | `autoPlaceDice(spec, skills, draft)` | 22 | ✓ |
+| 660 | consumePlacement | `consumePlacement(draft, skillName, count = Infinity)` | 12 | ✓ |
+| 674 | clearDraft | `clearDraft()` | 3 | ✓ |
 
 ## 依存
 

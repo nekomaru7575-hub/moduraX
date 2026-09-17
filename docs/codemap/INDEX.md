@@ -20,7 +20,7 @@ generated: 2026-09-17
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 179 | 845 | 1396 | 54 | 0 |
+| 179 | 849 | 1402 | 53 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -75,7 +75,7 @@ generated: 2026-09-17
 | [[js.html-escape\|js/html-escape.js]] | 文字列をHTMLへ埋め込む前の始末。 | 2 | 4 |
 | [[js.ice-probe-rules\|js/ice-probe-rules.js]] | 「この回線からP2Pが張れるか」の判定そのもの。 | 5 | 1 |
 | [[js.ice-probe\|js/ice-probe.js]] | 「この回線からP2Pの部屋に入れるか」を、相手を用意せずに1台だけで測る道具（/ice-probe.html）。 | 0 | 0 |
-| [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 12 |
+| [[js.icons\|js/icons.js]] | 画面の操作部品に置くアイコンを、ここでだけ定義する。 | 4 | 13 |
 | [[js.identity-dialog\|js/identity-dialog.js]] | 参加者設定ダイアログ。 | 1 | 1 |
 | [[js.image-dimensions\|js/image-dimensions.js]] | 画像の実ピクセルサイズ（naturalWidth/Height）を測る。 | 1 | 5 |
 | [[js.image-field\|js/image-field.js]] | ダイアログに貼る「ラベル＋プレビュー＋選択/削除ボタン」の1組。 | 1 | 2 |
@@ -110,8 +110,8 @@ generated: 2026-09-17
 | [[js.parameters.arianrhod-action-set-box\|js/parameters/arianrhod-action-set-box.js]] | アリアンロッドの「行動セット」＝ムーブ／マイナー／メジャーで何を行うかという宣言の組。 | 11 | 1 |
 | [[js.parameters.arianrhod\|js/parameters/arianrhod.js]] | アリアンロッドRPG 2E のプラグイン記述子。 | 11 | 1 |
 | [[js.parameters.core\|js/parameters/core.js]] | どのシステムでも共通の、コマのパラメータ（HP・イニシアチブ）とルーム変数（現在のラウンド）の定義。 | 4 | 4 |
-| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 21 | 6 |
-| [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 4 | 3 |
+| [[js.parameters.dice-draft.dice-draft-model\|js/parameters/dice-draft/dice-draft-model.js]] | ダイスドラフト（振った目を1個ずつ取っておき、スキルへ割り当てて使う仕組み）のデータモデル。 | 23 | 6 |
+| [[js.parameters.dice-draft.dice-draft-pool\|js/parameters/dice-draft/dice-draft-pool.js]] | ダイスドラフトのプールを、振らずに直接動かす操作。 | 6 | 4 |
 | [[js.parameters.dice-draft.dice-draft-roll\|js/parameters/dice-draft/dice-draft-roll.js]] | 「ダイスを振ってドラフトのプールへ入れる」共通処理。 | 3 | 5 |
 | [[js.parameters.dice-draft.dice-draft-use\|js/parameters/dice-draft/dice-draft-use.js]] | ダイスドラフトの「発動」。 | 1 | 2 |
 | [[js.parameters.dracurouge-bond-box\|js/parameters/dracurouge-bond-box.js]] | ドラクルージュの「絆」一覧を表示・編集するボックス（複数データをまとめて扱うUI）。 | 10 | 1 |
@@ -218,7 +218,7 @@ generated: 2026-09-17
 | [[js.game-store\|js/game-store.js]] | 18 |
 | [[js.local-identity\|js/local-identity.js]] | 16 |
 | [[js.store.patch\|js/store/patch.js]] | 16 |
+| [[js.icons\|js/icons.js]] | 13 |
 | [[js.visibility\|js/visibility.js]] | 13 |
-| [[js.icons\|js/icons.js]] | 12 |
 | [[js.parameters.skill.skill-model\|js/parameters/skill/skill-model.js]] | 12 |
 | [[js.read-only-form\|js/read-only-form.js]] | 12 |

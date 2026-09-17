@@ -151,7 +151,7 @@ export function pluginHasSheetImport(pluginId) {
  * 解釈・実行させる（例: DX3の combo.awk(コンボ名) 等）。Coreはコマンドの構文を解釈せず、
  * プラグインのhandleChatCommandにそのまま委ねる。
  *
- * 例外はダイスドラフトの dice.change / dice.add と、アイテムの item.use / item.gain で、
+ * 例外はダイスドラフトの dice.change / dice.add / dice.erase と、アイテムの item.use / item.gain で、
  * どちらも特定のシステムの能力ではなく「プール（＝Coreのパネル）」「持ち物」そのものへの
  * 操作なので、diceDraft / item を宣言しているプラグインにはここで自動的に生やす。
  * どのシステムでも同じ書式・同じ規則で動かすため、プラグインのhandleChatCommandより

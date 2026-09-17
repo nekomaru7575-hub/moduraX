@@ -558,6 +558,53 @@ export function moveDie(draft, dieId, toSkillName, { spec = null, skill = null }
 }
 
 /**
+ * 指定のダイスを消す（廃棄）。プールでもスキルの下でも、今あるところから消す。
+ *
+ * 【プールだけに絞らない理由】changePoolDice が触るのをプールだけにしているのは、乗ったまま
+ * 目を書き換えると kind:'match' の「乗っている目＝対応する数字」と矛盾するため。消す分には
+ * その矛盾が起きないので、掴めるダイスはどこにあっても同じに扱う。
+ *
+ * 見つからないidは黙って飛ばす（描いた後に他の人が使い切っていることがある）。1個も消えなければ
+ * 元のdraftをそのまま返す＝呼び出し側が参照比較で「変化なし」を判定できる（moveDieと同じ作法）。
+ *
+ * @param {object|null} draft
+ * @param {string[]} dieIds
+ * @returns {{ draft: object, removed: number }}
+ */
+export function removeDice(draft, dieIds) {
+  const base = draft ?? createEmptyDraft();
+  if (!Array.isArray(dieIds) || dieIds.length === 0) return { draft: base, removed: 0 };
+
+  let next = base;
+  let removed = 0;
+  dieIds.forEach(dieId => {
+    const found = extractDie(next, dieId);
+    if (!found) return;
+    next = found.next;
+    removed += 1;
+  });
+
+  return { draft: removed > 0 ? next : base, removed };
+}
+
+/**
+ * プールにある目 value のダイスのidを、先頭から count 個。
+ *
+ * そろっていなければ null を返す（**1個も返さない**）。changePoolDice と同じ「全部そろわなければ
+ * 何もしない」を、消す側でも守るため。先頭から取るのも同じ理由＝利用者が並べた順を尊重する。
+ *
+ * @returns {{ ids: string[]|null, available: number }}
+ *   available は目 value がプールに今いくつあるか（呼び出し側が理由の説明に使う）
+ */
+export function poolDiceIdsByFace(draft, value, count = 1) {
+  const base = draft ?? createEmptyDraft();
+  const matched = base.pool.filter(die => die.value === value);
+  const available = matched.length;
+  if (!Number.isInteger(count) || count < 1 || available < count) return { ids: null, available };
+  return { ids: matched.slice(0, count).map(die => die.id), available };
+}
+
+/**
  * 「自動で置く」を使える規則か。目とスキルが数字で結び付く kind:'match'（ステラナイツ）だけ。
  * 合計型（ドラクルージュ）はどのダイスをどの行いへ積むかが人の判断なので、自動にしない。
  * @param {object|null} spec

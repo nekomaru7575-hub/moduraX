@@ -1,8 +1,8 @@
 ---
 source: js/icons.js
-lines: 160
+lines: 165
 exports: 4
-imported_by: 12
+imported_by: 13
 api_sha: 0c50efe1cc24
 prose_sha: 0c50efe1cc24
 generated: 2026-09-17
@@ -25,10 +25,10 @@ _(未記入)_
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
-| 97 | fn | createIcon | `createIcon(name, label = '')` | アイコン1つを作って返す。 |
-| 118 | fn | setIcon | `setIcon(el, name, label = '')` | 要素の中身を「アイコンだけ」に差し替える。 |
-| 128 | fn | setIconText | `setIconText(el, name, text, label = '')` | 要素の中身を「アイコン＋文字」に差し替える。 |
-| 146 | fn | applyStaticIcons | `applyStaticIcons(root = document)` | HTMLに直接書いてあるアイコン置き場を埋める。 |
+| 102 | fn | createIcon | `createIcon(name, label = '')` | アイコン1つを作って返す。 |
+| 123 | fn | setIcon | `setIcon(el, name, label = '')` | 要素の中身を「アイコンだけ」に差し替える。 |
+| 133 | fn | setIconText | `setIconText(el, name, text, label = '')` | 要素の中身を「アイコン＋文字」に差し替える。 |
+| 151 | fn | applyStaticIcons | `applyStaticIcons(root = document)` | HTMLに直接書いてあるアイコン置き場を埋める。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（5）
 
@@ -37,16 +37,16 @@ _(未記入)_
 
 | 行 | 名前 | シグネチャ | 行数 | export |
 |---:|---|---|---:|:-:|
-| 73 | parseIcon | `parseIcon(name)` | 17 |  |
-| 97 | createIcon | `createIcon(name, label = '')` | 16 | ✓ |
-| 118 | setIcon | `setIcon(el, name, label = '')` | 3 | ✓ |
-| 128 | setIconText | `setIconText(el, name, text, label = '')` | 5 | ✓ |
-| 146 | applyStaticIcons | `applyStaticIcons(root = document)` | 14 | ✓ |
+| 78 | parseIcon | `parseIcon(name)` | 17 |  |
+| 102 | createIcon | `createIcon(name, label = '')` | 16 | ✓ |
+| 123 | setIcon | `setIcon(el, name, label = '')` | 3 | ✓ |
+| 133 | setIconText | `setIconText(el, name, text, label = '')` | 5 | ✓ |
+| 151 | applyStaticIcons | `applyStaticIcons(root = document)` | 14 | ✓ |
 
 ## 依存
 
 - import → なし
-- imported by → [[js.audio-dialog]], [[js.character-builder]], [[js.character-dialog]], [[js.context-menu]], [[js.help.help-panel]], [[js.info-panel]], [[js.main]], [[js.parameters.shinobigami-ougi-box]], [[js.pwa]], [[js.room-index]], [[js.round-panel]], [[js.site-nav]]
+- imported by → [[js.audio-dialog]], [[js.character-builder]], [[js.character-dialog]], [[js.check-view.dice-draft-view]], [[js.context-menu]], [[js.help.help-panel]], [[js.info-panel]], [[js.main]], [[js.parameters.shinobigami-ougi-box]], [[js.pwa]], [[js.room-index]], [[js.round-panel]], [[js.site-nav]]
 
 ## 注意
 

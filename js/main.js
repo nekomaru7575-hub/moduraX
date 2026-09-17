@@ -446,9 +446,15 @@ function renderMainChatMirror(state) {
     applyLogNameColor(item, latestEntry.color);
     currentChatLog.appendChild(item);
 
-    if ('characterId' in latestEntry) {
-      lastSpokenCharacterId = latestEntry.characterId || null;
-    }
+    // 立ち絵は参照キャラクターにだけ従う。characterIdを持たない発言（システム発言・
+    // 拡張ルーム設定の[舞台]など・参照キャラクターなしの発言）は「紐づく立ち絵が無い」の
+    // であって「前のを続ける」ではないので、ここで忘れる。
+    // 【keyの有無で分けない】以前は `'characterId' in latestEntry` で囲っていたが、
+    // システム発言（js/store/chat.jsのwithSystemLogIn）はそもそもkeyを持たないので
+    // 直前の話者の立ち絵が残り続けていた。加えて、characterId: undefined を積んだ発言は
+    // JSONを通ると（＝他の参加者の画面では）keyごと消えるため、同じ発言で立ち絵の
+    // 出方が人によって変わってもいた。値だけを見れば、どちらも同じ「立ち絵なし」になる。
+    lastSpokenCharacterId = latestEntry.characterId || null;
     lastRenderedMainEntry = latestEntry;
   }
 

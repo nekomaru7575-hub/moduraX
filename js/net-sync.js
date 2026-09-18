@@ -8,7 +8,55 @@
 // ENTRY_REQUIRED …）と繋ぎ直しだけを担う。WebSocketかWebRTCかはここには現れない。
 // 分けてあるのはP2P化の検討のため（docs/p2p-migration-notes.md）。
 
+// 繋ぎ直しの最初の待ち。ここから倍にしていく（reconnectDelay）。
 const RECONNECT_DELAY_MS = 2000;
+
+// 通常の卓を繋ぎ直すときの待ちの上限。
+//
+// 【固定2秒の無限リトライをやめた理由】2つある。
+//   ・スピンダウンからの起き直り（Renderで約1分）の間、30回ぶんの接続要求を
+//     起きかけのサーバーへ叩き込むことになる
+//   ・**この繋ぎ直しそのものが inbound traffic として数えられる。** 下の
+//     KEEPALIVE_MAX_IDLE_MSで起こすのをやめても、ここが2秒で回り続ければ
+//     結局サーバーを起こし続ける（歯止めが歯止めにならない）
+//
+// 上限をホスト役の口の繋ぎ直し（HOST_SIGNALING_MAX_DELAY_MS、30秒）より短く取るのは、
+// こちらが「人が画面の前で待っている」経路だから。起き直りが1分なので、30秒だと
+// 「起きた直後に最大30秒待たされる」が現実に起きる。15秒なら2/4/8/15/15…で
+// その1分の間に6回試せる。叩きすぎず、復帰も待たせない。
+const RECONNECT_MAX_DELAY_MS = 15 * 1000;
+
+// ホスト役がシグナリングの口を繋ぎ直すときの待ちの上限（handleSignalingClose）。
+// あちらは人が待っている経路ではなく、デプロイの入れ替わり（数十秒）を待つものなので長い。
+const HOST_SIGNALING_MAX_DELAY_MS = 30 * 1000;
+
+// --- 無操作でも定期的にサーバーへ1通送る間隔 ---
+//
+// 【なぜ要るか】Renderの無料プランは「15分間 inbound traffic が無い」とスピンダウンする。
+// 公式の説明はこれに「既存接続からのWebSocketメッセージ」も含むと明記している。ところが
+// このアプリは**クライアントから定期的に何も送っていなかった**：サーバー→クライアントの
+// 生存確認（server/index.jsのHEARTBEAT_INTERVAL_MS）は outbound で、返るpongは
+// WebSocketのコントロールフレームなので、アプリのメッセージとしては1通も上がらない。
+// つまり「部屋を開いたまま15分席を外す」だけで卓が落ちる。ここを1通で埋める。
+//
+// 【4分の根拠】期限15分に対して1窓3回＝2回続けて取りこぼしても落ちない。Chromeの背景タブは
+// 概ね1分に1回しか起きないので60秒未満にしても意味がなく、60秒以上なら「最大1分遅れる」
+// だけで遅れは積み上がらない。費用はほぼゼロ（1時間に15通・1通20バイト程度。サーバーの
+// 流量制限MESSAGE_RATE_LIMITは10秒300件）。
+//
+// 【これで救えないもの】端末のスリープと、モバイルでのタブ凍結ではタイマーごと止まる。
+// そこは落ちること自体を防げないので、上の繋ぎ直しの仕事になる。
+const KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000;
+
+// この画面の人が最後に操作してから、これを過ぎたら接続ごと休止する（suspend）。
+//
+// 【なぜ止めるのか】Renderの無料枠は750インスタンス時間/月。閉じ忘れたタブが24時間
+// 起こし続けると月730時間となり、それだけで枠をほぼ使い切る。月に数回あるだけで、
+// 遊びたい日に「今月はもう動かない」が起きる。
+//
+// 【8時間の根拠】TRPGの1卓はおよそ3〜6時間。休憩や長考をまるごと飲み込める長さにして、
+// **遊んでいる最中に落ちることはまず無い**ようにしつつ、閉じ忘れの方だけを止める。
+const KEEPALIVE_MAX_IDLE_MS = 8 * 60 * 60 * 1000;
 
 import { store } from './game-store.js';
 import { adoptImportedState } from './state-import.js';
@@ -83,6 +131,30 @@ let developerIdentity = false;
 // 繋がるたびに送り直せるようここで覚えておく。ゲスト参加へ切り替えたときはnullに戻す。
 let identityToSend = null;
 
+// サーバーを寝かせないための定期送信のタイマー（KEEPALIVE_INTERVAL_MS）。
+// **接続1本につき1つ**で、繋がっていない間はnull。張るのはhandleOpen、外すのはhandleClose
+// の1組だけなので、数え上げなしで多重起動を防げる。
+let keepaliveTimer = null;
+
+// 繋ぎ直しの予約と、いま何回目か（reconnectDelay / RECONNECT_MAX_DELAY_MS）。
+// 予約を覚えておくのは、休止に入るときに取り消すため（覚えていないと、休止した後に
+// 積み残りのタイマーが発火して繋ぎ直してしまう）。
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+
+// 何本目の接続か。**古い接続からの知らせを聞かないため**に数える（connect参照）。
+let connectGeneration = 0;
+
+// 長い無操作で自分から接続を畳んだか（suspend / resumeFromSuspend）。
+// 立っている間は繋ぎ直さない——**これが歯止めの本体**で、keepaliveを止めるだけでは
+// 切断のたびの繋ぎ直しがサーバーを起こし続けてしまう。
+let suspended = false;
+
+// この画面の人が最後に自分で操作した時刻（KEEPALIVE_MAX_IDLE_MS）。
+// **受信した他人のACTIONでは更新しない。** 他人が遊んでいるなら、その人のタブの
+// 定期送信が起こしていればよく、こちらまで起き続ける理由はない。
+let lastLocalActionAt = Date.now();
+
 export function isDeveloperIdentity() {
   return developerIdentity;
 }
@@ -120,6 +192,97 @@ function submitJoinOverTransport(password) {
   transport?.send({ type: 'JOIN', password });
 }
 
+// 繋ぎ直しの待ち。RECONNECT_DELAY_MSから始めて倍にし、上限で頭打ちにする。
+// 通常の卓（scheduleReconnect）とホスト役の口（handleSignalingClose）の両方が使う。
+// **同じ計算を2か所に書かない**ため——片方だけ直すと、症状の似た別の壊れ方になる。
+function reconnectDelay(attempts, maxDelayMs) {
+  return Math.min(RECONNECT_DELAY_MS * (2 ** attempts), maxDelayMs);
+}
+
+// --- サーバーを寝かせないための定期送信 ---
+// タイマーの寿命を接続（transport）と揃える。持ち主が同じなので、幽霊タイマーも
+// 多重起動も構造的に起きない。
+function startKeepalive() {
+  // P2P卓では張らない。ここでのtransport.sendはDataChannelでホストのタブへ行き、
+  // **サーバーには1バイトも届かない**（js/net-transport-rtc.js）。起こしたい相手に
+  // 届かないうえ、ホストのタブを4分おきに叩くだけになる。P2P卓でサーバーを起こす必要が
+  // あるのはホスト役の側（控えを預ける口）だが、サーバーのENABLE_P2P_SIGNALINGは
+  // 既定で閉じていて本番では誰も通らないため、いまは手当てしない。開けるときに
+  // js/host-persistence.jsと一緒に考えること。
+  if (isP2pMode()) return;
+
+  stopKeepalive();
+  keepaliveTimer = setInterval(() => {
+    // 長く操作が無ければ、起こし続けずに畳む（KEEPALIVE_MAX_IDLE_MS）。
+    if (Date.now() - lastLocalActionAt > KEEPALIVE_MAX_IDLE_MS) {
+      suspend();
+      return;
+    }
+    // 返事は期待しない。サーバー側も何も返さない（server/index.jsのPINGの受け口）。
+    // 接続の生死はws.ping/pongが既に見ているので、ここで二重に持たない。
+    transport?.send({ type: 'PING' });
+  }, KEEPALIVE_INTERVAL_MS);
+}
+
+function stopKeepalive() {
+  if (!keepaliveTimer) return;
+  clearInterval(keepaliveTimer);
+  keepaliveTimer = null;
+}
+
+// 繋ぎ直しを予約する。切れた理由ごとの判断（部屋一覧へ戻す等）は済んだ後で呼ぶこと。
+function scheduleReconnect() {
+  if (suspended || reconnectTimer) return;
+
+  // **keepaliveを止めるだけでは足りない。** 止めればサーバーは15分後に寝るが、
+  // その切断がここへ返ってきて繋ぎ直しが始まり、接続要求そのものが inbound traffic
+  // として数えられて結局起こしてしまう。だから休止は繋ぎ直しの側でも見る。
+  if (Date.now() - lastLocalActionAt > KEEPALIVE_MAX_IDLE_MS) {
+    suspend();
+    return;
+  }
+
+  const delayMs = reconnectDelay(reconnectAttempts, RECONNECT_MAX_DELAY_MS);
+  reconnectAttempts += 1;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delayMs);
+}
+
+// 長い無操作で、接続ごと畳む。**サーバーに寝てもらうため**の仕掛けで、
+// 画面を閉じたのと同じ状態まで戻す（KEEPALIVE_MAX_IDLE_MS）。
+function suspend() {
+  if (suspended) return;
+  suspended = true;
+  stopKeepalive();
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  console.info('[net-sync] 長時間操作が無いため、接続を休止しました');
+
+  // 口が開いていれば閉じる。閉じたことはhandleCloseへ返ってくるので、表示の切り替えは
+  // そちらに任せる（既に切れていた場合だけ、ここで出す）。
+  if (transport) transport.close();
+  else EventBus.emit('NET_STATUS_CHANGED', 'idle');
+
+  // 再開の合図は「この画面で何かした」こと。**新しいボタンは作らない**——押さなければ
+  // 動かない仕掛けにすると、休止に気づかないまま操作して「反応しない」になる。
+  document.addEventListener('pointerdown', resumeFromSuspend);
+  document.addEventListener('keydown', resumeFromSuspend);
+}
+
+function resumeFromSuspend() {
+  document.removeEventListener('pointerdown', resumeFromSuspend);
+  document.removeEventListener('keydown', resumeFromSuspend);
+  if (!suspended) return;
+  suspended = false;
+  reconnectAttempts = 0;
+  lastLocalActionAt = Date.now();
+  connect();
+}
+
 // 覚えている名乗りをサーバーへ送る。送れなければ何もしない：接続が開いたとき（open）と
 // 部屋の中身を受け取ったとき（INIT）に必ず呼ぶので、そのどちらかで送り直される。
 // 入室パスワードのある部屋では、照合が済むまでサーバーが名乗りを読み捨てる
@@ -132,10 +295,23 @@ function flushIdentify() {
 function connect() {
   EventBus.emit('NET_STATUS_CHANGED', 'connecting');
   hasReceivedInit = false;
+
+  // **古い接続からの知らせは捨てる。** closeは非同期に届くので、こちらから閉じた直後に
+  // 次の接続を作ると、後から来た「古い方のclose」がhandleCloseへ入る。そこはtransportに
+  // nullを代入するので、**作ったばかりの新しい接続への参照が消える**（画面は「接続済み」
+  // なのに何も送れない、という形で黙って壊れる）。続けて繋ぎ直しも予約するため、
+  // 接続が2本になる道も開く。
+  //
+  // 実際に踏むのは休止（suspend）からの再開で、閉じてから知らせが届くまでの数ミリ秒の
+  // 間に画面を触った場合。狭いが、触らせて再開する作りである以上いつか当たる。
+  // 世代を数えて、いま生きている接続からの知らせだけを通す。
+  const generation = ++connectGeneration;
+  const isCurrent = () => generation === connectGeneration;
+
   transport = createTransport({
-    onOpen: handleOpen,
-    onMessage: handleMessage,
-    onClose: handleClose
+    onOpen: () => { if (isCurrent()) handleOpen(); },
+    onMessage: (message) => { if (isCurrent()) handleMessage(message); },
+    onClose: (event) => { if (isCurrent()) handleClose(event); }
   });
 }
 
@@ -144,6 +320,11 @@ function handleOpen() {
   // 繋ぎ直したときの名乗り直し。名乗りは接続ごとなので、ここで送らないと
   // 名乗り直すまでの間、GM限定の操作が権威側に黙って断られ続ける。
   flushIdentify();
+  // サーバーを寝かせないための定期送信を始める（KEEPALIVE_INTERVAL_MS）。
+  // 入室パスワード待ちの間も送ることになるが、それでよい——サーバーは認証前のメッセージを
+  // 読み捨てるものの、**Renderが数えるのはフレームがインスタンスへ届いたかどうか**なので、
+  // 捨てられても目的は果たす。
+  startKeepalive();
 }
 
 // 届いたメッセージ1件。信用しないJSONとして読むところまではトランスポート側が済ませている
@@ -167,6 +348,11 @@ function handleMessage(message) {
 
   if (message.type === 'INIT') {
     hasReceivedInit = true;
+    // 繋ぎ直しの待ちを最初に戻す。**handleOpenではなくここ**なのが要点で、
+    // 「開くがすぐ切られる」（混雑・不正な部屋）を繰り返す場合に開いた時点で戻すと、
+    // 待ちが永久に2秒のままサーバーを叩き続ける。部屋の中身を受け取れて初めて
+    // 「ちゃんと繋がった」と言える。
+    reconnectAttempts = 0;
     // 入室できたので、パスワードを聞いたままの画面が残っていれば閉じる
     closeRoomEntryDialog();
     store.hydrate(message.state);
@@ -255,6 +441,16 @@ function handleMessage(message) {
 // 切れた。codeの意味はjs/net-transport.jsのCLOSE_CODES（WebRTC実装も同じ値を立てて返す）。
 function handleClose({ code }) {
   transport = null;
+  // 送り先が無くなったのでタイマーも畳む。ここで外さないと、部屋一覧へ戻す分岐
+  // （ROOM_DELETED等）でページが残っている間だけ空振りし続ける。
+  stopKeepalive();
+
+  // 自分から休止したときの切断（suspend）。繋ぎ直さず、表示も「切断」ではなく休止にする。
+  if (suspended) {
+    EventBus.emit('NET_STATUS_CHANGED', 'idle');
+    return;
+  }
+
   EventBus.emit('NET_STATUS_CHANGED', 'disconnected');
   // 名乗りは接続ごと。切れた時点で開発用の権限も一旦落とす（再接続時に名乗り直す）
   developerIdentity = false;
@@ -304,7 +500,7 @@ function handleClose({ code }) {
     return;
   }
 
-  setTimeout(connect, RECONNECT_DELAY_MS);
+  scheduleReconnect();
 }
 
 // 発言1件を後から指すための鍵。部屋の中で重複しなければよいので、参加者IDのような
@@ -356,10 +552,11 @@ export function initNetSync() {
     return;
   }
 
-  // ローカルでの操作を権威へ転送する。権威由来のアクション適用はlocalDispatchを
-  // 直接呼ぶため、ここは通らない（再送信ループにならない）。
   store.dispatch = (action, payload) => {
     const stampedPayload = stampPayload(action, payload);
+    // この画面の人が操作した証（KEEPALIVE_MAX_IDLE_MS）。権威から届いたアクションは
+    // localDispatchを直接呼ぶのでここを通らず、他人の操作では更新されない。
+    lastLocalActionAt = Date.now();
     localDispatch(action, stampedPayload);
     transport?.send({ type: 'ACTION', action, payload: stampedPayload });
   };
@@ -463,7 +660,7 @@ function handleSignalingClose() {
   console.warn('[net-sync] シグナリングの口が切れました');
   if (!host) return;                 // 参加者は放っておいてよい
   if (hostReconnectTimer) return;    // 予約済み
-  const delayMs = Math.min(2000 * (2 ** hostReconnectAttempts), 30000);
+  const delayMs = reconnectDelay(hostReconnectAttempts, HOST_SIGNALING_MAX_DELAY_MS);
   hostReconnectAttempts += 1;
   hostReconnectTimer = setTimeout(() => {
     hostReconnectTimer = null;

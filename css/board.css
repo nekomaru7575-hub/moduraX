@@ -106,6 +106,12 @@ h1 {
   color: var(--text-alert);
 }
 
+/* 長時間の無操作で自分から畳んだ状態（js/net-sync.jsのsuspend）。異常ではないので
+   切断の赤ではなく、注意の色にする。 */
+.net-status-idle {
+  color: var(--text-caution);
+}
+
 /* ヘッダーの四角いボタン（.app-menu-btn）は、部屋の外のページの「⋯」と同じものを
    使うので css/tokens.css にある。 */
 

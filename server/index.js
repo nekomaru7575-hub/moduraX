@@ -90,6 +90,25 @@ const SAVE_MAX_WAIT_MS = 5000;
 // 実測で1件あたり約150バイトなので、1000件で約150KB分。
 const PERSISTED_CHAT_ENTRIES = 1000;
 
+// --- 終了処理に入ったか ---
+// **shutdown()の中だけの都合ではない。** このフラグが立った後の保存は「予約しても
+// 発火しない」——flushAllPendingSavesは既に走り終えており、そこから新しく張った
+// タイマーはprocess.exitに追い越される。だから立った後は**操作を受け付けない**
+// （ws.on('message')）し、**保存も予約しない**（schedulePersistForRoom）。
+// 受け付けてしまうと、storeには入ったのに保存されない操作ができあがり、繋ぎ直した
+// ときのINITで黙って巻き戻る＝利用者から見れば卓のロールバック。
+// 宣言がここに在るのは、その2か所から見える必要があるため（立てるのはshutdown）。
+let shuttingDown = false;
+
+// 終了シグナルを受けてから、保存の完了を待つ上限。
+//
+// 8秒では足りない場面がある：データURLが載った「重い部屋」（HEAVY_ROOM_BYTES）の
+// 書き出しは数MBのbrotliと、保存先への数MBの書き込みになる。間に合わないと
+// process.exit(1)に落ち、HEAVY_SAVE_MAX_WAIT_MS（60秒）ぶんが丸ごと失われる。
+// 一方でPaaSは待たされた末に強制終了させる（RenderはSIGTERMから30秒）ので、
+// いくらでも延ばせるわけでもない。その半分に取る。
+const SHUTDOWN_FLUSH_TIMEOUT_MS = 15 * 1000;
+
 // 部屋データの保存先。Upstashの接続情報があればRedis、無ければローカルファイル
 // （server/rooms/room-N.json）だけで動く「ローカルモード」になる。検証用の起動
 // （server/dev-local.js）は接続情報を渡さないことでこのモードに入り、本番のデータへ
@@ -1077,6 +1096,10 @@ function schedulePersistForRoom(roomId, entry) {
   // 操作の結果がRedisへ書き戻され、消したはずの部屋が復活する。
   if (entry.pendingDelete) return;
 
+  // 終了処理に入った後は新しいタイマーを張らない。張っても発火する前に終了するので、
+  // 「保存されたつもり」を作るだけになる（flushAllPendingSavesは既に走り終えている）。
+  if (shuttingDown) return;
+
   const now = Date.now();
   // 重い部屋（データURLが載っている等。persistRoomNowが立てる）は間隔を空ける。
   // 1回の書き込みが数MBになるので、1発言ごとに書くと保存先への通信量が桁違いになる。
@@ -1107,6 +1130,11 @@ function flushPendingSave(roomId, entry) {
   return persistRoomNow(roomId, entry);
 }
 
+// いま書き出している最中の部屋。**制限時間に間に合わなかったときに名前を出すため**だけに
+// 持つ（SHUTDOWN_FLUSH_TIMEOUT_MS）。以前は数も名前も出なかったので、本番で取りこぼしが
+// 起きても「どの卓が巻き戻ったのか」を報告と突き合わせられなかった。
+const pendingFlushRoomIds = new Set();
+
 // 終了シグナルを受けたときに、待機中の保存をすべて書き出してから落ちる。
 // これが無いと、デバウンスの待ち時間ぶんの操作がプロセスの停止のたびに失われる
 // （Renderはデプロイやスピンダウンのたびにここを通る）。
@@ -1114,7 +1142,13 @@ function flushAllPendingSaves() {
   const pending = [];
   rooms.forEach((entry, roomId) => {
     const saving = flushPendingSave(roomId, entry);
-    if (saving) pending.push(saving);
+    if (!saving) return;
+    pendingFlushRoomIds.add(roomId);
+    pending.push(saving
+      // 1部屋の失敗で他の部屋の書き出しまで止めない。部屋の名前を添えて記録するのは
+      // ここだけ（呼び出し側はまとめて1つのPromiseとしか向き合わないため）。
+      .catch((error) => console.warn(`[server] ${roomId} の保存に失敗しました:`, error.message))
+      .finally(() => pendingFlushRoomIds.delete(roomId)));
   });
   return Promise.all(pending);
 }
@@ -3385,12 +3419,15 @@ wss.on('connection', async (ws, req) => {
     return isDeveloper || canOperateAsGm(entry.store.state, verifiedParticipantId);
   }
 
-  // GM限定の操作を断ったとき、その接続の表示だけを正しい状態へ戻す。ブラウザ側は
+  // 操作を断ったとき、その接続の表示だけを正しい状態へ戻す。ブラウザ側は
   // 送信前に自分の画面へ先に反映しているため、断っただけでは送り手の画面がずれたまま
   // になる。INITではなく専用の型にしているのは、INITだと再接続時と同じ初期化処理
   // （名乗り直し等）まで走ってしまうため。
+  //
+  // 断る理由はGM限定の操作だけではない（終了処理に入った後の操作も通る）ので、
+  // 理由はログの文言に混ぜず、呼び出し側から受け取ったものをそのまま出す。
   function rejectAndResync(what) {
-    console.warn(`[server] ${roomId}: GM限定の操作を拒否しました (${what})`);
+    console.warn(`[server] ${roomId}: 操作を拒否しました (${what})`);
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'RESYNC', state: entry.store.state }));
     }
@@ -3426,6 +3463,22 @@ wss.on('connection', async (ws, req) => {
     // 行き違いで届いた操作を処理すると、片付けたそばから状態が書き戻される。
     if (entry.pendingDelete) return;
 
+    // 終了処理に入った後に行き違いで届いた操作。**受理しない。**
+    //
+    // shutdownは口を閉じてから書き出すので普通はここへ来ないが、close(1001)は
+    // グレースフルで、既にws側のバッファに入っていたフレームはこのハンドラへ上がる。
+    // 受理すると、storeには入るのに保存タイマーは発火せず終了するため、その操作は
+    // 黙って消える＝繋ぎ直したときのINITで巻き戻って見える。即座に書き出す手は、
+    // 終了の制限時間と競争しながら保存先への往復を増やすことになるので採らない。
+    //
+    // **黙って捨てないこと。** 送り手のタブは楽観適用で既に画面へ反映している
+    // （js/net-sync.jsのstore.dispatchラッパ）。黙って捨てると、その人の画面にだけ
+    // 在って誰も知らない操作ができあがる。GM限定の操作を断るときと同じ道具で戻す。
+    if (shuttingDown) {
+      rejectAndResync('server shutting down');
+      return;
+    }
+
     // 入室パスワードの照合。通るまでは部屋の中身を一切渡さない（verifyEntryPassword参照）。
     if (message.type === 'JOIN') {
       if (entryAuthorized) return;
@@ -3450,6 +3503,24 @@ wss.on('connection', async (ws, req) => {
 
     // 認証前は他のメッセージを受け付けない（名乗りも操作も削除も）
     if (!entryAuthorized) return;
+
+    // --- サーバーを寝かせないための定期送信（js/net-sync.jsのKEEPALIVE_INTERVAL_MS） ---
+    //
+    // **何もしないのが正しい。** Renderの無料プランは「15分間 inbound traffic が無い」と
+    // スピンダウンし、その判定は**フレームがインスタンスに届いたかどうか**で行われる。
+    // つまりここで何かを返しても・数えても・捨てても、目的はもう果たされている。
+    //
+    // 【ではなぜこの分岐が要るのか】この1行が無くても動く（未知の型は下の
+    // 「message.type !== 'ACTION'」で黙って捨てられる）。それでも置くのは、
+    // **無いと消されるため。** サーバー側を読んだ人には「誰も受けていない」ように見え、
+    // ブラウザ側のタイマーの方が不要だと判断される。あわせて「返事は返さない」と
+    // 決めたことを残す——接続の生存確認は既にws.ping/pongが持っており
+    // （heartbeatTimer）、二重に持つと真実の出どころが2つになる。
+    //
+    // 流量制限（exceedsMessageRate）は素通しにしないこと。ここを例外にすると
+    // 「只でサーバーに仕事をさせる型」が1つできる。4分に1通は10秒300件の上限
+    // （MESSAGE_RATE_LIMIT）に対して無視できる量なので、数えて困ることは何も無い。
+    if (message.type === 'PING') return;
 
     // --- WebRTCのシグナリング中継（P2P化の実験。docs/p2p-migration-notes.md） ---
     // ホスト権威P2Pでも「相手を見つける仲介」だけは誰かがやらないといけない。第三者の
@@ -3897,28 +3968,43 @@ process.on('unhandledRejection', (reason) => {
 // 保存はデバウンスしているので、待機中の変更を書き出さずに落ちるとその分が失われる。
 // Renderはデプロイやスピンダウンのたびにここ（SIGTERM）を通るため、放っておくと
 // 「最後の操作だけ戻っている」が日常的に起きる。
-let shuttingDown = false;
+// フラグ（shuttingDown）と待ち時間（SHUTDOWN_FLUSH_TIMEOUT_MS）はファイル先頭にある。
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`[server] ${signal} を受け取りました。保存待ちの部屋を書き出します…`);
 
+  // **書き出す前に口を閉じる。**
+  //
+  // 以前はflushの後に閉じていた。その順番だと「書き出している最中」と「書き終わってから
+  // 閉じるまで」の間に届いたACTIONが通常どおりstoreへ適用され、schedulePersistForRoomが
+  // タイマーを張る。そのタイマーは発火する前にprocess.exitに追い越されるので、
+  // **その操作は黙って消える**——利用者から見れば卓の巻き戻り。先に閉じてしまえば、
+  // この窓は構造上開かない（受け口のshuttingDownガードは、closeが届く前に既にws側の
+  // バッファへ入っていた分のための保険）。
+  //
+  // 閉じても状態はこのプロセスのメモリに在るので、下の書き出しは問題なく進む。
+  // 接続中のWebSocketが残っているとhttpServer.closeが返らない問題も、ここで一緒に片付く。
+  wss.close();
+  wss.clients.forEach((client) => client.close(1001, 'server shutting down'));
+
   // 書き出しが何らかの理由で終わらないときに、いつまでも落ちないのは困る
   // （PaaSは待たされた末に強制終了させるので、かえって失われる幅が広がる）。
+  // 諦めるときは**どの部屋を落としたのかを必ず出す**。出さないと、本番で巻き戻りの
+  // 報告を受けても「これが原因だった」と突き合わせられない。
   const timeout = setTimeout(() => {
-    console.warn('[server] 保存の完了を待てませんでした。そのまま終了します');
+    const stuck = Array.from(pendingFlushRoomIds);
+    console.warn('[server] 保存の完了を待てませんでした。そのまま終了します'
+      + (stuck.length ? `（書き終わっていない部屋: ${stuck.join('、')}）` : ''));
     process.exit(1);
-  }, 8000);
+  }, SHUTDOWN_FLUSH_TIMEOUT_MS);
   timeout.unref();
 
   flushAllPendingSaves()
     .catch((error) => console.warn('[server] 終了時の保存に失敗しました:', error.message))
     .finally(() => {
       clearInterval(heartbeatTimer);
-      wss.close();
       httpServer.close(() => process.exit(0));
-      // 接続中のWebSocketが残っているとhttpServer.closeは返らないので、明示的に切る
-      wss.clients.forEach((client) => client.close(1001, 'server shutting down'));
     });
 }
 

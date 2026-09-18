@@ -628,11 +628,15 @@ function initLogEntryMenu(container) {
 if (logContainer) initLogEntryMenu(logContainer);
 
 // 接続状態インジケータ（ヘッダー）
+// idleは「長時間操作が無いので自分から接続を畳んだ」状態（js/net-sync.jsのsuspend）。
+// 切断と分けるのは、原因も直し方も違うため——切断は待てば戻るが、こちらは何か操作する
+// まで戻らない。同じ「● 切断」に見せると、直る見込みのない待ちを強いることになる。
 EventBus.subscribe('NET_STATUS_CHANGED', (status) => {
   if (!netStatusEl) return;
   netStatusEl.className = `net-status net-status-${status}`;
   netStatusEl.textContent = status === 'connected' ? '● 接続済み'
     : status === 'connecting' ? '● 接続中...'
+    : status === 'idle' ? '● 休止中（画面を操作すると再開）'
     : '● 切断';
 });
 

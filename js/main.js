@@ -44,7 +44,7 @@ import { showIdentityDialog } from './identity-dialog.js';
 import { showChatTabDialog } from './chat-tab-dialog.js';
 import { canView, isRestricted, describeAudience, HIDDEN_VALUE_MASK, visibleChatEntry, canViewSecretDice } from './visibility.js';
 import {
-  handlePluginChatCommand, findPluginForChatCommand,
+  handlePluginChatCommand, findPluginForChatCommand, applyPluginCheckRoll,
   parsePluginBuffExtra, describePluginBuffMeta, getPluginBcdiceSystem, listPluginRoomExtensions
 } from './parameters/registry.js';
 import { looksLikeDiceDraftPoolCommand } from './parameters/dice-draft/dice-draft-pool.js';
@@ -1469,6 +1469,26 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       else store.dispatch('ROLL_DICE_ANIMATION', animation);
     }
 
+    // 判定が1回成立したことを、この部屋のシステムへ知らせる（横取りはされない。
+    // js/parameters/registry.jsのapplyPluginCheckRoll）。
+    //
+    // 【この位置である理由】
+    //   1. 上のreturnを全部抜けた後なので、BCDiceが受理した判定にしか反応しない
+    //      （振っていない入力でブーケを払う、のような取り返しのつかない副作用を作らせない）
+    //   2. 下のEXPIRE_BUFFSより前。ここで付いた「判定終了で消滅」のバフは、この判定で消える
+    //      ＝次の判定へ持ち越さない
+    // コマは状態から読み直す：送信時に握っていたものは、await rollRoomDice をまたいで古い。
+    // 中で転んでも振った結果は必ず出す（だから握り潰してでも先へ進む）。
+    let checkNote = '';
+    if (characterId && store.state.tokens[characterId]) {
+      try {
+        checkNote = applyPluginCheckRoll(store.state.room?.activePlugin ?? null, {
+          ...buildPluginCommandContext(store.state.tokens[characterId]),
+          command: toCommand
+        });
+      } catch (error) { console.error(error); }
+    }
+
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
     // ロールに乗ってから消えるよう、rollRoomDiceの後に置いている（{パラメータ名}の実効値置換は
     // このイベントが発火する前に済んでいるので、ここで消しても値には影響しない）。
@@ -1485,7 +1505,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
 
     applyLog({
       system, character: characterName, characterId, color: characterColor, comment,
-      resultText: `${resultText}${expiredNote}`, diceDetail,
+      resultText: `${resultText}${checkNote}${expiredNote}`, diceDetail,
       // シークレットダイスは伏せた状態で流す（公開はログの右クリックから。
       // js/store/handlers/chat.jsのSET_CHAT_SECRET_REVEALED）。
       // 消滅バフのメモも本文の一部なので公開まで一緒に伏せられるが、バフが消えたこと自体は
@@ -1936,30 +1956,37 @@ function findTokenByName(name) {
   return Object.values(store.state.tokens).find(t => t.name === name) ?? null;
 }
 
+// プラグインへ渡す値一式。チャットコマンド（handleChatCommand）と、判定の成立を知らせる
+// applyCheckRoll の両方が同じ形を受け取る——プラグイン側から見て「部屋の中で何かをする」
+// ための道具立ては同じものなので、口ごとに別の形を覚えさせない。
+function buildPluginCommandContext(character) {
+  return {
+    token: character,
+    dispatch: store.dispatch.bind(store),
+    getEffectiveParameterValue,
+    generateBuffId,
+    // 部屋に掛かっている効果（ステラナイツの始まりの部屋）を当てて振る（js/room-roll.js）
+    rollBCDice: (system, command) => rollRoomDice(store.state, system, command),
+    // 他のコマを名前で引く口。コマンドが自分以外のコマへ働きかけるプラグイン
+    // （フタリソウサのアクションコストが、パートナーの「余裕」を減らす）が使う。
+    // キャラクター更新画面（js/character-dialog.js）には前から渡してある。
+    findTokenByName,
+    // 部屋が持つ値（Coreの「現在のラウンド」、プラグインのブーケ合計）。コマ1体では
+    // 決まらない値をコマンドの中で読めるようにするために渡す（ステラナイツの
+    // 個数を書かないcharge）。Coreは中身を解釈せず、そのまま渡すだけ。
+    roomParameters: store.state.room?.parameters ?? {},
+    // コマンドを打った人の参加者ID（表示名未設定ならnull）。公開先(audience)を持つ
+    // データをコマンドから扱うプラグイン（シノビガミの奥義）が、
+    // 「その人に見えているか」を判断するために使う。
+    myParticipantId: getCurrentParticipantId()
+  };
+}
+
 function tryHandlePluginChatCommand(rawInput, character) {
   const activePluginId = store.state.room?.activePlugin ?? null;
 
   if (activePluginId) {
-    const handled = handlePluginChatCommand(activePluginId, rawInput, {
-      token: character,
-      dispatch: store.dispatch.bind(store),
-      getEffectiveParameterValue,
-      generateBuffId,
-      // 部屋に掛かっている効果（ステラナイツの始まりの部屋）を当てて振る（js/room-roll.js）
-      rollBCDice: (system, command) => rollRoomDice(store.state, system, command),
-      // 他のコマを名前で引く口。コマンドが自分以外のコマへ働きかけるプラグイン
-      // （フタリソウサのアクションコストが、パートナーの「余裕」を減らす）が使う。
-      // キャラクター更新画面（js/character-dialog.js）には前から渡してある。
-      findTokenByName,
-      // 部屋が持つ値（Coreの「現在のラウンド」、プラグインのブーケ合計）。コマ1体では
-      // 決まらない値をコマンドの中で読めるようにするために渡す（ステラナイツの
-      // 個数を書かないcharge）。Coreは中身を解釈せず、そのまま渡すだけ。
-      roomParameters: store.state.room?.parameters ?? {},
-      // コマンドを打った人の参加者ID（表示名未設定ならnull）。公開先(audience)を持つ
-      // データをコマンドから扱うプラグイン（シノビガミの奥義）が、
-      // 「その人に見えているか」を判断するために使う。
-      myParticipantId: getCurrentParticipantId()
-    });
+    const handled = handlePluginChatCommand(activePluginId, rawInput, buildPluginCommandContext(character));
     if (handled) return true;
   }
 

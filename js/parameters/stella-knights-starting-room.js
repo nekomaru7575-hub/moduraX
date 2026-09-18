@@ -129,6 +129,21 @@ function formatRules(rules) {
 // （そちらはコマンドを打った人がその場で宣言した変換で、始まりの部屋の規則ではないため）。
 const SK_PATTERN = /^([()+/\d]+)SK(\d)?((?:,\d>\d)+)?$/i;
 
+/**
+ * 「これはアタック判定の書式だ」の判定。副作用を持たせないこと。
+ *
+ * 出目を書き換えるここ（始まりの部屋）と、判定のたびに走る自動処理
+ * （js/parameters/stella-knights.js の「常にダイス追加+3」）が、同じ1つの規則を見るために
+ * exportしている。正規表現そのものではなく述語を出すのは、書式の知識をこのファイルに
+ * 閉じておくため（js/parameters/dice-draft/dice-draft-pool.js の
+ * looksLikeDiceDraftPoolCommand と同じ流儀）。
+ *
+ * 頭にSを付けた秘匿ダイス（S8SK4）はここに合わない＝始まりの部屋も自動処理も乗らない。
+ */
+export function looksLikeStellaKnightsAttack(command) {
+  return SK_PATTERN.test(String(command).trim());
+}
+
 function parseStellaKnightsAttack(body) {
   const match = body.match(SK_PATTERN);
   if (!match) return null;

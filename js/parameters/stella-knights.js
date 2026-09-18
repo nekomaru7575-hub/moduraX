@@ -7,7 +7,8 @@ import { runDiceChange } from './dice-draft/dice-draft-pool.js';
 import { createAppspotSheetSource, sheetText, assignSheetNumber } from './sheet-source.js';
 import { canViewOwnerOnly } from '../visibility.js';
 import {
-  STARTING_ROOM_EXTENSION_MODEL, STARTING_ROOM_KEY, transformStellaKnightsRoll
+  looksLikeStellaKnightsAttack, STARTING_ROOM_EXTENSION_MODEL, STARTING_ROOM_KEY,
+  transformStellaKnightsRoll
 } from './stella-knights-starting-room.js';
 import { renderStartingRoomSection } from './stella-knights-starting-room-section.js';
 import {
@@ -43,6 +44,16 @@ const DICE_ADD_BUFF_NAME = 'ダイス追加';
 const REROLL_COMMAND_PATTERN = /^リロール(?:\(\s*\))?$/;
 const REROLL_COST = 5;
 const SKILL_COMPONENT_KEY = 'stellaKnightsSkills';
+
+// 「常にダイス追加+3」（キャラクター更新のチェックボックス）が自動で足す個数。
+// 規則上の上限（DICE_ADD_MAX_COUNT）と同じ値だが、意味が違うので別の名前で置く。
+const AUTO_DICE_ADD_COUNT = 3;
+// ログでの呼び名。チェックボックスのラベル（CHARACTER_PARAMETERSのautoDiceAdd）と揃える
+const AUTO_DICE_ADD_LABEL = '常にダイス追加+3';
+// 自動で発動したときに払ったブーケの控え。リロールで返す額を決めるためだけに持つ。
+// パラメータではなくcomponentsなのは、バフ計算・キャラクター一覧・{名前}記法の
+// どれにも出したくない内部の控えだから（Coreはcomponentsの中身を解釈しない）。
+const AUTO_DICE_ADD_COMPONENT_KEY = 'stellaKnightsAutoDiceAdd';
 const MAIN_TAB_ID = 'main';
 
 const FACE_NUMBERS = [1, 2, 3, 4, 5, 6];
@@ -134,6 +145,7 @@ const DEFENSE_PARAM_ID = 'STELLA_KNIGHTS:defense';
 const CHARGE_PARAM_ID = 'STELLA_KNIGHTS:charge';
 const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
 const ATTACK_DICE_BONUS_PARAM_ID = 'STELLA_KNIGHTS:DB';
+const AUTO_DICE_ADD_PARAM_ID = 'STELLA_KNIGHTS:autoDiceAdd';
 
 // 耐久力はCoreの既定パラメータ（HP）を流用し、ラベルだけ「耐久力」へ差し替える
 // （renameHpToEndurance。js/parameters/dracurouge.jsの「存在点」と同じやり方）。
@@ -167,6 +179,11 @@ const CHARACTER_PARAMETERS = [
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true },
   { key: 'DB', label: 'アタックダイス補正(DB)', value: 0, visible: false, locked: true, editable: false },
+  // 「常にダイス追加+3」。真偽値だが数値1/0で持つ（パラメータに真偽値の型は無く、値は
+  // バフ加算・ダイス計算の前提で数値に揃えてある。js/parameters/dx3.jsのeaと同じ）。
+  // 一覧には出さず（visible:false）、切り替えはこのシステムの専用パネルのチェックボックス
+  // だけから行うが、そこがSET_PARAMETERで書き込むのでeditable:trueが要る
+  { key: 'autoDiceAdd', label: '常にダイス追加+3', value: 0, visible: false, locked: true, editable: true },
   // 手番順（buildRoundPhaseTemplateのturnOrderとskipWhenが読む受け皿）。種別から自動で決まるので
   // 手入力させない。Coreは数値の意味を知らず、小さい順に並べて0のコマを飛ばすだけ
   // （TURN_ORDER_BY_CHAR_TYPE参照）。自動計算の受け皿なのでlocked:trueが要る
@@ -181,6 +198,20 @@ export function buildStellaKnightsCharacterParameters() {
 export function readStellaKnightsCharType(parameters) {
   const value = parameters?.[CHAR_TYPE_PARAM_ID]?.value;
   return CHAR_TYPE_VALUES.has(value) ? value : CHAR_TYPE_BRINGER;
+}
+
+// 「常にダイス追加+3」が入っているか。値が数値1/0なので、読み方の判断はここ1か所に閉じる
+// （js/parameters/dx3.jsのisEAEnabledと同型）。`?? 0` は、このパラメータが入る前に作られた
+// コマの既定＝入っていない、の表明でもある。
+function isAutoDiceAddEnabled(token) {
+  return (Number(token?.parameters?.[AUTO_DICE_ADD_PARAM_ID]?.value) || 0) !== 0;
+}
+
+// 自動で発動したときに払ったブーケの控えを読む。取り込んだJSON（信用しない）が
+// 何を入れていても、返すのは0以上の整数（componentsの正規化は各プラグインの責任）。
+function readAutoDiceAddRefund(token) {
+  const raw = Number(token?.components?.[AUTO_DICE_ADD_COMPONENT_KEY]?.cost);
+  return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 0;
 }
 
 // パラメータの表示名の既定（コマ側にパラメータがまだ無いとき用の控え）
@@ -426,6 +457,11 @@ function renderStellaKnightsCharacterPanel({
     if (!readParameters()[CHAR_TYPE_PARAM_ID]) {
       dispatch('SET_PARAMETER', { characterId: tokenId, paramId: CHAR_TYPE_PARAM_ID, value: CHAR_TYPE_BRINGER });
     }
+    // 「常にダイス追加+3」も同じ（後から足したパラメータなので、既存のコマは持っていない）。
+    // 既定の0（＝入っていない＝今までどおり）を書いて補う
+    if (!readParameters()[AUTO_DICE_ADD_PARAM_ID]) {
+      dispatch('SET_PARAMETER', { characterId: tokenId, paramId: AUTO_DICE_ADD_PARAM_ID, value: 0 });
+    }
   }
 
   const makeRow = (parent, labelText) => {
@@ -471,6 +507,12 @@ function renderStellaKnightsCharacterPanel({
   // まだ保存していない手入力を、種別を切り替えて行を作り直しても持ち越すための控え
   // （js/parameters/gcrest.jsのpendingValuesと同じ）
   const pendingValues = new Map();
+
+  // 「常にダイス追加+3」。上の pendingValues と同じ理由でパネルのスコープに持つ
+  // （行を作り直しても、まだ保存していない切り替えを持ち越す）。
+  // autoCheck は「今この種別で描いているか」の印も兼ねる（nullなら描いていない＝保存しない）
+  let autoDiceAdd = isAutoDiceAddEnabled({ parameters: readParameters() });
+  let autoCheck = null;
 
   function renderTypedArea() {
     rows.forEach(({ paramId, input }) => pendingValues.set(paramId, input.value));
@@ -531,6 +573,31 @@ function renderStellaKnightsCharacterPanel({
         : current[ATTACK_DICE_BONUS_PARAM_ID]?.value) || 0;
       bonusValue.textContent = `${bonus > 0 ? '+' : ''}${bonus}（バフ/デバフで増減）`;
       bonusRow.appendChild(bonusValue);
+
+      // --- 常にダイス追加+3 ---
+      // 値は数値1/0（CHARACTER_PARAMETERSのautoDiceAdd）。保存は「登録／更新」でまとめて
+      // （getValues）。能力を持たない種別には出さない＝シースのコマには現れない。
+      // 既にある .dialog-visible-toggle で包む（.dialog-custom-row input の flex:1 が
+      // チェックボックスを引き伸ばすため。js/parameters/futarisousa.jsに同じ註）
+      const autoRow = makeRow(list, current[AUTO_DICE_ADD_PARAM_ID]?.label
+        ?? PARAM_FALLBACK_LABELS.get(AUTO_DICE_ADD_PARAM_ID));
+      const autoWrap = document.createElement('label');
+      autoWrap.className = 'dialog-visible-toggle';
+      autoWrap.title = 'このコマがチャットで「8SK4」のようなアタック判定を振るたび、'
+        + '自動でブーケ12を払って アタックダイス補正(DB) +3 が付きます。'
+        + '振るダイスの数は自動では増えません（「ダイス追加(3)」と同じ）。';
+      autoCheck = document.createElement('input');
+      autoCheck.type = 'checkbox';
+      autoCheck.checked = autoDiceAdd;
+      autoCheck.disabled = !canEdit;
+      autoCheck.addEventListener('change', () => { autoDiceAdd = autoCheck.checked; });
+      autoWrap.appendChild(autoCheck);
+      autoWrap.appendChild(document.createTextNode('判定のたびに自動で発動する'));
+      autoRow.appendChild(autoWrap);
+    } else {
+      // 能力を持たない種別へ切り替えたら、チェックボックスは無かったことにする
+      // （getValuesが「描いた行だけ返す」ので、保存の対象からも外れる）
+      autoCheck = null;
     }
 
     // NPCのスキルは持ち主以外にはボタンごと出さない（シノビガミの忍具と同じ。件数も伏せる）。
@@ -592,7 +659,9 @@ function renderStellaKnightsCharacterPanel({
       [CHAR_TYPE_PARAM_ID]: charType,
       ...Object.fromEntries(rows.map(({ paramId, input }) => [
         paramId, Math.max(0, Math.trunc(Number(input.value) || 0))
-      ]))
+      ])),
+      // 描いた種別のときだけ返す（シースへ切り替えて保存しても、持っていた設定を0で潰さない）
+      ...(autoCheck ? { [AUTO_DICE_ADD_PARAM_ID]: autoDiceAdd ? 1 : 0 } : {})
     }),
     // 見え方を揃えるのは、このダイアログで種別を切り替えたときだけ。切り替えていなければ
     // 左側（Core）で利用者が決めた一覧への表示・公開先をそのまま通す。
@@ -677,10 +746,11 @@ function runPetitLucky(input, { token, dispatch }) {
 
 // ブーケの残高を確かめる。足りなければ理由を出してnull、足りれば今の残高を返す。
 // 読むのも書くのも基礎値（runPetitLuckyと同じ理由。docs/plugin-guide.mdの7章）。
-function readPayableBouquet(token, cost) {
+// 伝え方を差し替えられるのは、判定の最中に走る自動発動がalertで止めないため。
+function readPayableBouquet(token, cost, notify = (message) => alert(message)) {
   const current = Number(token.parameters?.[BOUQUET_PARAM_ID]?.value) || 0;
   if (current - cost < 0) {
-    alert(`ブーケが足りません（必要 ${cost} / 現在 ${current}）。`);
+    notify(`ブーケが足りません（必要 ${cost} / 現在 ${current}）。`);
     return null;
   }
   return current;
@@ -701,14 +771,88 @@ function logBouquetSpend(dispatch, token, input, lines) {
 }
 
 /**
+ * ダイス追加そのもの（書式は見ない）。ブーケを払い、targetのアタックダイス補正(DB)へ
+ * +count のバフ（判定終了で消滅）を付けて、1行ログを出す。
+ *
+ * 書式の解釈と切り離してあるのは、チャットコマンド（runDiceAdd）と、判定のたびに走る
+ * 自動発動（「常にダイス追加+3」）が同じ道を通るため。どちらで足しても結果が食い違わない。
+ *
+ * 【順番が要】状態を1つも変えないうちに断る理由を全部見る（対象・シース・ID発行口・残高）。
+ * 途中で断ると「ブーケだけ減ってバフが付かない」が起きる。
+ *
+ * @param {{
+ *   token: object, target: object, count: number,
+ *   dispatch: (action: string, payload: object) => void,
+ *   generateBuffId?: (() => string)|null,
+ *   chatCommand?: string,
+ *   silent?: boolean,                    trueならチャットログを出さない（呼び出し側が
+ *                                        1行にまとめて出す用）
+ *   notify?: (message: string) => void   断る理由の伝え方。既定はalert（判定の最中に走る
+ *                                        自動発動は、ダイアログで止めない側へ差し替える）
+ * }} options
+ * @returns {{ ok: boolean, cost: number, before: number, after: number }}
+ *   before/after は払う前後のブーケ（呼び出し側がログを組むのに使う）
+ */
+function applyDiceAdd({
+  token, target, count, dispatch, generateBuffId,
+  chatCommand = '', silent = false, notify = (message) => alert(message)
+}) {
+  const none = { ok: false, cost: 0, before: 0, after: 0 };
+
+  // シースは能力を持たないので、DBのバフも受け取れない
+  if (!rulesOf(target).dice) {
+    notify(`${target.name}はシースなので、ダイス追加のバフを付けられません。`);
+    return none;
+  }
+  if (typeof generateBuffId !== 'function') {
+    notify('この画面ではバフを付けられません。部屋の中で実行してください。');
+    return none;
+  }
+
+  const cost = count * DICE_ADD_COST_PER_DIE;
+  const current = readPayableBouquet(token, cost, notify);
+  if (current === null) return none;
+
+  dispatch('SET_PARAMETER', {
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
+  });
+
+  // DBが入る前に作られたコマは、状態にまだDBの値を持たない（宣言からの補完は、パラメータが
+  // 何か動いたときに初めて走る）。持たないままバフを付けても実効値が読めないので、先に補わせる。
+  // IMPORT_CHARACTER_DATAは中身を渡さなければ、宣言の補完と自動計算だけを通す。
+  if (!target.parameters?.[ATTACK_DICE_BONUS_PARAM_ID]) {
+    dispatch('IMPORT_CHARACTER_DATA', { id: target.id });
+  }
+
+  dispatch('ADD_BUFF', {
+    tokenId: target.id,
+    id: generateBuffId(),
+    name: DICE_ADD_BUFF_NAME,
+    paramId: ATTACK_DICE_BONUS_PARAM_ID,
+    delta: count,
+    expirePhase: 'check'
+  });
+
+  // 誰に付いたかは、自分に付けたときも書く（「>コマ名」を書き忘れたのに気づけるように）
+  if (!silent) {
+    logBouquetSpend(dispatch, token, chatCommand, [
+      `ダイス追加: ${count}個 → ${target.name}のアタックダイス補正(DB) +${count}（判定終了で消滅）`,
+      `ブーケ -${cost}（${current} → ${current - cost}）`
+    ]);
+  }
+
+  return { ok: true, cost, before: current, after: current - cost };
+}
+
+/**
  * ダイス追加(n) / ダイス追加(n>コマ名)。ブーケを1個につき4払い、アタックダイス補正(DB)へ
  * +n のバフ（判定終了で消滅）を付ける。払うのは打ったコマ、バフが付くのは名前を書けばそのコマ。
  *
  * DBは自動でダイス数へ足されない。卓がこの値を読んでアタック判定を振り、そのロールで
  * このバフは剥がれる（js/main.jsの「判定終了で消滅」バフの剥がし）。
  *
- * 【順番が要】状態を1つも変えないうちに断る理由を全部見る（個数・対象・シース・残高）。
- * 途中で断ると「ブーケだけ減ってバフが付かない」が起きる。
+ * ここが見るのは書式と、書式からしか分からない断り方（個数・コマ名）だけ。
+ * 実行そのものは applyDiceAdd が持つ。
  *
  * @returns {boolean} このコマンドとして処理したか（書式が違えばfalse）
  */
@@ -741,46 +885,8 @@ function runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })
     }
   }
 
-  // シースは能力を持たないので、DBのバフも受け取れない（打ったコマのシースはハンドラの頭で断っている）
-  if (!rulesOf(target).dice) {
-    alert(`${target.name}はシースなので、ダイス追加のバフを付けられません。`);
-    return true;
-  }
-  if (typeof generateBuffId !== 'function') {
-    alert('この画面ではバフを付けられません。部屋の中で実行してください。');
-    return true;
-  }
-
-  const cost = count * DICE_ADD_COST_PER_DIE;
-  const current = readPayableBouquet(token, cost);
-  if (current === null) return true;
-
-  dispatch('SET_PARAMETER', {
-    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - cost
-  });
-
-  // DBが入る前に作られたコマは、状態にまだDBの値を持たない（宣言からの補完は、パラメータが
-  // 何か動いたときに初めて走る）。持たないままバフを付けても実効値が読めないので、先に補わせる。
-  // IMPORT_CHARACTER_DATAは中身を渡さなければ、宣言の補完と自動計算だけを通す。
-  if (!target.parameters?.[ATTACK_DICE_BONUS_PARAM_ID]) {
-    dispatch('IMPORT_CHARACTER_DATA', { id: target.id });
-  }
-
-  dispatch('ADD_BUFF', {
-    tokenId: target.id,
-    id: generateBuffId(),
-    name: DICE_ADD_BUFF_NAME,
-    paramId: ATTACK_DICE_BONUS_PARAM_ID,
-    delta: count,
-    expirePhase: 'check'
-  });
-
-  // 誰に付いたかは、自分に付けたときも書く（「>コマ名」を書き忘れたのに気づけるように）
-  logBouquetSpend(dispatch, token, input, [
-    `ダイス追加: ${count}個 → ${target.name}のアタックダイス補正(DB) +${count}（判定終了で消滅）`,
-    `ブーケ -${cost}（${current} → ${current - cost}）`
-  ]);
-
+  // 打ったコマがシースの場合はハンドラの頭で断っている。ここから先の断り方は applyDiceAdd。
+  applyDiceAdd({ token, target, count, dispatch, generateBuffId, chatCommand: input });
   return true;
 }
 
@@ -798,18 +904,113 @@ function runReroll(input, { token, dispatch }) {
     return true;
   }
 
-  const current = readPayableBouquet(token, REROLL_COST);
-  if (current === null) return true;
+  // 「常にダイス追加+3」が直前の判定で前払いしたぶんを返す。振り直した先の判定でまた
+  // 同じだけ取るので、返さないと1回の判定に二重で払うことになる。
+  // 手で打った「ダイス追加」は返さない（自分で決めて払ったものなので、控えも残していない）。
+  const refund = readAutoDiceAddRefund(token);
+
+  // 払い戻しを差し引いた後で足りるかを見る（readPayableBouquetを使わないのはこのため。
+  // 残高4でも、返ってくる12があればリロールは通る）。
+  const current = Number(token.parameters?.[BOUQUET_PARAM_ID]?.value) || 0;
+  const next = current - REROLL_COST + refund;
+  if (next < 0) {
+    alert(`ブーケが足りません（必要 ${REROLL_COST} / 現在 ${current}）。`);
+    return true;
+  }
 
   dispatch('SET_PARAMETER', {
-    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: current - REROLL_COST
+    characterId: token.id, paramId: BOUQUET_PARAM_ID, value: next
   });
+
+  // 返したら控えを消す。続けてもう一度リロールしても二重には返らない
+  if (refund > 0) {
+    dispatch('SET_COMPONENT', {
+      id: token.id, componentKey: AUTO_DICE_ADD_COMPONENT_KEY, value: null
+    });
+  }
+
   logBouquetSpend(dispatch, token, input, [
     'リロール',
-    `ブーケ -${REROLL_COST}（${current} → ${current - REROLL_COST}）`
+    ...(refund > 0 ? [`自動のダイス追加を取り消し: ブーケ +${refund}`] : []),
+    `ブーケ ${next - current >= 0 ? '+' : '-'}${Math.abs(next - current)}（${current} → ${next}）`
   ]);
 
   return true;
+}
+
+/**
+ * 「常にダイス追加+3」。nSKのアタック判定を振るたび、ダイス追加(3)を自動で発動する。
+ * Coreが判定の成立を知らせてきたときに呼ばれる（js/parameters/registry.jsのapplyPluginCheckRoll）。
+ *
+ * 【判定は止めない】ここで何をしても、しなくても、判定はもう振れている。だからブーケが
+ * 足りないときもalertで止めず、返す1行に理由を書いて通す。
+ *
+ * 【手で払った分があれば休む】規則上ダイス追加は1回の判定で3個まで。判定終了で消える
+ * DBのプラス方向のバフが既に乗っている＝この判定のために自分で払った後なので、上から3個
+ * 足すと上限を超える。「ダイス追加」という名前では見ない：バフ()コマンドでも
+ * 「バフ(名前,DB,+1,判定)」と書けば同じことができるので、名前で見ると上限を破れてしまう。
+ * マイナス方向（デバフ）は数に入れない。
+ *
+ * 【ダイス数は書き換えない】手で打つダイス追加と同じで、DBは自動ではダイス数に足されない。
+ * ここがするのは支払いとバフだけ。
+ *
+ * @returns {{ logText: string }|null} 判定のログへ添える1行（何もしなければnull）
+ */
+function applyStellaKnightsCheckRoll({ command, token, dispatch, generateBuffId }) {
+  if (!token || !looksLikeStellaKnightsAttack(command)) return null;
+  if (!rulesOf(token).dice) return null; // シース（チェックボックスも出さないが、念のため）
+
+  // 【控えの寿命】自動発動しなかった判定を通ったら、前の判定の控えは捨てる。
+  // 残したままにすると、ずっと前の判定のぶんをリロールが返してしまう（返すのは「直前の判定」だけ）。
+  const forget = () => clearAutoDiceAddRefund(token, dispatch);
+
+  if (!isAutoDiceAddEnabled(token)) {
+    forget();
+    return null;
+  }
+
+  const alreadyAdded = (token.buffs || []).some(buff =>
+    buff.paramId === ATTACK_DICE_BONUS_PARAM_ID && buff.expirePhase === 'check' && Number(buff.delta) > 0);
+  if (alreadyAdded) {
+    forget();
+    return { logText: `
+${AUTO_DICE_ADD_LABEL}: 既にダイス追加が乗っているので見送りました` };
+  }
+
+  let refused = '';
+  const { ok, cost, before, after } = applyDiceAdd({
+    token, target: token, count: AUTO_DICE_ADD_COUNT, dispatch, generateBuffId,
+    // ログはこの関数が1行にまとめて返す（判定のたびにMainが2行進まないように）
+    silent: true,
+    // alertで止めない。理由は返す1行に書く
+    notify: (message) => { refused = message; }
+  });
+
+  if (!ok) {
+    forget();
+    return { logText: `
+${AUTO_DICE_ADD_LABEL}: ${refused}` };
+  }
+
+  // リロールで返す額を控える（次の自動発動が上書きする）
+  dispatch('SET_COMPONENT', {
+    id: token.id, componentKey: AUTO_DICE_ADD_COMPONENT_KEY, value: { cost }
+  });
+
+  // 「＞」は使わない（最後の「＞」の後ろを最終値として読む処理がある。js/main.jsのparseFinalDiceNumber）
+  return {
+    logText: `
+${AUTO_DICE_ADD_LABEL}: アタックダイス補正(DB) +${AUTO_DICE_ADD_COUNT}`
+      + ` ／ ブーケ -${cost}（${before} → ${after}）`
+  };
+}
+
+// 控えを消す。既に無ければ何もしない（無駄なdispatchを全員へ配らない）。
+function clearAutoDiceAddRefund(token, dispatch) {
+  if (readAutoDiceAddRefund(token) === 0) return;
+  dispatch('SET_COMPONENT', {
+    id: token.id, componentKey: AUTO_DICE_ADD_COMPONENT_KEY, value: null
+  });
 }
 
 // 個数を書かない charge / charge() の個数。チャットへ {チャージダイス数}+{現在のラウンド} と
@@ -1005,6 +1206,9 @@ export const STELLA_KNIGHTS_PLUGIN = {
   transformRollResult: ({ command, result, extensions }) => transformStellaKnightsRoll({
     command, result, rules: extensions[STARTING_ROOM_KEY]?.rules ?? []
   }),
+  // 判定が1回成立するたびに呼ばれる（js/main.jsのDICE_ROLL_REQUESTED）。横取りはしない。
+  // nSKのアタック判定のときだけ「常にダイス追加+3」を発動する
+  applyCheckRoll: applyStellaKnightsCheckRoll,
   stamps: [
     {id:`bouquet`, label : `ブーケ`,file:`bouquet.png`}
   ],

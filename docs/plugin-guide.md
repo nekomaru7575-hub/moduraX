@@ -143,6 +143,7 @@ const PLUGINS = {
 | `skillTableCheck` | `spec` | 拡張判定UIに「特技表判定」を出す宣言（[3.12](#312-拡張判定ui)） |
 | `roomExtensions` | `{ key, label, gmOnly, normalize, reduce, resetOnPhaseEnd, applyRoundEvent, renderSection }[]` | 部屋全体に掛かる設定・効果を「⋯」→「拡張ルーム設定」に出す（[3.13](#313-拡張ルーム設定roomextensions)） |
 | `transformRollResult` | `({ command, result, extensions }) => result` | 部屋の中で振ったダイスの結果を書き換える（[3.14](#314-ロール結果の書き換えtransformrollresult)） |
+| `applyCheckRoll` | `(context) => ({ logText })` | 判定が1回成立するたびに呼ばれる（[3.15](#315-判定が成立したことを受けるapplycheckroll)） |
 
 以下、それぞれの詳細。
 
@@ -1144,6 +1145,43 @@ transformRollResult: ({ command, result, extensions }) => result
 > **最後の「＞」の後ろを最終値のまま保つこと。** パラメータ変更やオリジナル表は、そこだけを
 > 読んで出目にしている（`js/main.js` の `parseFinalDiceNumber`）。説明の行を足すなら結果の**前**に置く。
 > 組み立て直せない書式は、黙って近い書式で数えず、元の結果を残して「反映できなかった」と添える。
+
+---
+
+### 3.15 判定が成立したことを受ける（`applyCheckRoll`）
+
+チャット欄から振った判定が **BCDice に受理されるたび**、適用中のシステムに知らせる。
+「判定1回」の意味は、Core が判定終了で消滅するバフを剥がすとき（`EXPIRE_BUFFS { phase:'check' }`）と
+同じ1回で、Core はシステム固有のこと（何が判定の書式か・何を払うか）を一切知らない。
+
+```js
+applyCheckRoll: ({ command, token, dispatch, generateBuffId, ... }) => ({ logText })
+// command … BCDiceへ送った文字列（繰り返し・シークレットの前置きを含む）
+// 残りは handleChatCommand と同じ context（3.4 の表）
+```
+
+**横取りではない。** ここで何をしても、しなくても、判定は止まらないし結果も書き換わらない
+（結果を書き換えるのは 3.14 の `transformRollResult`）。逆に `transformRollResult` は
+**どのコマが振ったかを受け取らない**ので、コマに紐づく処理はこちらで行う。
+
+返せるのは**その判定のログ本文へ添える1行**だけ。独立したシステム発言にしないのは、判定の
+たびに Main が2行進むと直前の結果が流れてしまうため（`js/store/buffs.js` の
+`formatExpiredBuffsNote` と同じ理由）。200字で切られる。
+
+> **添える1行に「＞」を使わないこと。** 3.14 と同じ理由（`parseFinalDiceNumber`）。
+
+呼ばれる範囲と順番:
+
+- ただの発言、BCDice が構文を認識できなかった入力では**呼ばれない**。副作用に課金を伴う
+  処理（ブーケの支払い）を置いても、「振っていないのに払った」が起きない
+- 拡張判定UIの「振る」は `DICE_ROLL_REQUESTED` を通らないので呼ばれない
+- 呼ばれるのは `EXPIRE_BUFFS` の**直前**。ここで付けた `expirePhase: 'check'` のバフは
+  **その判定で消える**（次の判定へ持ち越さない）
+- 走るのは**振った本人の画面だけ**。reducer ではないので全員で二重には走らない。
+  中で乱数や時刻に依存した分岐を書かないこと（同期が崩れる）
+
+ステラナイツの「常にダイス追加+3」（コマごとのチェックボックス）が、nSK のアタック判定の
+たびにブーケを払ってDBのバフを付けるのに使っている。
 
 ---
 

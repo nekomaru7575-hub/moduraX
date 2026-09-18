@@ -605,6 +605,36 @@ export function applyPluginRollTransform(pluginId, { command, result, extensions
   return plugin.transformRollResult({ command, result, extensions: own }) ?? result;
 }
 
+/**
+ * 判定が1回成立したことを、適用中のシステムへ知らせる。
+ * 呼ぶのは js/main.js の DICE_ROLL_REQUESTED ハンドラだけ。
+ *
+ * 【Coreが既に持っている1回】この「判定1回」は、判定終了で消滅するバフを剥がす
+ * EXPIRE_BUFFS { phase:'check' } と同じ1回。その事実をプラグインへ渡すだけで、
+ * Coreはシステム固有のこと（何が判定の書式か、何を払うか）を一切知らない。
+ *
+ * 【横取りしない】handleChatCommand と違い、プラグインが何をしても判定は止まらないし、
+ * 結果も書き換わらない（結果を書き換えるのは transformRollResult）。返せるのは、その判定の
+ * ログ本文へ添える1行だけ。独立したシステム発言にしないのは、判定のたびにMainが2行進むと
+ * 直前の結果が流れてしまうため（js/store/buffs.js の formatExpiredBuffsNote と同じ理由）。
+ *
+ * 【添える1行に「＞」を使わないこと】最後の「＞」の後ろを最終値として読む処理がある
+ * （js/main.js の parseFinalDiceNumber）。
+ *
+ * 【呼ばれる範囲】BCDiceが受理した判定だけ。ただの発言・構文を認識できなかった入力では
+ * 呼ばれない。拡張判定UIの「振る」もこの経路を通らない（js/main.jsのコメント参照）。
+ *
+ * @param {string|null} pluginId
+ * @param {object} context token/dispatch/generateBuffId など（js/main.jsが組み立てる）に
+ *   command（BCDiceへ送った文字列）を足したもの
+ * @returns {string} ログ本文へ添える1行（何もしなければ空文字）
+ */
+export function applyPluginCheckRoll(pluginId, context) {
+  const plugin = PLUGINS[pluginId];
+  if (!plugin?.applyCheckRoll) return '';
+  return normalizeExtensionLogText(plugin.applyCheckRoll(context)?.logText);
+}
+
 // 拡張判定UI：記述子のどのキーを宣言したかで、どのビューで描くかが決まる。
 // プラグインは「自分がどの判定UIを使うか」を宣言するだけで、中身をCoreは解釈しない。
 // ビューの実体は js/check-view/ にあり、この表の view はそちらのキーと揃える。

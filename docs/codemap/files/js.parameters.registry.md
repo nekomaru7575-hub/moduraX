@@ -1,11 +1,11 @@
 ---
 source: js/parameters/registry.js
-lines: 738
-exports: 31
+lines: 768
+exports: 32
 imported_by: 19
-api_sha: 0972d5cc175c
-prose_sha: 0972d5cc175c
-generated: 2026-09-17
+api_sha: 0e9b7b2aa5ac
+prose_sha: 0e9b7b2aa5ac
+generated: 2026-09-18
 tags: [codemap]
 ---
 
@@ -20,10 +20,10 @@ tags: [codemap]
 <!-- prose:role -->
 DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリアンロッド・フタリソウサ・グランクレストの記述子を登録し、キャラクターパラメータの構築・専用パネルの描画・JSON 取り込み・チャットコマンド処理・バフ欄の拡張・フェーズ終了時のリセット・ラウンド進行テンプレート・スタンプの宣言（listPluginStamps。束ねるのは[[js.stamp-registry]]）・ルーム変数の自動計算（applyPluginDerivedRoomParameters）を、プラグインの有無で分岐しながら中継する。宣言をそのまま素通しするだけの窓口（getPluginBcdiceSystem / getPluginDiceDraftSpec / getPluginCheckView）と、シート取り込みの宣言（getPluginSheetSource / pluginHasSheetImport）もここ。
 
-拡張ルーム設定（room.extensions。ステラナイツの始まりの部屋と舞台）の中継もここにある：宣言の一覧（listPluginRoomExtensions）、取り込んだ値の整え（normalizePluginRoomExtensions。知らないシステム・キーは落とす）、UPDATE_ROOM_EXTENSION の操作を今の値へ当てる reducePluginRoomExtension、フェーズ終了の後始末 resetPluginRoomExtensionsOnPhaseEnd、ラウンド進行の節目を知らせる applyPluginRoomExtensionsRoundEvent（[[js.store.buffs]] 経由で [[js.store.handlers.round]] が呼ぶ）。reduce と applyRoundEvent が返す「表示名つきの発言」（entries）は normalizeExtensionEntries で形と件数だけ絞ってから通す。部屋で振ったダイスの結果をシステムに書き換えさせる applyPluginRollTransform は [[js.room-roll]] だけが呼ぶ。コマ側・ルーム側とも、後から足したパラメータを既存の部屋へ補うのはここの役目（withMissingPluginParameters / withMissingPluginRoomParameters。locked:true のものだけ）。プラグインへ渡すのは値と事実だけで、Core は中身を解釈しない。新しいシステムを足す作業はこのファイルへの登録から始まる。
+拡張ルーム設定（room.extensions。ステラナイツの始まりの部屋と舞台）の中継もここにある：宣言の一覧（listPluginRoomExtensions）、取り込んだ値の整え（normalizePluginRoomExtensions。知らないシステム・キーは落とす）、UPDATE_ROOM_EXTENSION の操作を今の値へ当てる reducePluginRoomExtension、フェーズ終了の後始末 resetPluginRoomExtensionsOnPhaseEnd、ラウンド進行の節目を知らせる applyPluginRoomExtensionsRoundEvent（[[js.store.buffs]] 経由で [[js.store.handlers.round]] が呼ぶ）。reduce と applyRoundEvent が返す「表示名つきの発言」（entries）は normalizeExtensionEntries で形と件数だけ絞ってから通す。部屋で振ったダイスの結果をシステムに書き換えさせる applyPluginRollTransform は [[js.room-roll]] だけが呼ぶ。判定が1回成立したことを知らせる applyPluginCheckRoll は [[js.main]] だけが呼ぶ：横取りではなく、返せるのは判定のログへ添える1行だけ（ステラナイツの「常にダイス追加+3」がブーケを払うのに使う）。結果を書き換える前者とコマを受け取る後者で、ロールまわりの口は役割が分かれている。コマ側・ルーム側とも、後から足したパラメータを既存の部屋へ補うのはここの役目（withMissingPluginParameters / withMissingPluginRoomParameters。locked:true のものだけ）。プラグインへ渡すのは値と事実だけで、Core は中身を解釈しない。新しいシステムを足す作業はこのファイルへの登録から始まる。
 <!-- /prose:role -->
 
-## export（31）
+## export（32）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -55,11 +55,12 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 548 | fn | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | フェーズ終了（ラウンド終了など）で、拡張ルーム設定の後始末をさせる。 |
 | 570 | fn | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、拡張ルーム設定へ知らせる。 |
 | 598 | fn | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | BCDiceのロール結果を、そのシステムの部屋の効果に合わせて書き換えさせる （ステラナイツの始まりの部屋で出目を変える）。 |
-| 624 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
-| 683 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
-| 709 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 632 | fn | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 判定が1回成立したことを、適用中のシステムへ知らせる。 |
+| 654 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
+| 713 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
+| 739 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
-## トップレベル関数（LOCAL TASKS 候補）（38）
+## トップレベル関数（LOCAL TASKS 候補）（39）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -100,10 +101,11 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 548 | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | 14 | ✓ |
 | 570 | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | 19 | ✓ |
 | 598 | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | 9 | ✓ |
-| 624 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
-| 653 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
-| 683 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
-| 709 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 632 | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 5 | ✓ |
+| 654 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
+| 683 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
+| 713 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
+| 739 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 

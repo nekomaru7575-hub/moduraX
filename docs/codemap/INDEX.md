@@ -1,6 +1,6 @@
 ---
 tags: [codemap, index]
-generated: 2026-09-17
+generated: 2026-09-18
 ---
 
 # trpg-app コードマップ
@@ -20,7 +20,7 @@ generated: 2026-09-17
 
 | ファイル | export | トップレベル関数 | 役割が未記入 | 散文が要更新 |
 |---:|---:|---:|---:|---:|
-| 179 | 849 | 1402 | 53 | 0 |
+| 179 | 851 | 1410 | 53 | 0 |
 
 エントリポイント（誰からも import されない）: `js/boot-guard.js`, `js/character-builder.js`, `js/ice-probe.js`, `js/main.js`, `js/room-import.js`, `js/room-index.js`, `js/site-nav.js`, `js/theme-boot.js`, `server/dev-local.js`, `server/index.js`
 
@@ -126,7 +126,7 @@ generated: 2026-09-17
 | [[js.parameters.gcrest-unit-box\|js/parameters/gcrest-unit-box.js]] | グランクレストの「部隊」（マスコンバット）を編集するボックス。 | 1 | 1 |
 | [[js.parameters.gcrest\|js/parameters/gcrest.js]] | グランクレスト戦記RPGのプラグイン記述子。 | 33 | 1 |
 | [[js.parameters.paramFactory\|js/parameters/paramFactory.js]] | パラメータ定義配列を、Store用のparamオブジェクトに変換する共通処理。 | 1 | 8 |
-| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 31 | 19 |
+| [[js.parameters.registry\|js/parameters/registry.js]] | システム固有の振る舞いを一手に引き受けるプラグインの登録簿。 | 32 | 19 |
 | [[js.parameters.saikoro-fiction.skill-check\|js/parameters/saikoro-fiction/skill-check.js]] | サイコロ・フィクション共通の「特技判定」の実行とチャットへの出力。 | 5 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table-box\|js/parameters/saikoro-fiction/skill-table-box.js]] | サイコロ・フィクション共通の「特技表」ボックス。 | 2 | 2 |
 | [[js.parameters.saikoro-fiction.skill-table\|js/parameters/saikoro-fiction/skill-table.js]] | サイコロ・フィクション系システム（シノビガミ／インセイン等）が共通して持つ「特技表」の データモデルと距離計算。 | 32 | 3 |
@@ -143,7 +143,7 @@ generated: 2026-09-17
 | [[js.parameters.stella-knights-stage-section\|js/parameters/stella-knights-stage-section.js]] | 「拡張ルーム設定」に出す舞台の欄。卓の最中に見る進行の現在地と、列ごとのボックスを開くボタン。 | 1 | 1 |
 | [[js.parameters.stella-knights-stage\|js/parameters/stella-knights-stage.js]] | 銀剣のステラナイツの「舞台」：シナリオ側の仕掛けを、GMの押下に合わせてMainへ流す。 | 23 | 3 |
 | [[js.parameters.stella-knights-starting-room-section\|js/parameters/stella-knights-starting-room-section.js]] | 「⋯」→「拡張ルーム設定」に出す、銀剣のステラナイツの「始まりの部屋」の欄。 | 1 | 1 |
-| [[js.parameters.stella-knights-starting-room\|js/parameters/stella-knights-starting-room.js]] | 銀剣のステラナイツのスキル「始まりの部屋」：発動するとラウンド終了まで、振ったd6の目aをbとして扱う。 | 11 | 2 |
+| [[js.parameters.stella-knights-starting-room\|js/parameters/stella-knights-starting-room.js]] | 銀剣のステラナイツのスキル「始まりの部屋」：発動するとラウンド終了まで、振ったd6の目aをbとして扱う。 | 12 | 2 |
 | [[js.parameters.stella-knights\|js/parameters/stella-knights.js]] | 銀剣のステラナイツのプラグイン記述子（コマの種別・パラメータ・スキルとダイスドラフト・ブーケのコマンド・シートの取り込み）。 | 10 | 1 |
 | [[js.pwa\|js/pwa.js]] | 「ホーム画面／デスクトップへのアプリとして追加」まわり。 | 2 | 3 |
 | [[js.read-only-form\|js/read-only-form.js]] | 「見えるが触れない」表示にするための小さなユーティリティ。 | 1 | 12 |

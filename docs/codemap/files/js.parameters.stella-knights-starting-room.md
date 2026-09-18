@@ -1,11 +1,11 @@
 ---
 source: js/parameters/stella-knights-starting-room.js
-lines: 219
-exports: 11
+lines: 234
+exports: 12
 imported_by: 2
-api_sha: 990cf7641540
-prose_sha: 990cf7641540
-generated: 2026-09-17
+api_sha: e03c0d1149e6
+prose_sha: e03c0d1149e6
+generated: 2026-09-18
 tags: [codemap]
 ---
 
@@ -18,10 +18,10 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-銀剣のステラナイツのスキル「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）の状態と計算を純関数で持つ。値は room.extensions.STELLA_KNIGHTS.startingRoom（発動順の rules）。normalize / reduce（add・remove）/ resetOnPhaseEnd（round で全消し）を STARTING_ROOM_EXTENSION_MODEL として [[js.parameters.stella-knights]] の記述子へ渡す。transformStellaKnightsRoll は d6 の目に規則を発動順に連鎖で当て（applyStartingRoomRules / buildFaceMap）、SK は自前で、D・B は [[js.dice-roll-recompute]] で数え直す。欄の描画は [[js.parameters.stella-knights-starting-room-section]]。
+銀剣のステラナイツのスキル「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）の状態と計算を純関数で持つ。値は room.extensions.STELLA_KNIGHTS.startingRoom（発動順の rules）。normalize / reduce（add・remove）/ resetOnPhaseEnd（round で全消し）を STARTING_ROOM_EXTENSION_MODEL として [[js.parameters.stella-knights]] の記述子へ渡す。transformStellaKnightsRoll は d6 の目に規則を発動順に連鎖で当て（applyStartingRoomRules / buildFaceMap）、SK は自前で、D・B は [[js.dice-roll-recompute]] で数え直す。アタック判定の書式（nSK）を知っているのはここだけなので、その判定は looksLikeStellaKnightsAttack として出してある（[[js.parameters.stella-knights]] の「常にダイス追加+3」が、何を判定と見なすかで同じ規則を見るため）。欄の描画は [[js.parameters.stella-knights-starting-room-section]]。
 <!-- /prose:role -->
 
-## export（11）
+## export（12）
 
 | 行 | 種別 | 名前 | シグネチャ | 説明 |
 |---:|---|---|---|---|
@@ -34,10 +34,11 @@ tags: [codemap]
 | 95 | fn | resetStartingRoomOnPhaseEnd | `resetStartingRoomOnPhaseEnd(value, phase)` | ラウンドが終わったら全部消す。 |
 | 106 | fn | applyStartingRoomRules | `applyStartingRoomRules(value, rules)` | 1個の目に、発動した順に規則を当てた最終の目 |
 | 115 | fn | buildFaceMap | `buildFaceMap(rules)` | 目の対応表（1〜6それぞれの最終の目）。 |
-| 178 | fn | transformStellaKnightsRoll | `transformStellaKnightsRoll({ command, result, rules })` | BCDiceの結果に始まりの部屋を当てる（Coreの transformRollResult から呼ばれる）。 |
-| 212 | const | STARTING_ROOM_EXTENSION_MODEL | `STARTING_ROOM_EXTENSION_MODEL` | Coreの「拡張ルーム設定」へ渡す宣言（画面の描画は記述子側で足す） |
+| 143 | fn | looksLikeStellaKnightsAttack | `looksLikeStellaKnightsAttack(command)` | 「これはアタック判定の書式だ」の判定。 |
+| 193 | fn | transformStellaKnightsRoll | `transformStellaKnightsRoll({ command, result, rules })` | BCDiceの結果に始まりの部屋を当てる（Coreの transformRollResult から呼ばれる）。 |
+| 227 | const | STARTING_ROOM_EXTENSION_MODEL | `STARTING_ROOM_EXTENSION_MODEL` | Coreの「拡張ルーム設定」へ渡す宣言（画面の描画は記述子側で足す） |
 
-## トップレベル関数（LOCAL TASKS 候補）（10）
+## トップレベル関数（LOCAL TASKS 候補）（11）
 
 トップレベルの `function` 宣言はこの表が全て。**export 済みかどうかは候補の条件ではない。**
 行数が大きいもの（200 行以上、太字）はローカルLLMに渡せない。
@@ -52,8 +53,9 @@ tags: [codemap]
 | 106 | applyStartingRoomRules | `applyStartingRoomRules(value, rules)` | 3 | ✓ |
 | 115 | buildFaceMap | `buildFaceMap(rules)` | 5 | ✓ |
 | 122 | formatRules | `formatRules(rules)` | 3 |  |
-| 132 | parseStellaKnightsAttack | `parseStellaKnightsAttack(body)` | 33 |  |
-| 178 | transformStellaKnightsRoll | `transformStellaKnightsRoll({ command, result, rules })` | 32 | ✓ |
+| 143 | looksLikeStellaKnightsAttack | `looksLikeStellaKnightsAttack(command)` | 3 | ✓ |
+| 147 | parseStellaKnightsAttack | `parseStellaKnightsAttack(body)` | 33 |  |
+| 193 | transformStellaKnightsRoll | `transformStellaKnightsRoll({ command, result, rules })` | 32 | ✓ |
 
 ## 依存
 

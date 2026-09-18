@@ -31,7 +31,7 @@ import { roomStampPublicId } from '../js/store/stamps.js';
 import { normalizeRetiredImages } from '../js/store/images.js';
 import { STAMP_RATE_LIMIT } from '../js/stamp-catalog.js';
 // メッセージ流量の上限。ホスト権威P2Pのホスト役と共有する（下のWS_MESSAGE_WINDOW_MS参照）。
-import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES } from '../js/net-host-rules.js';
+import { MESSAGE_RATE_LIMIT, MAX_SNAPSHOT_BYTES, entryMessageDecision } from '../js/net-host-rules.js';
 import {
   ImmutableStore, createInitialGameState, DEFAULT_BCDICE_SYSTEM, listPlugins, showsEntryMessages,
   MAIN_CHAT_TAB_ID, SCENE_BGM_STOP
@@ -3747,29 +3747,43 @@ wss.on('connection', async (ws, req) => {
         const rawName = typeof message.name === 'string' ? message.name.trim() : '';
         ws.participantName = rawName || 'ゲスト';
 
-        // 入室メッセージ。同じparticipantIdの接続がこの部屋にまだ1つも無い場合だけ、既定の
-        // チャットタブへ1件追加する（再接続・タブの複数開きでは増やさない）。この接続自身は
-        // admit()で既にentry.clientsへ入っているため、自分を除いて数える
-        // （client.participantIdは下でこの後に立てる。先に立てると常に1件ヒットしてしまう）。
+        // 入室メッセージ。システムタブへ1件追加する。出すか出さないかの判断は
+        // js/net-host-rules.jsのentryMessageDecisionに置いてある——P2P卓ではホスト役の
+        // タブが同じ判断をする必要があり、**両方に書くと必ずどちらかがずれる**（実際、
+        // ここは長らくあちらへの「移植」という形で二重に持っていた）。
+        //
+        // 他の接続のIDを渡すとき、この接続自身は除く：admit()で既にentry.clientsへ
+        // 入っているため、除かないと常に自分とぶつかる（client.participantIdは下で
+        // この後に立てるので、先に立ててもいけない）。
         //
         // P2P卓では出さない。出すのはホスト役（js/net-host.jsのannounceEntry）で、ここでも
         // 出すと**同じ入室が2か所で記録される**：ホストのタブに1件、サーバーの凍った部屋
         // データにもう1件。後者は誰の画面にも出ないまま溜まり、次に部屋を読み直したときに
         // 種として蘇る（しかもRedisへの書き込みまで起きる）。
-        if (!entry.p2p && showsEntryMessages(entry.store.state) && !entryMessageSent) {
-          const alreadyConnected = Array.from(entry.clients).some(
-            (client) => client !== ws && client.participantId === participantId
-          );
-          if (!alreadyConnected) {
+        if (!entry.p2p) {
+          const others = [];
+          entry.clients.forEach((client) => {
+            if (client !== ws) others.push(client.participantId);
+          });
+
+          const { announce, markDecided } = entryMessageDecision({
+            enabled: showsEntryMessages(entry.store.state),
+            alreadyDecided: entryMessageSent,
+            // 繋ぎ直しかどうかは画面の申告（js/net-sync.jsのhasIdentifiedOnce）。
+            // 理由はentryMessageDecisionのコメントにある。
+            resumed: message.resumed === true,
+            participantId,
+            otherParticipantIds: others
+          });
+          if (markDecided) entryMessageSent = true;
+
+          if (announce) {
             const entryPayload = { name: ws.participantName, entrySoundUrl: ENTRY_SOUND_URL || null };
             entry.store.dispatch('ADD_ENTRY_MESSAGE', entryPayload);
             schedulePersistForRoom(roomId, entry);
             // senderをnullにして、名乗った本人（この接続）にも配る
             broadcastToRoom(entry, null, { type: 'ACTION', action: 'ADD_ENTRY_MESSAGE', payload: entryPayload });
           }
-          // この接続では以後IDENTIFYが何度来ても追加しない（alreadyConnected判定の結果に関わらず、
-          // 「この接続で1回試みた」時点で処理済み扱いにする）。
-          entryMessageSent = true;
         }
         ws.participantId = participantId;
       } else {

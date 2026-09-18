@@ -1,10 +1,10 @@
 ---
 source: js/net-host-rules.js
-lines: 194
+lines: 208
 exports: 9
 imported_by: 3
-api_sha: 155cf886cc10
-prose_sha: 155cf886cc10
+api_sha: 8db9466b976b
+prose_sha: 8db9466b976b
 generated: 2026-09-18
 tags: [codemap]
 ---
@@ -33,7 +33,7 @@ tags: [codemap]
 | 105 | fn | createFixedWindowLimiter | `createFixedWindowLimiter({ windowMs, max })` | 窓を区切って数える流量制限（server/index.jsのexceedsMessageRateの移植）。 |
 | 131 | fn | createSlidingWindowLimiter | `createSlidingWindowLimiter({ windowMs, max })` | 直近の窓を滑らせて数える流量制限（server/index.jsのallowStampの移植）。 |
 | 159 | fn | typingUsersFrom | `typingUsersFrom(members)` | 「記入中」の一覧を、いま繋がっている面々から組み立てる。 |
-| 185 | fn | entryMessageDecision | `entryMessageDecision({ enabled, alreadyDecided, participantId, otherParticipantIds })` | 名乗りを受けて入室メッセージを出すか（server/index.jsのIDENTIFY内の判定の移植）。 |
+| 196 | fn | entryMessageDecision | `entryMessageDecision({ enabled, alreadyDecided, resumed = false, participantId, otherParticipantIds })` | 名乗りを受けて入室メッセージを出すか（server/index.jsのIDENTIFY内の判定の移植）。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（5）
 
@@ -46,7 +46,7 @@ tags: [codemap]
 | 105 | createFixedWindowLimiter | `createFixedWindowLimiter({ windowMs, max })` | 18 | ✓ |
 | 131 | createSlidingWindowLimiter | `createSlidingWindowLimiter({ windowMs, max })` | 13 | ✓ |
 | 159 | typingUsersFrom | `typingUsersFrom(members)` | 9 | ✓ |
-| 185 | entryMessageDecision | `entryMessageDecision({ enabled, alreadyDecided, participantId, otherParticipantIds })` | 9 | ✓ |
+| 196 | entryMessageDecision | `entryMessageDecision({ enabled, alreadyDecided, resumed = false, participantId, otherParticipantIds })` | 12 | ✓ |
 
 ## 依存
 

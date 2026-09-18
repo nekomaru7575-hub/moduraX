@@ -169,23 +169,37 @@ export function typingUsersFrom(members) {
 /**
  * 名乗りを受けて入室メッセージを出すか（server/index.jsのIDENTIFY内の判定の移植）。
  *
- * 出さない場合が2つある：
+ * 出さない場合が3つある：
  *   ・この接続では既に一度判断済み（ブラウザは1接続で何度もIDENTIFYを送ってくる）
- *   ・同じ人が既に別の接続で入っている（再接続・タブの複数開きで増やさない）
- * 2つ目に当たったときも「この接続では判断済み」にする点に注意（移植元と同じ）。
+ *   ・同じ人が既に別の接続で入っている（タブの複数開きで増やさない）
+ *   ・繋ぎ直しだと画面が申告してきた（resumed）
+ * 2つ目・3つ目に当たったときも「この接続では判断済み」にする点に注意（移植元と同じ）。
  * ここを変えると、後から別のタブが閉じた拍子に入室メッセージが増える。
+ *
+ * 【なぜ繋ぎ直しかどうかを画面に訊くのか】権威の側で「さっきまで居た人か」を覚えても、
+ * **肝心の場面で消えている。** 再接続がまとめて起きるのはサーバーが入れ替わったとき
+ * （デプロイ・スピンダウンからの起き直り）で、そのときプロセスのメモリは真っさらになる。
+ * 覚えているのは、ページを開いたままの画面の側だけ（js/net-sync.jsのhasIdentifiedOnce）。
+ *
+ * 申告なので偽れるが、偽って得られるのは「自分の入室が知らされない」ことだけで、
+ * 黙って入りたければ名乗らなければよい（名乗らない人には元から出ない）。
+ * 守ると決めた範囲の外側にある表示上の都合なので、ここは画面を信じる。
  *
  * @param {object} options
  * @param {boolean} options.enabled 部屋の設定（js/store/room.jsのshowsEntryMessages）
  * @param {boolean} options.alreadyDecided この接続で既に判断したか
+ * @param {boolean} options.resumed 画面の自己申告。この読み込みで既に入室済み＝繋ぎ直し
  * @param {string|null} options.participantId 名乗った人
  * @param {Iterable<string|null>} options.otherParticipantIds 他の接続が名乗っているID
  * @returns {{ announce: boolean, markDecided: boolean }}
  */
-export function entryMessageDecision({ enabled, alreadyDecided, participantId, otherParticipantIds }) {
+export function entryMessageDecision({
+  enabled, alreadyDecided, resumed = false, participantId, otherParticipantIds
+}) {
   if (!enabled || alreadyDecided || !participantId) {
     return { announce: false, markDecided: false };
   }
+  if (resumed) return { announce: false, markDecided: true };
   for (const other of otherParticipantIds) {
     if (other === participantId) return { announce: false, markDecided: true };
   }

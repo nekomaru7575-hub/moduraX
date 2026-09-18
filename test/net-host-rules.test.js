@@ -145,6 +145,31 @@ test('名乗っていない人には出さない', () => {
   assert.deepEqual(decision, { announce: false, markDecided: false });
 });
 
+test('繋ぎ直しだと申告されたら出さないが、判断済みにはする', () => {
+  // サーバーが入れ替わる（デプロイ・スピンダウンからの起き直り）と全員が繋ぎ直すので、
+  // ここで止めないとシステムタブに入室メッセージだけが溜まっていく
+  const decision = entryMessageDecision({
+    enabled: true, alreadyDecided: false, resumed: true, participantId: 'a', otherParticipantIds: []
+  });
+  assert.deepEqual(decision, { announce: false, markDecided: true });
+});
+
+test('繋ぎ直しでも、部屋の設定で切ってあれば判断済みにしない', () => {
+  // 設定を入れ直したときに、この接続のぶんを出せる状態に戻しておく（enabledの扱いを揃える）
+  const decision = entryMessageDecision({
+    enabled: false, alreadyDecided: false, resumed: true, participantId: 'a', otherParticipantIds: []
+  });
+  assert.deepEqual(decision, { announce: false, markDecided: false });
+});
+
+test('申告が無ければ今までどおり出す', () => {
+  // resumedを省いた呼び出し（既定はfalse）が、初回の入室として扱われること
+  const decision = entryMessageDecision({
+    enabled: true, alreadyDecided: false, participantId: 'a', otherParticipantIds: []
+  });
+  assert.deepEqual(decision, { announce: true, markDecided: true });
+});
+
 // --- 控えを送る間引き（スロットル） ---
 // サーバー側の保存デバウンスとは別物。あちらは既に手元にある状態を書くだけだが、
 // こちらは状態を丸ごと回線で送るので、頻度がそのまま通信量になる。

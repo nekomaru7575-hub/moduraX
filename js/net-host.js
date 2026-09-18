@@ -277,7 +277,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
         // developerは必ずfalse。開発用の合言葉はサーバーの環境変数（DEVELOPER_PASSPHRASE）で、
         // ブラウザには突き合わせる材料が無い。
         sendTo(peer, { type: 'IDENTITY_ACCEPTED', developer: false });
-        announceEntry(peer);
+        announceEntry(peer, message.resumed === true);
       } else {
         peer.participantId = null;
         console.warn(`[net-host] 参加者の本人確認に失敗しました (${participantId.slice(0, 8)}…)`);
@@ -295,7 +295,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
 
   // 入室メッセージ（server/index.jsのIDENTIFY内の移植）。同じ人が再接続・タブの複数開きを
   // しても増やさない。判断そのものはjs/net-host-rules.jsにあり、テストで押さえてある。
-  function announceEntry(peer) {
+  function announceEntry(peer, resumed) {
     const others = [];
     // ホスト自身も「既に入っている人」に数える。数えないと、GMが自分の名前を入れ直した
     // 拍子に自分の入室メッセージがもう一度出る。
@@ -307,6 +307,7 @@ export function startHost({ signaling, applyRemote, onLocal, self }) {
     const { announce, markDecided } = entryMessageDecision({
       enabled: showsEntryMessages(store.state),
       alreadyDecided: peer.entryDecided,
+      resumed,
       participantId: peer.participantId,
       otherParticipantIds: others
     });

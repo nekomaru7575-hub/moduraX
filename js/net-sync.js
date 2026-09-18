@@ -131,6 +131,18 @@ let developerIdentity = false;
 // 繋がるたびに送り直せるようここで覚えておく。ゲスト参加へ切り替えたときはnullに戻す。
 let identityToSend = null;
 
+// この読み込みで、一度でも名乗りが通ったか。**繋ぎ直しでの入室メッセージを止めるため**に持つ
+// （名乗りと一緒にresumedとして送る。判断はjs/net-host-rules.jsのentryMessageDecision）。
+//
+// 【接続ごとではなく読み込みごとに覚える】繋ぎ直しは接続を作り直すので、接続に紐づけて
+// 覚えても毎回忘れてしまう。権威の側で覚えないのは、再接続がまとめて起きる場面
+// （デプロイ・スピンダウンからの起き直り）ではプロセスのメモリごと消えているため。
+//
+// 【INITではなくIDENTITY_ACCEPTEDで立てる】名前をまだ決めていない人は、INITを受け取った
+// 後に名前を入力してから初めて名乗る。INITで立てると、その初回の名乗りまで「繋ぎ直し」に
+// 見えてしまい、**初めて入った人の入室メッセージが出なくなる。**
+let hasIdentifiedOnce = false;
+
 // サーバーを寝かせないための定期送信のタイマー（KEEPALIVE_INTERVAL_MS）。
 // **接続1本につき1つ**で、繋がっていない間はnull。張るのはhandleOpen、外すのはhandleClose
 // の1組だけなので、数え上げなしで多重起動を防げる。
@@ -299,7 +311,9 @@ function resumeFromSuspend() {
 // （server/index.jsの「認証前は他のメッセージを受け付けない」）ため、INIT側の呼び出しが要る。
 function flushIdentify() {
   if (!identityToSend) return;
-  transport?.send({ type: 'IDENTIFY', ...identityToSend });
+  // resumed: この読み込みで既に入室しているか（hasIdentifiedOnce）。権威はこれを見て
+  // 繋ぎ直しの入室メッセージを省く。
+  transport?.send({ type: 'IDENTIFY', ...identityToSend, resumed: hasIdentifiedOnce });
 }
 
 function connect() {
@@ -392,6 +406,8 @@ function handleMessage(message) {
   // GMと同じ操作ができる（server/index.jsのisDeveloperToken）。画面の「押せる／押せない」に
   // 反映させるため、IDENTITY_CHANGEDで各所に描き直してもらう。
   if (message.type === 'IDENTITY_ACCEPTED') {
+    // 以後の名乗りは「繋ぎ直し」として扱われる（hasIdentifiedOnce）。
+    hasIdentifiedOnce = true;
     developerIdentity = !!message.developer;
     if (developerIdentity) console.info('[net-sync] 開発用の合言葉で名乗りました');
     // 購読側は誰が名乗っているかを自分で取り直すため、ここでは値を渡さない

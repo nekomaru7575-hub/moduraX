@@ -844,16 +844,58 @@ function roomFilePath(roomId) {
   return path.join(ROOMS_DIR, `${roomId}.json`);
 }
 
+// --- 読み込み中の部屋（roomId -> 読み込みのPromise） ---
+// **同じ部屋を同時に2回読ませないため**に持つ。
+//
+// 【放っておくと何が起きるか】下のgetOrLoadRoomは「roomsに無い」を確かめてから
+// 保存先を読むが、その間にawaitが2つ（状態と認証情報）挟まる。数十ミリ秒のその窓へ
+// 別の接続が入ると、どちらも「無い」と判断して**別々のentryを組み立て、後からの
+// rooms.setが勝つ**。負けたentryに繋がった接続は、以後ずっとそのローカル変数の
+// entryを使い続ける（admitのconst entry）ので、
+//   ・同じ部屋に居るはずの人へ操作が届かない（clientsが別のSetなので中継されない）
+//   ・両方が保存先へ書くので、互いの結果を上書きする
+// という形で**卓が黙って2つに割れる**。症状はP2Pで一度踏んだもの（docs/
+// p2p-migration-notes.mdの4-④）と同じで、applyHostSnapshotが
+// rooms.get(roomId) !== entry を見張っているのもこの「孤児entry」への備え。
+//
+// 踏むのは「メモリに載っていない部屋へ、複数人が同時に入る」とき。コールドスタートの
+// 直後に全員が繋ぎ直してくる場面がまさにそれで、繋ぎ直しの待ちにゆらぎを入れた
+// （js/net-sync.jsのreconnectDelay）のはここを踏みにくくするためでもある。
+// ただしゆらぎは確率を下げるだけなので、重なり自体はここで潰す。
+const loadingRooms = new Map();
+
 // 部屋のstoreを取得する。メモリ上にキャッシュがあればそれを返し、無ければ保存先
 // （Redis、またはローカルモードならファイル）から読み込む。見つからなければ
 // 「まだ作られていない空き部屋」としてnullを返す。
+//
+// 同じ部屋への同時の呼び出しは、1回の読み込みを全員で待つ（loadingRooms参照）。
 async function getOrLoadRoom(roomId) {
   const cached = rooms.get(roomId);
+  if (!cached) {
+    const loading = loadingRooms.get(roomId);
+    // 既に誰かが読み始めていれば、その結果に相乗りする。
+    if (loading) return loading;
+
+    const started = loadRoom(roomId).finally(() => loadingRooms.delete(roomId));
+    loadingRooms.set(roomId, started);
+    return started;
+  }
+
+  return cachedRoomOrNull(cached);
+}
+
+// メモリに載っている部屋を返す。削除中なら「もう無い部屋」としてnullにする
+// （getOrLoadRoomとloadRoomの両方から同じ判断をするので関数にしてある）。
+function cachedRoomOrNull(cached) {
   // 削除中の部屋は「もう無い部屋」として返す。ここで下へ進めてしまうと、まだ消し終えて
   // いない保存先のデータを読んで部屋がメモリ上に復活し、墓標を上書きしてしまう
   // （一覧に載り続ける→入室できる→操作で書き戻されて完全に生き返る、まで繋がる）。
-  if (cached) return cached.pendingDelete ? null : cached;
+  return cached.pendingDelete ? null : cached;
+}
 
+// 保存先から1回だけ読み込んでメモリへ載せる。呼ぶのはgetOrLoadRoomだけにすること
+// （直接呼ぶと、上の重複よけを素通りする）。
+async function loadRoom(roomId) {
   // savedStateを直接コンストラクタへ渡すと、この機能より前に保存された部屋データに
   // 無い新しいトップレベルキー（round等）がundefinedのまま残り、そのキーを前提とする
   // reducerがサーバー側で例外を投げてプロセスごと落ちる（クライアント側は必ずhydrate()
@@ -917,6 +959,10 @@ async function getOrLoadRoom(roomId) {
     const savedState = await readRoomState(roomId);
     if (savedState) {
       const entry = await buildEntry(savedState);
+      // 読んでいる間に別の経路（handleCreateRoom）が載せていたら、そちらを正とする。
+      // 上書きすると、既にそのentryへ繋がっている接続が孤児になる（loadingRooms参照）。
+      const raced = rooms.get(roomId);
+      if (raced) return cachedRoomOrNull(raced);
       rooms.set(roomId, entry);
       return entry;
     }

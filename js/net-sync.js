@@ -195,8 +195,18 @@ function submitJoinOverTransport(password) {
 // 繋ぎ直しの待ち。RECONNECT_DELAY_MSから始めて倍にし、上限で頭打ちにする。
 // 通常の卓（scheduleReconnect）とホスト役の口（handleSignalingClose）の両方が使う。
 // **同じ計算を2か所に書かない**ため——片方だけ直すと、症状の似た別の壊れ方になる。
+//
+// 【ゆらぎ（±25%）を足す理由】卓の全員は**同時に切れる**（サーバーが落ちれば全員へ
+// 同じ瞬間にcloseが届く）。素の倍々だと全員が同じ秒に揃って戻ってくるので、
+//   ・起きかけのサーバーへ人数ぶんの接続要求が一斉に当たる
+//   ・**その部屋がまだメモリに載っていないと、同時の読み込みが重なる**
+//     （server/index.jsのloadingRooms。重なり自体はあちらで潰してあるが、
+//     わざわざ揃えて当てにいく理由も無い）
+// ばらしておけば、どちらも起きにくくなる。待ちの長さの性質は変わらない
+// （2秒→4秒→8秒→上限、がそれぞれ±25%の幅を持つだけ）。
 function reconnectDelay(attempts, maxDelayMs) {
-  return Math.min(RECONNECT_DELAY_MS * (2 ** attempts), maxDelayMs);
+  const base = Math.min(RECONNECT_DELAY_MS * (2 ** attempts), maxDelayMs);
+  return Math.round(base * (0.75 + Math.random() * 0.5));
 }
 
 // --- サーバーを寝かせないための定期送信 ---

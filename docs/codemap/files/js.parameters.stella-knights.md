@@ -1,6 +1,6 @@
 ---
 source: js/parameters/stella-knights.js
-lines: 1217
+lines: 1221
 exports: 10
 imported_by: 1
 api_sha: 7017adbeff91
@@ -34,9 +34,9 @@ tags: [codemap]
 | 355 | fn | buildStellaKnightsTypeOverrides | `buildStellaKnightsTypeOverrides(charType, ownerId)` | 種別を切り替えたときに揃える、コマの見え方（js/character-dialog.jsのgetCharacterOverridesの形）。 |
 | 369 | fn | stellaKnightsDraftUnavailableReason | `stellaKnightsDraftUnavailableReason(token)` | そのコマでダイスドラフト（とこのシステムのコマンド）を使えない理由。 |
 | 374 | fn | canViewStellaKnightsSkills | `canViewStellaKnightsSkills(token, participantId)` | そのコマのスキルの中身を見てよいか（NPCは持ち主だけ。js/visibility.jsのcanViewOwnerOnly） |
-| 1090 | const | STELLA_KNIGHTS_SHEET_SOURCE | `STELLA_KNIGHTS_SHEET_SOURCE` | URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。 |
-| 1143 | fn | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | Webキャラクターシート（銀剣のステラナイツ）のJSONを取り込む。 |
-| 1175 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
+| 1094 | const | STELLA_KNIGHTS_SHEET_SOURCE | `STELLA_KNIGHTS_SHEET_SOURCE` | URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。 |
+| 1147 | fn | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | Webキャラクターシート（銀剣のステラナイツ）のJSONを取り込む。 |
+| 1179 | const | STELLA_KNIGHTS_PLUGIN | `STELLA_KNIGHTS_PLUGIN` |  |
 
 ## トップレベル関数（LOCAL TASKS 候補）（31）
 
@@ -67,15 +67,15 @@ tags: [codemap]
 | 750 | readPayableBouquet | `readPayableBouquet(token, cost, notify = (message) => alert(message))` | 8 |  |
 | 759 | logBouquetSpend | `logBouquetSpend(dispatch, token, input, lines)` | 13 |  |
 | 796 | applyDiceAdd | `applyDiceAdd({ token, target, count, dispatch, generateBuffId, chatCommand = '', silent = false, notify = (message) => alert(message) })` | 50 |  |
-| 859 | runDiceAdd | `runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })` | 33 |  |
-| 899 | runReroll | `runReroll(input, { token, dispatch })` | 41 |  |
-| 959 | applyStellaKnightsCheckRoll | `applyStellaKnightsCheckRoll({ command, token, dispatch, generateBuffId })` | 48 |  |
-| 1009 | clearAutoDiceAddRefund | `clearAutoDiceAddRefund(token, dispatch)` | 6 |  |
-| 1019 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
-| 1033 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters, findTokenByName, generateBuffId } )` | 39 |  |
-| 1103 | skillNumberForRow | `skillNumberForRow(index)` | 3 |  |
-| 1118 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 18 |  |
-| 1143 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 31 | ✓ |
+| 859 | runDiceAdd | `runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })` | 46 |  |
+| 912 | runReroll | `runReroll(input, { token, dispatch })` | 41 |  |
+| 971 | applyStellaKnightsCheckRoll | `applyStellaKnightsCheckRoll({ command, token, dispatch, generateBuffId })` | 40 |  |
+| 1013 | clearAutoDiceAddRefund | `clearAutoDiceAddRefund(token, dispatch)` | 6 |  |
+| 1023 | readImplicitChargeCount | `readImplicitChargeCount(token, roomParameters, getEffectiveParameterValue)` | 10 |  |
+| 1037 | handleStellaKnightsChatCommand | `handleStellaKnightsChatCommand( rawInput, { token, dispatch, rollBCDice, getEffectiveParameterValue, roomParameters, findTokenByName, generateBuffId } )` | 39 |  |
+| 1107 | skillNumberForRow | `skillNumberForRow(index)` | 3 |  |
+| 1122 | importStellaKnightsSkillsFromSheet | `importStellaKnightsSkillsFromSheet(json)` | 18 |  |
+| 1147 | importStellaKnightsCharacterJson | `importStellaKnightsCharacterJson(json)` | 31 | ✓ |
 
 ## 依存
 

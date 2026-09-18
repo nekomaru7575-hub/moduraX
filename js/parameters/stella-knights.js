@@ -885,6 +885,19 @@ function runDiceAdd(input, { token, dispatch, findTokenByName, generateBuffId })
     }
   }
 
+  // 「常にダイス追加+3」が入っているコマへは、手では足せない。判定のたびに上限の3個が
+  // 自動で入るので、その上から足すと必ず上限を超えるため。
+  //
+  // 【見るのは受け取る側】上限は「誰のダイスが何個増えるか」の話なので、払う側ではなく
+  // バフが付くコマで見る。自分がチェックを入れていても、チェックの無い味方へ
+  // 「ダイス追加(2>味方)」と払ってやることはできる。
+  if (isAutoDiceAddEnabled(target)) {
+    alert(`${target.name}は「${AUTO_DICE_ADD_LABEL}」が入っているので、ダイス追加は使えません。`
+      + `
+判定のたびに自動で3個入ります。手で足したいときは、キャラクター更新画面でチェックを外してください。`);
+    return true;
+  }
+
   // 打ったコマがシースの場合はハンドラの頭で断っている。ここから先の断り方は applyDiceAdd。
   applyDiceAdd({ token, target, count, dispatch, generateBuffId, chatCommand: input });
   return true;
@@ -945,11 +958,10 @@ function runReroll(input, { token, dispatch }) {
  * 【判定は止めない】ここで何をしても、しなくても、判定はもう振れている。だからブーケが
  * 足りないときもalertで止めず、返す1行に理由を書いて通す。
  *
- * 【手で払った分があれば休む】規則上ダイス追加は1回の判定で3個まで。判定終了で消える
- * DBのプラス方向のバフが既に乗っている＝この判定のために自分で払った後なので、上から3個
- * 足すと上限を超える。「ダイス追加」という名前では見ない：バフ()コマンドでも
- * 「バフ(名前,DB,+1,判定)」と書けば同じことができるので、名前で見ると上限を破れてしまう。
- * マイナス方向（デバフ）は数に入れない。
+ * 【手のダイス追加とは重ならない】チェックが入っている間は「ダイス追加(n)」のコマンド側が
+ * 断る（runDiceAdd）ので、ここで上限を気にする必要はない。DBに乗っているバフの有無では
+ * 判断しない——DBはダイス追加以外（バフ()コマンド、卓の裁定）でも動くので、それを見ると
+ * 関係のない修正が乗っているだけで自動が止まってしまう。
  *
  * 【ダイス数は書き換えない】手で打つダイス追加と同じで、DBは自動ではダイス数に足されない。
  * ここがするのは支払いとバフだけ。
@@ -967,14 +979,6 @@ function applyStellaKnightsCheckRoll({ command, token, dispatch, generateBuffId 
   if (!isAutoDiceAddEnabled(token)) {
     forget();
     return null;
-  }
-
-  const alreadyAdded = (token.buffs || []).some(buff =>
-    buff.paramId === ATTACK_DICE_BONUS_PARAM_ID && buff.expirePhase === 'check' && Number(buff.delta) > 0);
-  if (alreadyAdded) {
-    forget();
-    return { logText: `
-${AUTO_DICE_ADD_LABEL}: 既にダイス追加が乗っているので見送りました` };
   }
 
   let refused = '';

@@ -169,42 +169,57 @@ test('シースのコマでは動かない', () => {
   assert.equal(bouquet('s1'), 30);
 });
 
-// --- 手動と重なったとき ---
+// --- 手のダイス追加との関係 ---
 
-test('判定終了で消えるDBのプラスのバフが既にあれば、自動は休む', () => {
-  const { addToken, roll, send, token, bouquet } = newRoom();
+test('チェックが入っているコマへは、ダイス追加のコマンドが通らない', () => {
+  const { addToken, send, token, bouquet } = newRoom();
   addToken('b1', 'ブリンガー君', { bouquet: 30 });
 
-  // 手で2個払っておく（ブーケ -8）
-  assert.equal(send('ダイス追加(2)', 'b1'), true);
-  assert.equal(bouquet('b1'), 22);
+  let handled;
+  const alerts = captureAlerts(() => { handled = send('ダイス追加(2)', 'b1'); });
 
-  const note = roll('8SK4', 'b1');
-  assert.equal(bouquet('b1'), 22, '上から3個足して上限を超えている');
-  assert.equal(token('b1').buffs.length, 1, 'バフを増やしている');
-  assert.match(note, /見送りました/);
+  // 書式は合っているので true（falseを返すとCoreがただのダイス式として再解釈してしまう）
+  assert.equal(handled, true);
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0], /常にダイス追加\+3/);
+  // 状態は1つも動かさない
+  assert.equal(bouquet('b1'), 30);
+  assert.equal(token('b1').buffs.length, 0);
 });
 
-test('名前が違ってもDBへ足すバフなら休む（バフ()コマンドで上限を破れないように）', () => {
+test('断るのは受け取る側で見る（自分がONでも、OFFの相手へは払ってやれる）', () => {
+  const { addToken, send, token, bouquet } = newRoom();
+  addToken('b1', 'ブリンガー君', { bouquet: 30 });          // ON（払う側）
+  addToken('b2', '味方', { bouquet: 0, auto: 0 });          // OFF（受け取る側）
+  addToken('b3', '仲間', { bouquet: 0 });                   // ON（受け取る側）
+
+  // OFFの相手へは通る。払うのは打ったコマ
+  assert.equal(send('ダイス追加(2>味方)', 'b1'), true);
+  assert.equal(bouquet('b1'), 22);
+  assert.equal(getEffectiveParameterValue(token('b2'), DB), 2);
+
+  // ONの相手へは断る（その相手は判定のたびに3個入るので、上から足すと上限を超える）
+  const alerts = captureAlerts(() => { send('ダイス追加(2>仲間)', 'b1'); });
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0], /仲間/);
+  assert.equal(bouquet('b1'), 22, '断ったのにブーケが減っている');
+  assert.equal(token('b3').buffs.length, 0);
+});
+
+test('ダイス追加以外でDBに修正が乗っていても、自動は普通に発動する', () => {
   const { store, addToken, roll, bouquet } = newRoom();
   addToken('b1', 'ブリンガー君', { bouquet: 30 });
+  // DBはダイス追加以外でも動く（バフ()コマンド、卓の裁定）。それで自動が止まっては困る
   store.dispatch('ADD_BUFF', {
     tokenId: 'b1', id: 'manual-1', name: '加護', paramId: DB, delta: 1, expirePhase: 'check'
   });
-
-  assert.match(roll('8SK4', 'b1'), /見送りました/);
-  assert.equal(bouquet('b1'), 30);
-});
-
-test('DBのデバフは数に入れない（自動は普通に発動する）', () => {
-  const { store, addToken, roll, bouquet } = newRoom();
-  addToken('b1', 'ブリンガー君', { bouquet: 30 });
   store.dispatch('ADD_BUFF', {
-    tokenId: 'b1', id: 'debuff-1', name: '呪い', paramId: DB, delta: -1, expirePhase: 'check'
+    tokenId: 'b1', id: 'debuff-1', name: '呪い', paramId: DB, delta: -2, expirePhase: 'round'
   });
 
   assert.match(roll('8SK4', 'b1'), /ブーケ -12/);
   assert.equal(bouquet('b1'), 18);
+  assert.equal(getEffectiveParameterValue(store.state.tokens.b1, DB), 1 - 2 + 3);
 });
 
 // --- ブーケが足りないとき ---
@@ -265,21 +280,20 @@ test('控えがあれば、残高が5未満でもリロールできる', () => {
 });
 
 test('返すのは「直前の判定」だけ（発動しなかった判定を挟めば控えは消える）', () => {
-  const { store, addToken, roll, send, expire, bouquet } = newRoom();
-  addToken('b1', 'ブリンガー君', { bouquet: 30 });
+  const { addToken, roll, send, expire, bouquet, refund } = newRoom();
+  addToken('b1', 'ブリンガー君', { bouquet: 20 });
 
   roll('8SK4', 'b1');           // 12払い、控えが残る
   expire('b1');                 // Coreが判定の後に撃つバフの剥がし
-  assert.equal(bouquet('b1'), 18);
+  assert.equal(bouquet('b1'), 8);
+  assert.equal(refund('b1'), 12);
 
-  // 手動のバフを置いてもう一度判定＝自動は休む。ここで前の控えを持ち越さない
-  store.dispatch('ADD_BUFF', {
-    tokenId: 'b1', id: 'manual-1', name: 'ダイス追加', paramId: DB, delta: 1, expirePhase: 'check'
-  });
-  roll('8SK4', 'b1');
+  // 残り8では払えない判定をもう1回。ここで前の控えを持ち越さない
+  assert.match(roll('8SK4', 'b1'), /ブーケが足りません/);
+  assert.equal(refund('b1'), null, '払えなかったのに控えが残っている');
 
   assert.equal(send('リロール', 'b1'), true);
-  assert.equal(bouquet('b1'), 13, 'ずっと前の判定のぶんを返している');
+  assert.equal(bouquet('b1'), 3, 'ずっと前の判定のぶんを返している');
 });
 
 test('壊れた控え（取り込んだJSON）でも、返すのは正の整数だけ', () => {

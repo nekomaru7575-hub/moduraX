@@ -1389,14 +1389,14 @@ if (deleteRoomBtn) {
 // onSentは送信が成立したときに呼ぶ（入力欄のクリア）。どの入力欄から送られたかは
 // 呼び出し元しか知らないため、ここで特定の欄を直接触らない
 // （以前はメイン欄を直接クリアしており、パレットから送るとメイン欄まで消えていた）。
-EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId, checkNote = '', onSent, onPlainChat }) => {
+EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterName, characterId, characterColor, tabId = activeTabId, onSent, onPlainChat }) => {
   if (!sendBtn) return;
   sendBtn.disabled = true;
   sendBtn.textContent = "送信中...";
 
   try {
     if (rawInput.includes('\n')) {
-      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: `${rawInput}${checkNote}` }, tabId);
+      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
       onPlainChat?.();
       onSent?.();
       return;
@@ -1419,7 +1419,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
     const isStartsChoice = /^choice/i.test(command);
 
     if (!isDiceCommand && !isStartsChoice) {
-      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: `${rawInput}${checkNote}` }, tabId);
+      applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
       onPlainChat?.();
       onSent?.();
       return;
@@ -1435,7 +1435,7 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
         // 正規表現上はダイスコマンドに見えても、BCDice側がそのシステムの構文として
         // 認識できなかった場合（例: "aaaa"）。通信エラーではないので、アラートは
         // 出さずに入力をそのまま平文の発言としてチャットへ送る。
-        applyLog({ system, character: characterName, characterId, color: characterColor, resultText: `${rawInput}${checkNote}` }, tabId);
+        applyLog({ system, character: characterName, characterId, color: characterColor, resultText: rawInput }, tabId);
         onPlainChat?.();
         onSent?.();
         return;
@@ -1467,6 +1467,24 @@ EventBus.subscribe('DICE_ROLL_REQUESTED', async ({ system, rawInput, characterNa
       const animation = { tabId, dice: diceValues.slice(0, MAX_ANIMATED_DICE) };
       if (secret) EventBus.emit('DICE_ROLLED', animation);
       else store.dispatch('ROLL_DICE_ANIMATION', animation);
+    }
+
+    // 判定が1回成立したことを、この部屋のシステムへ知らせる（横取りはされない。
+    // js/parameters/registry.jsのapplyPluginCheckRoll）。
+    //
+    // 【この位置である理由】上のreturnを全部抜けた後なので、BCDiceが受理した判定にしか
+    // 反応しない。振っていない入力でブーケを払う、のような取り返しのつかない副作用を
+    // 作らせないため。
+    // コマは状態から読み直す：送信時に握っていたものは、await rollRoomDice をまたいで古い。
+    // 中で転んでも振った結果は必ず出す（だから握り潰してでも先へ進む）。
+    let checkNote = '';
+    if (characterId && store.state.tokens[characterId]) {
+      try {
+        checkNote = applyPluginCheckRoll(store.state.room?.activePlugin ?? null, {
+          ...buildPluginCommandContext(store.state.tokens[characterId]),
+          command: toCommand
+        });
+      } catch (error) { console.error(error); }
     }
 
     // 判定を1回行ったとみなして、このコマの「判定終了で消滅」バフを剥がす。
@@ -2048,45 +2066,14 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
   // スタンプは{}参照の解決もダイスへのフォールバックも要らないので、置換より手前で捌く
   if (tryHandleStampCommand(text)) { onSent?.(); return; }
 
-  // 判定が1回成立することを、この部屋のシステムへ**先に**知らせる（横取りはされない。
-  // js/parameters/registry.jsのapplyPluginCheckRoll）。
-  //
-  // 【{}参照の展開より前に撃つ】展開はバフ込みの実効値を読む（substituteCharacterParameters）
-  // ので、後から付けたバフは今回の判定に乗らない＝BCDiceへ届かない。ステラナイツの
-  // 「常にダイス追加+3」が付けるDBのバフを {DB} と書いて振れるようにするには、ここしかない。
-  //
-  // 【書式の判定には、いま展開したものを使う】展開は読むだけで状態を動かさないので、
-  // 判定の書式かどうかを見るために一度通してよい。フックが状態を変えたらコマを読み直し、
-  // 実際に使う展開はその後で行う（ここで読み直さないと、付いたバフが展開に乗らない）。
-  //
-  // 【取りこぼし】まだBCDiceへ送る前なので、構文を認識できない入力や、この後のtryHandle*が
-  // 食う入力でもここは走ってしまう。プラグイン側は発動条件を自分の書式の完全一致まで
-  // 絞ること（そうしないと「振っていないのに払った」が起きる）。
-  // 平文の発言に落ちた場合は下のDICE_ROLL_REQUESTEDが1行を添えるが、この先のtryHandle*が
-  // 入力を食った場合はそこで途切れる——絞り込みが効いていれば起こらない、という前提。
-  let speaker = character;
-  let checkNote = '';
-  const activePluginId = store.state.room?.activePlugin ?? null;
-  if (speaker && activePluginId) {
-    const [, probeBody] = splitRepeatPrefix(substituteCharacterParameters(text, speaker));
-    const [probeCommand] = splitForSpace(probeBody);
-    try {
-      checkNote = applyPluginCheckRoll(activePluginId, {
-        ...buildPluginCommandContext(speaker),
-        command: probeCommand
-      });
-    } catch (error) { console.error(error); }
-    if (checkNote) speaker = store.state.tokens[speaker.id] ?? speaker;
-  }
-
   // {}参照を先に解決してからコマンド判定を行う。参照先の変数が「+HP(10)」等の
   // コマンド文字列を持っていた場合、置換結果の文頭がコマンドとして発動するようにするため。
-  const substituted = substituteCharacterParameters(text, speaker);
+  const substituted = substituteCharacterParameters(text, character);
 
-  if (tryHandleBuffCommand(substituted, speaker, tabId)) { onSent?.(); return; }
-  if (tryHandleParameterCommand(substituted, speaker, tabId, characterName)) { onSent?.(); return; }
-  if (tryHandlePluginChatCommand(substituted, speaker)) { onSent?.(); return; }
-  if (tryHandleOriginalTableCommand(substituted, speaker, tabId)) { onSent?.(); return; }
+  if (tryHandleBuffCommand(substituted, character, tabId)) { onSent?.(); return; }
+  if (tryHandleParameterCommand(substituted, character, tabId, characterName)) { onSent?.(); return; }
+  if (tryHandlePluginChatCommand(substituted, character)) { onSent?.(); return; }
+  if (tryHandleOriginalTableCommand(substituted, character, tabId)) { onSent?.(); return; }
 
   // ここまでコマンドとして解釈されなかった＝発言（ダイスロールを含む）なので、
   // 末尾が音源の再生フレーズと一致していれば鳴らす（発言自体はそのまま流す）。
@@ -2095,12 +2082,10 @@ function submitChatText({ rawInput, character = null, characterName, tabId = act
   EventBus.emit('DICE_ROLL_REQUESTED', {
     system: store.state.room.bcdiceSystem,
     rawInput: substituted,
-    characterName: characterName ?? speaker?.name,
-    characterId: speaker?.id,
-    characterColor: speaker?.textColor,
+    characterName: characterName ?? character?.name,
+    characterId: character?.id,
+    characterColor: character?.textColor,
     tabId,
-    // 上のフックが返した1行。判定のログ本文へ添える（平文になった場合も必ず出す）
-    checkNote,
     onSent,
     // ここまでのtryHandle*のどれにも該当しなかった時点ではまだ「素の発言」と決まらない。
     // BCDiceへ実際に判定として送られた場合（成功・失敗を問わず）は発言ではなく判定なので

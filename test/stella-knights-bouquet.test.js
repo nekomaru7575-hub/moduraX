@@ -12,9 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ImmutableStore, createInitialGameState, getEffectiveParameterValue } from '../js/game-store.js';
-import {
-  STELLA_KNIGHTS_PLUGIN, buildStellaKnightsCharacterParameters
-} from '../js/parameters/stella-knights.js';
+import { STELLA_KNIGHTS_PLUGIN } from '../js/parameters/stella-knights.js';
 
 const DB = 'STELLA_KNIGHTS:DB';
 const BOUQUET = 'STELLA_KNIGHTS:bouquet';
@@ -55,20 +53,9 @@ function newRoom() {
   return { store, addToken, send, mainLog };
 }
 
-// --- パラメータの宣言 ---
-
-test('アタックダイス補正(DB)は locked / 手入力できない / 一覧に出さない / キーはDB', () => {
-  const db = buildStellaKnightsCharacterParameters()[DB];
-  assert.ok(db, 'DBのパラメータが無い');
-  assert.equal(db.label, 'アタックダイス補正(DB)');
-  // ラベルに「(」を含むので、バフ()コマンドからはキー名で指定する（js/main.jsのtryHandleBuffCommand）
-  assert.equal(db.key, 'DB');
-  assert.equal(db.value, 0);
-  // lockedでないと、既存のコマへ後から補完されない（registry.jsのwithMissingPluginParameters）
-  assert.equal(db.locked, true);
-  assert.equal(db.editable, false);
-  assert.equal(db.visible, false);
-});
+// DBのパラメータそのものの宣言は test/stella-knights-db-charge.test.js が固定する
+// （手入力の値になり、判定のたびにその数ぶんを払う仕組みの側の話になったため）。
+// ここが見るのは「ダイス追加(n)」がDBへ何をするか。
 
 // --- ダイス追加 ---
 

@@ -606,8 +606,8 @@ export function applyPluginRollTransform(pluginId, { command, result, extensions
 }
 
 /**
- * 判定を1回行うことを、適用中のシステムへ**BCDiceへ送る前に**知らせる。
- * 呼ぶのは js/main.js の submitChatText だけ。
+ * 判定が1回成立したことを、適用中のシステムへ知らせる。
+ * 呼ぶのは js/main.js の DICE_ROLL_REQUESTED ハンドラだけ。
  *
  * 【Coreが既に持っている1回】この「判定1回」は、判定終了で消滅するバフを剥がす
  * EXPIRE_BUFFS { phase:'check' } と同じ1回。その事実をプラグインへ渡すだけで、
@@ -621,19 +621,18 @@ export function applyPluginRollTransform(pluginId, { command, result, extensions
  * 【添える1行に「＞」を使わないこと】最後の「＞」の後ろを最終値として読む処理がある
  * （js/main.js の parseFinalDiceNumber）。
  *
- * 【{}参照の展開より前】ここで付けたバフは、{パラメータ名}の展開（実効値を読む）に間に合う
- * ＝BCDiceへ届く。展開の後だと今回の判定には乗らない。だからこの口は「判定が済んだ後の
- * 後始末」ではなく「これから振るための前払い」に使う。
- *
- * 【呼ばれる範囲と取りこぼし】チャット欄へ打たれた入力のうち、参照キャラクターが選ばれて
- * いるものだけ。まだBCDiceへ送る前なので、**構文を認識できない入力・この後のコマンド解釈が
- * 食う入力でも呼ばれてしまう**。プラグイン側は発動条件を自分の書式の完全一致まで絞ること。
+ * 【呼ばれる範囲】BCDiceが受理した判定だけ。ただの発言・構文を認識できなかった入力では
+ * 呼ばれないので、課金を伴う副作用を置いても「振っていないのに払った」が起きない。
  * 拡張判定UIの「振る」はこの経路を通らない。
+ *
+ * 【値を書き換える用ではない】呼ばれるのは {パラメータ名} の展開もBCDiceへの送信も
+ * 終わった後なので、ここでパラメータやバフを動かしても**その判定には乗らない**。
+ * 振る値に効かせたいものは、判定より前に状態へ入っていること（ステラナイツのDBは、
+ * 判定のたびに書くのをやめて手入力の値にしてある）。この口は後払い・後始末のためにある。
  *
  * @param {string|null} pluginId
  * @param {object} context token/dispatch/generateBuffId など（js/main.jsが組み立てる）に
- *   command（BCDiceへ送る予定の文字列。{}参照は展開済み、繰り返しの前置きとコメントは除く）
- *   を足したもの
+ *   command（BCDiceへ送った文字列）を足したもの
  * @returns {string} ログ本文へ添える1行（何もしなければ空文字）
  */
 export function applyPluginCheckRoll(pluginId, context) {

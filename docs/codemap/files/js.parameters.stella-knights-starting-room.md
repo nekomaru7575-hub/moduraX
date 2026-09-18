@@ -18,7 +18,7 @@ tags: [codemap]
 ## 役割
 
 <!-- prose:role -->
-銀剣のステラナイツのスキル「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）の状態と計算を純関数で持つ。値は room.extensions.STELLA_KNIGHTS.startingRoom（発動順の rules）。normalize / reduce（add・remove）/ resetOnPhaseEnd（round で全消し）を STARTING_ROOM_EXTENSION_MODEL として [[js.parameters.stella-knights]] の記述子へ渡す。transformStellaKnightsRoll は d6 の目に規則を発動順に連鎖で当て（applyStartingRoomRules / buildFaceMap）、SK は自前で、D・B は [[js.dice-roll-recompute]] で数え直す。アタック判定の書式（nSK）を知っているのはここだけなので、その判定は looksLikeStellaKnightsAttack として出してある（[[js.parameters.stella-knights]] の「常にダイス追加+3」が、何を判定と見なすかで同じ規則を見るため）。欄の描画は [[js.parameters.stella-knights-starting-room-section]]。
+銀剣のステラナイツのスキル「始まりの部屋」（振ったd6の目aをbとして扱う。ラウンド終了まで）の状態と計算を純関数で持つ。値は room.extensions.STELLA_KNIGHTS.startingRoom（発動順の rules）。normalize / reduce（add・remove）/ resetOnPhaseEnd（round で全消し）を STARTING_ROOM_EXTENSION_MODEL として [[js.parameters.stella-knights]] の記述子へ渡す。transformStellaKnightsRoll は d6 の目に規則を発動順に連鎖で当て（applyStartingRoomRules / buildFaceMap）、SK は自前で、D・B は [[js.dice-roll-recompute]] で数え直す。アタック判定の書式（nSK）を知っているのはここだけなので、その判定は looksLikeStellaKnightsAttack として出してある（[[js.parameters.stella-knights]] のDBぶんの後払いが、何を判定と見なすかで同じ規則を見るため）。欄の描画は [[js.parameters.stella-knights-starting-room-section]]。
 <!-- /prose:role -->
 
 ## export（12）

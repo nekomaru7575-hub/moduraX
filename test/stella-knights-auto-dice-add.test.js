@@ -6,10 +6,10 @@
 // 黙って払いすぎる・振っていないのに払う・返しすぎる、はどれも後から気付けない。
 // だから本物のストアに流して、ブーケとバフとログをまとめて見る。
 //
-// 【Coreの配線はここでは見られない】チャット欄から判定を振ったときに
-// applyCheckRoll が呼ばれること自体は js/main.js の DICE_ROLL_REQUESTED ハンドラの配線で、
-// あちらはDOMを触るのでNodeから読めない。ここが固定するのは「呼ばれたら何をするか」まで。
-// 配線（呼ぶ位置がEXPIRE_BUFFSより前で、BCDiceが受理した判定だけ）は手で確かめること。
+// 【Coreの配線はここでは見られない】チャット欄から判定を振ったときに applyCheckRoll が
+// 呼ばれること自体は js/main.js の submitChatText の配線で、あちらはDOMを触るので
+// Nodeから読めない。ここが固定するのは「呼ばれたら何をするか」まで。
+// 配線（{}参照の展開より前に呼ぶ＝付けたバフがBCDiceへ届くこと）は手で確かめること。
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

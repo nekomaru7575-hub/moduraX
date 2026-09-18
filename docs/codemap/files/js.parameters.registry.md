@@ -1,6 +1,6 @@
 ---
 source: js/parameters/registry.js
-lines: 768
+lines: 775
 exports: 32
 imported_by: 19
 api_sha: 0e9b7b2aa5ac
@@ -55,10 +55,10 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 548 | fn | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | フェーズ終了（ラウンド終了など）で、拡張ルーム設定の後始末をさせる。 |
 | 570 | fn | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | ラウンド進行の節目（段に入る・手番が決まる・段を押す・進行の終了）を、拡張ルーム設定へ知らせる。 |
 | 598 | fn | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | BCDiceのロール結果を、そのシステムの部屋の効果に合わせて書き換えさせる （ステラナイツの始まりの部屋で出目を変える）。 |
-| 632 | fn | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 判定が1回成立したことを、適用中のシステムへ知らせる。 |
-| 654 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
-| 713 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
-| 739 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
+| 639 | fn | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 判定を1回行うことを、適用中のシステムへ**BCDiceへ送る前に**知らせる。 |
+| 661 | fn | getPluginCheckView | `getPluginCheckView(pluginId)` | その部屋のシステムが出す拡張判定UIの宣言。 |
+| 720 | fn | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | コマのパラメータを、今のプラグインの宣言（不足分の補完と editable）へ揃える。 |
+| 746 | fn | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | キャラクター全体のパラメータを受け取り、プラグインの自動計算を適用した新しいパラメータ集合を返す。 |
 
 ## トップレベル関数（LOCAL TASKS 候補）（39）
 
@@ -101,11 +101,11 @@ DX3・シノビガミ・ステラナイツ・ドラクルージュ・アリア�
 | 548 | resetPluginRoomExtensionsOnPhaseEnd | `resetPluginRoomExtensionsOnPhaseEnd(pluginId, extensions, phase)` | 14 | ✓ |
 | 570 | applyPluginRoomExtensionsRoundEvent | `applyPluginRoomExtensionsRoundEvent(pluginId, extensions, event)` | 19 | ✓ |
 | 598 | applyPluginRollTransform | `applyPluginRollTransform(pluginId, { command, result, extensions })` | 9 | ✓ |
-| 632 | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 5 | ✓ |
-| 654 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
-| 683 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
-| 713 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
-| 739 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
+| 639 | applyPluginCheckRoll | `applyPluginCheckRoll(pluginId, context)` | 5 | ✓ |
+| 661 | getPluginCheckView | `getPluginCheckView(pluginId)` | 10 | ✓ |
+| 690 | withMissingPluginParameters | `withMissingPluginParameters(plugin, parameters)` | 23 |  |
+| 720 | withPluginParameterDeclarations | `withPluginParameterDeclarations(pluginId, parameters)` | 5 | ✓ |
+| 746 | applyPluginDerivedParameters | `applyPluginDerivedParameters(pluginId, parameters, components = {}, context = {})` | 29 | ✓ |
 
 ## 依存
 

@@ -176,6 +176,7 @@ const CHARACTER_PARAMETERS = [
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true },
+  { key: `distortion`, label: `歪み`, value: 0, visible: true, locked: true, editable: true },
   // アタックダイス補正(DB)＝この判定で何個ダイスを足すか（0〜3）。手で入れる値で、
   // 判定を1回振るたびに「入っている数×4」のブーケを自動で払う（applyStellaKnightsCheckRoll）。
   //

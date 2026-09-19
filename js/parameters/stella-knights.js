@@ -134,7 +134,7 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
 // {ブーケ} / {ブーケ合計} も取り違えない。
 //
 // 歪みはシートの「歪みの共鳴」（status.resonance）に対応する値で、URLからの取り込みでも埋まる。
-// 卓の進行で増減させる持ち点なので、ブーケと同じ扱い（手で直せて、一覧に出す）。
+// 扱いはブーケと同じ（手で直せて、ブリンガーの一覧には出し、NPCでは伏せる）。
 // 何かを自動で発動させる仕組みはこちらには無く、卓がこの値を読んで裁定する。
 //
 // アタックダイス補正(DB)はバフ/デバフの受け取り口。手では動かさない（editable:false）し、
@@ -251,7 +251,7 @@ export const STELLA_KNIGHTS_TYPE_RULES = Object.freeze({
   // 機能はブリンガーと同じ。卓の全員に見せないものだけが違う
   // （スキル使用のチャットログは伏せない。使った時点で卓に公開される扱い）
   [CHAR_TYPE_NPC]: Object.freeze({
-    visibleParamIds: [DEFENSE_PARAM_ID, DISTORTION_PARAM_ID],
+    visibleParamIds: [DEFENSE_PARAM_ID],
     inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID, DISTORTION_PARAM_ID],
     skills: true, dice: true, characterVisible: true, hidesEndurance: true, hidesSkills: true
   })

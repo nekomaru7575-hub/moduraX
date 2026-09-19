@@ -118,7 +118,7 @@ test('シースは独自の能力を持たず、キャラクター一覧にも�
   assert.equal(sheath.characterVisible, false);
 });
 
-test('NPCはブリンガーと同じ機能で、ブーケを一覧に出さず、耐久力とスキルを伏せる', () => {
+test('NPCはブリンガーと同じ機能で、ブーケと歪みを一覧に出さず、耐久力とスキルを伏せる', () => {
   const npc = STELLA_KNIGHTS_TYPE_RULES.NPC;
   const bringer = STELLA_KNIGHTS_TYPE_RULES['ブリンガー'];
   assert.deepEqual(npc.inputParamIds, bringer.inputParamIds);
@@ -126,8 +126,9 @@ test('NPCはブリンガーと同じ機能で、ブーケを一覧に出さず�
   assert.equal(npc.dice, true);
   assert.equal(npc.visibleParamIds.includes(BOUQUET), false);
   assert.equal(npc.visibleParamIds.includes(DEFENSE), true);
-  // 歪みはシートに載っている値なので、防御力と同じく伏せない
-  assert.equal(npc.visibleParamIds.includes(DISTORTION), true);
+  // NPCは歪みを持たない。入力欄はブーケと同じく残すが、一覧には出さない
+  assert.equal(npc.visibleParamIds.includes(DISTORTION), false);
+  assert.equal(npc.inputParamIds.includes(DISTORTION), true);
   assert.equal(npc.hidesEndurance, true);
   assert.equal(npc.hidesSkills, true);
 });
@@ -137,7 +138,7 @@ test('NPCはブリンガーと同じ機能で、ブーケを一覧に出さず�
 test('種別を切り替えたときの見え方：NPCは耐久力を持ち主だけに、ブリンガーへ戻すと全員に', () => {
   assert.deepEqual(buildStellaKnightsTypeOverrides('NPC', 'gm'), {
     visible: true,
-    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: false, [DISTORTION]: true },
+    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: false, [DISTORTION]: false },
     parameterAudience: { [HP]: ['gm'] }
   });
   // 持ち主のいないコマは誰でも触れる規則なので、伏せても全員に見える（＝伏せない）

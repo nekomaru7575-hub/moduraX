@@ -69,6 +69,39 @@ test('ステラナイト（公開JSONに status がある）はそのまま読�
   });
 });
 
+// 歪みの取り込み元はシートの「歪みの共鳴」（status.resonance）。
+// シートに「歪み」という名前の欄は無いので、ここを取り違えると値が入らないまま気付けない。
+test('歪みはシートの「歪みの共鳴」から入る', () => {
+  const result = importStellaKnightsCharacterJson({
+    ...PUBLIC_SHEET,
+    status: { hp: '30', defense: '2', charge: '4', resonance: '5' }
+  });
+
+  assert.equal(result.valueOverrides['STELLA_KNIGHTS:distortion'], 5);
+});
+
+test('歪みの共鳴は秘匿欄からも入る', () => {
+  const result = importStellaKnightsCharacterJson({
+    ...PUBLIC_SHEET,
+    secret: { ...SECRET, status: { ...SECRET.status, resonance: '2' } }
+  });
+
+  assert.equal(result.valueOverrides['STELLA_KNIGHTS:distortion'], 2);
+});
+
+// 歪みの共鳴は自由記入の欄なので、数字とはかぎらない。読めない値で0を上書きしない
+test('歪みの共鳴が空欄・数字以外なら、歪みは既定値のまま', () => {
+  for (const resonance of [null, '', '○', undefined]) {
+    const result = importStellaKnightsCharacterJson({
+      ...PUBLIC_SHEET,
+      status: { hp: '30', resonance }
+    });
+
+    assert.equal('STELLA_KNIGHTS:distortion' in result.valueOverrides, false,
+      `${JSON.stringify(resonance)}: 読めない値が入った`);
+  }
+});
+
 test('秘匿欄が取れなかったシートも、名前とスキルは入る', () => {
   const result = importStellaKnightsCharacterJson({ ...PUBLIC_SHEET, secretMissing: true });
 

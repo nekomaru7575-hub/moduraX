@@ -133,6 +133,10 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
 // こちらは各コマの持ち点。paramIdもラベルも違うので、チャットの
 // {ブーケ} / {ブーケ合計} も取り違えない。
 //
+// 歪みはシートの「歪みの共鳴」（status.resonance）に対応する値で、URLからの取り込みでも埋まる。
+// 卓の進行で増減させる持ち点なので、ブーケと同じ扱い（手で直せて、一覧に出す）。
+// 何かを自動で発動させる仕組みはこちらには無く、卓がこの値を読んで裁定する。
+//
 // アタックダイス補正(DB)はバフ/デバフの受け取り口。手では動かさない（editable:false）し、
 // 常に0の行が一覧に増えても邪魔なだけなので出さない（visible:false）。
 // ダブルクロスの判定のように自動でダイス数へ足す仕組みは無く、卓がこの値を読んで振る
@@ -143,6 +147,7 @@ const STELLA_KNIGHTS_DRAFT_SPEC = createDiceDraftSpec({
 const DEFENSE_PARAM_ID = 'STELLA_KNIGHTS:defense';
 const CHARGE_PARAM_ID = 'STELLA_KNIGHTS:charge';
 const BOUQUET_PARAM_ID = 'STELLA_KNIGHTS:bouquet';
+const DISTORTION_PARAM_ID = 'STELLA_KNIGHTS:distortion';
 const ATTACK_DICE_BONUS_PARAM_ID = 'STELLA_KNIGHTS:DB';
 
 // 耐久力はCoreの既定パラメータ（HP）を流用し、ラベルだけ「耐久力」へ差し替える
@@ -176,7 +181,7 @@ const CHARACTER_PARAMETERS = [
   { key: 'defense', label: '防御力', value: 0, visible: true, locked: true, editable: true },
   { key: 'charge', label: 'チャージダイス数', value: 0, visible: false, locked: true, editable: true },
   { key: 'bouquet', label: 'ブーケ', value: 0, visible: true, locked: true, editable: true },
-  { key: `distortion`, label: `歪み`, value: 0, visible: true, locked: true, editable: true },
+  { key: 'distortion', label: '歪み', value: 0, visible: true, locked: true, editable: true },
   // アタックダイス補正(DB)＝この判定で何個ダイスを足すか（0〜3）。手で入れる値で、
   // 判定を1回振るたびに「入っている数×4」のブーケを自動で払う（applyStellaKnightsCheckRoll）。
   //
@@ -233,8 +238,8 @@ const PARAM_FALLBACK_LABELS = new Map(
 //   hidesSkills      … スキルの中身を持ち主以外に伏せるか
 export const STELLA_KNIGHTS_TYPE_RULES = Object.freeze({
   [CHAR_TYPE_BRINGER]: Object.freeze({
-    visibleParamIds: [DEFENSE_PARAM_ID, BOUQUET_PARAM_ID],
-    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID],
+    visibleParamIds: [DEFENSE_PARAM_ID, BOUQUET_PARAM_ID, DISTORTION_PARAM_ID],
+    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID, DISTORTION_PARAM_ID],
     skills: true, dice: true, characterVisible: true, hidesEndurance: false, hidesSkills: false
   }),
   // シースはこのシステム独自の能力を持たない（耐久力などCoreの値はそのまま）
@@ -246,8 +251,8 @@ export const STELLA_KNIGHTS_TYPE_RULES = Object.freeze({
   // 機能はブリンガーと同じ。卓の全員に見せないものだけが違う
   // （スキル使用のチャットログは伏せない。使った時点で卓に公開される扱い）
   [CHAR_TYPE_NPC]: Object.freeze({
-    visibleParamIds: [DEFENSE_PARAM_ID],
-    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID],
+    visibleParamIds: [DEFENSE_PARAM_ID, DISTORTION_PARAM_ID],
+    inputParamIds: [DEFENSE_PARAM_ID, CHARGE_PARAM_ID, BOUQUET_PARAM_ID, DISTORTION_PARAM_ID],
     skills: true, dice: true, characterVisible: true, hidesEndurance: true, hidesSkills: true
   })
 });
@@ -525,7 +530,7 @@ function renderStellaKnightsCharacterPanel({
     if (rule.inputParamIds.length === 0 && !rule.skills) {
       const note = document.createElement('p');
       note.className = 'dialog-plugin-placeholder';
-      note.textContent = 'シースは、このシステム独自の能力（防御力・チャージ・ブーケ・スキル）を持ちません。';
+      note.textContent = 'シースは、このシステム独自の能力（防御力・チャージ・ブーケ・歪み・スキル）を持ちません。';
       typedArea.appendChild(note);
     }
 
@@ -1040,13 +1045,13 @@ function handleStellaKnightsChatCommand(
 // （js/character-sheet-import.js）の両方がこの関数に合流する。
 //
 // シートにあってこのアプリが持っていない項目（花章・願い・あなたの物語などの設定欄、
-// パートナー、歪みの共鳴、勲章）は取り込まない。パラメータ化していないものを隠しパラメータ
+// パートナー、勲章）は取り込まない。パラメータ化していないものを隠しパラメータ
 // として持たせても、画面のどこにも出ず、書き出したJSONだけが太るため。
 
 // URLから取り込むときの受け付け先（受け付ける形と取得先の組み立ては js/parameters/sheet-source.js）。
 //
 // 【秘匿欄】シートは騎士の種別がエンブレイス/エクリプスだと、ステータス（耐久力・防御力・
-// チャージダイス数）と隠したスキルを公開JSONから外し、閲覧パスワードの奥へ移して保存する。
+// チャージダイス数・歪みの共鳴）と隠したスキルを公開JSONから外し、閲覧パスワードの奥へ移して保存する。
 // 公開JSONに status が無ければ、サーバーが空のパスワードで取りに行き json.secret に付けてくる
 // （server/index.jsのfetchSheetSecret）。パスワードが設定されていれば取れない。
 export const STELLA_KNIGHTS_SHEET_SOURCE = createAppspotSheetSource({
@@ -1054,7 +1059,7 @@ export const STELLA_KNIGHTS_SHEET_SOURCE = createAppspotSheetSource({
   pathSegment: 'stellar',
   secret: {
     isNeeded: (publicData) => publicData?.status === undefined,
-    missingNotice: 'このシートは閲覧パスワードが設定されているため、耐久力・防御力・チャージダイス数と'
+    missingNotice: 'このシートは閲覧パスワードが設定されているため、耐久力・防御力・チャージダイス数・歪みと'
       + '隠したスキルは取り込めませんでした。\n取り込んだ後、更新画面で入力してください。'
   }
 });
@@ -1112,13 +1117,18 @@ export function importStellaKnightsCharacterJson(json) {
     .some(key => json[key] !== undefined);
   if (!looksLikeSheet) return null;
 
-  // 耐久力はCoreのHPへ入れる。防御力とチャージダイス数はこのプラグインのパラメータ。
+  // 耐久力はCoreのHPへ入れる。防御力・チャージダイス数・歪みはこのプラグインのパラメータ。
   // エンブレイス/エクリプスのステータスは秘匿欄にしか無い（STELLA_KNIGHTS_SHEET_SOURCEの説明）。
+  //
+  // 【歪み＝シートの「歪みの共鳴」】シートに「歪み」という名前の欄は無く、この値を持つのは
+  // status.resonance（見出しは「歪みの共鳴」）だけ。空欄や数字以外（自由記入）のときは
+  // assignSheetNumber が何も入れないので、取り込んだコマは既定値の0のまま残る。
   const status = json?.secret?.status ?? json?.status;
   const valueOverrides = {};
   assignSheetNumber(valueOverrides, HP_PARAM_ID, status?.hp);
   assignSheetNumber(valueOverrides, DEFENSE_PARAM_ID, status?.defense);
   assignSheetNumber(valueOverrides, CHARGE_PARAM_ID, status?.charge);
+  assignSheetNumber(valueOverrides, DISTORTION_PARAM_ID, status?.resonance);
 
   const name = sheetText(json?.base?.name);
 
@@ -1138,7 +1148,7 @@ export const STELLA_KNIGHTS_PLUGIN = {
   id: 'STELLA_KNIGHTS',
   label: '銀剣のステラナイツ',
   // 出目の在庫はダイスドラフトのプールが持つので、コマ固有のパラメータは
-  // 種別・防御力・チャージダイス数・ブーケ（持ち点）と、自動計算の2つ（DB・手番順）
+  // 種別・防御力・チャージダイス数・ブーケ（持ち点）・歪みと、自動計算の2つ（DB・手番順）
   buildCharacterParameters: buildStellaKnightsCharacterParameters,
   buildRoomParameters: buildStellaKnightsRoomParameters,
   computeDerivedParameters: computeStellaKnightsDerivedParameters,

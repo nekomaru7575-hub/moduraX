@@ -30,6 +30,7 @@ const TYPE = 'STELLA_KNIGHTS:charType';
 const DEFENSE = 'STELLA_KNIGHTS:defense';
 const CHARGE = 'STELLA_KNIGHTS:charge';
 const BOUQUET = 'STELLA_KNIGHTS:bouquet';
+const DISTORTION = 'STELLA_KNIGHTS:distortion';
 const HP = 'core:hp';
 
 const tokenOf = (charType, ownerId = null) => ({
@@ -83,9 +84,10 @@ test('ブリンガーは種別が入る前の宣言どおり（既存のコマ�
   const bringer = STELLA_KNIGHTS_TYPE_RULES['ブリンガー'];
 
   // 一覧に出すものは、パラメータの宣言時のvisibleと一致していること
-  const declaredVisible = [DEFENSE, CHARGE, BOUQUET].filter(id => parameters[id].visible !== false);
+  const declaredVisible = [DEFENSE, CHARGE, BOUQUET, DISTORTION]
+    .filter(id => parameters[id].visible !== false);
   assert.deepEqual([...bringer.visibleParamIds].sort(), declaredVisible.sort());
-  assert.deepEqual(bringer.inputParamIds, [DEFENSE, CHARGE, BOUQUET]);
+  assert.deepEqual(bringer.inputParamIds, [DEFENSE, CHARGE, BOUQUET, DISTORTION]);
   assert.equal(bringer.skills, true);
   assert.equal(bringer.dice, true);
   assert.equal(bringer.characterVisible, true);
@@ -124,6 +126,8 @@ test('NPCはブリンガーと同じ機能で、ブーケを一覧に出さず�
   assert.equal(npc.dice, true);
   assert.equal(npc.visibleParamIds.includes(BOUQUET), false);
   assert.equal(npc.visibleParamIds.includes(DEFENSE), true);
+  // 歪みはシートに載っている値なので、防御力と同じく伏せない
+  assert.equal(npc.visibleParamIds.includes(DISTORTION), true);
   assert.equal(npc.hidesEndurance, true);
   assert.equal(npc.hidesSkills, true);
 });
@@ -133,7 +137,7 @@ test('NPCはブリンガーと同じ機能で、ブーケを一覧に出さず�
 test('種別を切り替えたときの見え方：NPCは耐久力を持ち主だけに、ブリンガーへ戻すと全員に', () => {
   assert.deepEqual(buildStellaKnightsTypeOverrides('NPC', 'gm'), {
     visible: true,
-    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: false },
+    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: false, [DISTORTION]: true },
     parameterAudience: { [HP]: ['gm'] }
   });
   // 持ち主のいないコマは誰でも触れる規則なので、伏せても全員に見える（＝伏せない）
@@ -141,12 +145,12 @@ test('種別を切り替えたときの見え方：NPCは耐久力を持ち主�
 
   assert.deepEqual(buildStellaKnightsTypeOverrides('シース', 'pl'), {
     visible: false,
-    parameterVisibility: { [DEFENSE]: false, [BOUQUET]: false },
+    parameterVisibility: { [DEFENSE]: false, [BOUQUET]: false, [DISTORTION]: false },
     parameterAudience: { [HP]: null }
   });
   assert.deepEqual(buildStellaKnightsTypeOverrides('ブリンガー', 'pl'), {
     visible: true,
-    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: true },
+    parameterVisibility: { [DEFENSE]: true, [BOUQUET]: true, [DISTORTION]: true },
     parameterAudience: { [HP]: null }
   });
 });

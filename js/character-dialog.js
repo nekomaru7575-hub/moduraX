@@ -80,9 +80,18 @@ export function applyCharacterEditResult(store, tokenId, result) {
     store.dispatch('SET_CHARACTER_VISIBLE', { id: tokenId, visible });
   }
 
+  // 【コマがまだ持っていないパラメータも送る】プラグインへ後から足したパラメータ
+  // （銀剣のステラナイツの「歪み」など）は、既に部屋にあるコマのparametersには無い。
+  // それでもプラグインの専用スペースは宣言どおりに入力欄を描くので、ここで
+  // 「コマが持っていない＝送らない」にすると、利用者から見ると入力欄に数を入れて
+  // 「更新」を押しても何も起きない（保存もされず、一覧にも出てこない）。
+  // 送り先のSET_PARAMETERは、書き込む前にプラグインの宣言でコマのparametersを
+  // 揃える（js/store/handlers/characters.jsのwithPluginParameterDeclarations）ので、
+  // 足りないパラメータはそこで補われたうえで値が入る。宣言にも無いparamIdなら
+  // 向こう側が何もしない（js/store/params.jsのwithParamFieldsがnullを返す）。
   Object.entries(parameterValues).forEach(([paramId, value]) => {
     const existingParam = latest.parameters[paramId];
-    if (existingParam && existingParam.value !== value) {
+    if (!existingParam || existingParam.value !== value) {
       store.dispatch('SET_PARAMETER', { characterId: tokenId, paramId, value });
     }
   });

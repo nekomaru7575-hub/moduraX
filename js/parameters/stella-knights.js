@@ -227,6 +227,53 @@ const PARAM_FALLBACK_LABELS = new Map(
   CHARACTER_PARAMETERS.map(def => [`STELLA_KNIGHTS:${def.key}`, def.label])
 );
 
+// --- 更新画面の入力欄の上下限 ---
+//
+// 書いていないパラメータは既定（下限0・上限なし）。防御力・チャージダイス数・歪みは
+// どれも0未満にならない値なので既定のまま。
+//
+// ブーケだけが負を許す。アタック判定のDBぶんは残高が足りなくても引く
+// （applyStellaKnightsCheckRollの「マイナスを許す」）ので、残高が-7のコマが普通に在りうる。
+// そこで下限0を付けると、そのコマを開いて何も変えずに「更新」を押しただけで
+// ブラウザのバリデーションに弾かれ、名前や画像まで保存できなくなる。
+//
+// DBは手で入れる値なので0〜DB_MAX（規則上ダイス追加は1回の判定で3個まで）。
+//
+// 入力欄のminとmax属性、保存時の丸め（getValues）の両方がこの表を読む。片方だけ直すと
+// 「入れられるのに保存で潰される」「弾かれて保存できない」が戻るので、読む先は
+// stellaKnightsInputBounds / clampStellaKnightsInputValue の2つに閉じてある。
+const DEFAULT_INPUT_BOUNDS = Object.freeze({ min: 0, max: null });
+const INPUT_BOUNDS = Object.freeze({
+  [BOUQUET_PARAM_ID]: Object.freeze({ min: null, max: null }),
+  [ATTACK_DICE_BONUS_PARAM_ID]: Object.freeze({ min: 0, max: DB_MAX })
+});
+
+/**
+ * 入力欄に付ける上下限。nullは「限らない」。
+ * @param {string} paramId
+ * @returns {{min: number|null, max: number|null}}
+ */
+export function stellaKnightsInputBounds(paramId) {
+  return INPUT_BOUNDS[paramId] ?? DEFAULT_INPUT_BOUNDS;
+}
+
+/**
+ * 入力欄の値を、そのパラメータの上下限へ丸めた整数にする。
+ * 空欄・数字でないものは0扱い。上限の無い欄に「1e999」と打つと Number() は Infinity を返し、
+ * そのまま書き込むと保存（JSON）でnullに化けるので、有限でないものも0で受ける。
+ * @param {string} paramId
+ * @param {unknown} raw
+ * @returns {number}
+ */
+export function clampStellaKnightsInputValue(paramId, raw) {
+  const { min, max } = stellaKnightsInputBounds(paramId);
+  const number = Number(raw);
+  let value = Number.isFinite(number) ? Math.trunc(number) : 0;
+  if (min !== null) value = Math.max(min, value);
+  if (max !== null) value = Math.min(max, value);
+  return value;
+}
+
 // 種別ごとに何を持つか。どれか1つだけ直すと画面はそれらしく動いてしまうので、
 // 表どうしの食い違いは test/stella-knights-type.test.js で止める。
 //   visibleParamIds  … キャラクター一覧へ出すこのプラグインのパラメータ（チャージは常に出さない）
@@ -550,7 +597,11 @@ function renderStellaKnightsCharacterPanel({
 
       const input = document.createElement('input');
       input.type = 'number';
-      input.min = '0';
+      // 下限0を全部に付けると、ブーケがマイナスのコマは何も変えずに「更新」を押しただけで
+      // 弾かれる（INPUT_BOUNDSの説明）。上下限はパラメータごとの表から引く。
+      const bounds = stellaKnightsInputBounds(paramId);
+      if (bounds.min !== null) input.min = String(bounds.min);
+      if (bounds.max !== null) input.max = String(bounds.max);
       input.step = '1';
       input.value = pendingValues.has(paramId)
         ? pendingValues.get(paramId)
@@ -572,8 +623,9 @@ function renderStellaKnightsCharacterPanel({
 
       dbInput = document.createElement('input');
       dbInput.type = 'number';
-      dbInput.min = '0';
-      dbInput.max = String(DB_MAX);
+      const dbBounds = stellaKnightsInputBounds(ATTACK_DICE_BONUS_PARAM_ID);
+      dbInput.min = String(dbBounds.min);
+      dbInput.max = String(dbBounds.max);
       dbInput.step = '1';
       dbInput.title = `この判定で足すダイスの数（0〜${DB_MAX}）。`
         + `「8SK4」のようなアタック判定を振るたび、この数×${DICE_ADD_COST_PER_DIE}のブーケを自動で払います。`
@@ -658,16 +710,16 @@ function renderStellaKnightsCharacterPanel({
 
   return {
     // 描いた行だけを返す（シースに切り替えても、持っている防御力などを0で潰さない）。
-    // どれも0未満にはならない値なので、ここで下限を切っておく
-    // （ブーケが負のままだとプチラッキーの残高の判定が意味を失う）。
+    // 丸めは入力欄と同じ表（INPUT_BOUNDS）を読む。ブーケだけは負のまま通す——
+    // 判定でマイナスまで引かれた残高を、開いて閉じただけで0へ戻してしまわないため。
     getValues: () => ({
       [CHAR_TYPE_PARAM_ID]: charType,
       ...Object.fromEntries(rows.map(({ paramId, input }) => [
-        paramId, Math.max(0, Math.trunc(Number(input.value) || 0))
+        paramId, clampStellaKnightsInputValue(paramId, input.value)
       ])),
       // 描いた種別のときだけ返す（シースへ切り替えて保存しても、持っていた値を0で潰さない）
       ...(dbInput
-        ? { [ATTACK_DICE_BONUS_PARAM_ID]: Math.min(DB_MAX, Math.max(0, Math.trunc(Number(dbInput.value) || 0))) }
+        ? { [ATTACK_DICE_BONUS_PARAM_ID]: clampStellaKnightsInputValue(ATTACK_DICE_BONUS_PARAM_ID, dbInput.value) }
         : {})
     }),
     // 見え方を揃えるのは、このダイアログで種別を切り替えたときだけ。切り替えていなければ
